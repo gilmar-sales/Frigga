@@ -1,0 +1,19 @@
+[submodule "Vendor/glbinding"]
+	path = Vendor/glbinding
+	url = https://github.com/cginternals/glbinding.git
+[submodule "Vendor/glm"]
+	path = Vendor/glm
+	url = https://github.com/g-truc/glm.git
+[submodule "Vendor/glfw"]
+	path = Vendor/glfw
+	url = https://github.com/glfw/glfw
+[submodule "Vendor/fmt"]
+	path = Vendor/fmt
+	url = https://github.com/fmtlib/fmt.git
+[submodule "Vendor/imgui"]
+	path = Vendor/imgui
+	url = https://github.com/ocornut/imgui
+	branch = docking
+[submodule "Vendor/Freyr"]
+	path = Vendor/Freyr
+	url = https://github.com/gilmar-sales/Freyr.git
