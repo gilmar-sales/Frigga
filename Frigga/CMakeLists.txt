@@ -1,6 +1,6 @@
 file(GLOB_RECURSE FRIGGA_SRC *.cpp)
 
-find_package(OpenGL REQUIRED)
+find_package(Vulkan REQUIRED)
 
 add_library(frigga ${FRIGGA_SRC})
 
@@ -17,12 +17,11 @@ target_include_directories(frigga INTERFACE
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         ${CMAKE_CURRENT_SOURCE_DIR})
 
+target_include_directories(frigga PUBLIC ${Vulkan_INCLUDE_DIRS})
+
 target_link_libraries(frigga PUBLIC
-	glbinding::glbinding 
-    glbinding::glbinding-aux
-	glfw
-    glm
-    imgui
-	fmt
+    Freya::Freya
     freyr::freyr
+    imgui::imgui
+    ${Vulkan_LIBRARIES}
 )

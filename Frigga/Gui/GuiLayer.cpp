@@ -1,16 +1,10 @@
 #include "Gui/GuiLayer.hpp"
 
-#include <GLFW/glfw3.h>
-#include <glbinding/gl/gl.h>
-#include <glbinding/glbinding.h>
-
-#include "Core/Application.hpp"
-
 #include "Gui/Styles/Styles.hpp"
 
 FRIGGA_BEGIN
 
-GuiLayer::GuiLayer(shared<Window> window): Layer("GuiLayer"), window(window) {}
+GuiLayer::GuiLayer(Ref<fra::Window> window): Layer("GuiLayer"), mWindow(window) {}
 
 void GuiLayer::onAttach()
 {
@@ -27,16 +21,18 @@ void GuiLayer::onAttach()
 
     StylePhantomDark();
 
-    auto *native_window = (GLFWwindow *)(window->getNativeWindow());
+    auto native_window = mWindow->Get();
 
-    ImGui_ImplGlfw_InitForOpenGL(native_window, true);
-    ImGui_ImplOpenGL3_Init("#version 410");
+    auto imguiSdl3VulkanInitInfo = ImGui_ImplVulkan_InitInfo{};
+
+    ImGui_ImplSDL3_InitForVulkan(native_window);
+    ImGui_ImplVulkan_Init(&imguiSdl3VulkanInitInfo);
 }
 
 void GuiLayer::onDettach()
 {
-    ImGui_ImplOpenGL3_Shutdown();
-    ImGui_ImplGlfw_Shutdown();
+    ImGui_ImplVulkan_Shutdown();
+    ImGui_ImplSDL3_Shutdown();
     ImGui::DestroyContext();
 }
 
@@ -52,25 +48,23 @@ void GuiLayer::onEvent(Event &event)
 
 void GuiLayer::begin()
 {
-    ImGui_ImplOpenGL3_NewFrame();
-    ImGui_ImplGlfw_NewFrame();
+    ImGui_ImplVulkan_NewFrame();
+    ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
 }
 
 void GuiLayer::end()
 {
     ImGuiIO &io    = ImGui::GetIO();
-    io.DisplaySize = ImVec2((float)Application::GetWindow()->getWidth(), (float)Application::GetWindow()->getHeight());
+    io.DisplaySize = ImVec2((float)mWindow->GetWidth(), (float)mWindow->GetHeight());
 
     ImGui::Render();
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    // ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData());
 
     if(io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
     {
-        GLFWwindow *backup_current_context = glfwGetCurrentContext();
         ImGui::UpdatePlatformWindows();
         ImGui::RenderPlatformWindowsDefault();
-        glfwMakeContextCurrent(backup_current_context);
     }
 }
 

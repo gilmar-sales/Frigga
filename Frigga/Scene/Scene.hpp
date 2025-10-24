@@ -1,22 +1,23 @@
 #pragma once
 
-#include "Renderer/SceneRenderer.hpp"
-
-#include "ECS/World.hpp"
+#include <Freya/Core/Renderer.hpp>
+#include <Skirnir/Skirnir.hpp>
 
 FRIGGA_BEGIN
 
 class Scene
 {
   public:
-    Scene();
+    Scene(const Ref<fra::Renderer> &renderer, const Ref<skr::Logger<Scene>> &logger);
     ~Scene() = default;
 
-    void update();
+    void Update(float ts);
 
-    void onEditorRender(shared<SceneRenderer> renderer, double ts);
+    void OnEditorRender(float ts);
 
-    World m_world;
+  private:
+    Ref<fra::Renderer> mRenderer;
+    Ref<skr::Logger<Scene>> mLogger;
 };
 
 FRIGGA_END

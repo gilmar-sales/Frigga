@@ -1,20 +1,16 @@
 #pragma once
 
-#include <Freyr/Core/BaseSystem.hpp>
-
-#include "../Design.hpp"
+#include <Freyr/Freyr.hpp>
 
 FRIGGA_BEGIN
 
-class PhysicsSystem : public freyr::BaseSystem
+class PhysicsSystem: public fr::System
 {
   public:
-    using Signature = std::tuple<TransformComponent>;
-
-    PhysicsSystem()  = default;
+    PhysicsSystem(Ref<fr::Scene> scene): fr::System(scene) {}
     ~PhysicsSystem() = default;
 
-    void onUpdate() override;
+    void Update(float deltaTime) override;
 };
 
 FRIGGA_END

@@ -1,7 +1,6 @@
 #include "Game.hpp"
 
 #include <Renderer/FrameBuffer.hpp>
-#include <imgui.h>
 
 #include "../BootstrapIconsFont.h"
 

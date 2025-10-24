@@ -1,15 +1,12 @@
 #include "PhysicsSystem.hpp"
 
-#include "../World.hpp"
+#include "../Components/TransformComponent.hpp"
 
 FRIGGA_BEGIN
 
-void PhysicsSystem::onUpdate()
+void PhysicsSystem::Update(float deltaTime)
 {
-    for(auto entity: getRegisteredEntities())
-    {
-        TransformComponent &transform = world->getComponent<TransformComponent>(entity);
-
+    mScene->ForEach<TransformComponent>([deltaTime](auto entity, auto &transform) {
         if(transform.position.x > 100000)
         {
             transform.position.x -= 1;
@@ -20,9 +17,7 @@ void PhysicsSystem::onUpdate()
         }
         transform.position.y += 1;
         transform.position.z += 1;
-
-        // PH_CORE_INFO("phys process entity {}", entity);
-    }
+    });
 }
 
 FRIGGA_END

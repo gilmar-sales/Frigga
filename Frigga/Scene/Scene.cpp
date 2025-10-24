@@ -1,23 +1,22 @@
 #include "Scene/Scene.hpp"
 
-#include "Core/Log.hpp"
-
 FRIGGA_BEGIN
 
-Scene::Scene(): m_world(1024u)
+Scene::Scene(const Ref<fra::Renderer> &renderer, const Ref<skr::Logger<Scene>> &logger)
+    : mRenderer(renderer), mLogger(logger)
 {
-    auto camera = m_world.createEntity();
+    // auto camera = m_world.createEntity();
 
-    m_world.addComponents(camera, NameComponent{"Main Camera"}, TransformComponent{});
-    m_world.addTag<MainCameraTag>(camera);
+    // m_world.addComponents(camera, NameComponent{"Main Camera"}, TransformComponent{});
+    // m_world.addTag<MainCameraTag>(camera);
 }
 
-void Scene::update()
+void Scene::Update(float ts)
 {
-    FG_LOG_TRACE("scene update");
-    m_world.update();
+    mLogger->LogTrace("scene update");
+    // m_world.update();
 }
 
-void Scene::onEditorRender(shared<SceneRenderer> renderer, double ts) {}
+void Scene::OnEditorRender(float ts) {}
 
 FRIGGA_END

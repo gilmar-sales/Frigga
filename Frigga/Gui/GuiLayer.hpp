@@ -1,18 +1,18 @@
 #pragma once
 
-#include "Core/Layer.hpp"
-#include "Core/Window.hpp"
+#include "Freya/Freya.hpp"
 
-#include <backends/imgui_impl_glfw.h>
-#include <backends/imgui_impl_opengl3.h>
-#include <imgui.h>
+#include "Backends/imgui_impl_sdl3.h"
+#include "Backends/imgui_impl_vulkan.h"
+
+#include "Core/Layer.hpp"
 
 FRIGGA_BEGIN
 
 class GuiLayer: public Layer
 {
   public:
-    GuiLayer(shared<Window> window);
+    GuiLayer(Ref<fra::Window> window);
     ~GuiLayer() = default;
 
     virtual void onAttach() override;
@@ -31,8 +31,8 @@ class GuiLayer: public Layer
     void configureStyle();
 
     bool m_blockEvents = true;
-    float m_time        = 0.9f;
-    shared<Window> window;
+    float m_time       = 0.9f;
+    Ref<fra::Window> mWindow;
 };
 
 FRIGGA_END
