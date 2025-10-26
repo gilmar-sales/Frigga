@@ -57,7 +57,7 @@ namespace FRIGGA_NAMESPACE
 
     class Event
     {
-        friend class Application;
+        friend class AbstractApplication;
         friend class EventDispatcher;
 
       public:

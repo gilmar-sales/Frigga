@@ -10,7 +10,11 @@ namespace FRIGGA_NAMESPACE
     class GuiLayer: public Layer
     {
       public:
-        GuiLayer(Ref<fra::Window> window);
+        GuiLayer(Ref<skr::ServiceProvider> serviceProvider)
+            : fg::Layer("GuiLayer"), mServiceProvider(serviceProvider)
+        {
+        }
+
         ~GuiLayer() = default;
 
         virtual void onAttach() override;
@@ -30,7 +34,7 @@ namespace FRIGGA_NAMESPACE
 
         bool m_blockEvents = true;
         float m_time       = 0.9f;
-        Ref<fra::Window> mWindow;
+        Ref<skr::ServiceProvider> mServiceProvider;
     };
 
 } // namespace FRIGGA_NAMESPACE

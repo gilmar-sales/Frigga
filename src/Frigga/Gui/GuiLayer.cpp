@@ -7,7 +7,6 @@
 
 namespace FRIGGA_NAMESPACE
 {
-    GuiLayer::GuiLayer(Ref<fra::Window> window): fg::Layer("GuiLayer"), mWindow(window) {}
 
     void GuiLayer::onAttach()
     {
@@ -24,9 +23,20 @@ namespace FRIGGA_NAMESPACE
 
         StylePhantomDark();
 
-        auto native_window = mWindow->Get();
+        auto native_window = mServiceProvider->GetService<fra::Window>()->Get();
 
-        auto imguiSdl3VulkanInitInfo = ImGui_ImplVulkan_InitInfo{};
+        auto imguiSdl3VulkanInitInfo     = ImGui_ImplVulkan_InitInfo{};
+        imguiSdl3VulkanInitInfo.Instance = mServiceProvider->GetService<fra::Instance>()->Get();
+        imguiSdl3VulkanInitInfo.PhysicalDevice =
+            mServiceProvider->GetService<fra::PhysicalDevice>()->Get();
+        imguiSdl3VulkanInitInfo.Device = mServiceProvider->GetService<fra::Device>()->Get();
+        imguiSdl3VulkanInitInfo.Queue =
+            mServiceProvider->GetService<fra::Device>()->GetGraphicsQueue();
+        imguiSdl3VulkanInitInfo.ImageCount         = 4;
+        imguiSdl3VulkanInitInfo.MinImageCount      = 2;
+        imguiSdl3VulkanInitInfo.DescriptorPoolSize = 32;
+        imguiSdl3VulkanInitInfo.PipelineInfoMain.RenderPass =
+            mServiceProvider->GetService<fra::RenderPass>()->Get();
 
         ImGui_ImplSDL3_InitForVulkan(native_window);
         ImGui_ImplVulkan_Init(&imguiSdl3VulkanInitInfo);
@@ -58,11 +68,15 @@ namespace FRIGGA_NAMESPACE
 
     void GuiLayer::end()
     {
+        auto window = mServiceProvider->GetService<fra::Window>();
+
         ImGuiIO &io    = ImGui::GetIO();
-        io.DisplaySize = ImVec2((float)mWindow->GetWidth(), (float)mWindow->GetHeight());
+        io.DisplaySize = ImVec2((float)window->GetWidth(), (float)window->GetHeight());
 
         ImGui::Render();
-        // ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData());
+        ImGui_ImplVulkan_RenderDrawData(
+            ImGui::GetDrawData(),
+            mServiceProvider->GetService<fra::CommandPool>()->GetCommandBuffer());
 
         if(io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
         {

@@ -31,7 +31,8 @@ namespace FRIGGA_NAMESPACE
 
     void FriggaExtension::ConfigureServices(skr::ServiceCollection &services)
     {
-        services.AddScoped<fg::Scene>();
-        services.AddScoped<fg::LayerStack>();
+        services.AddTransient<fg::Scene>();
+        services.AddTransient<fg::LayerStack>();
+        services.AddTransient<fg::GuiLayer>();
     }
 } // namespace FRIGGA_NAMESPACE

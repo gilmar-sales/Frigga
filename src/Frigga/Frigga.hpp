@@ -1,8 +1,10 @@
 #pragma once
 
-#include <Skirnir/Skirnir.hpp>
 #include <Freya/Freya.hpp>
 #include <Freyr/Freyr.hpp>
+#include <Skirnir/Skirnir.hpp>
+
+#include "Frigga/Core/AbstractApplication.hpp"
 
 namespace FRIGGA_NAMESPACE
 {

@@ -8,17 +8,17 @@ namespace FRIGGA_NAMESPACE
     class LayerStack
     {
       private:
-        std::vector<Layer *> m_layers;
+        std::vector<Ref<Layer>> m_layers;
         unsigned m_lastIndex;
 
       public:
         LayerStack(): m_lastIndex(0) {};
         ~LayerStack();
 
-        void pushLayer(Layer *layer);
-        void pushOverlay(Layer *layer);
-        void popLayer(Layer *layer);
-        void popOverlay(Layer *layer);
+        void pushLayer(Ref<Layer> layer);
+        void pushOverlay(Ref<Layer> layer);
+        void popLayer(Ref<Layer> layer);
+        void popOverlay(Ref<Layer> layer);
 
         auto begin()
         {
