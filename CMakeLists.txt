@@ -1,25 +1,24 @@
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.28)
 
-project("Frigga Engine" LANGUAGES CXX)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+project(Frigga LANGUAGES CXX VERSION 0.2.0)
 
 set(CMAKE_CXX_STANDARD 23)
-
-add_subdirectory(Frigga)
-add_subdirectory(Editor)
 
 include(FetchContent)
 
 FetchContent_Declare(
   freyr
   GIT_REPOSITORY "https://github.com/gilmar-sales/Freyr.git"
-  GIT_TAG        "v0.12.4"
+  GIT_TAG        "v0.12.5"
 )
 FetchContent_MakeAvailable(freyr)
 
 FetchContent_Declare(
   freya
   GIT_REPOSITORY "https://github.com/gilmar-sales/Freya.git"
-  GIT_TAG        "v0.8.6"
+  GIT_TAG        "v0.9.0"
 )
 FetchContent_MakeAvailable(freya)
 
@@ -30,3 +29,30 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(imgui)
 
+file(GLOB_RECURSE FRIGGA_SRC src/Frigga/*.cpp src/Frigga/*.hpp)
+
+add_library(frigga ${FRIGGA_SRC})
+add_library(frigga::frigga ALIAS frigga)
+
+target_compile_features(frigga PUBLIC cxx_std_23)
+
+if(MSVC)
+    target_compile_options(frigga PUBLIC "/ZI")
+    target_link_options(frigga PUBLIC "/INCREMENTAL")
+endif()
+
+target_precompile_headers(frigga PUBLIC "src/Frigga/pch.hpp")
+
+target_include_directories(frigga INTERFACE
+        PUBLIC
+        $<INSTALL_INTERFACE:include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        src)
+
+target_include_directories(frigga PUBLIC ${Vulkan_INCLUDE_DIRS})
+
+target_link_libraries(frigga PUBLIC
+        Freya::Freya
+        freyr::freyr
+        imgui::imgui
+)
