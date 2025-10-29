@@ -8,7 +8,6 @@
 HierarchyLayer::HierarchyLayer(Ref<fr::Scene> scene)
     : mFreyrScene(scene), selectionContext(-1), nodeToRename(-1)
 {
-    for(auto i = 0; i < 10; i++) createEmptyEntity();
 }
 
 void HierarchyLayer::createEmptyEntity()

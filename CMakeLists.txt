@@ -18,7 +18,7 @@ FetchContent_MakeAvailable(freyr)
 FetchContent_Declare(
         freya
         GIT_REPOSITORY "https://github.com/gilmar-sales/Freya.git"
-        GIT_TAG "v0.10.0"
+        GIT_TAG "v0.11.0"
 )
 FetchContent_MakeAvailable(freya)
 
@@ -72,3 +72,4 @@ target_link_libraries(Editor PUBLIC
 )
 
 target_compile_features(Editor PUBLIC cxx_std_23)
+file(COPY src/Editor/Resources DESTINATION ${CMAKE_BINARY_DIR})

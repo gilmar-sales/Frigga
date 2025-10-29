@@ -2,15 +2,28 @@
 
 #include "BoostrapIconsFont.hpp"
 #include "Panels/PreferencesLayer.hpp"
+#include "Workflows/EcsWorkflow.hpp"
+#include "Workflows/GamePlayWorkflow.hpp"
 
 #include <cmath>
 #include <imgui.h>
 
 #include <Frigga/Gui/Extensions/Extensions.hpp>
 
-MainLayer::MainLayer(Ref<fg::Scene> scene, Ref<fg::LayerStack> layerStack, Ref<fra::Window> window)
+MainLayer::MainLayer(Ref<fg::Scene> scene, Ref<fg::LayerStack> layerStack, Ref<fra::Window> window,
+                     Ref<skr::ServiceProvider> serviceProvider)
     : fg::Layer("Dock Layer"), mScene(scene), mLayerStack(layerStack), mWindow(window)
 {
+    m_tabIds = {
+        {"Gameplay",  serviceProvider->GetService<GamePlayWorkflow>()},
+        {"Animation", serviceProvider->GetService<EcsWorkflow>()     },
+        {"Audio",     serviceProvider->GetService<EcsWorkflow>()     },
+        {"Shading",   serviceProvider->GetService<EcsWorkflow>()     },
+        {"Scripting", serviceProvider->GetService<EcsWorkflow>()     },
+        {"ECS",       serviceProvider->GetService<EcsWorkflow>()     }
+    };
+
+    m_activeTab = m_tabIds.begin()->second;
 }
 
 void MainLayer::onGui()
@@ -41,6 +54,8 @@ void MainLayer::onGui()
 
             ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), dockspace_flags);
         }
+
+        m_activeTab->onGui();
 
         drawTitleBar();
 
@@ -190,14 +205,14 @@ void MainLayer::drawMenuBar()
 
         ImGui::BeginTabBar("##GamePlayTabs");
 
-        // for(auto &tabPair: m_tabIds)
-        // {
-        //     if(ImGui::BeginTabItem(tabPair.first))
-        //     {
-        //         m_activeTab = tabPair.second;
-        //         ImGui::EndTabItem();
-        //     }
-        // }
+        for(auto &tabPair: m_tabIds)
+        {
+            if(ImGui::BeginTabItem(tabPair.first))
+            {
+                m_activeTab = tabPair.second;
+                ImGui::EndTabItem();
+            }
+        }
 
         ImGui::EndTabBar();
 

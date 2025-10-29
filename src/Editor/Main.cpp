@@ -2,6 +2,8 @@
 #include "Panels/HierarchyLayer.hpp"
 #include "Panels/PreferencesLayer.hpp"
 #include "Panels/ResourcesLayer.hpp"
+#include "Workflows/EcsWorkflow.hpp"
+#include "Workflows/GamePlayWorkflow.hpp"
 
 #include <Frigga/Frigga.hpp>
 
@@ -19,7 +21,9 @@ int main(int argc, char *argv[])
         .AddTransient<MainLayer>()
         .AddTransient<ResourcesLayer>()
         .AddTransient<HierarchyLayer>()
-        .AddTransient<PreferencesLayer>();
+        .AddTransient<PreferencesLayer>()
+        .AddTransient<GamePlayWorkflow>()
+        .AddTransient<EcsWorkflow>();
 
     auto app = appBuilder.Build<EditorApplication>();
 
