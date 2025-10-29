@@ -11,3 +11,7 @@ CTestTestfile.cmake
 _deps
 out
 .vs
+.vscode
+.idea
+build
+cmake-build-*
