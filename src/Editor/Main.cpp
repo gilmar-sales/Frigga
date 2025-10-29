@@ -1,4 +1,7 @@
 #include "EditorApplication.hpp"
+#include "Panels/HierarchyLayer.hpp"
+#include "Panels/PreferencesLayer.hpp"
+#include "Panels/ResourcesLayer.hpp"
 
 #include <Frigga/Frigga.hpp>
 
@@ -12,7 +15,11 @@ int main(int argc, char *argv[])
                               });
                           });
 
-    appBuilder.GetServiceCollection().AddTransient<MainLayer>();
+    appBuilder.GetServiceCollection()
+        .AddTransient<MainLayer>()
+        .AddTransient<ResourcesLayer>()
+        .AddTransient<HierarchyLayer>()
+        .AddTransient<PreferencesLayer>();
 
     auto app = appBuilder.Build<EditorApplication>();
 

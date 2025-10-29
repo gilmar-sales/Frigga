@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Backends/imgui_impl_sdl3.h"
 #include "Freya/Freya.hpp"
 
 #include "Frigga/Core/Layer.hpp"
@@ -13,6 +14,8 @@ namespace FRIGGA_NAMESPACE
         GuiLayer(Ref<skr::ServiceProvider> serviceProvider)
             : fg::Layer("GuiLayer"), mServiceProvider(serviceProvider)
         {
+            mServiceProvider->GetService<fra::Window>()->AddEventPollCallback(
+                [](SDL_Event event) { ImGui_ImplSDL3_ProcessEvent(&event); });
         }
 
         ~GuiLayer() = default;

@@ -17,11 +17,7 @@ namespace FRIGGA_NAMESPACE
         AbstractApplication(const Ref<skr::ServiceProvider> &serviceProvider)
             : fra::AbstractApplication(serviceProvider)
         {
-            mLayerStack = mRootServiceProvider->GetService<LayerStack>();
-            mScene      = mRootServiceProvider->GetService<Scene>();
-            mGuiLayer   = mRootServiceProvider->GetService<GuiLayer>();
-
-            PushLayer(mGuiLayer);
+            createScope();
         }
 
         ~AbstractApplication();
@@ -33,10 +29,15 @@ namespace FRIGGA_NAMESPACE
         void PushLayer(Ref<Layer> layer);
         void PushOverlay(Ref<Layer> layer);
 
-      private:
-        Ref<LayerStack> mLayerStack;
-        Ref<Scene> mScene;
-        Ref<GuiLayer> mGuiLayer;
+      protected:
+        void createScope()
+        {
+            mScope = mRootServiceProvider->CreateServiceScope();
+
+            PushLayer(mScope->GetServiceProvider()->GetService<GuiLayer>());
+        }
+
+        Ref<skr::ServiceScope> mScope;
     };
 
 } // namespace FRIGGA_NAMESPACE

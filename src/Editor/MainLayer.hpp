@@ -6,7 +6,7 @@
 class MainLayer: public fg::Layer
 {
   public:
-    MainLayer(Ref<fg::Scene> scene, Ref<fg::LayerStack> layerStack);
+    MainLayer(Ref<fg::Scene> scene, Ref<fg::LayerStack> layerStack, Ref<fra::Window> window);
     ~MainLayer() = default;
 
     virtual void onGui() override;
@@ -15,6 +15,7 @@ class MainLayer: public fg::Layer
     void drawMenuBar();
 
   private:
-    Ref<fg::Scene> m_scene;
-    Ref<fg::LayerStack> m_layerStack;
+    Ref<fg::Scene> mScene;
+    Ref<fg::LayerStack> mLayerStack;
+    Ref<fra::Window> mWindow;
 };

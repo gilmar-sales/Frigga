@@ -4,40 +4,43 @@ namespace FRIGGA_NAMESPACE
 {
     AbstractApplication::~AbstractApplication()
     {
-        for(Ref layer: *mLayerStack)
+        auto layerStack = mScope->GetServiceProvider()->GetService<LayerStack>();
+        for(Ref layer: *layerStack)
         {
             layer->onDettach();
         }
-
-        mGuiLayer->onDettach();
     }
 
     void AbstractApplication::OnEvent(Event &event) {}
 
     void AbstractApplication::PushLayer(Ref<Layer> layer)
     {
-        mLayerStack->pushLayer(layer);
+        auto layerStack = mScope->GetServiceProvider()->GetService<LayerStack>();
+        layerStack->pushLayer(layer);
     }
 
     void AbstractApplication::PushOverlay(Ref<Layer> layer)
     {
-        mLayerStack->pushOverlay(layer);
+        auto layerStack = mScope->GetServiceProvider()->GetService<LayerStack>();
+        layerStack->pushOverlay(layer);
     }
 
     void AbstractApplication::Update()
     {
+        auto layerStack = mScope->GetServiceProvider()->GetService<LayerStack>();
         mRenderer->BeginFrame();
-        for(Ref layer: *mLayerStack)
+        for(Ref layer: *layerStack)
         {
             layer->onUpdate();
         }
 
-        mGuiLayer->begin();
-        for(Ref layer: *mLayerStack)
+        auto guiLayer = mScope->GetServiceProvider()->GetService<GuiLayer>();
+        guiLayer->begin();
+        for(Ref layer: *layerStack)
         {
             layer->onGui();
         }
-        mGuiLayer->end();
+        guiLayer->end();
 
         mRenderer->EndFrame();
     }

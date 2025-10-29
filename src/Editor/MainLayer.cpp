@@ -1,12 +1,15 @@
 #include "MainLayer.hpp"
 
+#include "BoostrapIconsFont.hpp"
+#include "Panels/PreferencesLayer.hpp"
+
 #include <cmath>
 #include <imgui.h>
 
 #include <Frigga/Gui/Extensions/Extensions.hpp>
 
-MainLayer::MainLayer(Ref<fg::Scene> scene, Ref<fg::LayerStack> layerStack)
-    : fg::Layer("Dock Layer"), m_scene(scene), m_layerStack(layerStack)
+MainLayer::MainLayer(Ref<fg::Scene> scene, Ref<fg::LayerStack> layerStack, Ref<fra::Window> window)
+    : fg::Layer("Dock Layer"), mScene(scene), mLayerStack(layerStack), mWindow(window)
 {
 }
 
@@ -83,31 +86,31 @@ void MainLayer::drawMenuBar()
     {
         if(ImGui::BeginMenu("File"))
         {
-            // if(ImGui::MenuItem(ICON_BTSP_FOLDERPLUS " New Project...", "Ctrl+N"))
-            // { /* Do stuff */
-            // }
-            // ImGui::Separator();
-            // if(ImGui::MenuItem(ICON_BTSP_FOLDEROPEN " Open Project...", "Ctrl+O"))
-            // { /* Do stuff */
-            // }
-            // if(ImGui::MenuItem(ICON_BTSP_FOLDER " Open Recent"))
-            // { /* Do stuff */
-            // }
-            // ImGui::Separator();
-            // if(ImGui::MenuItem(ICON_BTSP_FOLDERSYMLINK " Save", "Ctrl+S"))
-            // { /* Do stuff */
-            // }
-            // if(ImGui::MenuItem(ICON_BTSP_FOLDERSYMLINK " Save As...", "Ctrl+Shift+S"))
-            // { /* Do stuff */
-            // }
-            // ImGui::Separator();
-            // if(ImGui::MenuItem(ICON_BTSP_FOLDERDASH " Close Project", "Ctrl+W"))
-            // {
-            // }
-            // if(ImGui::MenuItem(ICON_BTSP_SHUTDOWN " Close Phantom", "Alt+F4"))
-            // {
-            //     fg::Application::GetWindow()->close();
-            // }
+            if(ImGui::MenuItem(ICON_BTSP_FOLDERPLUS " New Project...", "Ctrl+N"))
+            { /* Do stuff */
+            }
+            ImGui::Separator();
+            if(ImGui::MenuItem(ICON_BTSP_FOLDEROPEN " Open Project...", "Ctrl+O"))
+            { /* Do stuff */
+            }
+            if(ImGui::MenuItem(ICON_BTSP_FOLDER " Open Recent"))
+            { /* Do stuff */
+            }
+            ImGui::Separator();
+            if(ImGui::MenuItem(ICON_BTSP_FOLDERSYMLINK " Save", "Ctrl+S"))
+            { /* Do stuff */
+            }
+            if(ImGui::MenuItem(ICON_BTSP_FOLDERSYMLINK " Save As...", "Ctrl+Shift+S"))
+            { /* Do stuff */
+            }
+            ImGui::Separator();
+            if(ImGui::MenuItem(ICON_BTSP_FOLDERDASH " Close Project", "Ctrl+W"))
+            {
+            }
+            if(ImGui::MenuItem(ICON_BTSP_SHUTDOWN " Close Phantom", "Alt+F4"))
+            {
+                mWindow->Close();
+            }
             ImGui::EndMenu();
         }
 
@@ -130,10 +133,10 @@ void MainLayer::drawMenuBar()
             { /* Do stuff */
             }
             ImGui::Separator();
-            // if(ImGui::MenuItem(ICON_BTSP_GEAR " Preferences...", "Ctrl+,"))
-            // {
-            //     PreferencesLayer::IsOpen = true;
-            // }
+            if(ImGui::MenuItem(ICON_BTSP_GEAR " Preferences...", "Ctrl+,"))
+            {
+                PreferencesLayer::IsOpen = true;
+            }
 
             ImGui::EndMenu();
         }
