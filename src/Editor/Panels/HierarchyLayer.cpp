@@ -82,8 +82,8 @@ void HierarchyLayer::drawEntityNode(unsigned entity, fg::NameComponent &name)
     bool opened = ImGui::TreeNodeEx((void *)entity, flags, "%s", name.name.data());
 
     bool entityDeleted   = false;
-    std::string popUpId  = fmt::format("##PopUp{}", entity);
-    std::string renameId = fmt::format("##Rename{}", entity);
+    std::string popUpId  = std::format("##PopUp{}", entity);
+    std::string renameId = std::format("##Rename{}", entity);
     if(ImGui::BeginPopupContextItem(popUpId.data()))
     {
         if(ImGui::MenuItem("Delete")) entityDeleted = true;
