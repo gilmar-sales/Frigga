@@ -13,7 +13,7 @@ class EditorApplication final: public fg::AbstractApplication
 {
   public:
     EditorApplication(const Ref<skr::ServiceProvider> &serviceProvider)
-        : AbstractApplication(serviceProvider)
+        : AbstractApplication(serviceProvider), mScene(serviceProvider->GetService<fr::Scene>())
     {
         PushLayer(mScope->GetServiceProvider()->GetService<MainLayer>());
         PushLayer(mScope->GetServiceProvider()->GetService<PreferencesLayer>());
@@ -38,5 +38,8 @@ class EditorApplication final: public fg::AbstractApplication
                                      icons_ranges);
     }
 
+    void Update() override;
+
   private:
+    Ref<fr::Scene> mScene;
 };

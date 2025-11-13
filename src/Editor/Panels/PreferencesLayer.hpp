@@ -5,7 +5,10 @@
 class PreferencesLayer: public fg::Layer
 {
   public:
-    PreferencesLayer(const Ref<fra::Window> &window): fg::Layer("Preferences"), mWindow(window) {}
+    PreferencesLayer(const Ref<fra::Window> &window, const Ref<fra::Renderer> &renderer)
+        : fg::Layer("Preferences"), mWindow(window), mRenderer(renderer)
+    {
+    }
     ~PreferencesLayer() = default;
 
     void onGui() override;
@@ -14,4 +17,5 @@ class PreferencesLayer: public fg::Layer
 
   private:
     Ref<fra::Window> mWindow;
+    Ref<fra::Renderer> mRenderer;
 };

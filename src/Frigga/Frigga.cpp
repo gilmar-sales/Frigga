@@ -1,6 +1,7 @@
 #include "Frigga.hpp"
 
 #include "Core/LayerStack.hpp"
+#include "ECS/Components/MeshComponent.hpp"
 #include "Scene/Scene.hpp"
 
 #include "ECS/Components/NameComponent.hpp"
@@ -16,6 +17,7 @@ namespace FRIGGA_NAMESPACE
             .AddExtension<fr::FreyrExtension>([](fr::FreyrExtension &freyr) {
                 freyr.AddComponent<NameComponent>()
                     .AddComponent<TransformComponent>()
+                    .AddComponent<MeshComponent>()
                     .AddSystem<PhysicsSystem>()
                     .AddSystem<RenderSystem>();
             })

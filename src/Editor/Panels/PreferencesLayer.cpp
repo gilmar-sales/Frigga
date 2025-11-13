@@ -12,10 +12,10 @@ void PreferencesLayer::onGui()
         if(ImGui::Begin("Preferences ", &IsOpen,
                         ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize))
         {
-            static bool VSync = false;
+            bool VSync = mRenderer->GetVSync();
             if(ImGui::Checkbox("VSync", &VSync))
             {
-                // mWindow->SetVSync(VSync);
+                mRenderer->SetVSync(VSync);
             }
 
             static int StyleIndex = 0;

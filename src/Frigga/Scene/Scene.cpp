@@ -10,11 +10,7 @@ namespace FRIGGA_NAMESPACE
                  const Ref<fr::Scene> &ecsScene)
         : mRenderer(renderer), mLogger(logger), mEcsScene(ecsScene)
     {
-        const auto camera = mEcsScene->CreateEntity();
-
-        mEcsScene->AddComponent(camera, NameComponent{.name = "Main Camera"});
-        mEcsScene->AddComponent(camera, TransformComponent{});
-        // m_world.addTag<MainCameraTag>(camera);
+        mEcsScene->CreateEntity(NameComponent{.name = "Main Camera"}, TransformComponent{});
     }
 
     void Scene::Update(float ts)

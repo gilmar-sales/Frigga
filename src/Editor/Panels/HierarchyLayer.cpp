@@ -1,5 +1,6 @@
 #include "HierarchyLayer.hpp"
 
+#include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/NameComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 
@@ -12,10 +13,13 @@ HierarchyLayer::HierarchyLayer(Ref<fr::Scene> scene)
 
 void HierarchyLayer::createEmptyEntity()
 {
-    auto entity = mFreyrScene->CreateEntity();
-    std::stringstream entity_name;
-    entity_name << "Empty(" << entity << ")";
-    mFreyrScene->AddComponent(entity, fg::NameComponent{.name = entity_name.str()});
+    mFreyrScene->CreateEntity(
+        [](auto entity, fg::NameComponent &name) {
+            std::stringstream entity_name;
+            entity_name << "Empty(" << entity << ")";
+            name.name = entity_name.str();
+        },
+        fg::NameComponent{});
 }
 
 void HierarchyLayer::onGui()
@@ -69,7 +73,7 @@ void HierarchyLayer::onGui()
 
     ImGui::Begin("Components");
 
-    if(selectionContext < mFreyrScene->Count<fg::NameComponent>()) drawComponents();
+    if(selectionContext != -1) drawComponents();
 
     ImGui::End();
 }
@@ -79,27 +83,29 @@ void HierarchyLayer::drawEntityNode(unsigned entity, fg::NameComponent &name)
     ImGuiTreeNodeFlags flags = ((selectionContext == entity) ? ImGuiTreeNodeFlags_Selected : 0) |
                                ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Leaf;
 
-    bool opened = ImGui::TreeNodeEx((void *)entity, flags, "%s", name.name.data());
+    bool opened =
+        ImGui::TreeNodeEx(reinterpret_cast<void *>(entity), flags, "%s", name.name.data());
 
-    bool entityDeleted   = false;
-    std::string popUpId  = std::format("##PopUp{}", entity);
-    std::string renameId = std::format("##Rename{}", entity);
+    const std::string popUpId  = std::format("##PopUp{}", entity);
+    const std::string renameId = std::format("##Rename{}", entity);
     if(ImGui::BeginPopupContextItem(popUpId.data()))
     {
-        if(ImGui::MenuItem("Delete")) entityDeleted = true;
+        if(ImGui::MenuItem("Delete"))
+        {
+            mFreyrScene->DestroyEntity(entity);
+            if(selectionContext == entity) selectionContext = -1;
+        }
 
         if(ImGui::MenuItem("Rename...")) nodeToRename = entity;
 
         if(ImGui::MenuItem("Add transform"))
         {
-            mFreyrScene->AddComponent<fg::TransformComponent>(entity);
-            // Log::core_info("Add transform component to {}", name);
+            mFreyrScene->AddComponents(entity, fg::TransformComponent{});
         }
 
         if(ImGui::MenuItem("Add mesh"))
         {
-            addMesh(entity);
-            // Log::app_info("Add mesh component to {}", name);
+            mFreyrScene->AddComponents(entity, fg::MeshComponent{});
         }
 
         ImGui::EndPopup();
@@ -121,15 +127,10 @@ void HierarchyLayer::drawEntityNode(unsigned entity, fg::NameComponent &name)
 
         if(ImGui::IsKeyReleased(ImGuiKey_Enter))
         {
-            mFreyrScene->GetComponent<fg::NameComponent>(entity).name = buffer;
-            nodeToRename                                              = -1;
+            mFreyrScene->TryGetComponents<fg::NameComponent>(
+                selectionContext, [](fg::NameComponent &name) { name.name = buffer; });
+            nodeToRename = -1;
         }
-    }
-
-    if(entityDeleted)
-    {
-        mFreyrScene->DestroyEntity(entity);
-        if(selectionContext == entity) selectionContext = -1;
     }
 
     if(opened) ImGui::TreePop();
@@ -137,39 +138,40 @@ void HierarchyLayer::drawEntityNode(unsigned entity, fg::NameComponent &name)
 
 void HierarchyLayer::drawComponents()
 {
-    if(mFreyrScene->HasComponent<fg::TransformComponent>(selectionContext))
-    {
-        auto &transform = mFreyrScene->GetComponent<fg::TransformComponent>(selectionContext);
+    mFreyrScene->TryGetComponents<fg::TransformComponent>(
+        selectionContext, [](fg::TransformComponent &transform) {
+            static glm::vec3 Rotation;
 
-        static glm::vec3 Rotation;
-        if(ImGui::CollapsingHeader("Transform Component", nullptr, ImGuiWindowFlags_ChildWindow))
-        {
-            ImGui::DragFloat3("##Position", &transform.position[0], 0.1f);
-
-            Rotation = glm::degrees(glm::eulerAngles(glm::normalize(transform.rotation)));
-
-            if(ImGui::DragFloat3("##Rotation", &Rotation[0], 0.1f))
+            if(ImGui::CollapsingHeader("Transform Component", nullptr,
+                                       ImGuiWindowFlags_ChildWindow))
             {
-                if(Rotation.y > 90.f)
-                {
-                    Rotation.x += 180;
-                    Rotation.x += 180;
-                }
-                if(Rotation.x > 180)
-                {
-                    Rotation.x = 360 - Rotation.x;
-                }
+                ImGui::DragFloat3("##Position", &transform.position[0], 0.1f);
 
-                auto radVec = glm::radians(Rotation);
+                Rotation = glm::degrees(glm::eulerAngles(glm::normalize(transform.rotation)));
 
-                transform.rotation = glm::quat(radVec);
+                if(ImGui::DragFloat3("##Rotation", &Rotation[0], 0.1f))
+                {
+                    if(Rotation.y > 90.f)
+                    {
+                        Rotation.x += 180;
+                        Rotation.x += 180;
+                    }
+                    if(Rotation.x > 180)
+                    {
+                        Rotation.x = 360 - Rotation.x;
+                    }
+
+                    auto radVec = glm::radians(Rotation);
+
+                    transform.rotation = glm::quat(radVec);
+                }
+                ImGui::DragFloat3("##Scale", &transform.scale[0], 0.1f);
             }
-            ImGui::DragFloat3("##Scale", &transform.scale[0], 0.1f);
-        }
-    }
-}
+        });
 
-void HierarchyLayer::addMesh(unsigned entity)
-{
-    // scene->m_world.addComponent<fg::MeshComponent>(entity);
+    mFreyrScene->TryGetComponents<fg::MeshComponent>(selectionContext, [](fg::MeshComponent &mesh) {
+        if(ImGui::CollapsingHeader("Mesh Component", nullptr, ImGuiWindowFlags_ChildWindow))
+        {
+        }
+    });
 }
