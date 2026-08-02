@@ -10,8 +10,8 @@
 
 #include <Frigga/Gui/Extensions/Extensions.hpp>
 
-MainLayer::MainLayer(Ref<fg::Scene> scene, Ref<fg::LayerStack> layerStack, Ref<fra::Window> window,
-                     Ref<skr::ServiceProvider> serviceProvider)
+MainLayer::MainLayer(skr::Arc<fg::Scene> scene, skr::Arc<fg::LayerStack> layerStack, skr::Arc<fra::Window> window,
+                     skr::Arc<skr::ServiceProvider> serviceProvider)
     : fg::Layer("Dock Layer"), mScene(scene), mLayerStack(layerStack), mWindow(window)
 {
     m_tabIds = {

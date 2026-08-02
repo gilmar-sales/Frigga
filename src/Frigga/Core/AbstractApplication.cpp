@@ -5,7 +5,7 @@ namespace FRIGGA_NAMESPACE
     AbstractApplication::~AbstractApplication()
     {
         auto layerStack = mScope->GetServiceProvider()->GetService<LayerStack>();
-        for(Ref layer: *layerStack)
+        for(const auto &layer : *layerStack)
         {
             layer->onDettach();
         }
@@ -13,13 +13,13 @@ namespace FRIGGA_NAMESPACE
 
     void AbstractApplication::OnEvent(Event &event) {}
 
-    void AbstractApplication::PushLayer(Ref<Layer> layer)
+    void AbstractApplication::PushLayer(skr::Arc<Layer> layer)
     {
         auto layerStack = mScope->GetServiceProvider()->GetService<LayerStack>();
         layerStack->pushLayer(layer);
     }
 
-    void AbstractApplication::PushOverlay(Ref<Layer> layer)
+    void AbstractApplication::PushOverlay(skr::Arc<Layer> layer)
     {
         auto layerStack = mScope->GetServiceProvider()->GetService<LayerStack>();
         layerStack->pushOverlay(layer);
@@ -29,14 +29,14 @@ namespace FRIGGA_NAMESPACE
     {
         auto layerStack = mScope->GetServiceProvider()->GetService<LayerStack>();
         mRenderer->BeginFrame();
-        for(Ref layer: *layerStack)
+        for(const auto &layer : *layerStack)
         {
             layer->onUpdate();
         }
 
         auto guiLayer = mScope->GetServiceProvider()->GetService<GuiLayer>();
         guiLayer->begin();
-        for(Ref layer: *layerStack)
+        for(const auto &layer : *layerStack)
         {
             layer->onGui();
         }

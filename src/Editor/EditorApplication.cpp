@@ -3,5 +3,5 @@
 void EditorApplication::Update()
 {
     AbstractApplication::Update();
-    mScene->ExecuteTasks();
+    mRegistry->ExecuteTasks();
 }

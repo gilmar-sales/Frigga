@@ -14,7 +14,7 @@ namespace FRIGGA_NAMESPACE
     class AbstractApplication: public fra::AbstractApplication
     {
       public:
-        AbstractApplication(const Ref<skr::ServiceProvider> &serviceProvider)
+        AbstractApplication(const skr::Arc<skr::ServiceProvider> &serviceProvider)
             : fra::AbstractApplication(serviceProvider)
         {
             createScope();
@@ -26,8 +26,8 @@ namespace FRIGGA_NAMESPACE
 
         void OnEvent(Event &event);
 
-        void PushLayer(Ref<Layer> layer);
-        void PushOverlay(Ref<Layer> layer);
+        void PushLayer(skr::Arc<Layer> layer);
+        void PushOverlay(skr::Arc<Layer> layer);
 
       protected:
         void createScope()
@@ -37,7 +37,7 @@ namespace FRIGGA_NAMESPACE
             PushLayer(mScope->GetServiceProvider()->GetService<GuiLayer>());
         }
 
-        Ref<skr::ServiceScope> mScope;
+        skr::Arc<skr::ServiceScope> mScope;
     };
 
 } // namespace FRIGGA_NAMESPACE

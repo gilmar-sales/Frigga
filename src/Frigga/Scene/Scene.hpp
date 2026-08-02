@@ -1,25 +1,27 @@
 #pragma once
 
 #include <Freya/Core/Renderer.hpp>
-#include <Skirnir/Skirnir.hpp>
 #include <Freyr/Freyr.hpp>
+#include <Skirnir/Skirnir.hpp>
 
-namespace FRIGGA_NAMESPACE {
-
-class Scene
+namespace FRIGGA_NAMESPACE
 {
-  public:
-    Scene(const Ref<fra::Renderer> &renderer, const Ref<skr::Logger<Scene>> &logger, const Ref<fr::Scene>& ecsScene);
-    ~Scene() = default;
 
-    void Update(float ts);
+    class Scene
+    {
+      public:
+        Scene(const skr::Arc<fra::Renderer> &renderer, const skr::Arc<skr::Logger<Scene>> &logger,
+              const skr::Arc<fr::Registry> &ecsRegistry);
+        ~Scene() = default;
 
-    void OnEditorRender(float ts);
+        void Update(float ts);
 
-  private:
-    Ref<fr::Scene> mEcsScene;
-    Ref<fra::Renderer> mRenderer;
-    Ref<skr::Logger<Scene>> mLogger;
-};
+        void OnEditorRender(float ts);
 
-}
+      private:
+        skr::Arc<fr::Registry> mEcsRegistry;
+        skr::Arc<fra::Renderer> mRenderer;
+        skr::Arc<skr::Logger<Scene>> mLogger;
+    };
+
+} // namespace FRIGGA_NAMESPACE

@@ -6,20 +6,25 @@
 
 #include <imgui.h>
 
-HierarchyLayer::HierarchyLayer(Ref<fr::Scene> scene)
-    : mFreyrScene(scene), selectionContext(-1), nodeToRename(-1)
+namespace
+{
+    constexpr fr::Entity InvalidEntity = static_cast<fr::Entity>(-1);
+}
+
+HierarchyLayer::HierarchyLayer(skr::Arc<fr::Registry> registry)
+    : mRegistry(std::move(registry)), selectionContext(InvalidEntity), nodeToRename(InvalidEntity)
 {
 }
 
 void HierarchyLayer::createEmptyEntity()
 {
-    mFreyrScene->CreateEntity(
+    mRegistry->CreateEntity(
         [](auto entity, fg::NameComponent &name) {
             std::stringstream entity_name;
             entity_name << "Empty(" << entity << ")";
             name.name = entity_name.str();
         },
-        fg::NameComponent{});
+        fg::NameComponent {});
 }
 
 void HierarchyLayer::onGui()
@@ -28,7 +33,7 @@ void HierarchyLayer::onGui()
 
     if(ImGui::IsMouseDown(0) && ImGui::IsWindowHovered())
     {
-        selectionContext = -1;
+        selectionContext = InvalidEntity;
     }
     else
     {
@@ -66,25 +71,26 @@ void HierarchyLayer::onGui()
         }
     }
 
-    mFreyrScene->ForEach<fg::NameComponent>(
+    mRegistry->CreateMutation()->Each<fg::NameComponent>(
         [this](auto entity, fg::NameComponent &name) { drawEntityNode(entity, name); });
 
     ImGui::End();
 
     ImGui::Begin("Components");
 
-    if(selectionContext != -1) drawComponents();
+    if(selectionContext != InvalidEntity) drawComponents();
 
     ImGui::End();
 }
 
-void HierarchyLayer::drawEntityNode(unsigned entity, fg::NameComponent &name)
+void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
 {
     ImGuiTreeNodeFlags flags = ((selectionContext == entity) ? ImGuiTreeNodeFlags_Selected : 0) |
                                ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Leaf;
 
     bool opened =
-        ImGui::TreeNodeEx(reinterpret_cast<void *>(entity), flags, "%s", name.name.data());
+        ImGui::TreeNodeEx(reinterpret_cast<void *>(static_cast<uintptr_t>(entity)), flags, "%s",
+                          name.name.data());
 
     const std::string popUpId  = std::format("##PopUp{}", entity);
     const std::string renameId = std::format("##Rename{}", entity);
@@ -92,20 +98,20 @@ void HierarchyLayer::drawEntityNode(unsigned entity, fg::NameComponent &name)
     {
         if(ImGui::MenuItem("Delete"))
         {
-            mFreyrScene->DestroyEntity(entity);
-            if(selectionContext == entity) selectionContext = -1;
+            mRegistry->DestroyEntity(entity);
+            if(selectionContext == entity) selectionContext = InvalidEntity;
         }
 
         if(ImGui::MenuItem("Rename...")) nodeToRename = entity;
 
         if(ImGui::MenuItem("Add transform"))
         {
-            mFreyrScene->AddComponents(entity, fg::TransformComponent{});
+            mRegistry->AddComponents(entity, fg::TransformComponent {});
         }
 
         if(ImGui::MenuItem("Add mesh"))
         {
-            mFreyrScene->AddComponents(entity, fg::MeshComponent{});
+            mRegistry->AddComponents(entity, fg::MeshComponent {});
         }
 
         ImGui::EndPopup();
@@ -127,9 +133,9 @@ void HierarchyLayer::drawEntityNode(unsigned entity, fg::NameComponent &name)
 
         if(ImGui::IsKeyReleased(ImGuiKey_Enter))
         {
-            mFreyrScene->TryGetComponents<fg::NameComponent>(
+            mRegistry->TryGetComponents<fg::NameComponent>(
                 selectionContext, [](fg::NameComponent &name) { name.name = buffer; });
-            nodeToRename = -1;
+            nodeToRename = InvalidEntity;
         }
     }
 
@@ -138,12 +144,11 @@ void HierarchyLayer::drawEntityNode(unsigned entity, fg::NameComponent &name)
 
 void HierarchyLayer::drawComponents()
 {
-    mFreyrScene->TryGetComponents<fg::TransformComponent>(
+    mRegistry->TryGetComponents<fg::TransformComponent>(
         selectionContext, [](fg::TransformComponent &transform) {
             static glm::vec3 Rotation;
 
-            if(ImGui::CollapsingHeader("Transform Component", nullptr,
-                                       ImGuiWindowFlags_ChildWindow))
+            if(ImGui::CollapsingHeader("Transform Component", nullptr, ImGuiWindowFlags_ChildWindow))
             {
                 ImGui::DragFloat3("##Position", &transform.position[0], 0.1f);
 
@@ -169,7 +174,7 @@ void HierarchyLayer::drawComponents()
             }
         });
 
-    mFreyrScene->TryGetComponents<fg::MeshComponent>(selectionContext, [](fg::MeshComponent &mesh) {
+    mRegistry->TryGetComponents<fg::MeshComponent>(selectionContext, [](fg::MeshComponent &mesh) {
         if(ImGui::CollapsingHeader("Mesh Component", nullptr, ImGuiWindowFlags_ChildWindow))
         {
         }

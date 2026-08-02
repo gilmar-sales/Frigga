@@ -1,24 +1,26 @@
-cmake_minimum_required(VERSION 3.28)
+cmake_minimum_required(VERSION 3.29)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 project(Frigga LANGUAGES CXX VERSION 0.2.0)
 
-set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD 26)
 
 include(FetchContent)
 
 FetchContent_Declare(
         freyr
         GIT_REPOSITORY "https://github.com/gilmar-sales/Freyr.git"
-        GIT_TAG "v0.15.8"
+        GIT_TAG "v0.28.0"
+        GIT_SHALLOW TRUE
 )
 FetchContent_MakeAvailable(freyr)
 
 FetchContent_Declare(
         freya
         GIT_REPOSITORY "https://github.com/gilmar-sales/Freya.git"
-        GIT_TAG "v0.11.1"
+        GIT_TAG "v0.17.0"
+        GIT_SHALLOW TRUE
 )
 FetchContent_MakeAvailable(freya)
 
@@ -26,6 +28,7 @@ FetchContent_Declare(
         imgui
         GIT_REPOSITORY "https://github.com/gilmar-sales/imgui.git"
         GIT_TAG "docking"
+        GIT_SHALLOW TRUE
 )
 FetchContent_MakeAvailable(imgui)
 
@@ -35,7 +38,7 @@ add_library(frigga ${FRIGGA_SRC}
         src/Frigga/Core/AbstractApplication.cpp)
 add_library(frigga::frigga ALIAS frigga)
 
-target_compile_features(frigga PUBLIC cxx_std_23)
+target_compile_features(frigga PUBLIC cxx_std_26)
 
 if (MSVC)
     target_compile_options(frigga PUBLIC "/ZI")
@@ -65,11 +68,9 @@ add_executable(Editor ${EDITOR_SRC}
         src/Editor/EditorApplication.cpp
         src/Editor/EditorApplication.hpp)
 
-target_compile_features(Editor PUBLIC cxx_std_23)
+target_compile_features(Editor PUBLIC cxx_std_26)
 
 target_link_libraries(Editor PUBLIC
         frigga::frigga
 )
-
-target_compile_features(Editor PUBLIC cxx_std_23)
 file(COPY src/Editor/Resources DESTINATION ${CMAKE_BINARY_DIR})

@@ -1,11 +1,6 @@
 #include "ArchetypesLayer.hpp"
 
-#include "Frigga/ECS/Components/NameComponent.hpp"
-#include "Frigga/ECS/Components/TransformComponent.hpp"
-
-#include <imgui.h>
-
-ArchetypesLayer::ArchetypesLayer(Ref<fr::Scene> scene): mFreyrScene(scene) {}
+ArchetypesLayer::ArchetypesLayer(skr::Arc<fr::Registry> registry): mRegistry(std::move(registry)) {}
 
 void ArchetypesLayer::onGui()
 {

@@ -7,7 +7,7 @@ class Workflow: public fg::Layer
 {
   public:
     Workflow(std::string name): fg::Layer(name) {}
-    Workflow(std::string name, std::vector<Ref<fg::Layer>> layers = {});
+    Workflow(std::string name, std::vector<skr::Arc<fg::Layer>> layers = {});
 
     ~Workflow() = default;
 

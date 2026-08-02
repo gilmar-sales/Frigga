@@ -5,25 +5,25 @@ namespace FRIGGA_NAMESPACE
 
     LayerStack::~LayerStack()
     {
-        for(Ref<Layer> layer: m_layers)
+        for(skr::Arc<Layer> layer: m_layers)
         {
             layer->onDettach();
         }
     }
 
-    void LayerStack::pushLayer(Ref<Layer> layer)
+    void LayerStack::pushLayer(skr::Arc<Layer> layer)
     {
         m_layers.emplace(m_layers.begin() + m_lastIndex, layer);
         m_lastIndex++;
         layer->onAttach();
     }
-    void LayerStack::pushOverlay(Ref<Layer> layer)
+    void LayerStack::pushOverlay(skr::Arc<Layer> layer)
     {
         m_layers.emplace_back(layer);
         layer->onAttach();
     }
 
-    void LayerStack::popLayer(Ref<Layer> layer)
+    void LayerStack::popLayer(skr::Arc<Layer> layer)
     {
         auto it = std::find(m_layers.begin(), m_layers.begin() + m_lastIndex, layer);
         if(it != m_layers.begin() + m_lastIndex)
@@ -34,7 +34,7 @@ namespace FRIGGA_NAMESPACE
         }
     }
 
-    void LayerStack::popOverlay(Ref<Layer> layer)
+    void LayerStack::popOverlay(skr::Arc<Layer> layer)
     {
         auto it = std::find(m_layers.begin() + m_lastIndex, m_layers.end(), layer);
         if(it != m_layers.begin() + m_lastIndex)

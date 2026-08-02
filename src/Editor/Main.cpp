@@ -10,15 +10,15 @@
 int main(int argc, char *argv[])
 {
     auto appBuilder = skr::ApplicationBuilder()
-                          .AddExtension<fg::FriggaExtension>()
-                          .AddExtension<fra::FreyaExtension>([](fra::FreyaExtension &freya) {
+                          .WithExtension<fg::FriggaExtension>()
+                          .WithExtension<fra::FreyaExtension>([](fra::FreyaExtension &freya) {
                               freya.WithOptions([](fra::FreyaOptionsBuilder &freyaOptionsBuilder) {
                                   freyaOptionsBuilder.SetFullscreen(false);
                               });
                           });
 
     appBuilder.GetServiceCollection()
-        .AddTransient<MainLayer>()
+        ->AddTransient<MainLayer>()
         .AddTransient<ResourcesLayer>()
         .AddTransient<HierarchyLayer>()
         .AddTransient<PreferencesLayer>()

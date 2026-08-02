@@ -5,7 +5,7 @@
 class PreferencesLayer: public fg::Layer
 {
   public:
-    PreferencesLayer(const Ref<fra::Window> &window, const Ref<fra::Renderer> &renderer)
+    PreferencesLayer(const skr::Arc<fra::Window> &window, const skr::Arc<fra::Renderer> &renderer)
         : fg::Layer("Preferences"), mWindow(window), mRenderer(renderer)
     {
     }
@@ -16,6 +16,6 @@ class PreferencesLayer: public fg::Layer
     static bool IsOpen;
 
   private:
-    Ref<fra::Window> mWindow;
-    Ref<fra::Renderer> mRenderer;
+    skr::Arc<fra::Window> mWindow;
+    skr::Arc<fra::Renderer> mRenderer;
 };

@@ -7,7 +7,7 @@
 class GamePlayWorkflow: public Workflow
 {
   public:
-    GamePlayWorkflow(Ref<HierarchyLayer> hierarchy, Ref<ResourcesLayer> resources)
+    GamePlayWorkflow(skr::Arc<HierarchyLayer> hierarchy, skr::Arc<ResourcesLayer> resources)
         : Workflow("GamePlay", {hierarchy, resources})
     {
     }

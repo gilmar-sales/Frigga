@@ -12,8 +12,8 @@
 class EditorApplication final: public fg::AbstractApplication
 {
   public:
-    EditorApplication(const Ref<skr::ServiceProvider> &serviceProvider)
-        : AbstractApplication(serviceProvider), mScene(serviceProvider->GetService<fr::Scene>())
+    EditorApplication(const skr::Arc<skr::ServiceProvider> &serviceProvider)
+        : AbstractApplication(serviceProvider), mRegistry(serviceProvider->GetService<fr::Registry>())
     {
         PushLayer(mScope->GetServiceProvider()->GetService<MainLayer>());
         PushLayer(mScope->GetServiceProvider()->GetService<PreferencesLayer>());
@@ -41,5 +41,5 @@ class EditorApplication final: public fg::AbstractApplication
     void Update() override;
 
   private:
-    Ref<fr::Scene> mScene;
+    skr::Arc<fr::Registry> mRegistry;
 };

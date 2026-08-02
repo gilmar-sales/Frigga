@@ -7,8 +7,8 @@ class Workflow;
 class MainLayer: public fg::Layer
 {
   public:
-    MainLayer(Ref<fg::Scene> scene, Ref<fg::LayerStack> layerStack, Ref<fra::Window> window,
-              Ref<skr::ServiceProvider> serviceProvider);
+    MainLayer(skr::Arc<fg::Scene> scene, skr::Arc<fg::LayerStack> layerStack, skr::Arc<fra::Window> window,
+              skr::Arc<skr::ServiceProvider> serviceProvider);
     ~MainLayer() = default;
 
     virtual void onGui() override;
@@ -17,10 +17,10 @@ class MainLayer: public fg::Layer
     void drawMenuBar();
 
   private:
-    std::vector<std::pair<const char *, Ref<Workflow>>> m_tabIds;
-    Ref<Workflow> m_activeTab;
+    std::vector<std::pair<const char *, skr::Arc<Workflow>>> m_tabIds;
+    skr::Arc<Workflow> m_activeTab;
 
-    Ref<fg::Scene> mScene;
-    Ref<fg::LayerStack> mLayerStack;
-    Ref<fra::Window> mWindow;
+    skr::Arc<fg::Scene> mScene;
+    skr::Arc<fg::LayerStack> mLayerStack;
+    skr::Arc<fra::Window> mWindow;
 };

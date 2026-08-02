@@ -6,11 +6,11 @@
 namespace FRIGGA_NAMESPACE
 {
 
-    Scene::Scene(const Ref<fra::Renderer> &renderer, const Ref<skr::Logger<Scene>> &logger,
-                 const Ref<fr::Scene> &ecsScene)
-        : mRenderer(renderer), mLogger(logger), mEcsScene(ecsScene)
+    Scene::Scene(const skr::Arc<fra::Renderer> &renderer, const skr::Arc<skr::Logger<Scene>> &logger,
+                 const skr::Arc<fr::Registry> &ecsRegistry)
+        : mRenderer(renderer), mLogger(logger), mEcsRegistry(ecsRegistry)
     {
-        mEcsScene->CreateEntity(NameComponent{.name = "Main Camera"}, TransformComponent{});
+        mEcsRegistry->CreateEntity(NameComponent {.name = "Main Camera"}, TransformComponent {});
     }
 
     void Scene::Update(float ts)

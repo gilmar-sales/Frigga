@@ -1,6 +1,6 @@
 #include "Workflow.hpp"
 
-Workflow::Workflow(std::string name, std::vector<Ref<fg::Layer>> layers): fg::Layer(name)
+Workflow::Workflow(std::string name, std::vector<skr::Arc<fg::Layer>> layers): fg::Layer(name)
 {
     for(auto layer: layers)
     {

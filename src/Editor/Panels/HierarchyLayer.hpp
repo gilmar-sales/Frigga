@@ -7,19 +7,19 @@
 class HierarchyLayer: public fg::Layer
 {
   public:
-    HierarchyLayer(Ref<fr::Scene> scene);
+    HierarchyLayer(skr::Arc<fr::Registry> registry);
     ~HierarchyLayer() override = default;
 
     void createEmptyEntity();
-    void drawEntityNode(unsigned entity, fg::NameComponent &name);
+    void drawEntityNode(fr::Entity entity, fg::NameComponent &name);
 
     void drawComponents();
-    void addMesh(unsigned entity);
+    void addMesh(fr::Entity entity);
 
     void onGui() override;
 
   private:
-    Ref<fr::Scene> mFreyrScene;
-    unsigned selectionContext;
-    unsigned nodeToRename;
+    skr::Arc<fr::Registry> mRegistry;
+    fr::Entity selectionContext;
+    fr::Entity nodeToRename;
 };

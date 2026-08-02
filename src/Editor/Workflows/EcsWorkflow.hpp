@@ -7,7 +7,7 @@
 class EcsWorkflow: public Workflow
 {
   public:
-    EcsWorkflow(Ref<HierarchyLayer> hierarchy, Ref<ResourcesLayer> resources)
+    EcsWorkflow(skr::Arc<HierarchyLayer> hierarchy, skr::Arc<ResourcesLayer> resources)
         : Workflow("Ecs", {hierarchy, resources})
     {
     }

@@ -2,15 +2,16 @@
 
 #include <Freyr/Freyr.hpp>
 
-namespace FRIGGA_NAMESPACE {
-
-class PhysicsSystem: public fr::System
+namespace FRIGGA_NAMESPACE
 {
-  public:
-    PhysicsSystem(Ref<fr::Scene> scene): fr::System(scene) {}
-    ~PhysicsSystem() override = default;
 
-    void Update(float deltaTime) override;
-};
+    class PhysicsSystem: public fr::System
+    {
+      public:
+        PhysicsSystem(const skr::Arc<fr::Registry> &registry): fr::System(registry) {}
+        ~PhysicsSystem() override = default;
 
-}
+        void Update(float deltaTime) override;
+    };
+
+} // namespace FRIGGA_NAMESPACE

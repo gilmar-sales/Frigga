@@ -7,19 +7,18 @@ namespace FRIGGA_NAMESPACE
 
     void PhysicsSystem::Update(float deltaTime)
     {
-        mScene->ForEach<TransformComponent>(
-            [deltaTime](auto entity, auto &transform) {
-                if(transform.position.x > 100000)
-                {
-                    transform.position.x -= 1;
-                }
-                else
-                {
-                    transform.position.x += 1;
-                }
-                transform.position.y += 1;
-                transform.position.z += 1;
-            });
+        mRegistry->CreateMutation()->Each<TransformComponent>([deltaTime](auto entity, auto &transform) {
+            if(transform.position.x > 100000)
+            {
+                transform.position.x -= 1;
+            }
+            else
+            {
+                transform.position.x += 1;
+            }
+            transform.position.y += 1;
+            transform.position.z += 1;
+        });
     }
 
 } // namespace FRIGGA_NAMESPACE

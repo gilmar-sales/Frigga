@@ -14,14 +14,17 @@ namespace FRIGGA_NAMESPACE
     void FriggaExtension::Attach(skr::ApplicationBuilder &applicationBuilder)
     {
         applicationBuilder
-            .AddExtension<fr::FreyrExtension>([](fr::FreyrExtension &freyr) {
-                freyr.AddComponent<NameComponent>()
-                    .AddComponent<TransformComponent>()
-                    .AddComponent<MeshComponent>()
-                    .AddSystem<PhysicsSystem>()
-                    .AddSystem<RenderSystem>();
+            .WithExtension<fr::FreyrExtension>([](fr::FreyrExtension &freyr) {
+                freyr.WithComponent<NameComponent>()
+                    .WithComponent<TransformComponent>()
+                    .WithComponent<MeshComponent>()
+                    .WithPipeline([](fr::PipelineBuilder &pipeline) {
+                        pipeline.WithName("Main")
+                            .WithSystem<PhysicsSystem>()
+                            .WithSystem<RenderSystem>();
+                    });
             })
-            .AddExtension<fra::FreyaExtension>([](fra::FreyaExtension &freya) {
+            .WithExtension<fra::FreyaExtension>([](fra::FreyaExtension &freya) {
                 freya.WithOptions([](fra::FreyaOptionsBuilder &freyaOptionsBuilder) {
                     freyaOptionsBuilder.SetTitle("Frigga Application")
                         .SetVSync(true)

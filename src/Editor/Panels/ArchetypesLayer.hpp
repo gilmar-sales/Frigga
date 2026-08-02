@@ -7,11 +7,11 @@
 class ArchetypesLayer: public fg::Layer
 {
   public:
-    ArchetypesLayer(Ref<fr::Scene> scene);
+    ArchetypesLayer(skr::Arc<fr::Registry> registry);
     ~ArchetypesLayer() override = default;
 
     void onGui() override;
 
   private:
-    Ref<fr::Scene> mFreyrScene;
+    skr::Arc<fr::Registry> mRegistry;
 };
