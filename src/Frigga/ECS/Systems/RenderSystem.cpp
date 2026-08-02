@@ -1,25 +1,29 @@
 #include "RenderSystem.hpp"
 
 #include "../Components/CameraComponent.hpp"
+#include "../Components/LightComponent.hpp"
 #include "../Components/MaterialComponent.hpp"
 #include "../Components/MeshComponent.hpp"
 #include "../Components/TransformComponent.hpp"
 
 #include <algorithm>
+#include <cmath>
 
 namespace FRIGGA_NAMESPACE
 {
 
     RenderSystem::RenderSystem(const skr::Arc<fr::Registry> &registry,
                                const skr::Arc<fra::Renderer> &renderer,
-                               const skr::Arc<fra::Window> &window)
-        : System(registry), mRenderer(renderer), mWindow(window)
+                               const skr::Arc<fra::Window> &window,
+                               const skr::Arc<fra::LightService> &lightService)
+        : System(registry), mRenderer(renderer), mWindow(window), mLightService(lightService)
     {
     }
 
     void RenderSystem::Update(float deltaTime)
     {
         updateCamera();
+        syncLights();
         drawMeshes();
     }
 
@@ -98,6 +102,35 @@ namespace FRIGGA_NAMESPACE
                     applyCamera(transform, camera);
                 });
         }
+    }
+
+    void RenderSystem::syncLights()
+    {
+        mLightService->ClearLights();
+
+        mRegistry->CreateMutation()->Each<TransformComponent, LightComponent>(
+            [this](auto, TransformComponent &transform, LightComponent &light) {
+                // Match Freya/OpenGL: entity local -Z is the aimed light direction.
+                const glm::vec3 direction =
+                    glm::normalize(transform.rotation * glm::vec3(0.0f, 0.0f, -1.0f));
+                const glm::vec3 safeDirection =
+                    glm::dot(direction, direction) > 1e-6f ? direction
+                                                           : glm::vec3(0.0f, -1.0f, 0.0f);
+
+                fra::Light gpuLight {};
+                gpuLight.position  = transform.position;
+                gpuLight.type      = static_cast<float>(light.type);
+                gpuLight.color     = light.color;
+                gpuLight.radius    = light.radius;
+                gpuLight.direction = safeDirection;
+                gpuLight.intensity = light.intensity;
+                gpuLight.innerCutoff =
+                    std::cos(glm::radians(std::max(light.innerAngleDegrees, 0.0f)));
+                gpuLight.outerCutoff =
+                    std::cos(glm::radians(std::max(light.outerAngleDegrees, 0.0f)));
+
+                mLightService->AddLight(gpuLight);
+            });
     }
 
     void RenderSystem::drawMeshes()

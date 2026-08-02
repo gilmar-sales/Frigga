@@ -3,6 +3,7 @@
 #include "Asset/PrimitiveMeshFactory.hpp"
 #include "Core/LayerStack.hpp"
 #include "ECS/Components/CameraComponent.hpp"
+#include "ECS/Components/LightComponent.hpp"
 #include "ECS/Components/MaterialComponent.hpp"
 #include "ECS/Components/MeshComponent.hpp"
 #include "ECS/Components/NameComponent.hpp"
@@ -22,6 +23,7 @@ namespace FRIGGA_NAMESPACE
                     .WithComponent<MeshComponent>()
                     .WithComponent<MaterialComponent>()
                     .WithComponent<CameraComponent>()
+                    .WithComponent<LightComponent>()
                     .WithPipeline([](fr::PipelineBuilder &pipeline) {
                         pipeline.WithName("Main")
                             .WithSystem<PhysicsSystem>()

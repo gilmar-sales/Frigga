@@ -12,7 +12,8 @@ namespace FRIGGA_NAMESPACE
     {
       public:
         RenderSystem(const skr::Arc<fr::Registry> &registry, const skr::Arc<fra::Renderer> &renderer,
-                     const skr::Arc<fra::Window> &window);
+                     const skr::Arc<fra::Window> &window,
+                     const skr::Arc<fra::LightService> &lightService);
 
         ~RenderSystem() override = default;
 
@@ -20,10 +21,12 @@ namespace FRIGGA_NAMESPACE
 
       private:
         void updateCamera();
+        void syncLights();
         void drawMeshes();
 
         skr::Arc<fra::Renderer> mRenderer;
         skr::Arc<fra::Window> mWindow;
+        skr::Arc<fra::LightService> mLightService;
         skr::Arc<fra::Buffer> mInstanceBuffer;
         std::vector<glm::mat4> mInstanceMatrices;
         std::uint64_t mInstanceCapacity = 0;

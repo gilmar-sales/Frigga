@@ -16,6 +16,7 @@ class HierarchyLayer: public fg::Layer
     void createEmptyEntity();
     void createPrimitiveEntity(fg::PrimitiveType type);
     void createCameraEntity();
+    void createLightEntity(fra::LightType type);
     void drawEntityNode(fr::Entity entity, fg::NameComponent &name);
 
     void drawComponents();
@@ -25,6 +26,7 @@ class HierarchyLayer: public fg::Layer
   private:
     [[nodiscard]] bool isEntityLocked(fr::Entity entity) const;
     void setPrimaryCamera(fr::Entity entity);
+    static const char *getLightDisplayName(fra::LightType type);
 
     skr::Arc<fr::Registry> mRegistry;
     skr::Arc<fg::Scene> mScene;

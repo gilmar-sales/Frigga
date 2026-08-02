@@ -1,6 +1,7 @@
 #include "Scene.hpp"
 
 #include "Frigga/ECS/Components/CameraComponent.hpp"
+#include "Frigga/ECS/Components/LightComponent.hpp"
 #include "Frigga/ECS/Components/MaterialComponent.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/NameComponent.hpp"
@@ -25,10 +26,8 @@ namespace FRIGGA_NAMESPACE
 
     Scene::Scene(const skr::Arc<fra::Renderer> &renderer, const skr::Arc<skr::Logger<Scene>> &logger,
                  const skr::Arc<fr::Registry> &ecsRegistry,
-                 const skr::Arc<fra::LightService> &lightService,
                  const skr::Arc<PrimitiveMeshFactory> &primitives)
-        : mEcsRegistry(ecsRegistry), mRenderer(renderer), mLogger(logger),
-          mLightService(lightService), mPrimitives(primitives)
+        : mEcsRegistry(ecsRegistry), mRenderer(renderer), mLogger(logger), mPrimitives(primitives)
     {
         mEcsRegistry->CreateEntity(
             NameComponent {.name = "Cube"}, TransformComponent {},
@@ -47,14 +46,17 @@ namespace FRIGGA_NAMESPACE
                              .primary    = true,
                              .locked     = true});
 
-        mLightService->AddLight(fra::Light {
-            .position  = {4.0f, 6.0f, 2.0f},
-            .type      = static_cast<float>(fra::LightType::Point),
-            .color     = {1.0f, 1.0f, 1.0f},
-            .radius    = 40.0f,
-            .direction = {0.0f, -1.0f, 0.0f},
-            .intensity = 30.0f,
-        });
+        // Default key light: elevated, aiming down at the cube (-Y along local -Z).
+        mEcsRegistry->CreateEntity(
+            NameComponent {.name = "Point Light"},
+            TransformComponent {.position = {4.0f, 6.0f, 2.0f},
+                                .scale    = {1.0f, 1.0f, 1.0f},
+                                .rotation = glm::quatLookAt(glm::vec3 {0.0f, -1.0f, 0.0f},
+                                                            glm::vec3 {0.0f, 0.0f, 1.0f})},
+            LightComponent {.type      = fra::LightType::Point,
+                            .color     = {1.0f, 1.0f, 1.0f},
+                            .radius    = 40.0f,
+                            .intensity = 30.0f});
     }
 
     void Scene::Update(float ts)

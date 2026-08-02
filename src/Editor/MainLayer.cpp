@@ -192,6 +192,31 @@ void MainLayer::drawMenuBar()
             {
                 mHierarchy->createCameraEntity();
             }
+            if(ImGui::BeginMenu("Create Light"))
+            {
+                for(auto type:
+                    {fra::LightType::Point, fra::LightType::Directional, fra::LightType::Spot})
+                {
+                    const char *label = "Light";
+                    switch(type)
+                    {
+                        case fra::LightType::Point:
+                            label = "Point Light";
+                            break;
+                        case fra::LightType::Directional:
+                            label = "Directional Light";
+                            break;
+                        case fra::LightType::Spot:
+                            label = "Spot Light";
+                            break;
+                    }
+                    if(ImGui::MenuItem(label))
+                    {
+                        mHierarchy->createLightEntity(type);
+                    }
+                }
+                ImGui::EndMenu();
+            }
 
             ImGui::EndMenu();
         }

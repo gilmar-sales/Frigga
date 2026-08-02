@@ -1,6 +1,7 @@
 #include "HierarchyLayer.hpp"
 
 #include "Frigga/ECS/Components/CameraComponent.hpp"
+#include "Frigga/ECS/Components/LightComponent.hpp"
 #include "Frigga/ECS/Components/MaterialComponent.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/NameComponent.hpp"
@@ -21,6 +22,20 @@ HierarchyLayer::HierarchyLayer(skr::Arc<fr::Registry> registry, skr::Arc<fg::Sce
       mPrimitives(std::move(primitives)), selectionContext(InvalidEntity),
       nodeToRename(InvalidEntity)
 {
+}
+
+const char *HierarchyLayer::getLightDisplayName(fra::LightType type)
+{
+    switch(type)
+    {
+        case fra::LightType::Point:
+            return "Point Light";
+        case fra::LightType::Directional:
+            return "Directional Light";
+        case fra::LightType::Spot:
+            return "Spot Light";
+    }
+    return "Light";
 }
 
 void HierarchyLayer::createEmptyEntity()
@@ -50,6 +65,17 @@ void HierarchyLayer::createCameraEntity()
     mRegistry->CreateEntity(fg::NameComponent {.name = "Camera"},
                             fg::TransformComponent {.position = {0.0f, 1.5f, -5.0f}},
                             fg::CameraComponent {});
+}
+
+void HierarchyLayer::createLightEntity(fra::LightType type)
+{
+    mRegistry->CreateEntity(
+        fg::NameComponent {.name = getLightDisplayName(type)},
+        fg::TransformComponent {.position = {0.0f, 3.0f, 0.0f},
+                                .scale    = {1.0f, 1.0f, 1.0f},
+                                .rotation = glm::quatLookAt(glm::vec3 {0.0f, -1.0f, 0.0f},
+                                                            glm::vec3 {0.0f, 0.0f, 1.0f})},
+        fg::LightComponent {.type = type});
 }
 
 bool HierarchyLayer::isEntityLocked(fr::Entity entity) const
@@ -107,6 +133,19 @@ void HierarchyLayer::onGui()
         if(ImGui::MenuItem("Camera"))
         {
             createCameraEntity();
+        }
+
+        if(ImGui::BeginMenu("Light"))
+        {
+            for(auto type:
+                {fra::LightType::Point, fra::LightType::Directional, fra::LightType::Spot})
+            {
+                if(ImGui::MenuItem(getLightDisplayName(type)))
+                {
+                    createLightEntity(type);
+                }
+            }
+            ImGui::EndMenu();
         }
 
         ImGui::EndPopup();
@@ -190,6 +229,27 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
             {
                 mRegistry->AddComponents(entity, fg::CameraComponent {});
             }
+        }
+
+        if(ImGui::BeginMenu("Add light"))
+        {
+            for(auto type:
+                {fra::LightType::Point, fra::LightType::Directional, fra::LightType::Spot})
+            {
+                if(ImGui::MenuItem(getLightDisplayName(type)))
+                {
+                    if(!mRegistry->HasComponent<fg::LightComponent>(entity))
+                    {
+                        mRegistry->AddComponents(entity, fg::LightComponent {.type = type});
+                    }
+                    else
+                    {
+                        mRegistry->TryGetComponents<fg::LightComponent>(
+                            entity, [type](fg::LightComponent &light) { light.type = type; });
+                    }
+                }
+            }
+            ImGui::EndMenu();
         }
 
         ImGui::EndPopup();
@@ -278,6 +338,32 @@ void HierarchyLayer::drawComponents()
                 if(camera.locked)
                 {
                     ImGui::TextDisabled("Locked (Main Camera)");
+                }
+            }
+        });
+
+    mRegistry->TryGetComponents<fg::LightComponent>(
+        selectionContext, [](fg::LightComponent &light) {
+            if(ImGui::CollapsingHeader("Light Component", nullptr, ImGuiWindowFlags_ChildWindow))
+            {
+                int typeIndex = static_cast<int>(light.type);
+                if(ImGui::Combo("Type", &typeIndex, "Point\0Directional\0Spot\0"))
+                {
+                    light.type = static_cast<fra::LightType>(typeIndex);
+                }
+
+                ImGui::ColorEdit3("Color", &light.color[0]);
+                ImGui::DragFloat("Intensity", &light.intensity, 0.1f, 0.0f, 1000.0f);
+
+                if(light.type != fra::LightType::Directional)
+                {
+                    ImGui::DragFloat("Radius", &light.radius, 0.1f, 0.1f, 1000.0f);
+                }
+
+                if(light.type == fra::LightType::Spot)
+                {
+                    ImGui::DragFloat("Inner Angle", &light.innerAngleDegrees, 0.1f, 0.0f, 89.0f);
+                    ImGui::DragFloat("Outer Angle", &light.outerAngleDegrees, 0.1f, 0.0f, 89.0f);
                 }
             }
         });
