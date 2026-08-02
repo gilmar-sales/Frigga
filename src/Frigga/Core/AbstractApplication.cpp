@@ -28,11 +28,19 @@ namespace FRIGGA_NAMESPACE
     void AbstractApplication::Update()
     {
         auto layerStack = mScope->GetServiceProvider()->GetService<LayerStack>();
-        mRenderer->BeginFrame();
+
+        // Pre-frame work (e.g. resize offscreen targets) must run before
+        // BeginFrame — SetOutputTarget waits idle and rebuilds pass resources.
         for(const auto &layer : *layerStack)
         {
             layer->onUpdate();
         }
+
+        mRenderer->BeginFrame();
+
+        // End scene (composite → output target) and leave the swapchain UI pass
+        // open when an offscreen target is bound so ImGui can record into it.
+        mRenderer->EndScene();
 
         auto guiLayer = mScope->GetServiceProvider()->GetService<GuiLayer>();
         guiLayer->begin();
@@ -42,7 +50,7 @@ namespace FRIGGA_NAMESPACE
         }
         guiLayer->end();
 
-        mRenderer->EndFrame();
+        mRenderer->Present();
     }
 
 } // namespace FRIGGA_NAMESPACE

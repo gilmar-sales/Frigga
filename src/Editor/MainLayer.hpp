@@ -11,7 +11,8 @@ class MainLayer: public fg::Layer
               skr::Arc<skr::ServiceProvider> serviceProvider);
     ~MainLayer() = default;
 
-    virtual void onGui() override;
+    void onUpdate() override;
+    void onGui() override;
 
     float drawTitleBar();
     void drawMenuBar();

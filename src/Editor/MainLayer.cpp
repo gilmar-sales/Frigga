@@ -26,6 +26,14 @@ MainLayer::MainLayer(skr::Arc<fg::Scene> scene, skr::Arc<fg::LayerStack> layerSt
     m_activeTab = m_tabIds.begin()->second;
 }
 
+void MainLayer::onUpdate()
+{
+    if(m_activeTab)
+    {
+        m_activeTab->onUpdate();
+    }
+}
+
 void MainLayer::onGui()
 {
     auto ctx = ImGui::GetCurrentContext();

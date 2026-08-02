@@ -35,8 +35,9 @@ namespace FRIGGA_NAMESPACE
         imguiSdl3VulkanInitInfo.ImageCount         = 4;
         imguiSdl3VulkanInitInfo.MinImageCount      = 2;
         imguiSdl3VulkanInitInfo.DescriptorPoolSize = 32;
-        imguiSdl3VulkanInitInfo.PipelineInfoMain.RenderPass =
-            mServiceProvider->GetService<fra::RenderPass>()->Get();
+
+        auto renderer = mServiceProvider->GetService<fra::Renderer>();
+        imguiSdl3VulkanInitInfo.PipelineInfoMain.RenderPass = renderer->GetUIRenderPass();
 
         ImGui_ImplSDL3_InitForVulkan(native_window);
         ImGui_ImplVulkan_Init(&imguiSdl3VulkanInitInfo);
@@ -76,7 +77,7 @@ namespace FRIGGA_NAMESPACE
         ImGui::Render();
         ImGui_ImplVulkan_RenderDrawData(
             ImGui::GetDrawData(),
-            mServiceProvider->GetService<fra::CommandPool>()->GetCommandBuffer());
+            mServiceProvider->GetService<fra::Renderer>()->GetCommandBuffer());
 
         if(io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
         {

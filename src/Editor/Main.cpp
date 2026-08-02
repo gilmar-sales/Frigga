@@ -1,4 +1,5 @@
 #include "EditorApplication.hpp"
+#include "Panels/GameplayLayer.hpp"
 #include "Panels/HierarchyLayer.hpp"
 #include "Panels/PreferencesLayer.hpp"
 #include "Panels/ResourcesLayer.hpp"
@@ -19,6 +20,7 @@ int main(int argc, char *argv[])
 
     appBuilder.GetServiceCollection()
         ->AddTransient<MainLayer>()
+        .AddTransient<GameplayLayer>()
         .AddTransient<ResourcesLayer>()
         .AddTransient<HierarchyLayer>()
         .AddTransient<PreferencesLayer>()
