@@ -7,9 +7,9 @@
 namespace FRIGGA_NAMESPACE
 {
 
-    struct MeshComponent: fr::Component
+    struct MaterialComponent: fr::Component
     {
-        std::uint32_t meshId = 0;
+        std::uint32_t materialId = 0;
     };
 
 } // namespace FRIGGA_NAMESPACE

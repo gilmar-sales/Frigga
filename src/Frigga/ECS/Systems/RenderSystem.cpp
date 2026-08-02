@@ -1,6 +1,7 @@
 #include "RenderSystem.hpp"
 
 #include "../Components/CameraComponent.hpp"
+#include "../Components/MaterialComponent.hpp"
 #include "../Components/MeshComponent.hpp"
 #include "../Components/TransformComponent.hpp"
 
@@ -47,8 +48,8 @@ namespace FRIGGA_NAMESPACE
                          static_cast<float>(mWindow->GetHeight());
             }
 
-            auto projection           = mRenderer->GetCurrentProjection();
-            projection.projection     = mRenderer->MakeProjection(
+            auto projection       = mRenderer->GetCurrentProjection();
+            projection.projection = mRenderer->MakeProjection(
                 glm::radians(camera.fovDegrees), aspect, camera.nearPlane, camera.farPlane);
             if(projection.ambientLight.w <= 0.0f)
             {
@@ -111,8 +112,9 @@ namespace FRIGGA_NAMESPACE
         };
         std::vector<DrawItem> draws;
 
-        mRegistry->CreateMutation()->Each<TransformComponent, MeshComponent>(
-            [this, &draws](auto entity, TransformComponent &transform, MeshComponent &mesh) {
+        mRegistry->CreateMutation()->Each<TransformComponent, MeshComponent, MaterialComponent>(
+            [this, &draws](auto entity, TransformComponent &transform, MeshComponent &mesh,
+                           MaterialComponent &material) {
                 glm::mat4 model = glm::translate(glm::mat4(1.0f), transform.position);
                 model           = model * glm::mat4_cast(transform.rotation);
                 model           = glm::scale(model, transform.scale);
@@ -120,7 +122,7 @@ namespace FRIGGA_NAMESPACE
                 const auto firstInstance =
                     static_cast<std::uint32_t>(mInstanceMatrices.size());
                 mInstanceMatrices.push_back(model);
-                draws.push_back({mesh.meshId, mesh.materialId, firstInstance});
+                draws.push_back({mesh.meshId, material.materialId, firstInstance});
             });
 
         if(draws.empty())

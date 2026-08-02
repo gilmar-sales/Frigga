@@ -10,7 +10,7 @@ namespace FRIGGA_NAMESPACE
     {
         fra::Vertex makeVertex(const glm::vec3 &position, const glm::vec3 &normal,
                                const glm::vec2 &uv,
-                               const glm::vec3 &color = glm::vec3(0.85f))
+                               const glm::vec3 &color = glm::vec3(0.55f))
         {
             glm::vec3 tangent = glm::cross(normal, glm::vec3(0.0f, 1.0f, 0.0f));
             if(glm::dot(tangent, tangent) < 1e-6f)
@@ -46,10 +46,24 @@ namespace FRIGGA_NAMESPACE
     } // namespace
 
     PrimitiveMeshFactory::PrimitiveMeshFactory(const skr::Arc<fra::MeshPool> &meshPool,
-                                               const skr::Arc<fra::MaterialPool> &materialPool)
-        : mMeshPool(meshPool), mMaterialPool(materialPool)
+                                               const skr::Arc<fra::MaterialPool> &materialPool,
+                                               const skr::Arc<fra::TexturePool> &texturePool)
+        : mMeshPool(meshPool), mMaterialPool(materialPool), mTexturePool(texturePool)
     {
-        mDefaultMaterial = mMaterialPool->Create({});
+        createDefaultMaterial();
+    }
+
+    void PrimitiveMeshFactory::createDefaultMaterial()
+    {
+        const auto albedo =
+            mTexturePool->CreateTextureFromFile("./Resources/Textures/default_gray.png");
+        const auto roughness =
+            mTexturePool->CreateTextureFromFile("./Resources/Textures/default_roughness.png");
+
+        mDefaultMaterial = mMaterialPool->Create({
+            .albedo    = albedo,
+            .roughness = roughness,
+        });
     }
 
     std::uint32_t PrimitiveMeshFactory::GetMesh(PrimitiveType type)

@@ -1,6 +1,7 @@
 #include "Scene.hpp"
 
 #include "Frigga/ECS/Components/CameraComponent.hpp"
+#include "Frigga/ECS/Components/MaterialComponent.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/NameComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
@@ -31,8 +32,8 @@ namespace FRIGGA_NAMESPACE
     {
         mEcsRegistry->CreateEntity(
             NameComponent {.name = "Cube"}, TransformComponent {},
-            MeshComponent {.meshId     = mPrimitives->GetMesh(PrimitiveType::Cube),
-                           .materialId = mPrimitives->GetDefaultMaterial()});
+            MeshComponent {.meshId = mPrimitives->GetMesh(PrimitiveType::Cube)},
+            MaterialComponent {.materialId = mPrimitives->GetDefaultMaterial()});
 
         // Blender-like default framing: elevated 3/4 view looking at the unit cube.
         constexpr glm::vec3 cubeCenter {0.0f, 0.0f, 0.0f};

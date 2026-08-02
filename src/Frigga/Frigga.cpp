@@ -3,6 +3,7 @@
 #include "Asset/PrimitiveMeshFactory.hpp"
 #include "Core/LayerStack.hpp"
 #include "ECS/Components/CameraComponent.hpp"
+#include "ECS/Components/MaterialComponent.hpp"
 #include "ECS/Components/MeshComponent.hpp"
 #include "ECS/Components/NameComponent.hpp"
 #include "ECS/Components/TransformComponent.hpp"
@@ -19,6 +20,7 @@ namespace FRIGGA_NAMESPACE
                 freyr.WithComponent<NameComponent>()
                     .WithComponent<TransformComponent>()
                     .WithComponent<MeshComponent>()
+                    .WithComponent<MaterialComponent>()
                     .WithComponent<CameraComponent>()
                     .WithPipeline([](fr::PipelineBuilder &pipeline) {
                         pipeline.WithName("Main")

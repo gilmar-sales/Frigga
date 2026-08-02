@@ -1,6 +1,7 @@
 #include "HierarchyLayer.hpp"
 
 #include "Frigga/ECS/Components/CameraComponent.hpp"
+#include "Frigga/ECS/Components/MaterialComponent.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/NameComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
@@ -40,7 +41,8 @@ void HierarchyLayer::createPrimitiveEntity(fg::PrimitiveType type)
     const auto materialId   = mPrimitives->GetDefaultMaterial();
 
     mRegistry->CreateEntity(fg::NameComponent {.name = displayName}, fg::TransformComponent {},
-                            fg::MeshComponent {.meshId = meshId, .materialId = materialId});
+                            fg::MeshComponent {.meshId = meshId},
+                            fg::MaterialComponent {.materialId = materialId});
 }
 
 void HierarchyLayer::createCameraEntity()
@@ -162,8 +164,23 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
             if(!mRegistry->HasComponent<fg::MeshComponent>(entity))
             {
                 mRegistry->AddComponents(
-                    entity, fg::MeshComponent {.meshId     = mPrimitives->GetMesh(fg::PrimitiveType::Cube),
-                                               .materialId = mPrimitives->GetDefaultMaterial()});
+                    entity, fg::MeshComponent {.meshId = mPrimitives->GetMesh(fg::PrimitiveType::Cube)});
+            }
+            if(!mRegistry->HasComponent<fg::MaterialComponent>(entity))
+            {
+                mRegistry->AddComponents(
+                    entity,
+                    fg::MaterialComponent {.materialId = mPrimitives->GetDefaultMaterial()});
+            }
+        }
+
+        if(ImGui::MenuItem("Add material"))
+        {
+            if(!mRegistry->HasComponent<fg::MaterialComponent>(entity))
+            {
+                mRegistry->AddComponents(
+                    entity,
+                    fg::MaterialComponent {.materialId = mPrimitives->GetDefaultMaterial()});
             }
         }
 
@@ -269,7 +286,14 @@ void HierarchyLayer::drawComponents()
         if(ImGui::CollapsingHeader("Mesh Component", nullptr, ImGuiWindowFlags_ChildWindow))
         {
             ImGui::Text("Mesh ID: %u", mesh.meshId);
-            ImGui::Text("Material ID: %u", mesh.materialId);
         }
     });
+
+    mRegistry->TryGetComponents<fg::MaterialComponent>(
+        selectionContext, [](fg::MaterialComponent &material) {
+            if(ImGui::CollapsingHeader("Material Component", nullptr, ImGuiWindowFlags_ChildWindow))
+            {
+                ImGui::Text("Material ID: %u", material.materialId);
+            }
+        });
 }
