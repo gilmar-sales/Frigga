@@ -3,6 +3,7 @@
 #include <Frigga/Core/LayerStack.hpp>
 #include <Frigga/Scene/Scene.hpp>
 
+class HierarchyLayer;
 class Workflow;
 class MainLayer: public fg::Layer
 {
@@ -24,4 +25,5 @@ class MainLayer: public fg::Layer
     skr::Arc<fg::Scene> mScene;
     skr::Arc<fg::LayerStack> mLayerStack;
     skr::Arc<fra::Window> mWindow;
+    skr::Arc<HierarchyLayer> mHierarchy;
 };

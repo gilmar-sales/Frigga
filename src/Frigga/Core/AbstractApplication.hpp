@@ -30,6 +30,9 @@ namespace FRIGGA_NAMESPACE
         void PushOverlay(skr::Arc<Layer> layer);
 
       protected:
+        /// Called between BeginFrame and EndScene to queue scene draw commands.
+        virtual void RenderScene() {}
+
         void createScope()
         {
             mScope = mRootServiceProvider->CreateServiceScope();

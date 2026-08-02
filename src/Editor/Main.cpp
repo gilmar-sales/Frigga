@@ -22,7 +22,7 @@ int main(int argc, char *argv[])
         ->AddTransient<MainLayer>()
         .AddTransient<GameplayLayer>()
         .AddTransient<ResourcesLayer>()
-        .AddTransient<HierarchyLayer>()
+        .AddScoped<HierarchyLayer>()
         .AddTransient<PreferencesLayer>()
         .AddTransient<GamePlayWorkflow>()
         .AddTransient<EcsWorkflow>();

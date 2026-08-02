@@ -38,6 +38,8 @@ class EditorApplication final: public fg::AbstractApplication
                                      icons_ranges);
     }
 
+  protected:
+    void RenderScene() override;
     void Update() override;
 
   private:

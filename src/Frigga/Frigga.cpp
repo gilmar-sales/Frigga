@@ -1,13 +1,14 @@
 #include "Frigga.hpp"
 
+#include "Asset/PrimitiveMeshFactory.hpp"
 #include "Core/LayerStack.hpp"
+#include "ECS/Components/CameraComponent.hpp"
 #include "ECS/Components/MeshComponent.hpp"
-#include "Scene/Scene.hpp"
-
 #include "ECS/Components/NameComponent.hpp"
 #include "ECS/Components/TransformComponent.hpp"
 #include "ECS/Systems/PhysicsSystem.hpp"
 #include "ECS/Systems/RenderSystem.hpp"
+#include "Scene/Scene.hpp"
 
 namespace FRIGGA_NAMESPACE
 {
@@ -18,6 +19,7 @@ namespace FRIGGA_NAMESPACE
                 freyr.WithComponent<NameComponent>()
                     .WithComponent<TransformComponent>()
                     .WithComponent<MeshComponent>()
+                    .WithComponent<CameraComponent>()
                     .WithPipeline([](fr::PipelineBuilder &pipeline) {
                         pipeline.WithName("Main")
                             .WithSystem<PhysicsSystem>()
@@ -36,6 +38,7 @@ namespace FRIGGA_NAMESPACE
 
     void FriggaExtension::ConfigureServices(skr::ServiceCollection &services)
     {
+        services.AddSingleton<fg::PrimitiveMeshFactory>();
         services.AddScoped<fg::Scene>();
         services.AddScoped<fg::LayerStack>();
         services.AddTransient<fg::GuiLayer>();

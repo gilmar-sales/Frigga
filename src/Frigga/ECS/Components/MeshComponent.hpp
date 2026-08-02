@@ -2,15 +2,15 @@
 
 #include <Freyr/Freyr.hpp>
 
+#include <cstdint>
+
 namespace FRIGGA_NAMESPACE
 {
 
     struct MeshComponent: fr::Component
     {
-        uint32_t vertex_array_object;
-        uint32_t vertex_buffer_object;
-        uint32_t element_buffer_object;
-        uint32_t index_count;
+        std::uint32_t meshId     = 0;
+        std::uint32_t materialId = 0;
     };
 
 } // namespace FRIGGA_NAMESPACE

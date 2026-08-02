@@ -1,9 +1,12 @@
 #include "MainLayer.hpp"
 
 #include "BoostrapIconsFont.hpp"
+#include "Panels/HierarchyLayer.hpp"
 #include "Panels/PreferencesLayer.hpp"
 #include "Workflows/EcsWorkflow.hpp"
 #include "Workflows/GamePlayWorkflow.hpp"
+
+#include <Frigga/Asset/PrimitiveMeshFactory.hpp>
 
 #include <cmath>
 #include <imgui.h>
@@ -12,7 +15,8 @@
 
 MainLayer::MainLayer(skr::Arc<fg::Scene> scene, skr::Arc<fg::LayerStack> layerStack, skr::Arc<fra::Window> window,
                      skr::Arc<skr::ServiceProvider> serviceProvider)
-    : fg::Layer("Dock Layer"), mScene(scene), mLayerStack(layerStack), mWindow(window)
+    : fg::Layer("Dock Layer"), mScene(scene), mLayerStack(layerStack), mWindow(window),
+      mHierarchy(serviceProvider->GetService<HierarchyLayer>())
 {
     m_tabIds = {
         {"Gameplay",  serviceProvider->GetService<GamePlayWorkflow>()},
@@ -167,20 +171,26 @@ void MainLayer::drawMenuBar()
         if(ImGui::BeginMenu("Entity"))
         {
             if(ImGui::MenuItem("Create Empty"))
-            { /* Do stuff */
+            {
+                mHierarchy->createEmptyEntity();
             }
             if(ImGui::BeginMenu("Create Geometry"))
             {
-                if(ImGui::MenuItem("Cube"))
-                { /* Do stuff */
-                }
-                if(ImGui::MenuItem("Sphere"))
-                { /* Do stuff */
-                }
-                if(ImGui::MenuItem("Capsule"))
-                { /* Do stuff */
+                using fg::PrimitiveType;
+                for(auto type: {PrimitiveType::Cube, PrimitiveType::Sphere, PrimitiveType::Capsule,
+                                PrimitiveType::Cylinder, PrimitiveType::Cone, PrimitiveType::Plane,
+                                PrimitiveType::Quad})
+                {
+                    if(ImGui::MenuItem(fg::PrimitiveMeshFactory::GetDisplayName(type)))
+                    {
+                        mHierarchy->createPrimitiveEntity(type);
+                    }
                 }
                 ImGui::EndMenu();
+            }
+            if(ImGui::MenuItem("Create Camera"))
+            {
+                mHierarchy->createCameraEntity();
             }
 
             ImGui::EndMenu();

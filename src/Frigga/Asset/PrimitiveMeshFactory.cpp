@@ -1,0 +1,403 @@
+#include "PrimitiveMeshFactory.hpp"
+
+#include <cmath>
+#include <numbers>
+#include <vector>
+
+namespace FRIGGA_NAMESPACE
+{
+    namespace
+    {
+        fra::Vertex makeVertex(const glm::vec3 &position, const glm::vec3 &normal,
+                               const glm::vec2 &uv,
+                               const glm::vec3 &color = glm::vec3(0.85f))
+        {
+            glm::vec3 tangent = glm::cross(normal, glm::vec3(0.0f, 1.0f, 0.0f));
+            if(glm::dot(tangent, tangent) < 1e-6f)
+            {
+                tangent = glm::cross(normal, glm::vec3(1.0f, 0.0f, 0.0f));
+            }
+            tangent = glm::normalize(tangent);
+
+            return fra::Vertex {
+                .position = position,
+                .color    = color,
+                .normal   = glm::normalize(normal),
+                .tangent  = tangent,
+                .texCoord = uv,
+            };
+        }
+
+        void pushQuad(std::vector<fra::Vertex> &vertices, std::vector<std::uint16_t> &indices,
+                      const glm::vec3 &p0, const glm::vec3 &p1, const glm::vec3 &p2,
+                      const glm::vec3 &p3, const glm::vec3 &normal)
+        {
+            const auto base = static_cast<std::uint16_t>(vertices.size());
+            vertices.push_back(makeVertex(p0, normal, {0.0f, 1.0f}));
+            vertices.push_back(makeVertex(p1, normal, {1.0f, 1.0f}));
+            vertices.push_back(makeVertex(p2, normal, {1.0f, 0.0f}));
+            vertices.push_back(makeVertex(p3, normal, {0.0f, 0.0f}));
+            indices.insert(indices.end(),
+                           {base, static_cast<std::uint16_t>(base + 1),
+                            static_cast<std::uint16_t>(base + 2), base,
+                            static_cast<std::uint16_t>(base + 2),
+                            static_cast<std::uint16_t>(base + 3)});
+        }
+    } // namespace
+
+    PrimitiveMeshFactory::PrimitiveMeshFactory(const skr::Arc<fra::MeshPool> &meshPool,
+                                               const skr::Arc<fra::MaterialPool> &materialPool)
+        : mMeshPool(meshPool), mMaterialPool(materialPool)
+    {
+        mDefaultMaterial = mMaterialPool->Create({});
+    }
+
+    std::uint32_t PrimitiveMeshFactory::GetMesh(PrimitiveType type)
+    {
+        const auto index = static_cast<std::size_t>(type);
+        if(mCreated[index])
+        {
+            return mMeshes[index];
+        }
+
+        switch(type)
+        {
+            case PrimitiveType::Cube:
+                mMeshes[index] = createCube();
+                break;
+            case PrimitiveType::Sphere:
+                mMeshes[index] = createSphere(32, 16);
+                break;
+            case PrimitiveType::Capsule:
+                mMeshes[index] = createCapsule(24, 8);
+                break;
+            case PrimitiveType::Cylinder:
+                mMeshes[index] = createCylinder(32);
+                break;
+            case PrimitiveType::Cone:
+                mMeshes[index] = createCone(32);
+                break;
+            case PrimitiveType::Plane:
+                mMeshes[index] = createPlane();
+                break;
+            case PrimitiveType::Quad:
+                mMeshes[index] = createQuad();
+                break;
+            case PrimitiveType::Count:
+                break;
+        }
+
+        mCreated[index] = true;
+        return mMeshes[index];
+    }
+
+    std::uint32_t PrimitiveMeshFactory::GetDefaultMaterial() const
+    {
+        return mDefaultMaterial;
+    }
+
+    const char *PrimitiveMeshFactory::GetDisplayName(PrimitiveType type)
+    {
+        switch(type)
+        {
+            case PrimitiveType::Cube:
+                return "Cube";
+            case PrimitiveType::Sphere:
+                return "Sphere";
+            case PrimitiveType::Capsule:
+                return "Capsule";
+            case PrimitiveType::Cylinder:
+                return "Cylinder";
+            case PrimitiveType::Cone:
+                return "Cone";
+            case PrimitiveType::Plane:
+                return "Plane";
+            case PrimitiveType::Quad:
+                return "Quad";
+            case PrimitiveType::Count:
+                return "Unknown";
+        }
+        return "Unknown";
+    }
+
+    std::uint32_t PrimitiveMeshFactory::createCube()
+    {
+        std::vector<fra::Vertex> vertices;
+        std::vector<std::uint16_t> indices;
+        vertices.reserve(24);
+        indices.reserve(36);
+
+        pushQuad(vertices, indices, {-0.5f, -0.5f, 0.5f}, {0.5f, -0.5f, 0.5f},
+                 {0.5f, 0.5f, 0.5f}, {-0.5f, 0.5f, 0.5f}, {0.0f, 0.0f, 1.0f});
+        pushQuad(vertices, indices, {0.5f, -0.5f, -0.5f}, {-0.5f, -0.5f, -0.5f},
+                 {-0.5f, 0.5f, -0.5f}, {0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, -1.0f});
+        pushQuad(vertices, indices, {-0.5f, -0.5f, -0.5f}, {-0.5f, -0.5f, 0.5f},
+                 {-0.5f, 0.5f, 0.5f}, {-0.5f, 0.5f, -0.5f}, {-1.0f, 0.0f, 0.0f});
+        pushQuad(vertices, indices, {0.5f, -0.5f, 0.5f}, {0.5f, -0.5f, -0.5f},
+                 {0.5f, 0.5f, -0.5f}, {0.5f, 0.5f, 0.5f}, {1.0f, 0.0f, 0.0f});
+        pushQuad(vertices, indices, {-0.5f, 0.5f, 0.5f}, {0.5f, 0.5f, 0.5f},
+                 {0.5f, 0.5f, -0.5f}, {-0.5f, 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f});
+        pushQuad(vertices, indices, {-0.5f, -0.5f, -0.5f}, {0.5f, -0.5f, -0.5f},
+                 {0.5f, -0.5f, 0.5f}, {-0.5f, -0.5f, 0.5f}, {0.0f, -1.0f, 0.0f});
+
+        return mMeshPool->CreateMesh(vertices, indices);
+    }
+
+    std::uint32_t PrimitiveMeshFactory::createSphere(std::uint32_t segments, std::uint32_t rings)
+    {
+        std::vector<fra::Vertex> vertices;
+        std::vector<std::uint16_t> indices;
+
+        constexpr float pi = std::numbers::pi_v<float>;
+        for(std::uint32_t ring = 0; ring <= rings; ++ring)
+        {
+            const float v     = static_cast<float>(ring) / static_cast<float>(rings);
+            const float phi   = v * pi;
+            const float sinPhi = std::sin(phi);
+            const float cosPhi = std::cos(phi);
+
+            for(std::uint32_t segment = 0; segment <= segments; ++segment)
+            {
+                const float u     = static_cast<float>(segment) / static_cast<float>(segments);
+                const float theta = u * 2.0f * pi;
+                const glm::vec3 normal {std::cos(theta) * sinPhi, cosPhi,
+                                        std::sin(theta) * sinPhi};
+                vertices.push_back(makeVertex(normal * 0.5f, normal, {u, v}));
+            }
+        }
+
+        for(std::uint32_t ring = 0; ring < rings; ++ring)
+        {
+            for(std::uint32_t segment = 0; segment < segments; ++segment)
+            {
+                const auto current =
+                    static_cast<std::uint16_t>(ring * (segments + 1) + segment);
+                const auto next = static_cast<std::uint16_t>(current + segments + 1);
+                indices.insert(indices.end(),
+                               {current, next, static_cast<std::uint16_t>(current + 1), next,
+                                static_cast<std::uint16_t>(next + 1),
+                                static_cast<std::uint16_t>(current + 1)});
+            }
+        }
+
+        return mMeshPool->CreateMesh(vertices, indices);
+    }
+
+    std::uint32_t PrimitiveMeshFactory::createCapsule(std::uint32_t segments, std::uint32_t rings)
+    {
+        std::vector<fra::Vertex> vertices;
+        std::vector<std::uint16_t> indices;
+
+        constexpr float pi       = std::numbers::pi_v<float>;
+        constexpr float radius   = 0.5f;
+        constexpr float cylinder = 1.0f;
+        const float halfHeight   = cylinder * 0.5f;
+        std::uint32_t ringCount  = 0;
+
+        auto addLatLongRing = [&](float y, float phi, float v) {
+            const float sinPhi = std::sin(phi);
+            const float cosPhi = std::cos(phi);
+            for(std::uint32_t segment = 0; segment <= segments; ++segment)
+            {
+                const float u     = static_cast<float>(segment) / static_cast<float>(segments);
+                const float theta = u * 2.0f * pi;
+                const glm::vec3 normal {std::cos(theta) * sinPhi, cosPhi,
+                                        std::sin(theta) * sinPhi};
+                const glm::vec3 position {normal.x * radius, y + normal.y * radius,
+                                          normal.z * radius};
+                vertices.push_back(makeVertex(position, normal, {u, v}));
+            }
+            ++ringCount;
+        };
+
+        auto addCylinderRing = [&](float y, float v) {
+            for(std::uint32_t segment = 0; segment <= segments; ++segment)
+            {
+                const float u     = static_cast<float>(segment) / static_cast<float>(segments);
+                const float theta = u * 2.0f * pi;
+                const glm::vec3 normal {std::cos(theta), 0.0f, std::sin(theta)};
+                const glm::vec3 position {normal.x * radius, y, normal.z * radius};
+                vertices.push_back(makeVertex(position, normal, {u, v}));
+            }
+            ++ringCount;
+        };
+
+        for(std::uint32_t ring = 0; ring <= rings; ++ring)
+        {
+            const float t   = static_cast<float>(ring) / static_cast<float>(rings);
+            const float phi = t * (pi * 0.5f);
+            addLatLongRing(halfHeight, phi, t * 0.25f);
+        }
+
+        addCylinderRing(-halfHeight, 0.75f);
+
+        for(std::uint32_t ring = 1; ring <= rings; ++ring)
+        {
+            const float t   = static_cast<float>(ring) / static_cast<float>(rings);
+            const float phi = (pi * 0.5f) + t * (pi * 0.5f);
+            addLatLongRing(-halfHeight, phi, 0.75f + t * 0.25f);
+        }
+
+        for(std::uint32_t ring = 0; ring + 1 < ringCount; ++ring)
+        {
+            for(std::uint32_t segment = 0; segment < segments; ++segment)
+            {
+                const auto current =
+                    static_cast<std::uint16_t>(ring * (segments + 1) + segment);
+                const auto next = static_cast<std::uint16_t>(current + segments + 1);
+                indices.insert(indices.end(),
+                               {current, next, static_cast<std::uint16_t>(current + 1), next,
+                                static_cast<std::uint16_t>(next + 1),
+                                static_cast<std::uint16_t>(current + 1)});
+            }
+        }
+
+        return mMeshPool->CreateMesh(vertices, indices);
+    }
+
+    std::uint32_t PrimitiveMeshFactory::createCylinder(std::uint32_t segments)
+    {
+        std::vector<fra::Vertex> vertices;
+        std::vector<std::uint16_t> indices;
+
+        constexpr float pi     = std::numbers::pi_v<float>;
+        constexpr float radius = 0.5f;
+        constexpr float halfH  = 0.5f;
+
+        for(std::uint32_t segment = 0; segment <= segments; ++segment)
+        {
+            const float u     = static_cast<float>(segment) / static_cast<float>(segments);
+            const float theta = u * 2.0f * pi;
+            const float x     = std::cos(theta) * radius;
+            const float z     = std::sin(theta) * radius;
+            const glm::vec3 normal {std::cos(theta), 0.0f, std::sin(theta)};
+
+            vertices.push_back(makeVertex({x, -halfH, z}, normal, {u, 1.0f}));
+            vertices.push_back(makeVertex({x, halfH, z}, normal, {u, 0.0f}));
+        }
+
+        for(std::uint32_t segment = 0; segment < segments; ++segment)
+        {
+            const auto i = static_cast<std::uint16_t>(segment * 2);
+            indices.insert(indices.end(),
+                           {i, static_cast<std::uint16_t>(i + 1),
+                            static_cast<std::uint16_t>(i + 2),
+                            static_cast<std::uint16_t>(i + 1),
+                            static_cast<std::uint16_t>(i + 3),
+                            static_cast<std::uint16_t>(i + 2)});
+        }
+
+        const auto topCenter =
+            static_cast<std::uint16_t>(vertices.size());
+        vertices.push_back(makeVertex({0.0f, halfH, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.5f, 0.5f}));
+        const auto bottomCenter =
+            static_cast<std::uint16_t>(vertices.size());
+        vertices.push_back(makeVertex({0.0f, -halfH, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.5f, 0.5f}));
+
+        for(std::uint32_t segment = 0; segment < segments; ++segment)
+        {
+            const float theta0 = (static_cast<float>(segment) / segments) * 2.0f * pi;
+            const float theta1 = (static_cast<float>(segment + 1) / segments) * 2.0f * pi;
+            const glm::vec3 p0 {std::cos(theta0) * radius, halfH, std::sin(theta0) * radius};
+            const glm::vec3 p1 {std::cos(theta1) * radius, halfH, std::sin(theta1) * radius};
+            const glm::vec3 p2 {std::cos(theta0) * radius, -halfH, std::sin(theta0) * radius};
+            const glm::vec3 p3 {std::cos(theta1) * radius, -halfH, std::sin(theta1) * radius};
+
+            const auto t0 = static_cast<std::uint16_t>(vertices.size());
+            vertices.push_back(makeVertex(p0, {0.0f, 1.0f, 0.0f},
+                                          {std::cos(theta0) * 0.5f + 0.5f,
+                                           std::sin(theta0) * 0.5f + 0.5f}));
+            vertices.push_back(makeVertex(p1, {0.0f, 1.0f, 0.0f},
+                                          {std::cos(theta1) * 0.5f + 0.5f,
+                                           std::sin(theta1) * 0.5f + 0.5f}));
+            indices.insert(indices.end(),
+                           {topCenter, t0, static_cast<std::uint16_t>(t0 + 1)});
+
+            const auto b0 = static_cast<std::uint16_t>(vertices.size());
+            vertices.push_back(makeVertex(p2, {0.0f, -1.0f, 0.0f},
+                                          {std::cos(theta0) * 0.5f + 0.5f,
+                                           std::sin(theta0) * 0.5f + 0.5f}));
+            vertices.push_back(makeVertex(p3, {0.0f, -1.0f, 0.0f},
+                                          {std::cos(theta1) * 0.5f + 0.5f,
+                                           std::sin(theta1) * 0.5f + 0.5f}));
+            indices.insert(indices.end(),
+                           {bottomCenter, static_cast<std::uint16_t>(b0 + 1), b0});
+        }
+
+        return mMeshPool->CreateMesh(vertices, indices);
+    }
+
+    std::uint32_t PrimitiveMeshFactory::createCone(std::uint32_t segments)
+    {
+        std::vector<fra::Vertex> vertices;
+        std::vector<std::uint16_t> indices;
+
+        constexpr float pi     = std::numbers::pi_v<float>;
+        constexpr float radius = 0.5f;
+        constexpr float halfH  = 0.5f;
+
+        const glm::vec3 apex {0.0f, halfH, 0.0f};
+        for(std::uint32_t segment = 0; segment < segments; ++segment)
+        {
+            const float theta0 = (static_cast<float>(segment) / segments) * 2.0f * pi;
+            const float theta1 = (static_cast<float>(segment + 1) / segments) * 2.0f * pi;
+            const glm::vec3 p0 {std::cos(theta0) * radius, -halfH, std::sin(theta0) * radius};
+            const glm::vec3 p1 {std::cos(theta1) * radius, -halfH, std::sin(theta1) * radius};
+
+            const glm::vec3 normal = glm::normalize(glm::cross(p1 - apex, p0 - apex));
+            const auto base        = static_cast<std::uint16_t>(vertices.size());
+            vertices.push_back(makeVertex(apex, normal, {0.5f, 0.0f}));
+            vertices.push_back(makeVertex(p0, normal, {0.0f, 1.0f}));
+            vertices.push_back(makeVertex(p1, normal, {1.0f, 1.0f}));
+            indices.insert(indices.end(),
+                           {base, static_cast<std::uint16_t>(base + 1),
+                            static_cast<std::uint16_t>(base + 2)});
+        }
+
+        const auto bottomCenter =
+            static_cast<std::uint16_t>(vertices.size());
+        vertices.push_back(makeVertex({0.0f, -halfH, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.5f, 0.5f}));
+        for(std::uint32_t segment = 0; segment < segments; ++segment)
+        {
+            const float theta0 = (static_cast<float>(segment) / segments) * 2.0f * pi;
+            const float theta1 = (static_cast<float>(segment + 1) / segments) * 2.0f * pi;
+            const glm::vec3 p0 {std::cos(theta0) * radius, -halfH, std::sin(theta0) * radius};
+            const glm::vec3 p1 {std::cos(theta1) * radius, -halfH, std::sin(theta1) * radius};
+            const auto b0 = static_cast<std::uint16_t>(vertices.size());
+            vertices.push_back(makeVertex(p0, {0.0f, -1.0f, 0.0f},
+                                          {std::cos(theta0) * 0.5f + 0.5f,
+                                           std::sin(theta0) * 0.5f + 0.5f}));
+            vertices.push_back(makeVertex(p1, {0.0f, -1.0f, 0.0f},
+                                          {std::cos(theta1) * 0.5f + 0.5f,
+                                           std::sin(theta1) * 0.5f + 0.5f}));
+            indices.insert(indices.end(),
+                           {bottomCenter, static_cast<std::uint16_t>(b0 + 1), b0});
+        }
+
+        return mMeshPool->CreateMesh(vertices, indices);
+    }
+
+    std::uint32_t PrimitiveMeshFactory::createPlane()
+    {
+        std::vector<fra::Vertex> vertices;
+        std::vector<std::uint16_t> indices;
+        pushQuad(vertices, indices, {-5.0f, 0.0f, 5.0f}, {5.0f, 0.0f, 5.0f},
+                 {5.0f, 0.0f, -5.0f}, {-5.0f, 0.0f, -5.0f}, {0.0f, 1.0f, 0.0f});
+        // Larger UVs for a tiled plane look
+        vertices[0].texCoord = {0.0f, 10.0f};
+        vertices[1].texCoord = {10.0f, 10.0f};
+        vertices[2].texCoord = {10.0f, 0.0f};
+        vertices[3].texCoord = {0.0f, 0.0f};
+        return mMeshPool->CreateMesh(vertices, indices);
+    }
+
+    std::uint32_t PrimitiveMeshFactory::createQuad()
+    {
+        std::vector<fra::Vertex> vertices;
+        std::vector<std::uint16_t> indices;
+        pushQuad(vertices, indices, {-0.5f, -0.5f, 0.0f}, {0.5f, -0.5f, 0.0f},
+                 {0.5f, 0.5f, 0.0f}, {-0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f});
+        return mMeshPool->CreateMesh(vertices, indices);
+    }
+
+} // namespace FRIGGA_NAMESPACE

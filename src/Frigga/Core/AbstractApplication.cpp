@@ -38,6 +38,8 @@ namespace FRIGGA_NAMESPACE
 
         mRenderer->BeginFrame();
 
+        RenderScene();
+
         // End scene (composite → output target) and leave the swapchain UI pass
         // open when an offscreen target is bound so ImGui can record into it.
         mRenderer->EndScene();
