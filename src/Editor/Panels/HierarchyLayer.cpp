@@ -371,18 +371,65 @@ void HierarchyLayer::drawComponents()
             }
         });
 
-    mRegistry->TryGetComponents<fg::MeshComponent>(selection, [](fg::MeshComponent &mesh) {
+    mRegistry->TryGetComponents<fg::MeshComponent>(selection, [this](fg::MeshComponent &mesh) {
         if(ImGui::CollapsingHeader("Mesh Component", nullptr, ImGuiWindowFlags_ChildWindow))
         {
-            ImGui::Text("Mesh ID: %u", mesh.meshId);
+            fg::PrimitiveType current = fg::PrimitiveType::Cube;
+            const bool known          = mPrimitives->TryFindPrimitive(mesh.meshId, current);
+            const char *preview =
+                known ? fg::PrimitiveMeshFactory::GetDisplayName(current) : "Unknown";
+
+            if(ImGui::BeginCombo("Primitive", preview))
+            {
+                for(std::uint8_t i = 0; i < static_cast<std::uint8_t>(fg::PrimitiveType::Count);
+                    ++i)
+                {
+                    const auto type     = static_cast<fg::PrimitiveType>(i);
+                    const bool selected = known && type == current;
+                    if(ImGui::Selectable(fg::PrimitiveMeshFactory::GetDisplayName(type), selected))
+                    {
+                        mesh.meshId = mPrimitives->GetMesh(type);
+                    }
+                    if(selected)
+                    {
+                        ImGui::SetItemDefaultFocus();
+                    }
+                }
+                ImGui::EndCombo();
+            }
+
+            if(!known)
+            {
+                ImGui::TextDisabled("Mesh ID: %u", mesh.meshId);
+            }
         }
     });
 
     mRegistry->TryGetComponents<fg::MaterialComponent>(
-        selection, [](fg::MaterialComponent &material) {
+        selection, [this](fg::MaterialComponent &material) {
             if(ImGui::CollapsingHeader("Material Component", nullptr, ImGuiWindowFlags_ChildWindow))
             {
-                ImGui::Text("Material ID: %u", material.materialId);
+                const auto defaultMaterial = mPrimitives->GetDefaultMaterial();
+                const bool isDefault       = material.materialId == defaultMaterial;
+                const char *preview        = isDefault ? "Default" : "Unknown";
+
+                if(ImGui::BeginCombo("Material", preview))
+                {
+                    if(ImGui::Selectable("Default", isDefault))
+                    {
+                        material.materialId = defaultMaterial;
+                    }
+                    if(isDefault)
+                    {
+                        ImGui::SetItemDefaultFocus();
+                    }
+                    ImGui::EndCombo();
+                }
+
+                if(!isDefault)
+                {
+                    ImGui::TextDisabled("Material ID: %u", material.materialId);
+                }
             }
         });
 }
