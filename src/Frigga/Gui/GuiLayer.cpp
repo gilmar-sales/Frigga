@@ -45,6 +45,21 @@ namespace FRIGGA_NAMESPACE
 
     void GuiLayer::onDettach()
     {
+        if(!ImGui::GetCurrentContext())
+        {
+            return;
+        }
+
+        // GPU must be idle before destroying ImGui descriptor sets / pipelines /
+        // buffers that may still be referenced by in-flight command buffers.
+        if(auto device = mServiceProvider->GetService<fra::Device>())
+        {
+            device->Get().waitIdle();
+        }
+
+        // ViewportsEnable requires an explicit destroy while the platform +
+        // renderer backends are still alive (DestroyContext alone asserts).
+        ImGui::DestroyPlatformWindows();
         ImGui_ImplVulkan_Shutdown();
         ImGui_ImplSDL3_Shutdown();
         ImGui::DestroyContext();
