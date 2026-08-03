@@ -16,4 +16,6 @@ class GamePlayWorkflow: public Workflow
     }
 
     ~GamePlayWorkflow() = default;
+
+    void buildDefaultDockLayout(ImGuiID dockspaceId) override;
 };

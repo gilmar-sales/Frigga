@@ -21,6 +21,8 @@ class MainLayer: public fg::Layer
   private:
     std::vector<std::pair<const char *, skr::Arc<Workflow>>> m_tabIds;
     skr::Arc<Workflow> m_activeTab;
+    const char *m_activeTabName = "Gameplay";
+    bool m_resetDockLayout      = false;
 
     skr::Arc<fg::Scene> mScene;
     skr::Arc<fg::LayerStack> mLayerStack;

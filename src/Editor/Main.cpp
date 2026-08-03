@@ -1,4 +1,5 @@
 #include "EditorApplication.hpp"
+#include "Panels/ArchetypesLayer.hpp"
 #include "Panels/EditorLayer.hpp"
 #include "Panels/GameplayLayer.hpp"
 #include "Panels/HierarchyLayer.hpp"
@@ -7,8 +8,12 @@
 #include "Preferences/EditorPreferences.hpp"
 #include "Preferences/PreferencesStore.hpp"
 #include "SelectionContext.hpp"
+#include "Workflows/AnimationWorkflow.hpp"
+#include "Workflows/AudioWorkflow.hpp"
 #include "Workflows/EcsWorkflow.hpp"
 #include "Workflows/GamePlayWorkflow.hpp"
+#include "Workflows/ScriptingWorkflow.hpp"
+#include "Workflows/ShadingWorkflow.hpp"
 
 #include <Frigga/Frigga.hpp>
 #include <Frigga/Gui/Styles/Styles.hpp>
@@ -98,9 +103,14 @@ int main(int argc, char *argv[])
         .AddTransient<GameplayLayer>()
         .AddTransient<EditorLayer>()
         .AddTransient<ResourcesLayer>()
+        .AddTransient<ArchetypesLayer>()
         .AddScoped<HierarchyLayer>()
         .AddTransient<PreferencesLayer>()
         .AddTransient<GamePlayWorkflow>()
+        .AddTransient<AnimationWorkflow>()
+        .AddTransient<AudioWorkflow>()
+        .AddTransient<ShadingWorkflow>()
+        .AddTransient<ScriptingWorkflow>()
         .AddTransient<EcsWorkflow>();
 
     auto app = appBuilder.Build<EditorApplication>();

@@ -1,5 +1,7 @@
 #include "GameplayLayer.hpp"
 
+#include "Editor/DockLayout.hpp"
+
 #include <Frigga/Gui/Backends/imgui_impl_vulkan.h>
 
 #include <algorithm>
@@ -40,8 +42,10 @@ void GameplayLayer::onUpdate()
 
 void GameplayLayer::onGui()
 {
+    const auto title = EditorDock::WindowId("Gameplay");
+
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-    if(ImGui::Begin("Gameplay"))
+    if(ImGui::Begin(title.c_str()))
     {
         mClaimOutput =
             ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) || ImGui::IsWindowHovered();

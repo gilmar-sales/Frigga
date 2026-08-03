@@ -1,5 +1,6 @@
 #include "HierarchyLayer.hpp"
 
+#include "Editor/DockLayout.hpp"
 #include "Frigga/ECS/Components/CameraComponent.hpp"
 #include "Frigga/ECS/Components/LightComponent.hpp"
 #include "Frigga/ECS/Components/MaterialComponent.hpp"
@@ -98,7 +99,10 @@ void HierarchyLayer::setPrimaryCamera(fr::Entity entity)
 
 void HierarchyLayer::onGui()
 {
-    ImGui::Begin("Hierarchy");
+    const auto hierarchyTitle  = EditorDock::WindowId("Hierarchy");
+    const auto componentsTitle = EditorDock::WindowId("Components");
+
+    ImGui::Begin(hierarchyTitle.c_str());
 
     if(ImGui::IsMouseDown(0) && ImGui::IsWindowHovered())
     {
@@ -152,7 +156,7 @@ void HierarchyLayer::onGui()
 
     ImGui::End();
 
-    ImGui::Begin("Components");
+    ImGui::Begin(componentsTitle.c_str());
 
     if(mSelection->HasSelection()) drawComponents();
 

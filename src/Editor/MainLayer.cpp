@@ -1,15 +1,21 @@
 #include "MainLayer.hpp"
 
 #include "BoostrapIconsFont.hpp"
+#include "DockLayout.hpp"
 #include "Panels/HierarchyLayer.hpp"
 #include "Panels/PreferencesLayer.hpp"
+#include "Workflows/AnimationWorkflow.hpp"
+#include "Workflows/AudioWorkflow.hpp"
 #include "Workflows/EcsWorkflow.hpp"
 #include "Workflows/GamePlayWorkflow.hpp"
+#include "Workflows/ScriptingWorkflow.hpp"
+#include "Workflows/ShadingWorkflow.hpp"
 
 #include <Frigga/Asset/PrimitiveMeshFactory.hpp>
 
 #include <cmath>
 #include <imgui.h>
+#include <imgui_internal.h>
 
 #include <Frigga/Gui/Extensions/Extensions.hpp>
 
@@ -19,15 +25,16 @@ MainLayer::MainLayer(skr::Arc<fg::Scene> scene, skr::Arc<fg::LayerStack> layerSt
       mHierarchy(serviceProvider->GetService<HierarchyLayer>())
 {
     m_tabIds = {
-        {"Gameplay",  serviceProvider->GetService<GamePlayWorkflow>()},
-        {"Animation", serviceProvider->GetService<EcsWorkflow>()     },
-        {"Audio",     serviceProvider->GetService<EcsWorkflow>()     },
-        {"Shading",   serviceProvider->GetService<EcsWorkflow>()     },
-        {"Scripting", serviceProvider->GetService<EcsWorkflow>()     },
-        {"ECS",       serviceProvider->GetService<EcsWorkflow>()     }
+        {"Gameplay",  serviceProvider->GetService<GamePlayWorkflow>() },
+        {"Animation", serviceProvider->GetService<AnimationWorkflow>()},
+        {"Audio",     serviceProvider->GetService<AudioWorkflow>()    },
+        {"Shading",   serviceProvider->GetService<ShadingWorkflow>()  },
+        {"Scripting", serviceProvider->GetService<ScriptingWorkflow>()},
+        {"ECS",       serviceProvider->GetService<EcsWorkflow>()      }
     };
 
-    m_activeTab = m_tabIds.begin()->second;
+    m_activeTab     = m_tabIds.begin()->second;
+    m_activeTabName = m_tabIds.begin()->first;
 }
 
 void MainLayer::onUpdate()
@@ -61,8 +68,17 @@ void MainLayer::onGui()
 
         if(io.ConfigFlags & ImGuiConfigFlags_DockingEnable)
         {
+            EditorDock::SetLayoutId(m_activeTabName);
+
             auto dockspace_flags = ImGuiDockNodeFlags_None;
-            auto dockspace_id    = ImGui::GetID("MainDockSpace");
+            // One dockspace tree per workflow tab so layouts stay independent.
+            auto dockspace_id    = ImGui::GetID(m_activeTabName);
+
+            if(m_resetDockLayout || ImGui::DockBuilderGetNode(dockspace_id) == nullptr)
+            {
+                m_resetDockLayout = false;
+                m_activeTab->buildDefaultDockLayout(dockspace_id);
+            }
 
             ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), dockspace_flags);
         }
@@ -240,6 +256,15 @@ void MainLayer::drawMenuBar()
             ImGui::EndMenu();
         }
 
+        if(ImGui::BeginMenu("Window"))
+        {
+            if(ImGui::MenuItem("Reset Layout"))
+            {
+                m_resetDockLayout = true;
+            }
+            ImGui::EndMenu();
+        }
+
         ImGui::SetCursorPosX(ImGui::GetWindowContentRegionMax().x * 0.5f - 150);
 
         ImGui::Text("%s", "untitled");
@@ -252,7 +277,8 @@ void MainLayer::drawMenuBar()
         {
             if(ImGui::BeginTabItem(tabPair.first))
             {
-                m_activeTab = tabPair.second;
+                m_activeTab     = tabPair.second;
+                m_activeTabName = tabPair.first;
                 ImGui::EndTabItem();
             }
         }

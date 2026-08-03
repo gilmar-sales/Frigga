@@ -1,5 +1,6 @@
 #include "EditorLayer.hpp"
 
+#include "Editor/DockLayout.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/Gui/Backends/imgui_impl_vulkan.h"
 
@@ -53,8 +54,10 @@ void EditorLayer::onGui()
 {
     ImGuizmo::BeginFrame();
 
+    const auto title = EditorDock::WindowId("Editor");
+
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-    if(ImGui::Begin("Editor"))
+    if(ImGui::Begin(title.c_str()))
     {
         mViewportFocused =
             ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);

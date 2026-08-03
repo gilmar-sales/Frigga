@@ -1,5 +1,7 @@
 #include "Workflow.hpp"
 
+#include <imgui_internal.h>
+
 Workflow::Workflow(std::string name, std::vector<skr::Arc<fg::Layer>> layers): fg::Layer(name)
 {
     for(auto layer: layers)
@@ -30,4 +32,12 @@ void Workflow::onEvent(fg::Event &event)
     {
         layer->onEvent(event);
     }
+}
+
+void Workflow::buildDefaultDockLayout(ImGuiID dockspaceId)
+{
+    ImGui::DockBuilderRemoveNode(dockspaceId);
+    ImGui::DockBuilderAddNode(dockspaceId, ImGuiDockNodeFlags_DockSpace);
+    ImGui::DockBuilderSetNodeSize(dockspaceId, ImGui::GetMainViewport()->WorkSize);
+    ImGui::DockBuilderFinish(dockspaceId);
 }
