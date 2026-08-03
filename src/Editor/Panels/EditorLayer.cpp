@@ -1,12 +1,20 @@
 #include "EditorLayer.hpp"
 
+#include "Frigga/ECS/Components/CameraComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/Gui/Backends/imgui_impl_vulkan.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <glm/gtc/type_ptr.hpp>
 #include <imgui.h>
+
+namespace
+{
+    constexpr float kPitchLimitDegrees = 89.0f;
+    constexpr float kMinOrbitDistance  = 0.25f;
+}
 
 EditorLayer::EditorLayer(skr::Arc<fra::Renderer> renderer, skr::Arc<fr::Registry> registry,
                          skr::Arc<SelectionContext> selection)
@@ -48,8 +56,9 @@ void EditorLayer::onGui()
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
     if(ImGui::Begin("Editor"))
     {
-        mClaimOutput =
-            ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) || ImGui::IsWindowHovered();
+        mViewportFocused =
+            ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
+        mClaimOutput = mViewportFocused || ImGui::IsWindowHovered();
 
         drawToolbar();
 
@@ -63,14 +72,21 @@ void EditorLayer::onGui()
             ImGui::Image(static_cast<ImTextureID>(reinterpret_cast<std::uintptr_t>(mTextureId)),
                          avail);
             mViewportHovered = ImGui::IsItemHovered();
-            drawGizmos(imageMin, avail);
+            handleNavigation();
+
+            const bool navigating = mNavMode != NavMode::None;
+            ImGuizmo::Enable(!navigating);
+            drawGizmos(imageMin, avail, !navigating);
         }
         else
         {
             mViewportHovered = false;
+            mNavMode         = NavMode::None;
         }
 
-        if(mViewportHovered && !ImGuizmo::IsUsing())
+        // Tool hotkeys only when not flying (RMB holds WASD for movement).
+        if((mViewportHovered || mViewportFocused) && mNavMode == NavMode::None &&
+           !ImGuizmo::IsUsing())
         {
             if(ImGui::IsKeyPressed(ImGuiKey_W))
             {
@@ -90,6 +106,8 @@ void EditorLayer::onGui()
     {
         mClaimOutput     = false;
         mViewportHovered = false;
+        mViewportFocused = false;
+        mNavMode         = NavMode::None;
     }
     ImGui::End();
     ImGui::PopStyleVar();
@@ -140,7 +158,283 @@ void EditorLayer::drawToolbar()
     ImGui::Dummy(ImVec2(0.0f, 4.0f));
 }
 
-void EditorLayer::drawGizmos(const ImVec2 &imageMin, const ImVec2 &imageSize)
+void EditorLayer::handleNavigation()
+{
+    const fr::Entity cameraEntity = findActiveCameraEntity();
+    if(cameraEntity == SelectionContext::Invalid)
+    {
+        mNavMode = NavMode::None;
+        return;
+    }
+
+    bool handled = false;
+    mRegistry->TryGetComponents<fg::TransformComponent>(
+        cameraEntity, [&](fg::TransformComponent &camera) {
+            handled      = true;
+            ImGuiIO &io  = ImGui::GetIO();
+            const float dt = std::max(io.DeltaTime, 0.0f);
+
+            const bool allowStart =
+                mViewportHovered && !ImGuizmo::IsUsing() && mNavMode == NavMode::None;
+
+            if(allowStart)
+            {
+                if(ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+                {
+                    mNavMode = NavMode::Fly;
+                    extractYawPitch(camera, mFlyYawDegrees, mFlyPitchDegrees);
+                }
+                else if(io.KeyAlt && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+                {
+                    mNavMode = NavMode::Orbit;
+                    syncOrbitPivot(camera);
+                }
+                else if(ImGui::IsMouseClicked(ImGuiMouseButton_Middle))
+                {
+                    mNavMode = NavMode::Pan;
+                    syncOrbitPivot(camera);
+                }
+            }
+
+            if(mNavMode == NavMode::Fly && !ImGui::IsMouseDown(ImGuiMouseButton_Right))
+            {
+                mNavMode = NavMode::None;
+            }
+            else if(mNavMode == NavMode::Orbit &&
+                    !(io.KeyAlt && ImGui::IsMouseDown(ImGuiMouseButton_Left)))
+            {
+                mNavMode = NavMode::None;
+            }
+            else if(mNavMode == NavMode::Pan && !ImGui::IsMouseDown(ImGuiMouseButton_Middle))
+            {
+                mNavMode = NavMode::None;
+            }
+
+            // Scroll zoom toward pivot / look direction (Unity-style dolly).
+            if((mViewportHovered || mNavMode != NavMode::None) && io.MouseWheel != 0.0f &&
+               !ImGuizmo::IsUsing())
+            {
+                syncOrbitPivot(camera);
+                const float zoomFactor = std::pow(0.85f, io.MouseWheel);
+                mOrbitDistance = std::max(kMinOrbitDistance, mOrbitDistance * zoomFactor);
+                camera.position = mOrbitPivot - cameraForward(camera) * mOrbitDistance;
+            }
+
+            if(mNavMode == NavMode::None)
+            {
+                return;
+            }
+
+            const ImVec2 mouseDelta = io.MouseDelta;
+
+            if(mNavMode == NavMode::Fly)
+            {
+                mFlyYawDegrees += mouseDelta.x * mLookSensitivity;
+                mFlyPitchDegrees -= mouseDelta.y * mLookSensitivity;
+                mFlyPitchDegrees =
+                    std::clamp(mFlyPitchDegrees, -kPitchLimitDegrees, kPitchLimitDegrees);
+                applyYawPitch(camera, mFlyYawDegrees, mFlyPitchDegrees);
+
+                const float boost       = io.KeyShift ? 3.0f : 1.0f;
+                const float speed       = mMoveSpeed * boost * dt;
+                const glm::vec3 forward = cameraForward(camera);
+                const glm::vec3 right   = cameraRight(camera);
+                const glm::vec3 up {0.0f, 1.0f, 0.0f};
+
+                glm::vec3 move {0.0f};
+                if(ImGui::IsKeyDown(ImGuiKey_W))
+                {
+                    move += forward;
+                }
+                if(ImGui::IsKeyDown(ImGuiKey_S))
+                {
+                    move -= forward;
+                }
+                if(ImGui::IsKeyDown(ImGuiKey_D))
+                {
+                    move += right;
+                }
+                if(ImGui::IsKeyDown(ImGuiKey_A))
+                {
+                    move -= right;
+                }
+                if(ImGui::IsKeyDown(ImGuiKey_E))
+                {
+                    move += up;
+                }
+                if(ImGui::IsKeyDown(ImGuiKey_Q))
+                {
+                    move -= up;
+                }
+
+                if(glm::dot(move, move) > 1e-6f)
+                {
+                    camera.position += glm::normalize(move) * speed;
+                }
+
+                mOrbitPivot = camera.position + cameraForward(camera) * mOrbitDistance;
+            }
+            else if(mNavMode == NavMode::Orbit)
+            {
+                float yaw   = 0.0f;
+                float pitch = 0.0f;
+                extractYawPitch(camera, yaw, pitch);
+
+                yaw += mouseDelta.x * mOrbitSensitivity;
+                pitch -= mouseDelta.y * mOrbitSensitivity;
+                pitch = std::clamp(pitch, -kPitchLimitDegrees, kPitchLimitDegrees);
+                applyYawPitch(camera, yaw, pitch);
+
+                camera.position = mOrbitPivot - cameraForward(camera) * mOrbitDistance;
+            }
+            else if(mNavMode == NavMode::Pan)
+            {
+                const float panScale  = std::max(mOrbitDistance, 1.0f) * 0.0025f;
+                const glm::vec3 right = cameraRight(camera);
+                const glm::vec3 up    = cameraUp(camera);
+                const glm::vec3 delta =
+                    (-right * mouseDelta.x + up * mouseDelta.y) * panScale;
+                camera.position += delta;
+                mOrbitPivot += delta;
+            }
+        });
+
+    if(!handled)
+    {
+        mNavMode = NavMode::None;
+    }
+}
+
+fr::Entity EditorLayer::findActiveCameraEntity()
+{
+    fr::Entity found = SelectionContext::Invalid;
+
+    mRegistry->CreateMutation()->Each<fg::TransformComponent, fg::CameraComponent>(
+        [&](auto entity, fg::TransformComponent &, fg::CameraComponent &camera) {
+            if(found == SelectionContext::Invalid && camera.primary)
+            {
+                found = entity;
+            }
+        });
+
+    if(found != SelectionContext::Invalid)
+    {
+        return found;
+    }
+
+    mRegistry->CreateMutation()->Each<fg::TransformComponent, fg::CameraComponent>(
+        [&](auto entity, fg::TransformComponent &, fg::CameraComponent &camera) {
+            if(found == SelectionContext::Invalid && camera.locked)
+            {
+                found = entity;
+            }
+        });
+
+    if(found != SelectionContext::Invalid)
+    {
+        return found;
+    }
+
+    mRegistry->CreateMutation()->Each<fg::TransformComponent, fg::CameraComponent>(
+        [&](auto entity, fg::TransformComponent &, fg::CameraComponent &) {
+            if(found == SelectionContext::Invalid)
+            {
+                found = entity;
+            }
+        });
+
+    return found;
+}
+
+void EditorLayer::syncOrbitPivot(const fg::TransformComponent &camera)
+{
+    if(mSelection->HasSelection())
+    {
+        bool usedSelection = false;
+        mRegistry->TryGetComponents<fg::TransformComponent>(
+            mSelection->Get(), [&](fg::TransformComponent &selected) {
+                mOrbitPivot    = selected.position;
+                mOrbitDistance = std::max(kMinOrbitDistance,
+                                          glm::length(camera.position - mOrbitPivot));
+                usedSelection  = true;
+            });
+        if(usedSelection)
+        {
+            return;
+        }
+    }
+
+    const glm::vec3 forward = cameraForward(camera);
+    mOrbitPivot             = camera.position + forward * mOrbitDistance;
+}
+
+void EditorLayer::applyYawPitch(fg::TransformComponent &camera, float yawDegrees,
+                                float pitchDegrees) const
+{
+    const float yaw   = glm::radians(yawDegrees);
+    const float pitch = glm::radians(pitchDegrees);
+
+    const glm::vec3 forward {
+        std::sin(yaw) * std::cos(pitch),
+        std::sin(pitch),
+        -std::cos(yaw) * std::cos(pitch),
+    };
+
+    glm::vec3 safeForward = forward;
+    if(glm::dot(safeForward, safeForward) < 1e-6f)
+    {
+        safeForward = {0.0f, 0.0f, -1.0f};
+    }
+    else
+    {
+        safeForward = glm::normalize(safeForward);
+    }
+
+    camera.rotation = glm::quatLookAt(safeForward, glm::vec3 {0.0f, 1.0f, 0.0f});
+}
+
+void EditorLayer::extractYawPitch(const fg::TransformComponent &camera, float &yawDegrees,
+                                  float &pitchDegrees) const
+{
+    const glm::vec3 forward = cameraForward(camera);
+    pitchDegrees =
+        glm::degrees(std::asin(std::clamp(forward.y, -1.0f, 1.0f)));
+    yawDegrees = glm::degrees(std::atan2(forward.x, -forward.z));
+}
+
+glm::vec3 EditorLayer::cameraForward(const fg::TransformComponent &camera)
+{
+    const glm::vec3 forward =
+        glm::normalize(camera.rotation * glm::vec3(0.0f, 0.0f, -1.0f));
+    if(glm::dot(forward, forward) < 1e-6f)
+    {
+        return {0.0f, 0.0f, -1.0f};
+    }
+    return forward;
+}
+
+glm::vec3 EditorLayer::cameraRight(const fg::TransformComponent &camera)
+{
+    const glm::vec3 right =
+        glm::normalize(camera.rotation * glm::vec3(1.0f, 0.0f, 0.0f));
+    if(glm::dot(right, right) < 1e-6f)
+    {
+        return {1.0f, 0.0f, 0.0f};
+    }
+    return right;
+}
+
+glm::vec3 EditorLayer::cameraUp(const fg::TransformComponent &camera)
+{
+    const glm::vec3 up = glm::normalize(camera.rotation * glm::vec3(0.0f, 1.0f, 0.0f));
+    if(glm::dot(up, up) < 1e-6f)
+    {
+        return {0.0f, 1.0f, 0.0f};
+    }
+    return up;
+}
+
+void EditorLayer::drawGizmos(const ImVec2 &imageMin, const ImVec2 &imageSize, bool allowManipulate)
 {
     if(imageSize.x < 1.0f || imageSize.y < 1.0f)
     {
@@ -148,8 +442,10 @@ void EditorLayer::drawGizmos(const ImVec2 &imageMin, const ImVec2 &imageSize)
     }
 
     const auto &projectionUbo = mRenderer->GetCurrentProjection();
-    glm::mat4 view = projectionUbo.view;
-    glm::mat4 proj = projectionUbo.projection;
+    // Match Freya view; undo Vulkan Y-flip so ImGuizmo's OpenGL NDC mapping lines up
+    // with the ImGui image (see ImGuizmo::worldToPos `trans.y = 1.f - trans.y`).
+    const glm::mat4 view = projectionUbo.view;
+    const glm::mat4 proj = gizmoProjection(projectionUbo.projection);
 
     ImGuizmo::SetOrthographic(false);
     ImGuizmo::SetDrawlist(ImGui::GetWindowDrawList());
@@ -162,7 +458,7 @@ void EditorLayer::drawGizmos(const ImVec2 &imageMin, const ImVec2 &imageSize)
                            20.0f);
     }
 
-    if(!mSelection->HasSelection())
+    if(!allowManipulate || !mSelection->HasSelection())
     {
         return;
     }
@@ -185,6 +481,13 @@ void EditorLayer::drawGizmos(const ImVec2 &imageMin, const ImVec2 &imageSize)
                 applyModelMatrix(transform, model);
             }
         });
+}
+
+glm::mat4 EditorLayer::gizmoProjection(const glm::mat4 &vulkanProjection)
+{
+    glm::mat4 projection = vulkanProjection;
+    projection[1][1] *= -1.0f;
+    return projection;
 }
 
 glm::mat4 EditorLayer::buildModelMatrix(const fg::TransformComponent &transform)
