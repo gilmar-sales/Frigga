@@ -32,6 +32,16 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(imgui)
 
+set(IMGUIZMO_BUILD_EXAMPLE OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(
+        imguizmo
+        GIT_REPOSITORY "https://github.com/CedricGuillemet/ImGuizmo.git"
+        GIT_TAG "master"
+        GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(imguizmo)
+target_link_libraries(imguizmo PUBLIC imgui::imgui)
+
 file(GLOB_RECURSE FRIGGA_SRC src/Frigga/*.cpp src/Frigga/*.hpp)
 
 add_library(frigga ${FRIGGA_SRC}
@@ -72,5 +82,6 @@ target_compile_features(Editor PUBLIC cxx_std_26)
 
 target_link_libraries(Editor PUBLIC
         frigga::frigga
+        imguizmo::imguizmo
 )
 file(COPY src/Editor/Resources DESTINATION ${CMAKE_BINARY_DIR})

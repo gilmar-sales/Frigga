@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Editor/SelectionContext.hpp"
 #include "Frigga/Asset/PrimitiveMeshFactory.hpp"
 #include "Frigga/ECS/Components/NameComponent.hpp"
 #include "Frigga/Scene/Scene.hpp"
@@ -10,7 +11,8 @@ class HierarchyLayer: public fg::Layer
 {
   public:
     HierarchyLayer(skr::Arc<fr::Registry> registry, skr::Arc<fg::Scene> scene,
-                   skr::Arc<fg::PrimitiveMeshFactory> primitives);
+                   skr::Arc<fg::PrimitiveMeshFactory> primitives,
+                   skr::Arc<SelectionContext> selection);
     ~HierarchyLayer() override = default;
 
     void createEmptyEntity();
@@ -31,6 +33,6 @@ class HierarchyLayer: public fg::Layer
     skr::Arc<fr::Registry> mRegistry;
     skr::Arc<fg::Scene> mScene;
     skr::Arc<fg::PrimitiveMeshFactory> mPrimitives;
-    fr::Entity selectionContext;
+    skr::Arc<SelectionContext> mSelection;
     fr::Entity nodeToRename;
 };

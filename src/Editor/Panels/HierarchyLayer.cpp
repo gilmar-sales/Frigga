@@ -11,16 +11,12 @@
 #include <imgui.h>
 #include <sstream>
 
-namespace
-{
-    constexpr fr::Entity InvalidEntity = static_cast<fr::Entity>(-1);
-}
-
 HierarchyLayer::HierarchyLayer(skr::Arc<fr::Registry> registry, skr::Arc<fg::Scene> scene,
-                               skr::Arc<fg::PrimitiveMeshFactory> primitives)
+                               skr::Arc<fg::PrimitiveMeshFactory> primitives,
+                               skr::Arc<SelectionContext> selection)
     : mRegistry(std::move(registry)), mScene(std::move(scene)),
-      mPrimitives(std::move(primitives)), selectionContext(InvalidEntity),
-      nodeToRename(InvalidEntity)
+      mPrimitives(std::move(primitives)), mSelection(std::move(selection)),
+      nodeToRename(SelectionContext::Invalid)
 {
 }
 
@@ -106,7 +102,7 @@ void HierarchyLayer::onGui()
 
     if(ImGui::IsMouseDown(0) && ImGui::IsWindowHovered())
     {
-        selectionContext = InvalidEntity;
+        mSelection->Clear();
     }
     else if(ImGui::BeginPopupContextWindow("##HierarchyContext", 1))
     {
@@ -158,15 +154,16 @@ void HierarchyLayer::onGui()
 
     ImGui::Begin("Components");
 
-    if(selectionContext != InvalidEntity) drawComponents();
+    if(mSelection->HasSelection()) drawComponents();
 
     ImGui::End();
 }
 
 void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
 {
-    ImGuiTreeNodeFlags flags = ((selectionContext == entity) ? ImGuiTreeNodeFlags_Selected : 0) |
-                               ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Leaf;
+    ImGuiTreeNodeFlags flags =
+        ((mSelection->Get() == entity) ? ImGuiTreeNodeFlags_Selected : 0) |
+        ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Leaf;
 
     bool opened =
         ImGui::TreeNodeEx(reinterpret_cast<void *>(static_cast<uintptr_t>(entity)), flags, "%s",
@@ -181,7 +178,7 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
         if(ImGui::MenuItem("Delete", nullptr, false, !locked))
         {
             mRegistry->DestroyEntity(entity);
-            if(selectionContext == entity) selectionContext = InvalidEntity;
+            if(mSelection->Get() == entity) mSelection->Clear();
         }
         else if(locked && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
         {
@@ -257,7 +254,7 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
 
     if(ImGui::IsItemClicked() || ImGui::IsItemClicked(1))
     {
-        selectionContext = entity;
+        mSelection->Select(entity);
     }
 
     if(nodeToRename == entity)
@@ -272,8 +269,8 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
         if(ImGui::IsKeyReleased(ImGuiKey_Enter))
         {
             mRegistry->TryGetComponents<fg::NameComponent>(
-                selectionContext, [](fg::NameComponent &name) { name.name = buffer; });
-            nodeToRename = InvalidEntity;
+                mSelection->Get(), [](fg::NameComponent &name) { name.name = buffer; });
+            nodeToRename = SelectionContext::Invalid;
         }
     }
 
@@ -282,8 +279,10 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
 
 void HierarchyLayer::drawComponents()
 {
+    const fr::Entity selection = mSelection->Get();
+
     mRegistry->TryGetComponents<fg::TransformComponent>(
-        selectionContext, [](fg::TransformComponent &transform) {
+        selection, [](fg::TransformComponent &transform) {
             static glm::vec3 Rotation;
 
             if(ImGui::CollapsingHeader("Transform Component", nullptr, ImGuiWindowFlags_ChildWindow))
@@ -313,7 +312,7 @@ void HierarchyLayer::drawComponents()
         });
 
     mRegistry->TryGetComponents<fg::CameraComponent>(
-        selectionContext, [this](fg::CameraComponent &camera) {
+        selection, [this, selection](fg::CameraComponent &camera) {
             if(ImGui::CollapsingHeader("Camera Component", nullptr, ImGuiWindowFlags_ChildWindow))
             {
                 ImGui::DragFloat("FOV", &camera.fovDegrees, 0.1f, 1.0f, 179.0f);
@@ -326,7 +325,7 @@ void HierarchyLayer::drawComponents()
                 {
                     if(primary)
                     {
-                        setPrimaryCamera(selectionContext);
+                        setPrimaryCamera(selection);
                     }
                     else if(!camera.locked)
                     {
@@ -343,7 +342,7 @@ void HierarchyLayer::drawComponents()
         });
 
     mRegistry->TryGetComponents<fg::LightComponent>(
-        selectionContext, [](fg::LightComponent &light) {
+        selection, [](fg::LightComponent &light) {
             if(ImGui::CollapsingHeader("Light Component", nullptr, ImGuiWindowFlags_ChildWindow))
             {
                 int typeIndex = static_cast<int>(light.type);
@@ -368,7 +367,7 @@ void HierarchyLayer::drawComponents()
             }
         });
 
-    mRegistry->TryGetComponents<fg::MeshComponent>(selectionContext, [](fg::MeshComponent &mesh) {
+    mRegistry->TryGetComponents<fg::MeshComponent>(selection, [](fg::MeshComponent &mesh) {
         if(ImGui::CollapsingHeader("Mesh Component", nullptr, ImGuiWindowFlags_ChildWindow))
         {
             ImGui::Text("Mesh ID: %u", mesh.meshId);
@@ -376,7 +375,7 @@ void HierarchyLayer::drawComponents()
     });
 
     mRegistry->TryGetComponents<fg::MaterialComponent>(
-        selectionContext, [](fg::MaterialComponent &material) {
+        selection, [](fg::MaterialComponent &material) {
             if(ImGui::CollapsingHeader("Material Component", nullptr, ImGuiWindowFlags_ChildWindow))
             {
                 ImGui::Text("Material ID: %u", material.materialId);

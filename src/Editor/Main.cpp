@@ -1,8 +1,10 @@
 #include "EditorApplication.hpp"
+#include "Panels/EditorLayer.hpp"
 #include "Panels/GameplayLayer.hpp"
 #include "Panels/HierarchyLayer.hpp"
 #include "Panels/PreferencesLayer.hpp"
 #include "Panels/ResourcesLayer.hpp"
+#include "SelectionContext.hpp"
 #include "Workflows/EcsWorkflow.hpp"
 #include "Workflows/GamePlayWorkflow.hpp"
 
@@ -19,8 +21,10 @@ int main(int argc, char *argv[])
                           });
 
     appBuilder.GetServiceCollection()
-        ->AddTransient<MainLayer>()
+        ->AddSingleton<SelectionContext>()
+        .AddTransient<MainLayer>()
         .AddTransient<GameplayLayer>()
+        .AddTransient<EditorLayer>()
         .AddTransient<ResourcesLayer>()
         .AddScoped<HierarchyLayer>()
         .AddTransient<PreferencesLayer>()

@@ -27,4 +27,5 @@ class GameplayLayer: public fg::Layer
     std::uint32_t mHeight        = 0;
     std::uint32_t mPendingWidth  = 1280;
     std::uint32_t mPendingHeight = 720;
+    bool mClaimOutput            = false;
 };

@@ -13,7 +13,7 @@ GameplayLayer::GameplayLayer(skr::Arc<fra::Renderer> renderer)
 
 void GameplayLayer::onAttach()
 {
-    ensureTarget(mPendingWidth, mPendingHeight);
+    // Editor owns the output target by default; prepare a dormant target size only.
 }
 
 void GameplayLayer::onDettach()
@@ -31,7 +31,10 @@ void GameplayLayer::onDettach()
 
 void GameplayLayer::onUpdate()
 {
-    ensureTarget(mPendingWidth, mPendingHeight);
+    if(mClaimOutput)
+    {
+        ensureTarget(mPendingWidth, mPendingHeight);
+    }
 }
 
 void GameplayLayer::onGui()
@@ -39,6 +42,9 @@ void GameplayLayer::onGui()
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
     if(ImGui::Begin("Gameplay"))
     {
+        mClaimOutput =
+            ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) || ImGui::IsWindowHovered();
+
         const ImVec2 avail = ImGui::GetContentRegionAvail();
         mPendingWidth      = static_cast<std::uint32_t>(std::max(avail.x, 1.0f));
         mPendingHeight     = static_cast<std::uint32_t>(std::max(avail.y, 1.0f));
@@ -49,6 +55,10 @@ void GameplayLayer::onGui()
                          avail);
         }
     }
+    else
+    {
+        mClaimOutput = false;
+    }
     ImGui::End();
     ImGui::PopStyleVar();
 }
@@ -57,6 +67,11 @@ void GameplayLayer::ensureTarget(std::uint32_t width, std::uint32_t height)
 {
     if(mTarget && mWidth == width && mHeight == height)
     {
+        if(mRenderer->GetOutputTarget() != mTarget)
+        {
+            mRenderer->SetOutputTarget(mTarget);
+            recreateUiPipeline();
+        }
         return;
     }
 
