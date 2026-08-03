@@ -43,6 +43,8 @@ void EditorLayer::onDettach()
 
 void EditorLayer::onUpdate()
 {
+    consumePickResult();
+
     if(mClaimOutput)
     {
         mScene->PreferEditorCamera();
@@ -80,6 +82,7 @@ void EditorLayer::onGui()
             const bool navigating = mNavMode != NavMode::None;
             ImGuizmo::Enable(!navigating);
             drawGizmos(imageMin, avail, !navigating);
+            handlePicking(imageMin, avail);
         }
         else
         {
@@ -159,6 +162,53 @@ void EditorLayer::drawToolbar()
 
     ImGui::PopStyleVar();
     ImGui::Dummy(ImVec2(0.0f, 4.0f));
+}
+
+void EditorLayer::consumePickResult()
+{
+    std::uint32_t id = 0;
+    if(!mRenderer->TryConsumePickResult(id))
+    {
+        return;
+    }
+
+    if(id == SelectionContext::Invalid)
+    {
+        mSelection->Clear();
+    }
+    else
+    {
+        mSelection->Select(static_cast<fr::Entity>(id));
+    }
+}
+
+void EditorLayer::handlePicking(const ImVec2 &imageMin, const ImVec2 &imageSize)
+{
+    ImGuiIO &io = ImGui::GetIO();
+
+    if(!mViewportHovered || mNavMode != NavMode::None || io.KeyAlt ||
+       ImGuizmo::IsUsing() || ImGuizmo::IsOver() ||
+       !ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+    {
+        return;
+    }
+
+    if(mWidth == 0 || mHeight == 0 || imageSize.x <= 0.0f || imageSize.y <= 0.0f)
+    {
+        return;
+    }
+
+    const ImVec2 mouse = ImGui::GetMousePos();
+    const float u      = (mouse.x - imageMin.x) / imageSize.x;
+    const float v      = (mouse.y - imageMin.y) / imageSize.y;
+    if(u < 0.0f || v < 0.0f || u >= 1.0f || v >= 1.0f)
+    {
+        return;
+    }
+
+    const auto x = static_cast<std::uint32_t>(u * static_cast<float>(mWidth));
+    const auto y = static_cast<std::uint32_t>(v * static_cast<float>(mHeight));
+    mRenderer->RequestPick(std::min(x, mWidth - 1), std::min(y, mHeight - 1));
 }
 
 void EditorLayer::handleNavigation()

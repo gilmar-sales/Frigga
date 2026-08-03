@@ -37,6 +37,8 @@ class EditorLayer: public fg::Layer
     void drawToolbar();
     void drawGizmos(const ImVec2 &imageMin, const ImVec2 &imageSize, bool allowManipulate);
     void handleNavigation();
+    void handlePicking(const ImVec2 &imageMin, const ImVec2 &imageSize);
+    void consumePickResult();
     [[nodiscard]] static glm::mat4 gizmoProjection(const glm::mat4 &vulkanProjection);
     void syncOrbitPivot(const fg::TransformComponent &camera);
     void applyYawPitch(fg::TransformComponent &camera, float yawDegrees, float pitchDegrees) const;

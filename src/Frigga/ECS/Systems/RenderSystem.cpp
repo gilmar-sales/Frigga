@@ -159,6 +159,7 @@ namespace FRIGGA_NAMESPACE
             std::uint32_t meshId;
             std::uint32_t materialId;
             std::uint32_t firstInstance;
+            std::uint32_t entityId;
         };
         std::vector<DrawItem> draws;
 
@@ -172,7 +173,8 @@ namespace FRIGGA_NAMESPACE
                 const auto firstInstance =
                     static_cast<std::uint32_t>(mInstanceMatrices.size());
                 mInstanceMatrices.push_back(model);
-                draws.push_back({mesh.meshId, material.materialId, firstInstance});
+                draws.push_back({mesh.meshId, material.materialId, firstInstance,
+                                 static_cast<std::uint32_t>(entity)});
             });
 
         if(draws.empty())
@@ -197,7 +199,8 @@ namespace FRIGGA_NAMESPACE
 
         for(const auto &draw: draws)
         {
-            mRenderer->DrawInstanced(draw.meshId, draw.materialId, 1, draw.firstInstance);
+            mRenderer->DrawInstanced(draw.meshId, draw.materialId, 1, draw.firstInstance,
+                                     draw.entityId);
         }
     }
 
