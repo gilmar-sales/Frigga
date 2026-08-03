@@ -77,6 +77,9 @@ int main(int argc, char *argv[])
             .WithConfiguration([](skr::ConfigurationBuilder &configurationBuilder) {
                 PreferencesStore::Configure(configurationBuilder);
             })
+            .WithExtension<skr::LoggingExtension>([](skr::LoggingExtension &logging) {
+                logging.AddConsoleSink().AddFileSink("frigga.log");
+            })
             .WithExtension<fg::FriggaExtension>()
             .WithExtension<fra::FreyaExtension>([&](fra::FreyaExtension &freya) {
                 freya.WithOptions([&](fra::FreyaOptionsBuilder &builder) {
