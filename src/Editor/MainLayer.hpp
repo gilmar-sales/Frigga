@@ -2,6 +2,7 @@
 
 #include <Frigga/Core/LayerStack.hpp>
 #include <Frigga/Scene/Scene.hpp>
+#include <Frigga/Scene/SceneSimulationState.hpp>
 
 #include <filesystem>
 #include <mutex>
@@ -42,6 +43,7 @@ class MainLayer: public fg::Layer
     void requestSaveSceneAs();
     void openSceneDialog();
     void saveSceneDialog();
+    void ensureEditMode();
 
     static void onOpenSceneDialog(void *userdata, const char *const *filelist, int filter);
     static void onSaveSceneDialog(void *userdata, const char *const *filelist, int filter);
@@ -56,6 +58,7 @@ class MainLayer: public fg::Layer
     skr::Arc<fra::Window> mWindow;
     skr::Arc<HierarchyLayer> mHierarchy;
     skr::Arc<SelectionContext> mSelection;
+    skr::Arc<fg::SceneSimulationState> mSimulation;
 
     std::mutex mDialogMutex;
     PendingSceneAction mPendingAction = PendingSceneAction::None;

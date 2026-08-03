@@ -161,6 +161,91 @@ namespace FRIGGA_NAMESPACE
         return false;
     }
 
+    std::vector<glm::vec3> PrimitiveMeshFactory::GetColliderHullPoints(PrimitiveType type)
+    {
+        switch(type)
+        {
+        case PrimitiveType::Cube:
+            return {{-0.5f, -0.5f, -0.5f}, {0.5f, -0.5f, -0.5f}, {0.5f, 0.5f, -0.5f},
+                    {-0.5f, 0.5f, -0.5f},  {-0.5f, -0.5f, 0.5f},  {0.5f, -0.5f, 0.5f},
+                    {0.5f, 0.5f, 0.5f},   {-0.5f, 0.5f, 0.5f}};
+        case PrimitiveType::Sphere:
+        {
+            std::vector<glm::vec3> points;
+            constexpr int stacks = 8;
+            constexpr int slices = 12;
+            for(int y = 0; y <= stacks; ++y)
+            {
+                const float v = static_cast<float>(y) / static_cast<float>(stacks);
+                const float phi = v * std::numbers::pi_v<float>;
+                for(int x = 0; x < slices; ++x)
+                {
+                    const float u = static_cast<float>(x) / static_cast<float>(slices);
+                    const float theta = u * 2.0f * std::numbers::pi_v<float>;
+                    points.emplace_back(0.5f * std::sin(phi) * std::cos(theta),
+                                        0.5f * std::cos(phi),
+                                        0.5f * std::sin(phi) * std::sin(theta));
+                }
+            }
+            return points;
+        }
+        case PrimitiveType::Capsule:
+        {
+            std::vector<glm::vec3> points;
+            constexpr int slices = 12;
+            for(int i = 0; i < slices; ++i)
+            {
+                const float a = (static_cast<float>(i) / slices) * 2.0f * std::numbers::pi_v<float>;
+                const float x = 0.5f * std::cos(a);
+                const float z = 0.5f * std::sin(a);
+                points.emplace_back(x, -0.5f, z);
+                points.emplace_back(x, 0.5f, z);
+                points.emplace_back(x, -1.0f, z);
+                points.emplace_back(x, 1.0f, z);
+            }
+            points.emplace_back(0.0f, -1.0f, 0.0f);
+            points.emplace_back(0.0f, 1.0f, 0.0f);
+            return points;
+        }
+        case PrimitiveType::Cylinder:
+        {
+            std::vector<glm::vec3> points;
+            constexpr int slices = 16;
+            for(int i = 0; i < slices; ++i)
+            {
+                const float a = (static_cast<float>(i) / slices) * 2.0f * std::numbers::pi_v<float>;
+                const float x = 0.5f * std::cos(a);
+                const float z = 0.5f * std::sin(a);
+                points.emplace_back(x, -0.5f, z);
+                points.emplace_back(x, 0.5f, z);
+            }
+            return points;
+        }
+        case PrimitiveType::Cone:
+        {
+            std::vector<glm::vec3> points;
+            points.emplace_back(0.0f, 0.5f, 0.0f);
+            constexpr int slices = 16;
+            for(int i = 0; i < slices; ++i)
+            {
+                const float a = (static_cast<float>(i) / slices) * 2.0f * std::numbers::pi_v<float>;
+                points.emplace_back(0.5f * std::cos(a), -0.5f, 0.5f * std::sin(a));
+            }
+            return points;
+        }
+        case PrimitiveType::Plane:
+        case PrimitiveType::Quad:
+            return {{-0.5f, 0.0f, -0.5f}, {0.5f, 0.0f, -0.5f}, {0.5f, 0.0f, 0.5f},
+                    {-0.5f, 0.0f, 0.5f},  {-0.5f, 0.02f, -0.5f}, {0.5f, 0.02f, -0.5f},
+                    {0.5f, 0.02f, 0.5f}, {-0.5f, 0.02f, 0.5f}};
+        case PrimitiveType::Count:
+            break;
+        }
+        return {{-0.5f, -0.5f, -0.5f}, {0.5f, -0.5f, -0.5f}, {0.5f, 0.5f, -0.5f},
+                {-0.5f, 0.5f, -0.5f},  {-0.5f, -0.5f, 0.5f},  {0.5f, -0.5f, 0.5f},
+                {0.5f, 0.5f, 0.5f},   {-0.5f, 0.5f, 0.5f}};
+    }
+
     std::uint32_t PrimitiveMeshFactory::createCube()
     {
         std::vector<fra::Vertex> vertices;

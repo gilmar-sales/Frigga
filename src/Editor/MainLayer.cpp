@@ -42,7 +42,8 @@ MainLayer::MainLayer(skr::Arc<fg::Scene> scene, skr::Arc<fg::LayerStack> layerSt
                      skr::Arc<fra::Window> window, skr::Arc<skr::ServiceProvider> serviceProvider)
     : fg::Layer("Dock Layer"), mScene(std::move(scene)), mLayerStack(std::move(layerStack)),
       mWindow(std::move(window)), mHierarchy(serviceProvider->GetService<HierarchyLayer>()),
-      mSelection(serviceProvider->GetService<SelectionContext>())
+      mSelection(serviceProvider->GetService<SelectionContext>()),
+      mSimulation(serviceProvider->GetService<fg::SceneSimulationState>())
 {
     m_tabIds = {
         {"Gameplay",  serviceProvider->GetService<GamePlayWorkflow>() },
@@ -71,7 +72,18 @@ void MainLayer::onUpdate()
 void MainLayer::handleShortcuts()
 {
     const ImGuiIO &io = ImGui::GetIO();
-    if(!io.KeyCtrl || io.WantTextInput)
+    if(io.WantTextInput)
+    {
+        return;
+    }
+
+    if(io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_P, false))
+    {
+        mSimulation->Toggle();
+        return;
+    }
+
+    if(!io.KeyCtrl)
     {
         return;
     }
@@ -94,6 +106,14 @@ void MainLayer::handleShortcuts()
     }
 }
 
+void MainLayer::ensureEditMode()
+{
+    if(mSimulation->IsPlaying())
+    {
+        mSimulation->Stop();
+    }
+}
+
 void MainLayer::processPendingSceneActions()
 {
     PendingSceneAction action = PendingSceneAction::None;
@@ -112,6 +132,7 @@ void MainLayer::processPendingSceneActions()
     }
 
     mSelection->Clear();
+    ensureEditMode();
 
     switch(action)
     {
@@ -354,6 +375,7 @@ void MainLayer::drawMenuBar()
 
         if(ImGui::BeginMenu("Entity"))
         {
+            ImGui::BeginDisabled(mSimulation->IsPlaying());
             if(ImGui::MenuItem("Create Empty"))
             {
                 mHierarchy->createEmptyEntity();
@@ -401,26 +423,32 @@ void MainLayer::drawMenuBar()
                 }
                 ImGui::EndMenu();
             }
+            ImGui::EndDisabled();
 
             ImGui::EndMenu();
         }
 
         if(ImGui::BeginMenu("Component"))
         {
-            if(ImGui::BeginMenu("Enable Component"))
+            if(ImGui::BeginMenu("Add Component"))
             {
-                if(ImGui::MenuItem("Camera"))
-                { /* Do stuff */
+                ImGui::BeginDisabled(!mSelection->HasSelection() || mSimulation->IsPlaying());
+                if(ImGui::MenuItem("Rigid Body"))
+                {
+                    mHierarchy->addRigidBodyToSelection();
                 }
-                if(ImGui::MenuItem("Transform"))
-                { /* Do stuff */
-                }
-                if(ImGui::MenuItem("RigidBody"))
-                { /* Do stuff */
-                }
+                ImGui::EndDisabled();
                 ImGui::EndMenu();
             }
+            ImGui::EndMenu();
+        }
 
+        if(ImGui::BeginMenu("Game"))
+        {
+            if(ImGui::MenuItem(mSimulation->IsPlaying() ? "Stop" : "Play", "Ctrl+P"))
+            {
+                mSimulation->Toggle();
+            }
             ImGui::EndMenu();
         }
 

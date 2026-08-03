@@ -42,6 +42,22 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(imguizmo)
 target_link_libraries(imguizmo PUBLIC imgui::imgui)
 
+# Jolt must keep exceptions/RTTI on so it matches Frigga's toolchain.
+set(CPP_EXCEPTIONS_ENABLED ON CACHE BOOL "" FORCE)
+set(CPP_RTTI_ENABLED ON CACHE BOOL "" FORCE)
+set(ENABLE_ALL_WARNINGS OFF CACHE BOOL "" FORCE)
+set(INTERPROCEDURAL_OPTIMIZATION OFF CACHE BOOL "" FORCE)
+set(ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+set(USE_STATIC_MSVC_RUNTIME_LIBRARY OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(
+        JoltPhysics
+        GIT_REPOSITORY "https://github.com/jrouwe/JoltPhysics.git"
+        GIT_TAG "v5.3.0"
+        SOURCE_SUBDIR "Build"
+        GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(JoltPhysics)
+
 file(GLOB_RECURSE FRIGGA_SRC src/Frigga/*.cpp src/Frigga/*.hpp)
 
 add_library(frigga ${FRIGGA_SRC}
@@ -70,6 +86,7 @@ target_link_libraries(frigga PUBLIC
         Freya::Freya
         freyr::freyr
         imgui::imgui
+        Jolt
 )
 
 file(GLOB_RECURSE EDITOR_SRC src/Editor/*.cpp src/Editor/*.hpp)

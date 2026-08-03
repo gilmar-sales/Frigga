@@ -5,6 +5,9 @@
 #include <array>
 #include <cstdint>
 #include <string_view>
+#include <vector>
+
+#include <glm/glm.hpp>
 
 namespace FRIGGA_NAMESPACE
 {
@@ -33,6 +36,7 @@ namespace FRIGGA_NAMESPACE
         [[nodiscard]] bool TryFindPrimitive(std::uint32_t meshId, PrimitiveType &outType) const;
         [[nodiscard]] static const char *GetDisplayName(PrimitiveType type);
         [[nodiscard]] static bool TryParsePrimitive(std::string_view name, PrimitiveType &outType);
+        [[nodiscard]] static std::vector<glm::vec3> GetColliderHullPoints(PrimitiveType type);
 
       private:
         void createDefaultMaterial();

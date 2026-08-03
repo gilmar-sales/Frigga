@@ -6,18 +6,21 @@
 #include "Frigga/ECS/Components/MaterialComponent.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/NameComponent.hpp"
+#include "Frigga/ECS/Components/RigidBodyComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 
+#include <algorithm>
 #include <format>
 #include <imgui.h>
 #include <sstream>
 
 HierarchyLayer::HierarchyLayer(skr::Arc<fr::Registry> registry, skr::Arc<fg::Scene> scene,
                                skr::Arc<fg::PrimitiveMeshFactory> primitives,
-                               skr::Arc<SelectionContext> selection)
+                               skr::Arc<SelectionContext> selection,
+                               skr::Arc<fg::SceneSimulationState> simulation)
     : mRegistry(std::move(registry)), mScene(std::move(scene)),
       mPrimitives(std::move(primitives)), mSelection(std::move(selection)),
-      nodeToRename(SelectionContext::Invalid)
+      mSimulation(std::move(simulation)), nodeToRename(SelectionContext::Invalid)
 {
 }
 
@@ -73,6 +76,24 @@ void HierarchyLayer::createLightEntity(fra::LightType type)
                                 .rotation = glm::quatLookAt(glm::vec3 {0.0f, -1.0f, 0.0f},
                                                             glm::vec3 {0.0f, 0.0f, 1.0f})},
         fg::LightComponent {.type = type});
+}
+
+void HierarchyLayer::addRigidBodyToSelection()
+{
+    if(!mSelection->HasSelection() || mSimulation->IsPlaying())
+    {
+        return;
+    }
+
+    const auto entity = mSelection->Get();
+    if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
+    {
+        mRegistry->AddComponents(entity, fg::TransformComponent {});
+    }
+    if(!mRegistry->HasComponent<fg::RigidBodyComponent>(entity))
+    {
+        mRegistry->AddComponents(entity, fg::RigidBodyComponent {});
+    }
 }
 
 bool HierarchyLayer::isEntityLocked(fr::Entity entity) const
@@ -253,6 +274,20 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
             ImGui::EndMenu();
         }
 
+        ImGui::BeginDisabled(mSimulation->IsPlaying());
+        if(ImGui::MenuItem("Add rigid body"))
+        {
+            if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
+            {
+                mRegistry->AddComponents(entity, fg::TransformComponent {});
+            }
+            if(!mRegistry->HasComponent<fg::RigidBodyComponent>(entity))
+            {
+                mRegistry->AddComponents(entity, fg::RigidBodyComponent {});
+            }
+        }
+        ImGui::EndDisabled();
+
         ImGui::EndPopup();
     }
 
@@ -429,6 +464,75 @@ void HierarchyLayer::drawComponents()
                 if(!isDefault)
                 {
                     ImGui::TextDisabled("Material ID: %u", material.materialId);
+                }
+            }
+        });
+
+    mRegistry->TryGetComponents<fg::RigidBodyComponent>(
+        selection, [](fg::RigidBodyComponent &rigidBody) {
+            if(ImGui::CollapsingHeader("Rigid Body Component", nullptr,
+                                       ImGuiWindowFlags_ChildWindow))
+            {
+                int motion = static_cast<int>(rigidBody.motion);
+                if(ImGui::Combo("Motion", &motion, "Static\0Kinematic\0Dynamic\0"))
+                {
+                    rigidBody.motion = static_cast<fg::BodyMotionType>(motion);
+                    if(rigidBody.motion == fg::BodyMotionType::Static)
+                    {
+                        rigidBody.collisionLayer = 0;
+                    }
+                    else if(rigidBody.collisionLayer == 0)
+                    {
+                        rigidBody.collisionLayer = 1;
+                    }
+                }
+
+                int shape = static_cast<int>(rigidBody.shape);
+                if(ImGui::Combo("Collider", &shape, "Box\0Sphere\0Capsule\0Mesh\0"))
+                {
+                    rigidBody.shape = static_cast<fg::ColliderShape>(shape);
+                }
+
+                switch(rigidBody.shape)
+                {
+                case fg::ColliderShape::Box:
+                    ImGui::DragFloat3("Half Extents", &rigidBody.halfExtents[0], 0.01f, 0.001f,
+                                      1000.0f);
+                    break;
+                case fg::ColliderShape::Sphere:
+                    ImGui::DragFloat("Radius", &rigidBody.radius, 0.01f, 0.001f, 1000.0f);
+                    break;
+                case fg::ColliderShape::Capsule:
+                    ImGui::DragFloat("Radius", &rigidBody.radius, 0.01f, 0.001f, 1000.0f);
+                    ImGui::DragFloat("Height", &rigidBody.height, 0.01f, 0.001f, 1000.0f);
+                    break;
+                case fg::ColliderShape::Mesh:
+                    ImGui::TextDisabled("Convex hull from MeshComponent primitive");
+                    break;
+                }
+
+                ImGui::BeginDisabled(rigidBody.motion == fg::BodyMotionType::Static);
+                ImGui::DragFloat("Mass", &rigidBody.mass, 0.01f, 0.001f, 100000.0f);
+                ImGui::EndDisabled();
+                ImGui::DragFloat("Friction", &rigidBody.friction, 0.01f, 0.0f, 10.0f);
+                ImGui::DragFloat("Restitution", &rigidBody.restitution, 0.01f, 0.0f, 1.0f);
+
+                int layer = rigidBody.collisionLayer;
+                if(ImGui::SliderInt("Collision Layer", &layer, 0, 15))
+                {
+                    rigidBody.collisionLayer = static_cast<std::uint8_t>(layer);
+                }
+
+                int mask = rigidBody.collideWithLayers;
+                if(ImGui::InputInt("Collide Mask", &mask))
+                {
+                    rigidBody.collideWithLayers =
+                        static_cast<std::uint16_t>(std::clamp(mask, 0, 0xffff));
+                }
+
+                if(rigidBody.body.IsValid())
+                {
+                    ImGui::TextDisabled("Body ID: %u", rigidBody.body.id);
                 }
             }
         });

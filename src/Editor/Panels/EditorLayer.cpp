@@ -1,5 +1,6 @@
 #include "EditorLayer.hpp"
 
+#include "Editor/BoostrapIconsFont.hpp"
 #include "Editor/DockLayout.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/Gui/Backends/imgui_impl_vulkan.h"
@@ -17,9 +18,11 @@ namespace
 }
 
 EditorLayer::EditorLayer(skr::Arc<fra::Renderer> renderer, skr::Arc<fr::Registry> registry,
-                         skr::Arc<SelectionContext> selection, skr::Arc<fg::Scene> scene)
+                         skr::Arc<SelectionContext> selection, skr::Arc<fg::Scene> scene,
+                         skr::Arc<fg::SceneSimulationState> simulation)
     : fg::Layer("Editor"), mRenderer(std::move(renderer)), mRegistry(std::move(registry)),
-      mSelection(std::move(selection)), mScene(std::move(scene))
+      mSelection(std::move(selection)), mScene(std::move(scene)),
+      mSimulation(std::move(simulation))
 {
 }
 
@@ -81,7 +84,7 @@ void EditorLayer::onGui()
 
             const bool navigating = mNavMode != NavMode::None;
             ImGuizmo::Enable(!navigating);
-            drawGizmos(imageMin, avail, !navigating);
+            drawGizmos(imageMin, avail, !navigating && !mSimulation->IsPlaying());
             handlePicking(imageMin, avail);
         }
         else
@@ -124,6 +127,35 @@ void EditorLayer::drawToolbar()
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.0f, 6.0f));
     ImGui::SetCursorPos(ImVec2(8.0f, ImGui::GetCursorPosY() + 6.0f));
 
+    const bool playing = mSimulation->IsPlaying();
+    if(playing)
+    {
+        if(ImGui::Button(ICON_BTSP_PAUSE " Stop"))
+        {
+            mSimulation->Stop();
+        }
+        if(ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("Stop simulation (Ctrl+P)");
+        }
+    }
+    else
+    {
+        if(ImGui::Button(ICON_BTSP_PLAY " Play"))
+        {
+            mSimulation->Play();
+        }
+        if(ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("Play simulation (Ctrl+P)");
+        }
+    }
+
+    ImGui::SameLine();
+    ImGui::Spacing();
+    ImGui::SameLine();
+    ImGui::BeginDisabled(playing);
+
     if(ImGui::RadioButton("Translate (W)", mOperation == ImGuizmo::TRANSLATE))
     {
         mOperation = ImGuizmo::TRANSLATE;
@@ -155,10 +187,18 @@ void EditorLayer::drawToolbar()
         }
     }
 
+    ImGui::EndDisabled();
+
     ImGui::SameLine();
     ImGui::Spacing();
     ImGui::SameLine();
     ImGui::Checkbox("Grid", &mDrawGrid);
+
+    if(playing)
+    {
+        ImGui::SameLine();
+        ImGui::TextDisabled("Playing");
+    }
 
     ImGui::PopStyleVar();
     ImGui::Dummy(ImVec2(0.0f, 4.0f));

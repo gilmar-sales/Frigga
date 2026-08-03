@@ -7,10 +7,14 @@
 #include "ECS/Components/MaterialComponent.hpp"
 #include "ECS/Components/MeshComponent.hpp"
 #include "ECS/Components/NameComponent.hpp"
+#include "ECS/Components/RigidBodyComponent.hpp"
 #include "ECS/Components/TransformComponent.hpp"
 #include "ECS/Systems/PhysicsSystem.hpp"
 #include "ECS/Systems/RenderSystem.hpp"
+#include "Physics/IPhysicsWorld.hpp"
+#include "Physics/JoltPhysicsWorld.hpp"
 #include "Scene/Scene.hpp"
+#include "Scene/SceneSimulationState.hpp"
 
 namespace FRIGGA_NAMESPACE
 {
@@ -24,6 +28,7 @@ namespace FRIGGA_NAMESPACE
                     .WithComponent<MaterialComponent>()
                     .WithComponent<CameraComponent>()
                     .WithComponent<LightComponent>()
+                    .WithComponent<RigidBodyComponent>()
                     .WithPipeline([](fr::PipelineBuilder &pipeline) {
                         pipeline.WithName("Main")
                             .WithSystem<PhysicsSystem>()
@@ -43,7 +48,9 @@ namespace FRIGGA_NAMESPACE
     void FriggaExtension::ConfigureServices(skr::ServiceCollection &services)
     {
         services.AddSingleton<fg::PrimitiveMeshFactory>();
+        services.AddSingleton<fg::IPhysicsWorld, fg::JoltPhysicsWorld>();
         services.AddSingleton<fg::Scene>();
+        services.AddSingleton<fg::SceneSimulationState>();
         services.AddScoped<fg::LayerStack>();
         services.AddTransient<fg::GuiLayer>();
     }

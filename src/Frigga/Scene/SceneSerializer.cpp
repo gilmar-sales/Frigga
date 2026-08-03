@@ -5,10 +5,12 @@
 #include "Frigga/ECS/Components/MaterialComponent.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/NameComponent.hpp"
+#include "Frigga/ECS/Components/RigidBodyComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 
 #include <simdjson.h>
 
+#include <algorithm>
 #include <fstream>
 #include <optional>
 #include <string>
@@ -56,14 +58,29 @@ namespace FRIGGA_NAMESPACE
             float              outerAngleDegrees = 35.0f;
         };
 
+        struct SceneRigidBodyDto
+        {
+            std::string        motion {"Dynamic"};
+            std::string        shape {"Box"};
+            std::vector<float> halfExtents {0.5f, 0.5f, 0.5f};
+            float              radius            = 0.5f;
+            float              height             = 1.0f;
+            float              mass               = 1.0f;
+            float              friction           = 0.5f;
+            float              restitution        = 0.0f;
+            int64_t            collisionLayer     = 1;
+            int64_t            collideWithLayers  = 0xffff;
+        };
+
         struct SceneEntityDto
         {
-            std::string                      name;
-            std::optional<SceneTransformDto> transform;
-            std::optional<SceneMeshDto>      mesh;
-            std::optional<SceneMaterialDto>  material;
-            std::optional<SceneCameraDto>    camera;
-            std::optional<SceneLightDto>     light;
+            std::string                        name;
+            std::optional<SceneTransformDto>   transform;
+            std::optional<SceneMeshDto>        mesh;
+            std::optional<SceneMaterialDto>    material;
+            std::optional<SceneCameraDto>      camera;
+            std::optional<SceneLightDto>       light;
+            std::optional<SceneRigidBodyDto>   rigidBody;
         };
 
         struct SceneEditorCameraDto
@@ -163,6 +180,81 @@ namespace FRIGGA_NAMESPACE
             }
             return false;
         }
+
+        const char *MotionToString(BodyMotionType motion)
+        {
+            switch(motion)
+            {
+            case BodyMotionType::Static:
+                return "Static";
+            case BodyMotionType::Kinematic:
+                return "Kinematic";
+            case BodyMotionType::Dynamic:
+                return "Dynamic";
+            }
+            return "Dynamic";
+        }
+
+        bool TryParseMotion(std::string_view name, BodyMotionType &out)
+        {
+            if(name == "Static")
+            {
+                out = BodyMotionType::Static;
+                return true;
+            }
+            if(name == "Kinematic")
+            {
+                out = BodyMotionType::Kinematic;
+                return true;
+            }
+            if(name == "Dynamic")
+            {
+                out = BodyMotionType::Dynamic;
+                return true;
+            }
+            return false;
+        }
+
+        const char *ShapeToString(ColliderShape shape)
+        {
+            switch(shape)
+            {
+            case ColliderShape::Box:
+                return "Box";
+            case ColliderShape::Sphere:
+                return "Sphere";
+            case ColliderShape::Capsule:
+                return "Capsule";
+            case ColliderShape::Mesh:
+                return "Mesh";
+            }
+            return "Box";
+        }
+
+        bool TryParseShape(std::string_view name, ColliderShape &out)
+        {
+            if(name == "Box")
+            {
+                out = ColliderShape::Box;
+                return true;
+            }
+            if(name == "Sphere")
+            {
+                out = ColliderShape::Sphere;
+                return true;
+            }
+            if(name == "Capsule")
+            {
+                out = ColliderShape::Capsule;
+                return true;
+            }
+            if(name == "Mesh")
+            {
+                out = ColliderShape::Mesh;
+                return true;
+            }
+            return false;
+        }
     } // namespace
 
     bool SceneSerializer::Save(Scene &scene, const std::filesystem::path &path)
@@ -222,6 +314,21 @@ namespace FRIGGA_NAMESPACE
                     .intensity         = light.intensity,
                     .innerAngleDegrees = light.innerAngleDegrees,
                     .outerAngleDegrees = light.outerAngleDegrees,
+                };
+            });
+
+            registry->TryGetComponents<RigidBodyComponent>(entity, [&](RigidBodyComponent &rb) {
+                dto.rigidBody = SceneRigidBodyDto {
+                    .motion            = MotionToString(rb.motion),
+                    .shape             = ShapeToString(rb.shape),
+                    .halfExtents       = {rb.halfExtents.x, rb.halfExtents.y, rb.halfExtents.z},
+                    .radius            = rb.radius,
+                    .height            = rb.height,
+                    .mass              = rb.mass,
+                    .friction          = rb.friction,
+                    .restitution       = rb.restitution,
+                    .collisionLayer    = rb.collisionLayer,
+                    .collideWithLayers = rb.collideWithLayers,
                 };
             });
 
@@ -392,6 +499,39 @@ namespace FRIGGA_NAMESPACE
                                             .innerAngleDegrees = lightDto.innerAngleDegrees,
                                             .outerAngleDegrees = lightDto.outerAngleDegrees,
                                         });
+            }
+
+            if(entityDto.rigidBody)
+            {
+                const auto &rbDto = *entityDto.rigidBody;
+                RigidBodyComponent rigidBody {};
+                if(!TryParseMotion(rbDto.motion, rigidBody.motion))
+                {
+                    scene.mLogger->LogError("Unknown rigid body motion '{}' on '{}'", rbDto.motion,
+                                            entityDto.name);
+                    return false;
+                }
+                if(!TryParseShape(rbDto.shape, rigidBody.shape))
+                {
+                    scene.mLogger->LogError("Unknown collider shape '{}' on '{}'", rbDto.shape,
+                                            entityDto.name);
+                    return false;
+                }
+                if(!ReadVec3(rbDto.halfExtents, rigidBody.halfExtents))
+                {
+                    scene.mLogger->LogError("Invalid halfExtents on '{}'", entityDto.name);
+                    return false;
+                }
+                rigidBody.radius            = rbDto.radius;
+                rigidBody.height            = rbDto.height;
+                rigidBody.mass              = rbDto.mass;
+                rigidBody.friction          = rbDto.friction;
+                rigidBody.restitution       = rbDto.restitution;
+                rigidBody.collisionLayer    = static_cast<std::uint8_t>(
+                    std::clamp<int64_t>(rbDto.collisionLayer, 0, 15));
+                rigidBody.collideWithLayers = static_cast<std::uint16_t>(
+                    std::clamp<int64_t>(rbDto.collideWithLayers, 0, 0xffff));
+                registry->AddComponents(entity, rigidBody);
             }
         }
 
