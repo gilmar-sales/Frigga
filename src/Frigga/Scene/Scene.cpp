@@ -6,6 +6,9 @@
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/NameComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
+#include "Frigga/Scene/SceneSerializer.hpp"
+
+#include <vector>
 
 namespace FRIGGA_NAMESPACE
 {
@@ -28,6 +31,38 @@ namespace FRIGGA_NAMESPACE
                  const skr::Arc<fr::Registry> &ecsRegistry,
                  const skr::Arc<PrimitiveMeshFactory> &primitives)
         : mEcsRegistry(ecsRegistry), mRenderer(renderer), mLogger(logger), mPrimitives(primitives)
+    {
+        CreateDefaultEntities();
+    }
+
+    void Scene::Update(float ts)
+    {
+        mLogger->LogTrace("scene update");
+    }
+
+    void Scene::OnEditorRender(float ts) {}
+
+    void Scene::FlushEcs()
+    {
+        mEcsRegistry->ExecuteTasks();
+    }
+
+    void Scene::ClearEntities()
+    {
+        std::vector<fr::Entity> entities;
+        mEcsRegistry->CreateMutation()->Each<NameComponent>(
+            [&](auto entity, NameComponent &) { entities.push_back(entity); });
+
+        for(const auto entity : entities)
+        {
+            mEcsRegistry->DestroyEntity(entity);
+        }
+
+        FlushEcs();
+        mMainCameraEntity = {};
+    }
+
+    void Scene::CreateDefaultEntities()
     {
         mEcsRegistry->CreateEntity(
             NameComponent {.name = "Cube"}, TransformComponent {},
@@ -65,13 +100,53 @@ namespace FRIGGA_NAMESPACE
                             .color     = {1.0f, 1.0f, 1.0f},
                             .radius    = 40.0f,
                             .intensity = 30.0f});
+
+        FlushEcs();
     }
 
-    void Scene::Update(float ts)
+    void Scene::NewScene()
     {
-        mLogger->LogTrace("scene update");
+        ClearEntities();
+        CreateDefaultEntities();
+        mPath.clear();
+        mUseEditorCamera = true;
+        mLogger->LogInformation("Created new scene");
     }
 
-    void Scene::OnEditorRender(float ts) {}
+    bool Scene::SaveScene(const std::filesystem::path &path)
+    {
+        if(!SceneSerializer::Save(*this, path))
+        {
+            return false;
+        }
+        mPath = path;
+        return true;
+    }
+
+    bool Scene::SaveScene()
+    {
+        if(mPath.empty())
+        {
+            mLogger->LogWarning("SaveScene called without a path");
+            return false;
+        }
+        return SaveScene(mPath);
+    }
+
+    bool Scene::LoadScene(const std::filesystem::path &path)
+    {
+        ClearEntities();
+        if(!SceneSerializer::Load(*this, path))
+        {
+            CreateDefaultEntities();
+            mPath.clear();
+            return false;
+        }
+
+        FlushEcs();
+        mPath            = path;
+        mUseEditorCamera = true;
+        return true;
+    }
 
 } // namespace FRIGGA_NAMESPACE

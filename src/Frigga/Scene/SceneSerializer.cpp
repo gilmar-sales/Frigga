@@ -1,0 +1,407 @@
+#include "SceneSerializer.hpp"
+
+#include "Frigga/ECS/Components/CameraComponent.hpp"
+#include "Frigga/ECS/Components/LightComponent.hpp"
+#include "Frigga/ECS/Components/MaterialComponent.hpp"
+#include "Frigga/ECS/Components/MeshComponent.hpp"
+#include "Frigga/ECS/Components/NameComponent.hpp"
+#include "Frigga/ECS/Components/TransformComponent.hpp"
+
+#include <simdjson.h>
+
+#include <fstream>
+#include <optional>
+#include <string>
+#include <vector>
+
+namespace FRIGGA_NAMESPACE
+{
+    namespace
+    {
+        constexpr int64_t kSceneVersion = 1;
+
+        struct SceneTransformDto
+        {
+            std::vector<float> position {0.0f, 0.0f, 0.0f};
+            std::vector<float> scale {1.0f, 1.0f, 1.0f};
+            std::vector<float> rotation {1.0f, 0.0f, 0.0f, 0.0f}; // wxyz
+        };
+
+        struct SceneMeshDto
+        {
+            std::string primitive {"Cube"};
+        };
+
+        struct SceneMaterialDto
+        {
+            [[= simdjson::rename<"default">]] bool isDefault = true;
+        };
+
+        struct SceneCameraDto
+        {
+            float fovDegrees = 60.0f;
+            float nearPlane  = 0.1f;
+            float farPlane   = 1000.0f;
+            bool  primary    = false;
+            bool  locked     = false;
+        };
+
+        struct SceneLightDto
+        {
+            std::string        type {"Point"};
+            std::vector<float> color {1.0f, 1.0f, 1.0f};
+            float              radius            = 40.0f;
+            float              intensity         = 30.0f;
+            float              innerAngleDegrees = 25.0f;
+            float              outerAngleDegrees = 35.0f;
+        };
+
+        struct SceneEntityDto
+        {
+            std::string                      name;
+            std::optional<SceneTransformDto> transform;
+            std::optional<SceneMeshDto>      mesh;
+            std::optional<SceneMaterialDto>  material;
+            std::optional<SceneCameraDto>    camera;
+            std::optional<SceneLightDto>     light;
+        };
+
+        struct SceneEditorCameraDto
+        {
+            SceneTransformDto transform {};
+            float             fovDegrees = 50.0f;
+            float             nearPlane  = 0.1f;
+            float             farPlane   = 1000.0f;
+        };
+
+        struct SceneDocument
+        {
+            int64_t                     version = kSceneVersion;
+            SceneEditorCameraDto        editorCamera {};
+            std::vector<SceneEntityDto> entities {};
+        };
+
+        bool ReadVec3(const std::vector<float> &values, glm::vec3 &out)
+        {
+            if(values.size() != 3)
+            {
+                return false;
+            }
+            out = {values[0], values[1], values[2]};
+            return true;
+        }
+
+        bool ReadQuat(const std::vector<float> &values, glm::quat &out)
+        {
+            if(values.size() != 4)
+            {
+                return false;
+            }
+            out = {values[0], values[1], values[2], values[3]};
+            return true;
+        }
+
+        SceneTransformDto ToDto(const TransformComponent &transform)
+        {
+            return SceneTransformDto {
+                .position = {transform.position.x, transform.position.y, transform.position.z},
+                .scale    = {transform.scale.x, transform.scale.y, transform.scale.z},
+                .rotation = {transform.rotation.w, transform.rotation.x, transform.rotation.y,
+                             transform.rotation.z},
+            };
+        }
+
+        bool FromDto(const SceneTransformDto &dto, TransformComponent &out)
+        {
+            TransformComponent transform {};
+            if(!ReadVec3(dto.position, transform.position) || !ReadVec3(dto.scale, transform.scale) ||
+               !ReadQuat(dto.rotation, transform.rotation))
+            {
+                return false;
+            }
+            out = transform;
+            return true;
+        }
+
+        const char *LightTypeToString(fra::LightType type)
+        {
+            switch(type)
+            {
+            case fra::LightType::Point:
+                return "Point";
+            case fra::LightType::Directional:
+                return "Directional";
+            case fra::LightType::Spot:
+                return "Spot";
+            case fra::LightType::Area:
+                return "Area";
+            }
+            return "Point";
+        }
+
+        bool TryParseLightType(std::string_view name, fra::LightType &outType)
+        {
+            if(name == "Point")
+            {
+                outType = fra::LightType::Point;
+                return true;
+            }
+            if(name == "Directional")
+            {
+                outType = fra::LightType::Directional;
+                return true;
+            }
+            if(name == "Spot")
+            {
+                outType = fra::LightType::Spot;
+                return true;
+            }
+            if(name == "Area")
+            {
+                outType = fra::LightType::Area;
+                return true;
+            }
+            return false;
+        }
+    } // namespace
+
+    bool SceneSerializer::Save(Scene &scene, const std::filesystem::path &path)
+    {
+        SceneDocument document {};
+        document.version = kSceneVersion;
+
+        const auto &editorCamera = scene.GetEditorCamera();
+        document.editorCamera    = SceneEditorCameraDto {
+               .transform  = ToDto(editorCamera.transform),
+               .fovDegrees = editorCamera.fovDegrees,
+               .nearPlane  = editorCamera.nearPlane,
+               .farPlane   = editorCamera.farPlane,
+        };
+
+        auto registry   = scene.mEcsRegistry;
+        auto primitives = scene.mPrimitives;
+
+        registry->CreateMutation()->Each<NameComponent>([&](auto entity, NameComponent &name) {
+            SceneEntityDto dto {.name = name.name};
+
+            registry->TryGetComponents<TransformComponent>(
+                entity, [&](TransformComponent &transform) { dto.transform = ToDto(transform); });
+
+            registry->TryGetComponents<MeshComponent>(entity, [&](MeshComponent &mesh) {
+                PrimitiveType primitive = PrimitiveType::Cube;
+                if(!primitives->TryFindPrimitive(mesh.meshId, primitive))
+                {
+                    scene.mLogger->LogWarning(
+                        "Scene save: meshId {} on '{}' is not a known primitive; defaulting to Cube",
+                        mesh.meshId, name.name);
+                    primitive = PrimitiveType::Cube;
+                }
+                dto.mesh = SceneMeshDto {.primitive =
+                                             PrimitiveMeshFactory::GetDisplayName(primitive)};
+            });
+
+            registry->TryGetComponents<MaterialComponent>(entity, [&](MaterialComponent &) {
+                dto.material = SceneMaterialDto {.isDefault = true};
+            });
+
+            registry->TryGetComponents<CameraComponent>(entity, [&](CameraComponent &camera) {
+                dto.camera = SceneCameraDto {
+                    .fovDegrees = camera.fovDegrees,
+                    .nearPlane  = camera.nearPlane,
+                    .farPlane   = camera.farPlane,
+                    .primary    = camera.primary,
+                    .locked     = camera.locked,
+                };
+            });
+
+            registry->TryGetComponents<LightComponent>(entity, [&](LightComponent &light) {
+                dto.light = SceneLightDto {
+                    .type              = LightTypeToString(light.type),
+                    .color             = {light.color.x, light.color.y, light.color.z},
+                    .radius            = light.radius,
+                    .intensity         = light.intensity,
+                    .innerAngleDegrees = light.innerAngleDegrees,
+                    .outerAngleDegrees = light.outerAngleDegrees,
+                };
+            });
+
+            document.entities.push_back(std::move(dto));
+        });
+
+        std::string json;
+        if(const auto error = simdjson::to_json(document, json); error)
+        {
+            scene.mLogger->LogError("Failed to serialize scene '{}': {}", path.string(),
+                                    simdjson::error_message(error));
+            return false;
+        }
+
+        std::ofstream file(path, std::ios::binary | std::ios::trunc);
+        if(!file)
+        {
+            scene.mLogger->LogError("Failed to open scene file for writing: {}", path.string());
+            return false;
+        }
+
+        file << json;
+        if(!json.empty() && json.back() != '\n')
+        {
+            file << '\n';
+        }
+
+        if(!file)
+        {
+            scene.mLogger->LogError("Failed to write scene file: {}", path.string());
+            return false;
+        }
+
+        scene.mLogger->LogInformation("Saved scene to {}", path.string());
+        return true;
+    }
+
+    bool SceneSerializer::Load(Scene &scene, const std::filesystem::path &path)
+    {
+        simdjson::padded_string json;
+        if(const auto error = simdjson::padded_string::load(path.string()).get(json); error)
+        {
+            scene.mLogger->LogError("Failed to read scene '{}': {}", path.string(),
+                                    simdjson::error_message(error));
+            return false;
+        }
+
+        SceneDocument document {};
+        if(const auto error = simdjson::from(json).get(document); error)
+        {
+            scene.mLogger->LogError("Failed to parse scene '{}': {}", path.string(),
+                                    simdjson::error_message(error));
+            return false;
+        }
+
+        if(document.version > kSceneVersion)
+        {
+            scene.mLogger->LogWarning("Scene version {} is newer than supported {}",
+                                      document.version, kSceneVersion);
+        }
+
+        TransformComponent editorTransform {};
+        if(!FromDto(document.editorCamera.transform, editorTransform))
+        {
+            scene.mLogger->LogError("Invalid editorCamera.transform in {}", path.string());
+            return false;
+        }
+
+        scene.mEditorCamera = EditorCamera {
+            .transform  = editorTransform,
+            .fovDegrees = document.editorCamera.fovDegrees,
+            .nearPlane  = document.editorCamera.nearPlane,
+            .farPlane   = document.editorCamera.farPlane,
+        };
+
+        auto registry   = scene.mEcsRegistry;
+        auto primitives = scene.mPrimitives;
+
+        scene.mMainCameraEntity       = {};
+        fr::Entity firstPrimaryCamera = {};
+        bool foundLockedCamera        = false;
+        bool foundPrimaryCamera       = false;
+
+        for(const auto &entityDto : document.entities)
+        {
+            const auto entity = registry->CreateEntity(NameComponent {.name = entityDto.name});
+
+            if(entityDto.transform)
+            {
+                TransformComponent transform {};
+                if(!FromDto(*entityDto.transform, transform))
+                {
+                    scene.mLogger->LogError("Invalid transform for entity '{}'", entityDto.name);
+                    return false;
+                }
+                registry->AddComponents(entity, transform);
+            }
+
+            if(entityDto.mesh)
+            {
+                PrimitiveType primitive = PrimitiveType::Cube;
+                if(!PrimitiveMeshFactory::TryParsePrimitive(entityDto.mesh->primitive, primitive))
+                {
+                    scene.mLogger->LogError("Unknown primitive '{}' on entity '{}'",
+                                            entityDto.mesh->primitive, entityDto.name);
+                    return false;
+                }
+
+                registry->AddComponents(entity,
+                                        MeshComponent {.meshId = primitives->GetMesh(primitive)});
+                registry->AddComponents(
+                    entity, MaterialComponent {.materialId = primitives->GetDefaultMaterial()});
+            }
+            else if(entityDto.material)
+            {
+                registry->AddComponents(
+                    entity, MaterialComponent {.materialId = primitives->GetDefaultMaterial()});
+            }
+
+            if(entityDto.camera)
+            {
+                const auto &cameraDto = *entityDto.camera;
+                const CameraComponent camera {
+                    .fovDegrees = cameraDto.fovDegrees,
+                    .nearPlane  = cameraDto.nearPlane,
+                    .farPlane   = cameraDto.farPlane,
+                    .primary    = cameraDto.primary,
+                    .locked     = cameraDto.locked,
+                };
+                registry->AddComponents(entity, camera);
+
+                if(camera.locked)
+                {
+                    scene.mMainCameraEntity = entity;
+                    foundLockedCamera      = true;
+                }
+                else if(camera.primary && !foundPrimaryCamera)
+                {
+                    firstPrimaryCamera = entity;
+                    foundPrimaryCamera = true;
+                }
+            }
+
+            if(entityDto.light)
+            {
+                const auto &lightDto = *entityDto.light;
+                fra::LightType type  = fra::LightType::Point;
+                if(!TryParseLightType(lightDto.type, type))
+                {
+                    scene.mLogger->LogError("Unknown light type '{}' on entity '{}'", lightDto.type,
+                                            entityDto.name);
+                    return false;
+                }
+
+                glm::vec3 color {};
+                if(!ReadVec3(lightDto.color, color))
+                {
+                    scene.mLogger->LogError("Invalid light color on entity '{}'", entityDto.name);
+                    return false;
+                }
+
+                registry->AddComponents(entity,
+                                        LightComponent {
+                                            .type              = type,
+                                            .color             = color,
+                                            .radius            = lightDto.radius,
+                                            .intensity         = lightDto.intensity,
+                                            .innerAngleDegrees = lightDto.innerAngleDegrees,
+                                            .outerAngleDegrees = lightDto.outerAngleDegrees,
+                                        });
+            }
+        }
+
+        if(!foundLockedCamera && foundPrimaryCamera)
+        {
+            scene.mMainCameraEntity = firstPrimaryCamera;
+        }
+
+        scene.mLogger->LogInformation("Loaded scene from {}", path.string());
+        return true;
+    }
+
+} // namespace FRIGGA_NAMESPACE

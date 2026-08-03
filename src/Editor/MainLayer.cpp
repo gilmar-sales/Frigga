@@ -4,6 +4,7 @@
 #include "DockLayout.hpp"
 #include "Panels/HierarchyLayer.hpp"
 #include "Panels/PreferencesLayer.hpp"
+#include "SelectionContext.hpp"
 #include "Workflows/AnimationWorkflow.hpp"
 #include "Workflows/AudioWorkflow.hpp"
 #include "Workflows/EcsWorkflow.hpp"
@@ -12,17 +13,36 @@
 #include "Workflows/ShadingWorkflow.hpp"
 
 #include <Frigga/Asset/PrimitiveMeshFactory.hpp>
+#include <Frigga/Gui/Extensions/Extensions.hpp>
+
+#include <SDL3/SDL_dialog.h>
 
 #include <cmath>
 #include <imgui.h>
 #include <imgui_internal.h>
 
-#include <Frigga/Gui/Extensions/Extensions.hpp>
+namespace
+{
+    const SDL_DialogFileFilter kSceneFilters[] = {
+        {"Frigga Scene", "json"},
+        {"All files", "*"},
+    };
 
-MainLayer::MainLayer(skr::Arc<fg::Scene> scene, skr::Arc<fg::LayerStack> layerStack, skr::Arc<fra::Window> window,
-                     skr::Arc<skr::ServiceProvider> serviceProvider)
-    : fg::Layer("Dock Layer"), mScene(scene), mLayerStack(layerStack), mWindow(window),
-      mHierarchy(serviceProvider->GetService<HierarchyLayer>())
+    std::filesystem::path EnsureSceneExtension(std::filesystem::path path)
+    {
+        if(!path.has_extension())
+        {
+            path += ".json";
+        }
+        return path;
+    }
+} // namespace
+
+MainLayer::MainLayer(skr::Arc<fg::Scene> scene, skr::Arc<fg::LayerStack> layerStack,
+                     skr::Arc<fra::Window> window, skr::Arc<skr::ServiceProvider> serviceProvider)
+    : fg::Layer("Dock Layer"), mScene(std::move(scene)), mLayerStack(std::move(layerStack)),
+      mWindow(std::move(window)), mHierarchy(serviceProvider->GetService<HierarchyLayer>()),
+      mSelection(serviceProvider->GetService<SelectionContext>())
 {
     m_tabIds = {
         {"Gameplay",  serviceProvider->GetService<GamePlayWorkflow>() },
@@ -39,10 +59,160 @@ MainLayer::MainLayer(skr::Arc<fg::Scene> scene, skr::Arc<fg::LayerStack> layerSt
 
 void MainLayer::onUpdate()
 {
+    processPendingSceneActions();
+    handleShortcuts();
+
     if(m_activeTab)
     {
         m_activeTab->onUpdate();
     }
+}
+
+void MainLayer::handleShortcuts()
+{
+    const ImGuiIO &io = ImGui::GetIO();
+    if(!io.KeyCtrl || io.WantTextInput)
+    {
+        return;
+    }
+
+    if(io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_S, false))
+    {
+        requestSaveSceneAs();
+    }
+    else if(ImGui::IsKeyPressed(ImGuiKey_S, false))
+    {
+        requestSaveScene();
+    }
+    else if(ImGui::IsKeyPressed(ImGuiKey_N, false))
+    {
+        requestNewScene();
+    }
+    else if(ImGui::IsKeyPressed(ImGuiKey_O, false))
+    {
+        requestOpenScene();
+    }
+}
+
+void MainLayer::processPendingSceneActions()
+{
+    PendingSceneAction action = PendingSceneAction::None;
+    std::optional<std::filesystem::path> path;
+    {
+        std::lock_guard lock(mDialogMutex);
+        action        = mPendingAction;
+        path          = mPendingPath;
+        mPendingAction = PendingSceneAction::None;
+        mPendingPath.reset();
+    }
+
+    if(action == PendingSceneAction::None)
+    {
+        return;
+    }
+
+    mSelection->Clear();
+
+    switch(action)
+    {
+    case PendingSceneAction::New:
+        mScene->NewScene();
+        break;
+    case PendingSceneAction::Open:
+        if(path)
+        {
+            mScene->LoadScene(*path);
+        }
+        break;
+    case PendingSceneAction::SaveAs:
+        if(path)
+        {
+            mScene->SaveScene(EnsureSceneExtension(*path));
+        }
+        break;
+    case PendingSceneAction::None:
+        break;
+    }
+}
+
+void MainLayer::requestNewScene()
+{
+    std::lock_guard lock(mDialogMutex);
+    mPendingAction = PendingSceneAction::New;
+    mPendingPath.reset();
+}
+
+void MainLayer::requestOpenScene()
+{
+    openSceneDialog();
+}
+
+void MainLayer::requestSaveScene()
+{
+    if(mScene->HasPath())
+    {
+        mScene->SaveScene();
+        return;
+    }
+    requestSaveSceneAs();
+}
+
+void MainLayer::requestSaveSceneAs()
+{
+    saveSceneDialog();
+}
+
+void MainLayer::onOpenSceneDialog(void *userdata, const char *const *filelist, int)
+{
+    auto *self = static_cast<MainLayer *>(userdata);
+    if(filelist == nullptr || filelist[0] == nullptr)
+    {
+        return;
+    }
+
+    std::lock_guard lock(self->mDialogMutex);
+    self->mPendingAction = PendingSceneAction::Open;
+    self->mPendingPath   = filelist[0];
+}
+
+void MainLayer::onSaveSceneDialog(void *userdata, const char *const *filelist, int)
+{
+    auto *self = static_cast<MainLayer *>(userdata);
+    if(filelist == nullptr || filelist[0] == nullptr)
+    {
+        return;
+    }
+
+    std::lock_guard lock(self->mDialogMutex);
+    self->mPendingAction = PendingSceneAction::SaveAs;
+    self->mPendingPath   = filelist[0];
+}
+
+void MainLayer::openSceneDialog()
+{
+    {
+        std::lock_guard lock(mDialogMutex);
+        mDialogDefaultLocation =
+            mScene->HasPath() ? mScene->GetPath().string() : std::string {};
+    }
+
+    const char *defaultLocation =
+        mDialogDefaultLocation.empty() ? nullptr : mDialogDefaultLocation.c_str();
+    SDL_ShowOpenFileDialog(onOpenSceneDialog, this, mWindow->Get(), kSceneFilters,
+                           static_cast<int>(std::size(kSceneFilters)), defaultLocation, false);
+}
+
+void MainLayer::saveSceneDialog()
+{
+    {
+        std::lock_guard lock(mDialogMutex);
+        mDialogDefaultLocation =
+            mScene->HasPath() ? mScene->GetPath().string() : std::string {"untitled.json"};
+    }
+
+    SDL_ShowSaveFileDialog(onSaveSceneDialog, this, mWindow->Get(), kSceneFilters,
+                           static_cast<int>(std::size(kSceneFilters)),
+                           mDialogDefaultLocation.c_str());
 }
 
 void MainLayer::onGui()
@@ -129,27 +299,25 @@ void MainLayer::drawMenuBar()
     {
         if(ImGui::BeginMenu("File"))
         {
-            if(ImGui::MenuItem(ICON_BTSP_FOLDERPLUS " New Project...", "Ctrl+N"))
-            { /* Do stuff */
+            if(ImGui::MenuItem(ICON_BTSP_FOLDERPLUS " New Scene", "Ctrl+N"))
+            {
+                requestNewScene();
             }
             ImGui::Separator();
-            if(ImGui::MenuItem(ICON_BTSP_FOLDEROPEN " Open Project...", "Ctrl+O"))
-            { /* Do stuff */
-            }
-            if(ImGui::MenuItem(ICON_BTSP_FOLDER " Open Recent"))
-            { /* Do stuff */
+            if(ImGui::MenuItem(ICON_BTSP_FOLDEROPEN " Open Scene...", "Ctrl+O"))
+            {
+                requestOpenScene();
             }
             ImGui::Separator();
             if(ImGui::MenuItem(ICON_BTSP_FOLDERSYMLINK " Save", "Ctrl+S"))
-            { /* Do stuff */
+            {
+                requestSaveScene();
             }
             if(ImGui::MenuItem(ICON_BTSP_FOLDERSYMLINK " Save As...", "Ctrl+Shift+S"))
-            { /* Do stuff */
+            {
+                requestSaveSceneAs();
             }
             ImGui::Separator();
-            if(ImGui::MenuItem(ICON_BTSP_FOLDERDASH " Close Project", "Ctrl+W"))
-            {
-            }
             if(ImGui::MenuItem(ICON_BTSP_SHUTDOWN " Close Phantom", "Alt+F4"))
             {
                 mWindow->Close();
@@ -267,7 +435,7 @@ void MainLayer::drawMenuBar()
 
         ImGui::SetCursorPosX(ImGui::GetWindowContentRegionMax().x * 0.5f - 150);
 
-        ImGui::Text("%s", "untitled");
+        ImGui::Text("%s", mScene->GetDisplayName().c_str());
 
         ImGui::SetCursorPosX(ImGui::GetWindowContentRegionMax().x - 350);
 

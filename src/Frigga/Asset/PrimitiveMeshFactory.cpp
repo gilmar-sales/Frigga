@@ -110,6 +110,19 @@ namespace FRIGGA_NAMESPACE
         return mDefaultMaterial;
     }
 
+    bool PrimitiveMeshFactory::TryFindPrimitive(std::uint32_t meshId, PrimitiveType &outType) const
+    {
+        for(std::size_t i = 0; i < mMeshes.size(); ++i)
+        {
+            if(mCreated[i] && mMeshes[i] == meshId)
+            {
+                outType = static_cast<PrimitiveType>(i);
+                return true;
+            }
+        }
+        return false;
+    }
+
     const char *PrimitiveMeshFactory::GetDisplayName(PrimitiveType type)
     {
         switch(type)
@@ -132,6 +145,20 @@ namespace FRIGGA_NAMESPACE
                 return "Unknown";
         }
         return "Unknown";
+    }
+
+    bool PrimitiveMeshFactory::TryParsePrimitive(std::string_view name, PrimitiveType &outType)
+    {
+        for(std::uint8_t i = 0; i < static_cast<std::uint8_t>(PrimitiveType::Count); ++i)
+        {
+            const auto type = static_cast<PrimitiveType>(i);
+            if(name == GetDisplayName(type))
+            {
+                outType = type;
+                return true;
+            }
+        }
+        return false;
     }
 
     std::uint32_t PrimitiveMeshFactory::createCube()

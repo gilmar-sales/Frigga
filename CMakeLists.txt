@@ -49,6 +49,7 @@ add_library(frigga ${FRIGGA_SRC}
 add_library(frigga::frigga ALIAS frigga)
 
 target_compile_features(frigga PUBLIC cxx_std_26)
+target_compile_definitions(frigga PUBLIC SIMDJSON_STATIC_REFLECTION=1)
 
 if (MSVC)
     target_compile_options(frigga PUBLIC "/ZI")

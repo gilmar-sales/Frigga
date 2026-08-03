@@ -7,8 +7,13 @@
 #include <Freyr/Freyr.hpp>
 #include <Skirnir/Skirnir.hpp>
 
+#include <filesystem>
+#include <string>
+
 namespace FRIGGA_NAMESPACE
 {
+
+    class SceneSerializer;
 
     class Scene
     {
@@ -20,6 +25,30 @@ namespace FRIGGA_NAMESPACE
 
         void Update(float ts);
         void OnEditorRender(float ts);
+
+        void NewScene();
+        bool SaveScene(const std::filesystem::path &path);
+        bool SaveScene();
+        bool LoadScene(const std::filesystem::path &path);
+
+        [[nodiscard]] bool HasPath() const
+        {
+            return !mPath.empty();
+        }
+
+        [[nodiscard]] const std::filesystem::path &GetPath() const
+        {
+            return mPath;
+        }
+
+        [[nodiscard]] std::string GetDisplayName() const
+        {
+            if(mPath.empty())
+            {
+                return "untitled";
+            }
+            return mPath.filename().string();
+        }
 
         [[nodiscard]] fr::Entity GetMainCameraEntity() const
         {
@@ -57,6 +86,12 @@ namespace FRIGGA_NAMESPACE
         }
 
       private:
+        friend class SceneSerializer;
+
+        void ClearEntities();
+        void CreateDefaultEntities();
+        void FlushEcs();
+
         skr::Arc<fr::Registry> mEcsRegistry;
         skr::Arc<fra::Renderer> mRenderer;
         skr::Arc<skr::Logger<Scene>> mLogger;
@@ -64,6 +99,7 @@ namespace FRIGGA_NAMESPACE
         fr::Entity mMainCameraEntity {};
         EditorCamera mEditorCamera {};
         bool mUseEditorCamera = true;
+        std::filesystem::path mPath {};
     };
 
 } // namespace FRIGGA_NAMESPACE

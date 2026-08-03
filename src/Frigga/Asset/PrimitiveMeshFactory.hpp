@@ -4,6 +4,7 @@
 
 #include <array>
 #include <cstdint>
+#include <string_view>
 
 namespace FRIGGA_NAMESPACE
 {
@@ -29,7 +30,9 @@ namespace FRIGGA_NAMESPACE
 
         [[nodiscard]] std::uint32_t GetMesh(PrimitiveType type);
         [[nodiscard]] std::uint32_t GetDefaultMaterial() const;
+        [[nodiscard]] bool TryFindPrimitive(std::uint32_t meshId, PrimitiveType &outType) const;
         [[nodiscard]] static const char *GetDisplayName(PrimitiveType type);
+        [[nodiscard]] static bool TryParsePrimitive(std::string_view name, PrimitiveType &outType);
 
       private:
         void createDefaultMaterial();

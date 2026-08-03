@@ -3,13 +3,20 @@
 #include <Frigga/Core/LayerStack.hpp>
 #include <Frigga/Scene/Scene.hpp>
 
+#include <filesystem>
+#include <mutex>
+#include <optional>
+#include <string>
+
 class HierarchyLayer;
+class SelectionContext;
 class Workflow;
+
 class MainLayer: public fg::Layer
 {
   public:
-    MainLayer(skr::Arc<fg::Scene> scene, skr::Arc<fg::LayerStack> layerStack, skr::Arc<fra::Window> window,
-              skr::Arc<skr::ServiceProvider> serviceProvider);
+    MainLayer(skr::Arc<fg::Scene> scene, skr::Arc<fg::LayerStack> layerStack,
+              skr::Arc<fra::Window> window, skr::Arc<skr::ServiceProvider> serviceProvider);
     ~MainLayer() = default;
 
     void onUpdate() override;
@@ -19,6 +26,26 @@ class MainLayer: public fg::Layer
     void drawMenuBar();
 
   private:
+    enum class PendingSceneAction
+    {
+        None,
+        New,
+        Open,
+        SaveAs,
+    };
+
+    void handleShortcuts();
+    void processPendingSceneActions();
+    void requestNewScene();
+    void requestOpenScene();
+    void requestSaveScene();
+    void requestSaveSceneAs();
+    void openSceneDialog();
+    void saveSceneDialog();
+
+    static void onOpenSceneDialog(void *userdata, const char *const *filelist, int filter);
+    static void onSaveSceneDialog(void *userdata, const char *const *filelist, int filter);
+
     std::vector<std::pair<const char *, skr::Arc<Workflow>>> m_tabIds;
     skr::Arc<Workflow> m_activeTab;
     const char *m_activeTabName = "Gameplay";
@@ -28,4 +55,10 @@ class MainLayer: public fg::Layer
     skr::Arc<fg::LayerStack> mLayerStack;
     skr::Arc<fra::Window> mWindow;
     skr::Arc<HierarchyLayer> mHierarchy;
+    skr::Arc<SelectionContext> mSelection;
+
+    std::mutex mDialogMutex;
+    PendingSceneAction mPendingAction = PendingSceneAction::None;
+    std::optional<std::filesystem::path> mPendingPath;
+    std::string mDialogDefaultLocation;
 };
