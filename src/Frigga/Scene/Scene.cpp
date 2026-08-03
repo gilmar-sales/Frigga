@@ -37,9 +37,17 @@ namespace FRIGGA_NAMESPACE
         // Blender-like default framing: elevated 3/4 view looking at the unit cube.
         constexpr glm::vec3 cubeCenter {0.0f, 0.0f, 0.0f};
         constexpr glm::vec3 cameraPosition {4.0f, 3.0f, 4.0f};
+        const auto          lookAt = makeLookAtTransform(cameraPosition, cubeCenter);
+
+        mEditorCamera = EditorCamera {
+            .transform   = lookAt,
+            .fovDegrees  = 50.0f,
+            .nearPlane   = 0.1f,
+            .farPlane    = 1000.0f,
+        };
 
         mMainCameraEntity = mEcsRegistry->CreateEntity(
-            NameComponent {.name = "Main Camera"}, makeLookAtTransform(cameraPosition, cubeCenter),
+            NameComponent {.name = "Main Camera"}, lookAt,
             CameraComponent {.fovDegrees = 50.0f,
                              .nearPlane  = 0.1f,
                              .farPlane   = 1000.0f,

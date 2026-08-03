@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Frigga/Asset/PrimitiveMeshFactory.hpp"
+#include "Frigga/Scene/EditorCamera.hpp"
 
 #include <Freya/Core/Renderer.hpp>
 #include <Freyr/Freyr.hpp>
@@ -30,12 +31,39 @@ namespace FRIGGA_NAMESPACE
             return entity == mMainCameraEntity;
         }
 
+        [[nodiscard]] EditorCamera &GetEditorCamera()
+        {
+            return mEditorCamera;
+        }
+
+        [[nodiscard]] const EditorCamera &GetEditorCamera() const
+        {
+            return mEditorCamera;
+        }
+
+        void PreferEditorCamera()
+        {
+            mUseEditorCamera = true;
+        }
+
+        void PreferGameplayCamera()
+        {
+            mUseEditorCamera = false;
+        }
+
+        [[nodiscard]] bool IsUsingEditorCamera() const
+        {
+            return mUseEditorCamera;
+        }
+
       private:
         skr::Arc<fr::Registry> mEcsRegistry;
         skr::Arc<fra::Renderer> mRenderer;
         skr::Arc<skr::Logger<Scene>> mLogger;
         skr::Arc<PrimitiveMeshFactory> mPrimitives;
         fr::Entity mMainCameraEntity {};
+        EditorCamera mEditorCamera {};
+        bool mUseEditorCamera = true;
     };
 
 } // namespace FRIGGA_NAMESPACE

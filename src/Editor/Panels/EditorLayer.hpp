@@ -3,6 +3,7 @@
 #include "Editor/SelectionContext.hpp"
 
 #include "Frigga/ECS/Components/TransformComponent.hpp"
+#include "Frigga/Scene/Scene.hpp"
 
 #include <Frigga/Frigga.hpp>
 
@@ -13,7 +14,7 @@ class EditorLayer: public fg::Layer
 {
   public:
     EditorLayer(skr::Arc<fra::Renderer> renderer, skr::Arc<fr::Registry> registry,
-                skr::Arc<SelectionContext> selection);
+                skr::Arc<SelectionContext> selection, skr::Arc<fg::Scene> scene);
     ~EditorLayer() override = default;
 
     void onAttach() override;
@@ -37,7 +38,6 @@ class EditorLayer: public fg::Layer
     void drawGizmos(const ImVec2 &imageMin, const ImVec2 &imageSize, bool allowManipulate);
     void handleNavigation();
     [[nodiscard]] static glm::mat4 gizmoProjection(const glm::mat4 &vulkanProjection);
-    [[nodiscard]] fr::Entity findActiveCameraEntity();
     void syncOrbitPivot(const fg::TransformComponent &camera);
     void applyYawPitch(fg::TransformComponent &camera, float yawDegrees, float pitchDegrees) const;
     void extractYawPitch(const fg::TransformComponent &camera, float &yawDegrees,
@@ -51,6 +51,7 @@ class EditorLayer: public fg::Layer
     skr::Arc<fra::Renderer> mRenderer;
     skr::Arc<fr::Registry> mRegistry;
     skr::Arc<SelectionContext> mSelection;
+    skr::Arc<fg::Scene> mScene;
     skr::Arc<fra::RenderTarget> mTarget;
     VkDescriptorSet mTextureId = VK_NULL_HANDLE;
     std::uint32_t mWidth         = 0;

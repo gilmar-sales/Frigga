@@ -6,8 +6,8 @@
 #include <cstdint>
 #include <imgui.h>
 
-GameplayLayer::GameplayLayer(skr::Arc<fra::Renderer> renderer)
-    : fg::Layer("Gameplay"), mRenderer(std::move(renderer))
+GameplayLayer::GameplayLayer(skr::Arc<fra::Renderer> renderer, skr::Arc<fg::Scene> scene)
+    : fg::Layer("Gameplay"), mRenderer(std::move(renderer)), mScene(std::move(scene))
 {
 }
 
@@ -33,6 +33,7 @@ void GameplayLayer::onUpdate()
 {
     if(mClaimOutput)
     {
+        mScene->PreferGameplayCamera();
         ensureTarget(mPendingWidth, mPendingHeight);
     }
 }

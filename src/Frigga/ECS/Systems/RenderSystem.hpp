@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Frigga/ECS/Components/TransformComponent.hpp"
+
 #include <Freya/Freya.hpp>
 #include <Freyr/Freyr.hpp>
 
@@ -8,12 +10,15 @@
 namespace FRIGGA_NAMESPACE
 {
 
+    class Scene;
+
     class RenderSystem: public fr::System
     {
       public:
         RenderSystem(const skr::Arc<fr::Registry> &registry, const skr::Arc<fra::Renderer> &renderer,
                      const skr::Arc<fra::Window> &window,
-                     const skr::Arc<fra::LightService> &lightService);
+                     const skr::Arc<fra::LightService> &lightService,
+                     const skr::Arc<Scene> &scene);
 
         ~RenderSystem() override = default;
 
@@ -21,12 +26,15 @@ namespace FRIGGA_NAMESPACE
 
       private:
         void updateCamera();
+        void applyCameraPose(const TransformComponent &transform, float fovDegrees,
+                             float nearPlane, float farPlane);
         void syncLights();
         void drawMeshes();
 
         skr::Arc<fra::Renderer> mRenderer;
         skr::Arc<fra::Window> mWindow;
         skr::Arc<fra::LightService> mLightService;
+        skr::Arc<Scene> mScene;
         skr::Arc<fra::Buffer> mInstanceBuffer;
         std::vector<glm::mat4> mInstanceMatrices;
         std::uint64_t mInstanceCapacity = 0;

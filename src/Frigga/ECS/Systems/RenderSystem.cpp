@@ -5,6 +5,7 @@
 #include "../Components/MaterialComponent.hpp"
 #include "../Components/MeshComponent.hpp"
 #include "../Components/TransformComponent.hpp"
+#include "Frigga/Scene/Scene.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -15,8 +16,10 @@ namespace FRIGGA_NAMESPACE
     RenderSystem::RenderSystem(const skr::Arc<fr::Registry> &registry,
                                const skr::Arc<fra::Renderer> &renderer,
                                const skr::Arc<fra::Window> &window,
-                               const skr::Arc<fra::LightService> &lightService)
-        : System(registry), mRenderer(renderer), mWindow(window), mLightService(lightService)
+                               const skr::Arc<fra::LightService> &lightService,
+                               const skr::Arc<Scene> &scene)
+        : System(registry), mRenderer(renderer), mWindow(window), mLightService(lightService),
+          mScene(scene)
     {
     }
 
@@ -27,8 +30,55 @@ namespace FRIGGA_NAMESPACE
         drawMeshes();
     }
 
+    void RenderSystem::applyCameraPose(const TransformComponent &transform, float fovDegrees,
+                                       float nearPlane, float farPlane)
+    {
+        float aspect = 16.0f / 9.0f;
+        if(const auto target = mRenderer->GetOutputTarget())
+        {
+            const auto extent = target->GetExtent();
+            if(extent.width > 0 && extent.height > 0)
+            {
+                aspect = static_cast<float>(extent.width) / static_cast<float>(extent.height);
+            }
+        }
+        else if(mWindow->GetWidth() > 0 && mWindow->GetHeight() > 0)
+        {
+            aspect = static_cast<float>(mWindow->GetWidth()) /
+                     static_cast<float>(mWindow->GetHeight());
+        }
+
+        auto projection       = mRenderer->GetCurrentProjection();
+        projection.projection =
+            mRenderer->MakeProjection(glm::radians(fovDegrees), aspect, nearPlane, farPlane);
+        if(projection.ambientLight.w <= 0.0f)
+        {
+            projection.ambientLight = glm::vec4(0.0f, 1.0f, 0.0f, 0.35f);
+        }
+        mRenderer->UpdateProjection(projection);
+
+        // Freya/OpenGL convention: camera looks along local -Z.
+        const glm::vec3 forward =
+            glm::normalize(transform.rotation * glm::vec3(0.0f, 0.0f, -1.0f));
+        const glm::vec3 up = glm::normalize(transform.rotation * glm::vec3(0.0f, 1.0f, 0.0f));
+        if(glm::dot(forward, forward) < 1e-6f || glm::dot(up, up) < 1e-6f)
+        {
+            return;
+        }
+
+        mRenderer->UpdateCamera(transform.position, transform.position + forward, up);
+    }
+
     void RenderSystem::updateCamera()
     {
+        if(mScene->IsUsingEditorCamera())
+        {
+            const auto &editorCamera = mScene->GetEditorCamera();
+            applyCameraPose(editorCamera.transform, editorCamera.fovDegrees,
+                            editorCamera.nearPlane, editorCamera.farPlane);
+            return;
+        }
+
         bool updated = false;
 
         auto applyCamera = [this, &updated](TransformComponent &transform, CameraComponent &camera) {
@@ -37,40 +87,7 @@ namespace FRIGGA_NAMESPACE
                 return;
             }
 
-            float aspect = 16.0f / 9.0f;
-            if(const auto target = mRenderer->GetOutputTarget())
-            {
-                const auto extent = target->GetExtent();
-                if(extent.width > 0 && extent.height > 0)
-                {
-                    aspect = static_cast<float>(extent.width) / static_cast<float>(extent.height);
-                }
-            }
-            else if(mWindow->GetWidth() > 0 && mWindow->GetHeight() > 0)
-            {
-                aspect = static_cast<float>(mWindow->GetWidth()) /
-                         static_cast<float>(mWindow->GetHeight());
-            }
-
-            auto projection       = mRenderer->GetCurrentProjection();
-            projection.projection = mRenderer->MakeProjection(
-                glm::radians(camera.fovDegrees), aspect, camera.nearPlane, camera.farPlane);
-            if(projection.ambientLight.w <= 0.0f)
-            {
-                projection.ambientLight = glm::vec4(0.0f, 1.0f, 0.0f, 0.35f);
-            }
-            mRenderer->UpdateProjection(projection);
-
-            // Freya/OpenGL convention: camera looks along local -Z.
-            const glm::vec3 forward =
-                glm::normalize(transform.rotation * glm::vec3(0.0f, 0.0f, -1.0f));
-            const glm::vec3 up = glm::normalize(transform.rotation * glm::vec3(0.0f, 1.0f, 0.0f));
-            if(glm::dot(forward, forward) < 1e-6f || glm::dot(up, up) < 1e-6f)
-            {
-                return;
-            }
-
-            mRenderer->UpdateCamera(transform.position, transform.position + forward, up);
+            applyCameraPose(transform, camera.fovDegrees, camera.nearPlane, camera.farPlane);
             updated = true;
         };
 

@@ -43,7 +43,7 @@ namespace FRIGGA_NAMESPACE
     void FriggaExtension::ConfigureServices(skr::ServiceCollection &services)
     {
         services.AddSingleton<fg::PrimitiveMeshFactory>();
-        services.AddScoped<fg::Scene>();
+        services.AddSingleton<fg::Scene>();
         services.AddScoped<fg::LayerStack>();
         services.AddTransient<fg::GuiLayer>();
     }

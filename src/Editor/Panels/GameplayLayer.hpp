@@ -1,13 +1,14 @@
 #pragma once
 
 #include <Frigga/Frigga.hpp>
+#include <Frigga/Scene/Scene.hpp>
 
 #include <vulkan/vulkan.h>
 
 class GameplayLayer: public fg::Layer
 {
   public:
-    explicit GameplayLayer(skr::Arc<fra::Renderer> renderer);
+    GameplayLayer(skr::Arc<fra::Renderer> renderer, skr::Arc<fg::Scene> scene);
     ~GameplayLayer() override = default;
 
     void onAttach() override;
@@ -21,6 +22,7 @@ class GameplayLayer: public fg::Layer
     void recreateUiPipeline();
 
     skr::Arc<fra::Renderer> mRenderer;
+    skr::Arc<fg::Scene> mScene;
     skr::Arc<fra::RenderTarget> mTarget;
     VkDescriptorSet mTextureId = VK_NULL_HANDLE;
     std::uint32_t mWidth         = 0;
