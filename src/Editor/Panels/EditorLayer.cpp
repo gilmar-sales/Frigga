@@ -4,6 +4,7 @@
 #include "Editor/DockLayout.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/Gui/Backends/imgui_impl_vulkan.h"
+#include "Frigga/Physics/ColliderDebugDraw.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -22,11 +23,12 @@ namespace
 }
 
 EditorLayer::EditorLayer(skr::Arc<fra::Renderer> renderer, skr::Arc<fr::Registry> registry,
+                         skr::Arc<fg::PrimitiveMeshFactory> primitives,
                          skr::Arc<SelectionContext> selection, skr::Arc<fg::Scene> scene,
                          skr::Arc<fg::SceneSimulationState> simulation)
     : fg::Layer("Editor"), mRenderer(std::move(renderer)), mRegistry(std::move(registry)),
-      mSelection(std::move(selection)), mScene(std::move(scene)),
-      mSimulation(std::move(simulation))
+      mPrimitives(std::move(primitives)), mSelection(std::move(selection)),
+      mScene(std::move(scene)), mSimulation(std::move(simulation))
 {
 }
 
@@ -110,6 +112,13 @@ void EditorLayer::onGui()
             const bool navigating = mNavMode != NavMode::None;
             ImGuizmo::Enable(!navigating);
             drawGizmos(imageMin, avail, !navigating);
+            if(mSimulation->GetShowColliders())
+            {
+                const auto &projectionUbo = mRenderer->GetCurrentProjection();
+                fg::ColliderDebugDraw::Draw(ImGui::GetWindowDrawList(), mRegistry, mPrimitives,
+                                            projectionUbo.view, projectionUbo.projection, imageMin,
+                                            avail);
+            }
             handlePicking(imageMin, avail);
         }
         else
@@ -163,6 +172,13 @@ void EditorLayer::drawToolbar()
     if(ImGui::IsItemHovered())
     {
         ImGui::SetTooltip("Play simulation (Ctrl+P)");
+    }
+
+    ImGui::SameLine();
+    bool showColliders = mSimulation->GetShowColliders();
+    if(ImGui::Checkbox(ICON_BTSP_BOUNDINGBOX " Colliders", &showColliders))
+    {
+        mSimulation->SetShowColliders(showColliders);
     }
 
     ImGui::SameLine();

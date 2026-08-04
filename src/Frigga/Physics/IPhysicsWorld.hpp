@@ -17,6 +17,9 @@ namespace FRIGGA_NAMESPACE
         virtual void Clear() = 0;
         virtual void OptimizeBroadPhase() = 0;
         virtual void Step(float deltaTime) = 0;
+        /// Advance exactly one (or more) fixed simulation ticks, ignoring the accumulator.
+        virtual void StepFixed(int steps = 1) = 0;
+        [[nodiscard]] virtual float GetFixedDeltaTime() const = 0;
 
         virtual PhysicsBodyHandle CreateBody(const PhysicsBodyDesc &desc) = 0;
         virtual void DestroyBody(PhysicsBodyHandle handle) = 0;

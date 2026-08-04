@@ -9,6 +9,7 @@
 
 #include <filesystem>
 #include <string>
+#include <string_view>
 
 namespace FRIGGA_NAMESPACE
 {
@@ -30,6 +31,11 @@ namespace FRIGGA_NAMESPACE
         bool SaveScene(const std::filesystem::path &path);
         bool SaveScene();
         bool LoadScene(const std::filesystem::path &path);
+
+        /// Serialize the current edit scene without changing path / disk files.
+        bool CaptureSnapshot(std::string &outJson);
+        /// Replace entities from a previous CaptureSnapshot; preserves the scene path.
+        bool RestoreSnapshot(std::string_view json);
 
         [[nodiscard]] bool HasPath() const
         {

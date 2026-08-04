@@ -78,7 +78,9 @@ cd build-release && ./Editor
 | Open scene | Ctrl+O |
 | Save | Ctrl+S |
 | Save as | Ctrl+Shift+S |
-| Play / pause simulation | Ctrl+P |
+| Play / pause / resume | Ctrl+P |
+| Step one physics tick | Ctrl+. |
+| Stop play (restore edit scene) | Ctrl+Shift+P |
 | Gizmo translate / rotate / scale | W / E / R (editor viewport focused) |
 | Frame selection | F (editor viewport) |
 

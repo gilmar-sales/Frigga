@@ -15,15 +15,21 @@ namespace FRIGGA_NAMESPACE
     {
     }
 
-    void SceneSimulationState::Toggle()
+    void SceneSimulationState::TogglePlayPause()
     {
-        if(IsPlaying())
+        if(!IsPlaying())
         {
-            Stop();
+            Play();
+            return;
+        }
+
+        if(mPaused)
+        {
+            Resume();
         }
         else
         {
-            Play();
+            Pause();
         }
     }
 
@@ -31,16 +37,43 @@ namespace FRIGGA_NAMESPACE
     {
         if(IsPlaying())
         {
+            Resume();
             return;
         }
 
         mRegistry->ExecuteTasks();
-        snapshotTransforms();
+        snapshotScene();
         buildPhysicsWorld();
-        mMode = SimulationMode::Play;
+        mMode                   = SimulationMode::Play;
+        mPaused                 = false;
+        mStepRequested          = false;
         mFocusGameplayRequested = true;
         mScene->PreferGameplayCamera();
         mLogger->LogInformation("Entered Play mode");
+    }
+
+    void SceneSimulationState::Pause()
+    {
+        if(!IsPlaying() || mPaused)
+        {
+            return;
+        }
+
+        mPaused        = true;
+        mStepRequested = false;
+        mLogger->LogInformation("Paused simulation");
+    }
+
+    void SceneSimulationState::Resume()
+    {
+        if(!IsPlaying() || !mPaused)
+        {
+            return;
+        }
+
+        mPaused        = false;
+        mStepRequested = false;
+        mLogger->LogInformation("Resumed simulation");
     }
 
     void SceneSimulationState::Stop()
@@ -51,35 +84,49 @@ namespace FRIGGA_NAMESPACE
         }
 
         teardownPhysicsWorld();
-        restoreTransforms();
-        mEditTransforms.clear();
-        mMode = SimulationMode::Edit;
+        restoreScene();
+        mMode                 = SimulationMode::Edit;
+        mPaused               = false;
+        mStepRequested        = false;
+        mEditSceneSnapshot.clear();
         mFocusEditorRequested = true;
         mScene->PreferEditorCamera();
         mLogger->LogInformation("Exited Play mode");
     }
 
-    void SceneSimulationState::snapshotTransforms()
+    void SceneSimulationState::Step()
     {
-        mEditTransforms.clear();
-        mRegistry->CreateMutation()->Each<TransformComponent>(
-            [&](auto entity, TransformComponent &transform) {
-                mEditTransforms.emplace(entity, transform);
-            });
+        if(!IsPlaying())
+        {
+            return;
+        }
+
+        mPaused        = true;
+        mStepRequested = true;
     }
 
-    void SceneSimulationState::restoreTransforms()
+    void SceneSimulationState::snapshotScene()
     {
-        for(const auto &[entity, transform] : mEditTransforms)
+        mEditSceneSnapshot.clear();
+        if(!mScene->CaptureSnapshot(mEditSceneSnapshot))
         {
-            if(!mRegistry->HasComponent<TransformComponent>(entity))
-            {
-                continue;
-            }
-            mRegistry->TryGetComponents<TransformComponent>(
-                entity, [&](TransformComponent &current) { current = transform; });
+            mLogger->LogError("Failed to snapshot scene before Play; Stop may not restore cleanly");
+            mEditSceneSnapshot.clear();
         }
-        mRegistry->ExecuteTasks();
+    }
+
+    void SceneSimulationState::restoreScene()
+    {
+        if(mEditSceneSnapshot.empty())
+        {
+            mLogger->LogWarning("No edit-mode scene snapshot to restore");
+            return;
+        }
+
+        if(!mScene->RestoreSnapshot(mEditSceneSnapshot))
+        {
+            mLogger->LogError("Failed to restore edit-mode scene snapshot");
+        }
     }
 
     PhysicsBodyDesc SceneSimulationState::makeBodyDesc(const TransformComponent &transform,
@@ -87,19 +134,19 @@ namespace FRIGGA_NAMESPACE
                                                        fr::Entity entity) const
     {
         PhysicsBodyDesc desc {
-            .motion             = rigidBody.motion,
-            .shape              = rigidBody.shape,
-            .position           = transform.position,
-            .rotation           = transform.rotation,
-            .scale              = transform.scale,
-            .halfExtents        = rigidBody.halfExtents,
-            .radius             = rigidBody.radius,
-            .height             = rigidBody.height,
-            .mass               = rigidBody.mass,
-            .friction           = rigidBody.friction,
-            .restitution        = rigidBody.restitution,
-            .collisionLayer     = rigidBody.collisionLayer,
-            .collideWithLayers  = rigidBody.collideWithLayers,
+            .motion            = rigidBody.motion,
+            .shape             = rigidBody.shape,
+            .position          = transform.position,
+            .rotation          = transform.rotation,
+            .scale             = transform.scale,
+            .halfExtents       = rigidBody.halfExtents,
+            .radius            = rigidBody.radius,
+            .height            = rigidBody.height,
+            .mass              = rigidBody.mass,
+            .friction          = rigidBody.friction,
+            .restitution       = rigidBody.restitution,
+            .collisionLayer    = rigidBody.collisionLayer,
+            .collideWithLayers = rigidBody.collideWithLayers,
         };
 
         if(rigidBody.motion == BodyMotionType::Static && desc.collisionLayer == 1)
@@ -130,8 +177,8 @@ namespace FRIGGA_NAMESPACE
 
         mRegistry->CreateMutation()->Each<TransformComponent, RigidBodyComponent>(
             [&](auto entity, TransformComponent &transform, RigidBodyComponent &rigidBody) {
-                const auto desc   = makeBodyDesc(transform, rigidBody, entity);
-                rigidBody.body    = mPhysicsWorld->CreateBody(desc);
+                const auto desc = makeBodyDesc(transform, rigidBody, entity);
+                rigidBody.body  = mPhysicsWorld->CreateBody(desc);
                 if(!rigidBody.body.IsValid())
                 {
                     std::string name = "entity";

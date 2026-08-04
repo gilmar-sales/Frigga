@@ -30,6 +30,7 @@ namespace FRIGGA_NAMESPACE
         constexpr unsigned kMaxBodyPairs          = 65536;
         constexpr unsigned kMaxContactConstraints = 20480;
         constexpr unsigned kLayerCount            = 16;
+        constexpr float    kFixedDeltaTime        = 1.0f / 60.0f;
 
         void TraceImpl(const char *fmt, ...)
         {
@@ -231,19 +232,34 @@ namespace FRIGGA_NAMESPACE
         mImpl->physicsSystem.OptimizeBroadPhase();
     }
 
+    float JoltPhysicsWorld::GetFixedDeltaTime() const
+    {
+        return kFixedDeltaTime;
+    }
+
     void JoltPhysicsWorld::Step(float deltaTime)
     {
-        constexpr float fixedDt = 1.0f / 60.0f;
         mImpl->accumulator += deltaTime;
         // Avoid spiral of death after stalls.
-        mImpl->accumulator = std::min(mImpl->accumulator, fixedDt * 5.0f);
+        mImpl->accumulator = std::min(mImpl->accumulator, kFixedDeltaTime * 5.0f);
 
-        while(mImpl->accumulator >= fixedDt)
+        while(mImpl->accumulator >= kFixedDeltaTime)
         {
             const int collisionSteps = 1;
-            mImpl->physicsSystem.Update(fixedDt, collisionSteps, &mImpl->tempAllocator,
+            mImpl->physicsSystem.Update(kFixedDeltaTime, collisionSteps, &mImpl->tempAllocator,
                                         &mImpl->jobSystem);
-            mImpl->accumulator -= fixedDt;
+            mImpl->accumulator -= kFixedDeltaTime;
+        }
+    }
+
+    void JoltPhysicsWorld::StepFixed(int steps)
+    {
+        mImpl->accumulator = 0.0f;
+        const int count    = std::max(steps, 0);
+        for(int i = 0; i < count; ++i)
+        {
+            mImpl->physicsSystem.Update(kFixedDeltaTime, 1, &mImpl->tempAllocator,
+                                        &mImpl->jobSystem);
         }
     }
 

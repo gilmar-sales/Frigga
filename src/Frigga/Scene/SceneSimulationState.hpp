@@ -9,7 +9,7 @@
 #include <Freyr/Freyr.hpp>
 #include <Skirnir/Skirnir.hpp>
 
-#include <unordered_map>
+#include <string>
 
 namespace FRIGGA_NAMESPACE
 {
@@ -29,14 +29,41 @@ namespace FRIGGA_NAMESPACE
                              const skr::Arc<PrimitiveMeshFactory> &primitives,
                              const skr::Arc<skr::Logger<SceneSimulationState>> &logger);
 
+        /// True while the play session is active (running or paused).
         [[nodiscard]] bool IsPlaying() const
         {
             return mMode == SimulationMode::Play;
         }
 
+        [[nodiscard]] bool IsPaused() const
+        {
+            return IsPlaying() && mPaused;
+        }
+
+        /// True when the physics world should advance with wall-clock delta time.
+        [[nodiscard]] bool IsRunning() const
+        {
+            return IsPlaying() && !mPaused;
+        }
+
         [[nodiscard]] SimulationMode GetMode() const
         {
             return mMode;
+        }
+
+        [[nodiscard]] bool GetShowColliders() const
+        {
+            return mShowColliders;
+        }
+
+        void SetShowColliders(bool show)
+        {
+            mShowColliders = show;
+        }
+
+        void ToggleShowColliders()
+        {
+            mShowColliders = !mShowColliders;
         }
 
         /// Cleared after a successful read. Used by the Gameplay viewport to steal focus on Play.
@@ -55,13 +82,25 @@ namespace FRIGGA_NAMESPACE
             return requested;
         }
 
+        /// One fixed physics step on the next PhysicsSystem update (leaves session paused).
+        [[nodiscard]] bool ConsumeStepRequest()
+        {
+            const bool requested = mStepRequested;
+            mStepRequested       = false;
+            return requested;
+        }
+
         void Play();
+        void Pause();
+        void Resume();
         void Stop();
-        void Toggle();
+        /// Enter play from Edit; pause/resume while already in a play session.
+        void TogglePlayPause();
+        void Step();
 
       private:
-        void snapshotTransforms();
-        void restoreTransforms();
+        void snapshotScene();
+        void restoreScene();
         void buildPhysicsWorld();
         void teardownPhysicsWorld();
         PhysicsBodyDesc makeBodyDesc(const TransformComponent &transform,
@@ -74,9 +113,12 @@ namespace FRIGGA_NAMESPACE
         skr::Arc<PrimitiveMeshFactory> mPrimitives;
         skr::Arc<skr::Logger<SceneSimulationState>> mLogger;
         SimulationMode mMode = SimulationMode::Edit;
+        bool mPaused                 = false;
+        bool mStepRequested          = false;
+        bool mShowColliders          = false;
         bool mFocusGameplayRequested = false;
         bool mFocusEditorRequested   = false;
-        std::unordered_map<fr::Entity, TransformComponent> mEditTransforms;
+        std::string mEditSceneSnapshot;
     };
 
 } // namespace FRIGGA_NAMESPACE

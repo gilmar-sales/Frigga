@@ -4,14 +4,18 @@
 #include "Editor/DockLayout.hpp"
 
 #include <Frigga/Gui/Backends/imgui_impl_vulkan.h>
+#include <Frigga/Physics/ColliderDebugDraw.hpp>
 
 #include <algorithm>
 #include <cstdint>
 #include <imgui.h>
 
-GameplayLayer::GameplayLayer(skr::Arc<fra::Renderer> renderer, skr::Arc<fg::Scene> scene,
+GameplayLayer::GameplayLayer(skr::Arc<fra::Renderer> renderer, skr::Arc<fr::Registry> registry,
+                             skr::Arc<fg::Scene> scene,
+                             skr::Arc<fg::PrimitiveMeshFactory> primitives,
                              skr::Arc<fg::SceneSimulationState> simulation)
-    : fg::Layer("Gameplay"), mRenderer(std::move(renderer)), mScene(std::move(scene)),
+    : fg::Layer("Gameplay"), mRenderer(std::move(renderer)), mRegistry(std::move(registry)),
+      mScene(std::move(scene)), mPrimitives(std::move(primitives)),
       mSimulation(std::move(simulation))
 {
 }
@@ -52,19 +56,73 @@ void GameplayLayer::drawToolbar()
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.0f, 6.0f));
     ImGui::SetCursorPos(ImVec2(8.0f, ImGui::GetCursorPosY() + 6.0f));
 
-    if(ImGui::Button(ICON_BTSP_PAUSE " Pause"))
+    if(mSimulation->IsPaused())
+    {
+        if(ImGui::Button(ICON_BTSP_PLAY " Resume"))
+        {
+            mSimulation->Resume();
+        }
+        if(ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("Resume simulation (Ctrl+P)");
+        }
+    }
+    else
+    {
+        if(ImGui::Button(ICON_BTSP_PAUSE " Pause"))
+        {
+            mSimulation->Pause();
+        }
+        if(ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("Pause simulation (Ctrl+P)");
+        }
+    }
+
+    ImGui::SameLine();
+    if(ImGui::Button(ICON_BTSP_SKIPFORWARD " Step"))
+    {
+        mSimulation->Step();
+    }
+    if(ImGui::IsItemHovered())
+    {
+        ImGui::SetTooltip("Step one physics tick (Ctrl+.)");
+    }
+
+    ImGui::SameLine();
+    if(ImGui::Button(ICON_BTSP_SKIPEND " Stop"))
     {
         mSimulation->Stop();
     }
     if(ImGui::IsItemHovered())
     {
-        ImGui::SetTooltip("Pause simulation (Ctrl+P)");
+        ImGui::SetTooltip("Stop and restore edit scene (Ctrl+Shift+P)");
     }
+
     ImGui::SameLine();
-    ImGui::TextDisabled("Playing");
+    bool showColliders = mSimulation->GetShowColliders();
+    if(ImGui::Checkbox(ICON_BTSP_BOUNDINGBOX " Colliders", &showColliders))
+    {
+        mSimulation->SetShowColliders(showColliders);
+    }
+
+    ImGui::SameLine();
+    ImGui::TextDisabled(mSimulation->IsPaused() ? "Paused" : "Playing");
 
     ImGui::PopStyleVar();
     ImGui::Dummy(ImVec2(0.0f, 4.0f));
+}
+
+void GameplayLayer::drawColliders(const ImVec2 &imageMin, const ImVec2 &imageSize)
+{
+    if(!mSimulation->GetShowColliders())
+    {
+        return;
+    }
+
+    const auto &projectionUbo = mRenderer->GetCurrentProjection();
+    fg::ColliderDebugDraw::Draw(ImGui::GetWindowDrawList(), mRegistry, mPrimitives,
+                                projectionUbo.view, projectionUbo.projection, imageMin, imageSize);
 }
 
 void GameplayLayer::onGui()
@@ -94,10 +152,12 @@ void GameplayLayer::onGui()
         mPendingWidth      = static_cast<std::uint32_t>(std::max(avail.x, 1.0f));
         mPendingHeight     = static_cast<std::uint32_t>(std::max(avail.y, 1.0f));
 
+        const ImVec2 imageMin = ImGui::GetCursorScreenPos();
         if(mTextureId != VK_NULL_HANDLE)
         {
             ImGui::Image(static_cast<ImTextureID>(reinterpret_cast<std::uintptr_t>(mTextureId)),
                          avail);
+            drawColliders(imageMin, avail);
         }
     }
     else

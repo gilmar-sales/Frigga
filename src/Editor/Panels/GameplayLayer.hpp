@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Frigga/Frigga.hpp>
+#include <Frigga/Asset/PrimitiveMeshFactory.hpp>
 #include <Frigga/Scene/Scene.hpp>
 #include <Frigga/Scene/SceneSimulationState.hpp>
 
@@ -9,7 +10,8 @@
 class GameplayLayer: public fg::Layer
 {
   public:
-    GameplayLayer(skr::Arc<fra::Renderer> renderer, skr::Arc<fg::Scene> scene,
+    GameplayLayer(skr::Arc<fra::Renderer> renderer, skr::Arc<fr::Registry> registry,
+                  skr::Arc<fg::Scene> scene, skr::Arc<fg::PrimitiveMeshFactory> primitives,
                   skr::Arc<fg::SceneSimulationState> simulation);
     ~GameplayLayer() override = default;
 
@@ -20,12 +22,15 @@ class GameplayLayer: public fg::Layer
 
   private:
     void drawToolbar();
+    void drawColliders(const ImVec2 &imageMin, const ImVec2 &imageSize);
     void ensureTarget(std::uint32_t width, std::uint32_t height);
     void releaseTexture();
     void recreateUiPipeline();
 
     skr::Arc<fra::Renderer> mRenderer;
+    skr::Arc<fr::Registry> mRegistry;
     skr::Arc<fg::Scene> mScene;
+    skr::Arc<fg::PrimitiveMeshFactory> mPrimitives;
     skr::Arc<fg::SceneSimulationState> mSimulation;
     skr::Arc<fra::RenderTarget> mTarget;
     VkDescriptorSet mTextureId = VK_NULL_HANDLE;

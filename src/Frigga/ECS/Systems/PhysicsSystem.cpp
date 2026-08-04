@@ -20,6 +20,12 @@ namespace FRIGGA_NAMESPACE
             return;
         }
 
+        const bool stepOnce = mSimulation->ConsumeStepRequest();
+        if(!mSimulation->IsRunning() && !stepOnce)
+        {
+            return;
+        }
+
         // Push kinematic transforms authored in the editor into the world.
         mRegistry->CreateMutation()->Each<TransformComponent, RigidBodyComponent>(
             [&](auto, TransformComponent &transform, RigidBodyComponent &rigidBody) {
@@ -34,7 +40,14 @@ namespace FRIGGA_NAMESPACE
                 }
             });
 
-        mPhysicsWorld->Step(deltaTime);
+        if(stepOnce)
+        {
+            mPhysicsWorld->StepFixed(1);
+        }
+        else
+        {
+            mPhysicsWorld->Step(deltaTime);
+        }
 
         // Write dynamic/static simulation poses back to ECS transforms.
         mRegistry->CreateMutation()->Each<TransformComponent, RigidBodyComponent>(

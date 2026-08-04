@@ -2,6 +2,7 @@
 
 #include "Editor/SelectionContext.hpp"
 
+#include "Frigga/Asset/PrimitiveMeshFactory.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/Scene/Scene.hpp"
 #include "Frigga/Scene/SceneSimulationState.hpp"
@@ -15,8 +16,8 @@ class EditorLayer: public fg::Layer
 {
   public:
     EditorLayer(skr::Arc<fra::Renderer> renderer, skr::Arc<fr::Registry> registry,
-                skr::Arc<SelectionContext> selection, skr::Arc<fg::Scene> scene,
-                skr::Arc<fg::SceneSimulationState> simulation);
+                skr::Arc<fg::PrimitiveMeshFactory> primitives, skr::Arc<SelectionContext> selection,
+                skr::Arc<fg::Scene> scene, skr::Arc<fg::SceneSimulationState> simulation);
     ~EditorLayer() override = default;
 
     void onAttach() override;
@@ -54,6 +55,7 @@ class EditorLayer: public fg::Layer
 
     skr::Arc<fra::Renderer> mRenderer;
     skr::Arc<fr::Registry> mRegistry;
+    skr::Arc<fg::PrimitiveMeshFactory> mPrimitives;
     skr::Arc<SelectionContext> mSelection;
     skr::Arc<fg::Scene> mScene;
     skr::Arc<fg::SceneSimulationState> mSimulation;

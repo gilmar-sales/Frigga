@@ -77,13 +77,30 @@ void MainLayer::handleShortcuts()
         return;
     }
 
+    if(io.KeyCtrl && io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_P, false))
+    {
+        mSimulation->Stop();
+        return;
+    }
+
     if(io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_P, false))
     {
-        mSimulation->Toggle();
+        mSimulation->TogglePlayPause();
+        return;
+    }
+
+    if(io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Period, false))
+    {
+        mSimulation->Step();
         return;
     }
 
     if(!io.KeyCtrl)
+    {
+        return;
+    }
+
+    if(mSimulation->IsPlaying())
     {
         return;
     }
@@ -320,6 +337,7 @@ void MainLayer::drawMenuBar()
     {
         if(ImGui::BeginMenu("File"))
         {
+            ImGui::BeginDisabled(mSimulation->IsPlaying());
             if(ImGui::MenuItem(ICON_BTSP_FOLDERPLUS " New Scene", "Ctrl+N"))
             {
                 requestNewScene();
@@ -338,6 +356,7 @@ void MainLayer::drawMenuBar()
             {
                 requestSaveSceneAs();
             }
+            ImGui::EndDisabled();
             ImGui::Separator();
             if(ImGui::MenuItem(ICON_BTSP_SHUTDOWN " Close Phantom", "Alt+F4"))
             {
@@ -445,9 +464,44 @@ void MainLayer::drawMenuBar()
 
         if(ImGui::BeginMenu("Game"))
         {
-            if(ImGui::MenuItem(mSimulation->IsPlaying() ? "Pause" : "Play", "Ctrl+P"))
+            if(!mSimulation->IsPlaying())
             {
-                mSimulation->Toggle();
+                if(ImGui::MenuItem(ICON_BTSP_PLAY " Play", "Ctrl+P"))
+                {
+                    mSimulation->Play();
+                }
+            }
+            else if(mSimulation->IsPaused())
+            {
+                if(ImGui::MenuItem(ICON_BTSP_PLAY " Resume", "Ctrl+P"))
+                {
+                    mSimulation->Resume();
+                }
+            }
+            else
+            {
+                if(ImGui::MenuItem(ICON_BTSP_PAUSE " Pause", "Ctrl+P"))
+                {
+                    mSimulation->Pause();
+                }
+            }
+
+            ImGui::BeginDisabled(!mSimulation->IsPlaying());
+            if(ImGui::MenuItem(ICON_BTSP_SKIPFORWARD " Step", "Ctrl+."))
+            {
+                mSimulation->Step();
+            }
+            if(ImGui::MenuItem(ICON_BTSP_SKIPEND " Stop", "Ctrl+Shift+P"))
+            {
+                mSimulation->Stop();
+            }
+            ImGui::EndDisabled();
+
+            ImGui::Separator();
+            bool showColliders = mSimulation->GetShowColliders();
+            if(ImGui::MenuItem(ICON_BTSP_BOUNDINGBOX " Show Colliders", nullptr, showColliders))
+            {
+                mSimulation->SetShowColliders(!showColliders);
             }
             ImGui::EndMenu();
         }

@@ -40,6 +40,11 @@ const char *HierarchyLayer::getLightDisplayName(fra::LightType type)
 
 void HierarchyLayer::createEmptyEntity()
 {
+    if(mSimulation->IsPlaying())
+    {
+        return;
+    }
+
     mRegistry->CreateEntity(
         [](auto entity, fg::NameComponent &name) {
             std::stringstream entity_name;
@@ -51,6 +56,11 @@ void HierarchyLayer::createEmptyEntity()
 
 void HierarchyLayer::createPrimitiveEntity(fg::PrimitiveType type)
 {
+    if(mSimulation->IsPlaying())
+    {
+        return;
+    }
+
     const auto *displayName = fg::PrimitiveMeshFactory::GetDisplayName(type);
     const auto meshId       = mPrimitives->GetMesh(type);
     const auto materialId   = mPrimitives->GetDefaultMaterial();
@@ -62,6 +72,11 @@ void HierarchyLayer::createPrimitiveEntity(fg::PrimitiveType type)
 
 void HierarchyLayer::createCameraEntity()
 {
+    if(mSimulation->IsPlaying())
+    {
+        return;
+    }
+
     mRegistry->CreateEntity(fg::NameComponent {.name = "Camera"},
                             fg::TransformComponent {.position = {0.0f, 1.5f, -5.0f}},
                             fg::CameraComponent {});
@@ -69,6 +84,11 @@ void HierarchyLayer::createCameraEntity()
 
 void HierarchyLayer::createLightEntity(fra::LightType type)
 {
+    if(mSimulation->IsPlaying())
+    {
+        return;
+    }
+
     mRegistry->CreateEntity(
         fg::NameComponent {.name = getLightDisplayName(type)},
         fg::TransformComponent {.position = {0.0f, 3.0f, 0.0f},
@@ -131,6 +151,7 @@ void HierarchyLayer::onGui()
     }
     else if(ImGui::BeginPopupContextWindow("##HierarchyContext", 1))
     {
+        ImGui::BeginDisabled(mSimulation->IsPlaying());
         if(ImGui::MenuItem("Empty entity"))
         {
             createEmptyEntity();
@@ -168,6 +189,11 @@ void HierarchyLayer::onGui()
             }
             ImGui::EndMenu();
         }
+        ImGui::EndDisabled();
+        if(mSimulation->IsPlaying() && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        {
+            ImGui::SetTooltip("Stop Play mode to create entities");
+        }
 
         ImGui::EndPopup();
     }
@@ -198,20 +224,23 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
     const std::string renameId = std::format("##Rename{}", entity);
     if(ImGui::BeginPopupContextItem(popUpId.data()))
     {
-        const bool locked = isEntityLocked(entity);
+        const bool locked     = isEntityLocked(entity);
+        const bool playLocked = mSimulation->IsPlaying();
 
-        if(ImGui::MenuItem("Delete", nullptr, false, !locked))
+        if(ImGui::MenuItem("Delete", nullptr, false, !locked && !playLocked))
         {
             mRegistry->DestroyEntity(entity);
             if(mSelection->Get() == entity) mSelection->Clear();
         }
-        else if(locked && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        else if((locked || playLocked) && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
         {
-            ImGui::SetTooltip("Main Camera cannot be removed");
+            ImGui::SetTooltip(playLocked ? "Stop Play mode to delete entities"
+                                         : "Main Camera cannot be removed");
         }
 
-        if(ImGui::MenuItem("Rename...")) nodeToRename = entity;
+        if(ImGui::MenuItem("Rename...", nullptr, false, !playLocked)) nodeToRename = entity;
 
+        ImGui::BeginDisabled(playLocked);
         if(ImGui::MenuItem("Add transform"))
         {
             if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
@@ -274,7 +303,6 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
             ImGui::EndMenu();
         }
 
-        ImGui::BeginDisabled(mSimulation->IsPlaying());
         if(ImGui::MenuItem("Add rigid body"))
         {
             if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
@@ -469,10 +497,11 @@ void HierarchyLayer::drawComponents()
         });
 
     mRegistry->TryGetComponents<fg::RigidBodyComponent>(
-        selection, [](fg::RigidBodyComponent &rigidBody) {
+        selection, [this](fg::RigidBodyComponent &rigidBody) {
             if(ImGui::CollapsingHeader("Rigid Body Component", nullptr,
                                        ImGuiWindowFlags_ChildWindow))
             {
+                ImGui::BeginDisabled(mSimulation->IsPlaying());
                 int motion = static_cast<int>(rigidBody.motion);
                 if(ImGui::Combo("Motion", &motion, "Static\0Kinematic\0Dynamic\0"))
                 {
@@ -529,10 +558,15 @@ void HierarchyLayer::drawComponents()
                     rigidBody.collideWithLayers =
                         static_cast<std::uint16_t>(std::clamp(mask, 0, 0xffff));
                 }
+                ImGui::EndDisabled();
 
                 if(rigidBody.body.IsValid())
                 {
                     ImGui::TextDisabled("Body ID: %u", rigidBody.body.id);
+                }
+                else if(mSimulation->IsPlaying())
+                {
+                    ImGui::TextDisabled("Collider edits apply after Stop");
                 }
             }
         });

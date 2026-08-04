@@ -14,6 +14,7 @@
 #include <fstream>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace FRIGGA_NAMESPACE
@@ -24,9 +25,11 @@ namespace FRIGGA_NAMESPACE
 
         struct SceneTransformDto
         {
-            std::vector<float> position {0.0f, 0.0f, 0.0f};
-            std::vector<float> scale {1.0f, 1.0f, 1.0f};
-            std::vector<float> rotation {1.0f, 0.0f, 0.0f, 0.0f}; // wxyz
+            // Keep empty: simdjson static reflection appends into existing std::vector
+            // values (seeded defaults + JSON => size 6/8 and breaks strict readers).
+            std::vector<float> position;
+            std::vector<float> scale;
+            std::vector<float> rotation; // wxyz
         };
 
         struct SceneMeshDto
@@ -51,7 +54,7 @@ namespace FRIGGA_NAMESPACE
         struct SceneLightDto
         {
             std::string        type {"Point"};
-            std::vector<float> color {1.0f, 1.0f, 1.0f};
+            std::vector<float> color;
             float              radius            = 40.0f;
             float              intensity         = 30.0f;
             float              innerAngleDegrees = 25.0f;
@@ -62,14 +65,14 @@ namespace FRIGGA_NAMESPACE
         {
             std::string        motion {"Dynamic"};
             std::string        shape {"Box"};
-            std::vector<float> halfExtents {0.5f, 0.5f, 0.5f};
-            float              radius            = 0.5f;
-            float              height             = 1.0f;
-            float              mass               = 1.0f;
-            float              friction           = 0.5f;
-            float              restitution        = 0.0f;
-            int64_t            collisionLayer     = 1;
-            int64_t            collideWithLayers  = 0xffff;
+            std::vector<float> halfExtents;
+            float              radius           = 0.5f;
+            float              height            = 1.0f;
+            float              mass              = 1.0f;
+            float              friction          = 0.5f;
+            float              restitution       = 0.0f;
+            int64_t            collisionLayer    = 1;
+            int64_t            collideWithLayers = 0xffff;
         };
 
         struct SceneEntityDto
@@ -100,22 +103,36 @@ namespace FRIGGA_NAMESPACE
 
         bool ReadVec3(const std::vector<float> &values, glm::vec3 &out)
         {
-            if(values.size() != 3)
+            if(values.size() == 3)
             {
-                return false;
+                out = {values[0], values[1], values[2]};
+                return true;
             }
-            out = {values[0], values[1], values[2]};
-            return true;
+            // simdjson may append into pre-seeded vectors (legacy snapshots / defaults).
+            if(values.size() >= 6 && values.size() % 3 == 0)
+            {
+                const auto base = values.size() - 3;
+                out = {values[base], values[base + 1], values[base + 2]};
+                return true;
+            }
+            return false;
         }
 
         bool ReadQuat(const std::vector<float> &values, glm::quat &out)
         {
-            if(values.size() != 4)
+            if(values.size() == 4)
             {
-                return false;
+                out = glm::quat(values[0], values[1], values[2], values[3]); // wxyz
+                return true;
             }
-            out = {values[0], values[1], values[2], values[3]};
-            return true;
+            if(values.size() >= 8 && values.size() % 4 == 0)
+            {
+                const auto base = values.size() - 4;
+                out = glm::quat(values[base], values[base + 1], values[base + 2],
+                                values[base + 3]);
+                return true;
+            }
+            return false;
         }
 
         SceneTransformDto ToDto(const TransformComponent &transform)
@@ -131,11 +148,33 @@ namespace FRIGGA_NAMESPACE
         bool FromDto(const SceneTransformDto &dto, TransformComponent &out)
         {
             TransformComponent transform {};
-            if(!ReadVec3(dto.position, transform.position) || !ReadVec3(dto.scale, transform.scale) ||
-               !ReadQuat(dto.rotation, transform.rotation))
+            if(dto.position.empty())
+            {
+                transform.position = {};
+            }
+            else if(!ReadVec3(dto.position, transform.position))
             {
                 return false;
             }
+
+            if(dto.scale.empty())
+            {
+                transform.scale = {1.0f, 1.0f, 1.0f};
+            }
+            else if(!ReadVec3(dto.scale, transform.scale))
+            {
+                return false;
+            }
+
+            if(dto.rotation.empty())
+            {
+                transform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+            }
+            else if(!ReadQuat(dto.rotation, transform.rotation))
+            {
+                return false;
+            }
+
             out = transform;
             return true;
         }
@@ -257,7 +296,7 @@ namespace FRIGGA_NAMESPACE
         }
     } // namespace
 
-    bool SceneSerializer::Save(Scene &scene, const std::filesystem::path &path)
+    bool SceneSerializer::Serialize(Scene &scene, std::string &outJson)
     {
         SceneDocument document {};
         document.version = kSceneVersion;
@@ -335,11 +374,22 @@ namespace FRIGGA_NAMESPACE
             document.entities.push_back(std::move(dto));
         });
 
-        std::string json;
-        if(const auto error = simdjson::to_json(document, json); error)
+        outJson.clear();
+        if(const auto error = simdjson::to_json(document, outJson); error)
         {
-            scene.mLogger->LogError("Failed to serialize scene '{}': {}", path.string(),
+            scene.mLogger->LogError("Failed to serialize scene: {}",
                                     simdjson::error_message(error));
+            return false;
+        }
+
+        return true;
+    }
+
+    bool SceneSerializer::Save(Scene &scene, const std::filesystem::path &path)
+    {
+        std::string json;
+        if(!Serialize(scene, json))
+        {
             return false;
         }
 
@@ -366,20 +416,13 @@ namespace FRIGGA_NAMESPACE
         return true;
     }
 
-    bool SceneSerializer::Load(Scene &scene, const std::filesystem::path &path)
+    bool SceneSerializer::Deserialize(Scene &scene, std::string_view json)
     {
-        simdjson::padded_string json;
-        if(const auto error = simdjson::padded_string::load(path.string()).get(json); error)
-        {
-            scene.mLogger->LogError("Failed to read scene '{}': {}", path.string(),
-                                    simdjson::error_message(error));
-            return false;
-        }
-
+        const simdjson::padded_string padded(json);
         SceneDocument document {};
-        if(const auto error = simdjson::from(json).get(document); error)
+        if(const auto error = simdjson::from(padded).get(document); error)
         {
-            scene.mLogger->LogError("Failed to parse scene '{}': {}", path.string(),
+            scene.mLogger->LogError("Failed to parse scene snapshot: {}",
                                     simdjson::error_message(error));
             return false;
         }
@@ -393,8 +436,9 @@ namespace FRIGGA_NAMESPACE
         TransformComponent editorTransform {};
         if(!FromDto(document.editorCamera.transform, editorTransform))
         {
-            scene.mLogger->LogError("Invalid editorCamera.transform in {}", path.string());
-            return false;
+            scene.mLogger->LogWarning(
+                "Invalid editorCamera.transform; using identity defaults");
+            editorTransform = {};
         }
 
         scene.mEditorCamera = EditorCamera {
@@ -483,8 +527,8 @@ namespace FRIGGA_NAMESPACE
                     return false;
                 }
 
-                glm::vec3 color {};
-                if(!ReadVec3(lightDto.color, color))
+                glm::vec3 color {1.0f, 1.0f, 1.0f};
+                if(!lightDto.color.empty() && !ReadVec3(lightDto.color, color))
                 {
                     scene.mLogger->LogError("Invalid light color on entity '{}'", entityDto.name);
                     return false;
@@ -517,7 +561,11 @@ namespace FRIGGA_NAMESPACE
                                             entityDto.name);
                     return false;
                 }
-                if(!ReadVec3(rbDto.halfExtents, rigidBody.halfExtents))
+                if(rbDto.halfExtents.empty())
+                {
+                    rigidBody.halfExtents = {0.5f, 0.5f, 0.5f};
+                }
+                else if(!ReadVec3(rbDto.halfExtents, rigidBody.halfExtents))
                 {
                     scene.mLogger->LogError("Invalid halfExtents on '{}'", entityDto.name);
                     return false;
@@ -538,6 +586,24 @@ namespace FRIGGA_NAMESPACE
         if(!foundLockedCamera && foundPrimaryCamera)
         {
             scene.mMainCameraEntity = firstPrimaryCamera;
+        }
+
+        return true;
+    }
+
+    bool SceneSerializer::Load(Scene &scene, const std::filesystem::path &path)
+    {
+        simdjson::padded_string json;
+        if(const auto error = simdjson::padded_string::load(path.string()).get(json); error)
+        {
+            scene.mLogger->LogError("Failed to read scene '{}': {}", path.string(),
+                                    simdjson::error_message(error));
+            return false;
+        }
+
+        if(!Deserialize(scene, std::string_view(json.data(), json.size())))
+        {
+            return false;
         }
 
         scene.mLogger->LogInformation("Loaded scene from {}", path.string());

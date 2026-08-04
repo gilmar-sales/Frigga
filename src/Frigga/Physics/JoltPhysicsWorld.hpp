@@ -20,6 +20,8 @@ namespace FRIGGA_NAMESPACE
         void Clear() override;
         void OptimizeBroadPhase() override;
         void Step(float deltaTime) override;
+        void StepFixed(int steps = 1) override;
+        [[nodiscard]] float GetFixedDeltaTime() const override;
 
         PhysicsBodyHandle CreateBody(const PhysicsBodyDesc &desc) override;
         void DestroyBody(PhysicsBodyHandle handle) override;

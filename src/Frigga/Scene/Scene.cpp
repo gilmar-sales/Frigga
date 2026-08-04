@@ -149,4 +149,31 @@ namespace FRIGGA_NAMESPACE
         return true;
     }
 
+    bool Scene::CaptureSnapshot(std::string &outJson)
+    {
+        FlushEcs();
+        return SceneSerializer::Serialize(*this, outJson);
+    }
+
+    bool Scene::RestoreSnapshot(std::string_view json)
+    {
+        // Clear only after a successful deserialize would lose the live edit scene on
+        // parse failure — parse into a temporary Scene first isn't cheap, so: reject
+        // empty payloads, then clear and restore; if restore fails recreate defaults.
+        if(json.empty())
+        {
+            return false;
+        }
+
+        ClearEntities();
+        if(!SceneSerializer::Deserialize(*this, json))
+        {
+            CreateDefaultEntities();
+            return false;
+        }
+
+        FlushEcs();
+        return true;
+    }
+
 } // namespace FRIGGA_NAMESPACE
