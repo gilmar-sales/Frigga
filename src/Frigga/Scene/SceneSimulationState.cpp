@@ -54,6 +54,7 @@ namespace FRIGGA_NAMESPACE
         restoreTransforms();
         mEditTransforms.clear();
         mMode = SimulationMode::Edit;
+        mFocusEditorRequested = true;
         mScene->PreferEditorCamera();
         mLogger->LogInformation("Exited Play mode");
     }

@@ -47,6 +47,14 @@ namespace FRIGGA_NAMESPACE
             return requested;
         }
 
+        /// Cleared after a successful read. Used by the Editor viewport to steal focus on Stop.
+        [[nodiscard]] bool ConsumeFocusEditorRequest()
+        {
+            const bool requested = mFocusEditorRequested;
+            mFocusEditorRequested = false;
+            return requested;
+        }
+
         void Play();
         void Stop();
         void Toggle();
@@ -67,6 +75,7 @@ namespace FRIGGA_NAMESPACE
         skr::Arc<skr::Logger<SceneSimulationState>> mLogger;
         SimulationMode mMode = SimulationMode::Edit;
         bool mFocusGameplayRequested = false;
+        bool mFocusEditorRequested   = false;
         std::unordered_map<fr::Entity, TransformComponent> mEditTransforms;
     };
 

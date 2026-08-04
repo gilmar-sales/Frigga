@@ -1,5 +1,6 @@
 #include "EditorLayer.hpp"
 
+#include "Editor/BoostrapIconsFont.hpp"
 #include "Editor/DockLayout.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/Gui/Backends/imgui_impl_vulkan.h"
@@ -68,21 +69,29 @@ void EditorLayer::onGui()
 {
     ImGuizmo::BeginFrame();
 
+    // Exclusive with Gameplay: Editor is only visible while editing.
+    if(mSimulation->IsPlaying())
+    {
+        mClaimOutput     = false;
+        mViewportHovered = false;
+        mViewportFocused = false;
+        mNavMode         = NavMode::None;
+        return;
+    }
+
     const auto title = EditorDock::WindowId("Editor");
+
+    if(mSimulation->ConsumeFocusEditorRequest())
+    {
+        ImGui::SetNextWindowFocus();
+    }
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
     if(ImGui::Begin(title.c_str()))
     {
         mViewportFocused =
             ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
-        if(mSimulation->IsPlaying())
-        {
-            mClaimOutput = false;
-        }
-        else
-        {
-            mClaimOutput = mViewportFocused || ImGui::IsWindowHovered();
-        }
+        mClaimOutput = mViewportFocused || ImGui::IsWindowHovered();
 
         drawToolbar();
 
@@ -100,7 +109,7 @@ void EditorLayer::onGui()
 
             const bool navigating = mNavMode != NavMode::None;
             ImGuizmo::Enable(!navigating);
-            drawGizmos(imageMin, avail, !navigating && !mSimulation->IsPlaying());
+            drawGizmos(imageMin, avail, !navigating);
             handlePicking(imageMin, avail);
         }
         else
@@ -147,8 +156,18 @@ void EditorLayer::drawToolbar()
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.0f, 6.0f));
     ImGui::SetCursorPos(ImVec2(8.0f, ImGui::GetCursorPosY() + 6.0f));
 
-    const bool playing = mSimulation->IsPlaying();
-    ImGui::BeginDisabled(playing);
+    if(ImGui::Button(ICON_BTSP_PLAY " Play"))
+    {
+        mSimulation->Play();
+    }
+    if(ImGui::IsItemHovered())
+    {
+        ImGui::SetTooltip("Play simulation (Ctrl+P)");
+    }
+
+    ImGui::SameLine();
+    ImGui::Spacing();
+    ImGui::SameLine();
 
     if(ImGui::RadioButton("Translate (W)", mOperation == ImGuizmo::TRANSLATE))
     {
@@ -180,8 +199,6 @@ void EditorLayer::drawToolbar()
             mMode = ImGuizmo::WORLD;
         }
     }
-
-    ImGui::EndDisabled();
 
     ImGui::SameLine();
     ImGui::Spacing();

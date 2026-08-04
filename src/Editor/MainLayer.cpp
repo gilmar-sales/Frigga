@@ -445,7 +445,7 @@ void MainLayer::drawMenuBar()
 
         if(ImGui::BeginMenu("Game"))
         {
-            if(ImGui::MenuItem(mSimulation->IsPlaying() ? "Stop" : "Play", "Ctrl+P"))
+            if(ImGui::MenuItem(mSimulation->IsPlaying() ? "Pause" : "Play", "Ctrl+P"))
             {
                 mSimulation->Toggle();
             }

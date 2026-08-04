@@ -36,16 +36,15 @@ void GameplayLayer::onDettach()
 
 void GameplayLayer::onUpdate()
 {
-    if(mSimulation->IsPlaying())
+    if(!mSimulation->IsPlaying())
     {
-        mClaimOutput = true;
+        mClaimOutput = false;
+        return;
     }
 
-    if(mClaimOutput)
-    {
-        mScene->PreferGameplayCamera();
-        ensureTarget(mPendingWidth, mPendingHeight);
-    }
+    mClaimOutput = true;
+    mScene->PreferGameplayCamera();
+    ensureTarget(mPendingWidth, mPendingHeight);
 }
 
 void GameplayLayer::drawToolbar()
@@ -53,31 +52,16 @@ void GameplayLayer::drawToolbar()
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.0f, 6.0f));
     ImGui::SetCursorPos(ImVec2(8.0f, ImGui::GetCursorPosY() + 6.0f));
 
-    const bool playing = mSimulation->IsPlaying();
-    if(playing)
+    if(ImGui::Button(ICON_BTSP_PAUSE " Pause"))
     {
-        if(ImGui::Button(ICON_BTSP_PAUSE " Stop"))
-        {
-            mSimulation->Stop();
-        }
-        if(ImGui::IsItemHovered())
-        {
-            ImGui::SetTooltip("Stop simulation (Ctrl+P)");
-        }
-        ImGui::SameLine();
-        ImGui::TextDisabled("Playing");
+        mSimulation->Stop();
     }
-    else
+    if(ImGui::IsItemHovered())
     {
-        if(ImGui::Button(ICON_BTSP_PLAY " Play"))
-        {
-            mSimulation->Play();
-        }
-        if(ImGui::IsItemHovered())
-        {
-            ImGui::SetTooltip("Play simulation (Ctrl+P)");
-        }
+        ImGui::SetTooltip("Pause simulation (Ctrl+P)");
     }
+    ImGui::SameLine();
+    ImGui::TextDisabled("Playing");
 
     ImGui::PopStyleVar();
     ImGui::Dummy(ImVec2(0.0f, 4.0f));
@@ -85,6 +69,13 @@ void GameplayLayer::drawToolbar()
 
 void GameplayLayer::onGui()
 {
+    // Exclusive with Editor: Gameplay is only visible while playing.
+    if(!mSimulation->IsPlaying())
+    {
+        mClaimOutput = false;
+        return;
+    }
+
     const auto title = EditorDock::WindowId("Gameplay");
 
     if(mSimulation->ConsumeFocusGameplayRequest())
@@ -95,15 +86,7 @@ void GameplayLayer::onGui()
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
     if(ImGui::Begin(title.c_str()))
     {
-        if(mSimulation->IsPlaying())
-        {
-            mClaimOutput = true;
-        }
-        else
-        {
-            mClaimOutput = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) ||
-                           ImGui::IsWindowHovered();
-        }
+        mClaimOutput = true;
 
         drawToolbar();
 
@@ -119,7 +102,7 @@ void GameplayLayer::onGui()
     }
     else
     {
-        mClaimOutput = mSimulation->IsPlaying();
+        mClaimOutput = true;
     }
     ImGui::End();
     ImGui::PopStyleVar();
