@@ -1,1 +1,103 @@
 # Frigga
+
+Personal C++ game engine and ImGui editor built on [Freyr](https://github.com/gilmar-sales/Freyr) (ECS), [Freya](https://github.com/gilmar-sales/Freya) (Vulkan renderer / windowing), and [Jolt Physics](https://github.com/jrouwe/JoltPhysics).
+
+**Status:** early prototype (v0.2.0). The Gameplay workflow is usable: author scenes of primitives, lights, and cameras; save/load JSON; run a play/edit physics simulation. Animation, Audio, Shading, and Scripting workflows are dock-layout placeholders.
+
+## Features
+
+- Editor with per-workflow dock layouts (Gameplay, ECS, …)
+- ECS components: Name, Transform, Mesh, Material, Camera, Light, RigidBody
+- Primitive meshes (cube, sphere, capsule, cylinder, cone, plane, quad)
+- Editor viewport with fly / orbit / pan, ImGuizmo, and mouse picking
+- Separate editor camera vs gameplay (Main Camera) camera
+- JSON scene serialization (v1) with open/save dialogs
+- Jolt-backed play mode with transform snapshot/restore
+- Persistent `preferences.json` (graphics, theme, environment map)
+
+## Requirements
+
+| Tool | Notes |
+|------|--------|
+| **CMake** | ≥ 3.29 |
+| **C++26 compiler** | Reflection support required — **GCC 16+** or **Clang 22+** |
+| **Vulkan SDK** | Headers + loader; `glslc` on `PATH` (Freya compiles shaders) |
+| **Git + network** | First configure pulls Freyr, Freya, ImGui, ImGuizmo, Jolt, and Freya’s transitive deps (SDL3, glm, Assimp, Skirnir, simdjson, …) via FetchContent |
+| **GPU / drivers** | Vulkan-capable GPU and up-to-date drivers |
+
+On Arch Linux (example):
+
+```bash
+sudo pacman -S --needed base-devel cmake git vulkan-devel shaderc
+# GCC 16+ typically via gcc from core; ensure g++ --version reports 16+
+```
+
+## Build
+
+Configure and build from a dedicated build directory (recommended: Ninja):
+
+```bash
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+cmake --build build
+```
+
+Targets:
+
+| Target | Description |
+|--------|-------------|
+| `frigga` | Engine library |
+| `Editor` | Editor executable |
+| `Shaders` | Freya SPIR-V compile (built as a Freya dependency) |
+
+CMake copies `src/Editor/Resources` into the build tree (`build/Resources`). Freya also deposits compiled shaders under that tree. **Run the editor from the build directory** so relative resource paths resolve:
+
+```bash
+cd build
+./Editor
+```
+
+Release build:
+
+```bash
+cmake -S . -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build-release
+cd build-release && ./Editor
+```
+
+### Configure tips
+
+- First configure can take several minutes (FetchContent + shader compile).
+- Prefer an out-of-source `build/` directory; the repo already ignores it via `.gitignore`.
+- `CMAKE_EXPORT_COMPILE_COMMANDS` is enabled for IDE / clangd support (`build/compile_commands.json`).
+
+## Editor cheat sheet
+
+| Action | Shortcut |
+|--------|----------|
+| New scene | Ctrl+N |
+| Open scene | Ctrl+O |
+| Save | Ctrl+S |
+| Save as | Ctrl+Shift+S |
+| Play / pause simulation | Ctrl+P |
+| Gizmo translate / rotate / scale | W / E / R (editor viewport focused) |
+| Frame selection | F (editor viewport) |
+
+Workflows other than **Gameplay** / **ECS** are placeholders. Preferences live in `preferences.json` next to the binary; some graphics options need a restart.
+
+Default environment map path in preferences may point at a missing HDR under `Resources/Environments/` — place an HDR there or change the path in Preferences.
+
+## Layout
+
+```
+src/
+  Frigga/          Engine library (ECS, scene I/O, physics, GUI, render systems)
+  Editor/          Editor app (workflows, panels, preferences)
+    Resources/     Fonts and default textures (copied into the build dir)
+CMakeLists.txt
+```
+
+Pinned FetchContent tags (see root `CMakeLists.txt`): Freyr `v0.29.0`, Freya `v0.23.0`, Jolt `v5.3.0`, ImGui `docking` fork.
+
+## License
+
+MIT — see [LICENSE.txt](LICENSE.txt).
