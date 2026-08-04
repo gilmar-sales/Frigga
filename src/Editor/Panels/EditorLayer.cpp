@@ -1,6 +1,5 @@
 #include "EditorLayer.hpp"
 
-#include "Editor/BoostrapIconsFont.hpp"
 #include "Editor/DockLayout.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/Gui/Backends/imgui_impl_vulkan.h"
@@ -13,8 +12,12 @@
 
 namespace
 {
-    constexpr float kPitchLimitDegrees = 89.0f;
-    constexpr float kMinOrbitDistance  = 0.25f;
+    constexpr float kPitchLimitDegrees     = 89.0f;
+    constexpr float kMinOrbitDistance      = 0.25f;
+    constexpr float kDefaultEditorFovDegrees = 50.0f;
+    constexpr float kMinFovDegrees           = 1.0f;
+    constexpr float kMaxFovDegrees           = 179.0f;
+    constexpr float kFovZoomDegreesPerSecond = 5.0f;
 }
 
 EditorLayer::EditorLayer(skr::Arc<fra::Renderer> renderer, skr::Arc<fr::Registry> registry,
@@ -48,6 +51,12 @@ void EditorLayer::onUpdate()
 {
     consumePickResult();
 
+    if(mSimulation->IsPlaying())
+    {
+        mClaimOutput = false;
+        return;
+    }
+
     if(mClaimOutput)
     {
         mScene->PreferEditorCamera();
@@ -66,7 +75,14 @@ void EditorLayer::onGui()
     {
         mViewportFocused =
             ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
-        mClaimOutput = mViewportFocused || ImGui::IsWindowHovered();
+        if(mSimulation->IsPlaying())
+        {
+            mClaimOutput = false;
+        }
+        else
+        {
+            mClaimOutput = mViewportFocused || ImGui::IsWindowHovered();
+        }
 
         drawToolbar();
 
@@ -93,7 +109,7 @@ void EditorLayer::onGui()
             mNavMode         = NavMode::None;
         }
 
-        // Tool hotkeys only when not flying (RMB holds WASD for movement).
+        // Tool / view hotkeys only when not flying (RMB holds WASD for movement).
         if((mViewportHovered || mViewportFocused) && mNavMode == NavMode::None &&
            !ImGuizmo::IsUsing())
         {
@@ -108,6 +124,10 @@ void EditorLayer::onGui()
             else if(ImGui::IsKeyPressed(ImGuiKey_R))
             {
                 mOperation = ImGuizmo::SCALE;
+            }
+            else if(ImGui::IsKeyPressed(ImGuiKey_F))
+            {
+                mScene->GetEditorCamera().fovDegrees = kDefaultEditorFovDegrees;
             }
         }
     }
@@ -128,32 +148,6 @@ void EditorLayer::drawToolbar()
     ImGui::SetCursorPos(ImVec2(8.0f, ImGui::GetCursorPosY() + 6.0f));
 
     const bool playing = mSimulation->IsPlaying();
-    if(playing)
-    {
-        if(ImGui::Button(ICON_BTSP_PAUSE " Stop"))
-        {
-            mSimulation->Stop();
-        }
-        if(ImGui::IsItemHovered())
-        {
-            ImGui::SetTooltip("Stop simulation (Ctrl+P)");
-        }
-    }
-    else
-    {
-        if(ImGui::Button(ICON_BTSP_PLAY " Play"))
-        {
-            mSimulation->Play();
-        }
-        if(ImGui::IsItemHovered())
-        {
-            ImGui::SetTooltip("Play simulation (Ctrl+P)");
-        }
-    }
-
-    ImGui::SameLine();
-    ImGui::Spacing();
-    ImGui::SameLine();
     ImGui::BeginDisabled(playing);
 
     if(ImGui::RadioButton("Translate (W)", mOperation == ImGuizmo::TRANSLATE))
@@ -193,12 +187,6 @@ void EditorLayer::drawToolbar()
     ImGui::Spacing();
     ImGui::SameLine();
     ImGui::Checkbox("Grid", &mDrawGrid);
-
-    if(playing)
-    {
-        ImGui::SameLine();
-        ImGui::TextDisabled("Playing");
-    }
 
     ImGui::PopStyleVar();
     ImGui::Dummy(ImVec2(0.0f, 4.0f));
@@ -293,14 +281,15 @@ void EditorLayer::handleNavigation()
         mNavMode = NavMode::None;
     }
 
-    // Scroll zoom toward pivot / look direction (Unity-style dolly).
+    // Scroll zooms by adjusting the editor camera FOV (position stays put).
     if((mViewportHovered || mNavMode != NavMode::None) && io.MouseWheel != 0.0f &&
        !ImGuizmo::IsUsing())
     {
-        syncOrbitPivot(camera);
-        const float zoomFactor = std::pow(0.85f, io.MouseWheel);
-        mOrbitDistance = std::max(kMinOrbitDistance, mOrbitDistance * zoomFactor);
-        camera.position = mOrbitPivot - cameraForward(camera) * mOrbitDistance;
+        auto &editorCamera = mScene->GetEditorCamera();
+        // Scroll up zooms in (narrower FOV), rate in degrees/second.
+        editorCamera.fovDegrees = std::clamp(
+            editorCamera.fovDegrees - io.MouseWheel * kFovZoomDegreesPerSecond * dt,
+            kMinFovDegrees, kMaxFovDegrees);
     }
 
     if(mNavMode == NavMode::None)

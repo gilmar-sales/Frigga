@@ -2,13 +2,15 @@
 
 #include <Frigga/Frigga.hpp>
 #include <Frigga/Scene/Scene.hpp>
+#include <Frigga/Scene/SceneSimulationState.hpp>
 
 #include <vulkan/vulkan.h>
 
 class GameplayLayer: public fg::Layer
 {
   public:
-    GameplayLayer(skr::Arc<fra::Renderer> renderer, skr::Arc<fg::Scene> scene);
+    GameplayLayer(skr::Arc<fra::Renderer> renderer, skr::Arc<fg::Scene> scene,
+                  skr::Arc<fg::SceneSimulationState> simulation);
     ~GameplayLayer() override = default;
 
     void onAttach() override;
@@ -17,12 +19,14 @@ class GameplayLayer: public fg::Layer
     void onGui() override;
 
   private:
+    void drawToolbar();
     void ensureTarget(std::uint32_t width, std::uint32_t height);
     void releaseTexture();
     void recreateUiPipeline();
 
     skr::Arc<fra::Renderer> mRenderer;
     skr::Arc<fg::Scene> mScene;
+    skr::Arc<fg::SceneSimulationState> mSimulation;
     skr::Arc<fra::RenderTarget> mTarget;
     VkDescriptorSet mTextureId = VK_NULL_HANDLE;
     std::uint32_t mWidth         = 0;

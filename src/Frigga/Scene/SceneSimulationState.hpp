@@ -39,6 +39,14 @@ namespace FRIGGA_NAMESPACE
             return mMode;
         }
 
+        /// Cleared after a successful read. Used by the Gameplay viewport to steal focus on Play.
+        [[nodiscard]] bool ConsumeFocusGameplayRequest()
+        {
+            const bool requested = mFocusGameplayRequested;
+            mFocusGameplayRequested = false;
+            return requested;
+        }
+
         void Play();
         void Stop();
         void Toggle();
@@ -58,6 +66,7 @@ namespace FRIGGA_NAMESPACE
         skr::Arc<PrimitiveMeshFactory> mPrimitives;
         skr::Arc<skr::Logger<SceneSimulationState>> mLogger;
         SimulationMode mMode = SimulationMode::Edit;
+        bool mFocusGameplayRequested = false;
         std::unordered_map<fr::Entity, TransformComponent> mEditTransforms;
     };
 

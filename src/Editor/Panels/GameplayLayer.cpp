@@ -1,5 +1,6 @@
 #include "GameplayLayer.hpp"
 
+#include "Editor/BoostrapIconsFont.hpp"
 #include "Editor/DockLayout.hpp"
 
 #include <Frigga/Gui/Backends/imgui_impl_vulkan.h>
@@ -8,8 +9,10 @@
 #include <cstdint>
 #include <imgui.h>
 
-GameplayLayer::GameplayLayer(skr::Arc<fra::Renderer> renderer, skr::Arc<fg::Scene> scene)
-    : fg::Layer("Gameplay"), mRenderer(std::move(renderer)), mScene(std::move(scene))
+GameplayLayer::GameplayLayer(skr::Arc<fra::Renderer> renderer, skr::Arc<fg::Scene> scene,
+                             skr::Arc<fg::SceneSimulationState> simulation)
+    : fg::Layer("Gameplay"), mRenderer(std::move(renderer)), mScene(std::move(scene)),
+      mSimulation(std::move(simulation))
 {
 }
 
@@ -33,6 +36,11 @@ void GameplayLayer::onDettach()
 
 void GameplayLayer::onUpdate()
 {
+    if(mSimulation->IsPlaying())
+    {
+        mClaimOutput = true;
+    }
+
     if(mClaimOutput)
     {
         mScene->PreferGameplayCamera();
@@ -40,15 +48,64 @@ void GameplayLayer::onUpdate()
     }
 }
 
+void GameplayLayer::drawToolbar()
+{
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.0f, 6.0f));
+    ImGui::SetCursorPos(ImVec2(8.0f, ImGui::GetCursorPosY() + 6.0f));
+
+    const bool playing = mSimulation->IsPlaying();
+    if(playing)
+    {
+        if(ImGui::Button(ICON_BTSP_PAUSE " Stop"))
+        {
+            mSimulation->Stop();
+        }
+        if(ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("Stop simulation (Ctrl+P)");
+        }
+        ImGui::SameLine();
+        ImGui::TextDisabled("Playing");
+    }
+    else
+    {
+        if(ImGui::Button(ICON_BTSP_PLAY " Play"))
+        {
+            mSimulation->Play();
+        }
+        if(ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("Play simulation (Ctrl+P)");
+        }
+    }
+
+    ImGui::PopStyleVar();
+    ImGui::Dummy(ImVec2(0.0f, 4.0f));
+}
+
 void GameplayLayer::onGui()
 {
     const auto title = EditorDock::WindowId("Gameplay");
 
+    if(mSimulation->ConsumeFocusGameplayRequest())
+    {
+        ImGui::SetNextWindowFocus();
+    }
+
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
     if(ImGui::Begin(title.c_str()))
     {
-        mClaimOutput =
-            ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) || ImGui::IsWindowHovered();
+        if(mSimulation->IsPlaying())
+        {
+            mClaimOutput = true;
+        }
+        else
+        {
+            mClaimOutput = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) ||
+                           ImGui::IsWindowHovered();
+        }
+
+        drawToolbar();
 
         const ImVec2 avail = ImGui::GetContentRegionAvail();
         mPendingWidth      = static_cast<std::uint32_t>(std::max(avail.x, 1.0f));
@@ -62,7 +119,7 @@ void GameplayLayer::onGui()
     }
     else
     {
-        mClaimOutput = false;
+        mClaimOutput = mSimulation->IsPlaying();
     }
     ImGui::End();
     ImGui::PopStyleVar();

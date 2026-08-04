@@ -38,6 +38,7 @@ namespace FRIGGA_NAMESPACE
         snapshotTransforms();
         buildPhysicsWorld();
         mMode = SimulationMode::Play;
+        mFocusGameplayRequested = true;
         mScene->PreferGameplayCamera();
         mLogger->LogInformation("Entered Play mode");
     }

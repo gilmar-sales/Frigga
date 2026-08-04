@@ -9,9 +9,9 @@
 class GamePlayWorkflow: public Workflow
 {
   public:
-    GamePlayWorkflow(skr::Arc<GameplayLayer> gameplay, skr::Arc<EditorLayer> editor,
+    GamePlayWorkflow(skr::Arc<EditorLayer> editor, skr::Arc<GameplayLayer> gameplay,
                      skr::Arc<HierarchyLayer> hierarchy, skr::Arc<ResourcesLayer> resources)
-        : Workflow("GamePlay", {gameplay, editor, hierarchy, resources})
+        : Workflow("GamePlay", {editor, gameplay, hierarchy, resources})
     {
     }
 
