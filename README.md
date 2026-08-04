@@ -47,7 +47,9 @@ Targets:
 |--------|-------------|
 | `frigga` | Engine library |
 | `Editor` | Editor executable |
+| `frigga_tests` | GoogleTest suite (SceneSerializer round-trips / fixtures) |
 | `Shaders` | Freya SPIR-V compile (built as a Freya dependency) |
+| `package` | CPack archive (`cpack` / `ninja package`) |
 
 CMake copies `src/Editor/Resources` into the build tree (`build/Resources`). Freya also deposits compiled shaders under that tree. **Run the editor from the build directory** so relative resource paths resolve:
 
@@ -55,6 +57,28 @@ CMake copies `src/Editor/Resources` into the build tree (`build/Resources`). Fre
 cd build
 ./Editor
 ```
+
+### Tests
+
+```bash
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DFRIGGA_BUILD_TESTS=ON
+cmake --build build --target frigga_tests
+cd build && ctest --output-on-failure
+# or: ./frigga_tests
+```
+
+Disable with `-DFRIGGA_BUILD_TESTS=OFF`.
+
+### Package
+
+After a successful build (so `build/Resources` includes shaders):
+
+```bash
+cmake --build build --target package
+# → frigga-<version>-<system>-<arch>.tar.gz / .zip under build/
+```
+
+The archive installs `Editor` plus `Resources/` suitable for running from the extracted folder (`./Editor` with `./Resources` beside it).
 
 Release build:
 

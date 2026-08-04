@@ -31,6 +31,16 @@ namespace FRIGGA_NAMESPACE
                              const skr::Arc<fra::MaterialPool> &materialPool,
                              const skr::Arc<fra::TexturePool> &texturePool);
 
+        /// Headless catalog that assigns stable mesh/material ids without Freya/Vulkan.
+        /// Intended for unit tests (scene I/O) that must not create a GPU device.
+        struct CatalogTag
+        {
+        };
+
+        static constexpr CatalogTag Catalog {};
+
+        explicit PrimitiveMeshFactory(CatalogTag);
+
         [[nodiscard]] std::uint32_t GetMesh(PrimitiveType type);
         [[nodiscard]] std::uint32_t GetDefaultMaterial() const;
         [[nodiscard]] bool TryFindPrimitive(std::uint32_t meshId, PrimitiveType &outType) const;

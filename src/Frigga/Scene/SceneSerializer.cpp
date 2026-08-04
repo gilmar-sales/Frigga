@@ -8,6 +8,7 @@
 #include "Frigga/ECS/Components/RigidBodyComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 
+#define SIMDJSON_STATIC_REFLECTION 1
 #include <simdjson.h>
 
 #include <algorithm>
@@ -581,6 +582,10 @@ namespace FRIGGA_NAMESPACE
                     std::clamp<int64_t>(rbDto.collideWithLayers, 0, 0xffff));
                 registry->AddComponents(entity, rigidBody);
             }
+
+            // Freyr defers AddComponents into archetype chunk tasks. Flushing per entity
+            // avoids interleaved archetype migrations corrupting component rows.
+            scene.FlushEcs();
         }
 
         if(!foundLockedCamera && foundPrimaryCamera)

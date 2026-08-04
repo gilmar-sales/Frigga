@@ -103,3 +103,39 @@ target_link_libraries(Editor PUBLIC
         imguizmo::imguizmo
 )
 file(COPY src/Editor/Resources DESTINATION ${CMAKE_BINARY_DIR})
+
+# --- Tests -----------------------------------------------------------------
+add_subdirectory(test)
+
+# --- Install / packaging ---------------------------------------------------
+include(GNUInstallDirs)
+
+install(TARGETS Editor
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        COMPONENT Runtime)
+
+# Shaders and editor assets land in build/Resources; ship them beside the binary
+# so relative "./Resources/..." lookups keep working when launched from the
+# install prefix / package root.
+install(DIRECTORY "${CMAKE_BINARY_DIR}/Resources"
+        DESTINATION ${CMAKE_INSTALL_BINDIR}
+        COMPONENT Runtime
+        OPTIONAL)
+
+install(FILES LICENSE.txt README.md
+        DESTINATION ${CMAKE_INSTALL_DOCDIR}
+        COMPONENT Runtime)
+
+set(CPACK_PACKAGE_NAME "Frigga")
+set(CPACK_PACKAGE_VENDOR "Gilmar Sales")
+set(CPACK_PACKAGE_CONTACT "gilmar.custodio@outlook.com.br")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Frigga game engine and editor")
+set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
+set(CPACK_PACKAGE_INSTALL_DIRECTORY "Frigga")
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE.txt")
+set(CPACK_RESOURCE_FILE_README "${CMAKE_SOURCE_DIR}/README.md")
+set(CPACK_GENERATOR "TGZ;ZIP")
+set(CPACK_SOURCE_GENERATOR "TGZ")
+set(CPACK_PACKAGE_FILE_NAME
+        "frigga-${PROJECT_VERSION}-${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}")
+include(CPack)

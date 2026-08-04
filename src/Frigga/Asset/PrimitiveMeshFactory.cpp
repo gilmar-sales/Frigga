@@ -53,6 +53,16 @@ namespace FRIGGA_NAMESPACE
         createDefaultMaterial();
     }
 
+    PrimitiveMeshFactory::PrimitiveMeshFactory(CatalogTag)
+    {
+        for(std::size_t i = 0; i < mMeshes.size(); ++i)
+        {
+            mMeshes[i]  = static_cast<std::uint32_t>(i + 1);
+            mCreated[i] = true;
+        }
+        mDefaultMaterial = 1;
+    }
+
     void PrimitiveMeshFactory::createDefaultMaterial()
     {
         const auto albedo =
