@@ -83,7 +83,10 @@
         "radius": 40.0,
         "intensity": 30.0,
         "innerAngleDegrees": 25.0,
-        "outerAngleDegrees": 35.0
+        "outerAngleDegrees": 35.0,
+        "halfWidth": 1.0,
+        "halfHeight": 1.0,
+        "castShadows": false
       }
     }
   ]

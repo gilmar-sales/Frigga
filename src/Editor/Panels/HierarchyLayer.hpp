@@ -22,6 +22,8 @@ class HierarchyLayer: public fg::Layer
     void createCameraEntity();
     void createLightEntity(fra::LightType type);
     void addRigidBodyToSelection();
+    void addLightToSelection(fra::LightType type);
+    void addLightToEntity(fr::Entity entity, fra::LightType type);
     void drawEntityNode(fr::Entity entity, fg::NameComponent &name);
 
     void drawComponents();

@@ -142,9 +142,11 @@ namespace FRIGGA_NAMESPACE
                 {
                     const glm::vec3 tangent =
                         transform.rotation * glm::vec3(1.0f, 0.0f, 0.0f);
-                    mLightService->AddLight(fra::MakeAreaLight(
+                    fra::Light gpuLight = fra::MakeAreaLight(
                         transform.position, safeDirection, tangent, light.halfWidth,
-                        light.halfHeight, light.color, light.intensity));
+                        light.halfHeight, light.color, light.intensity);
+                    gpuLight.castShadows = light.castShadows;
+                    mLightService->AddLight(gpuLight);
                     return;
                 }
 
@@ -159,6 +161,7 @@ namespace FRIGGA_NAMESPACE
                     std::cos(glm::radians(std::max(light.innerAngleDegrees, 0.0f)));
                 gpuLight.outerCutoff =
                     std::cos(glm::radians(std::max(light.outerAngleDegrees, 0.0f)));
+                gpuLight.castShadows = light.castShadows;
 
                 mLightService->AddLight(gpuLight);
             });

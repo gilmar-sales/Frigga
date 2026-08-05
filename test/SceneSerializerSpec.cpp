@@ -159,6 +159,9 @@ namespace
                 ExpectVec3Near(actual[i].light.color, expected[i].light.color);
                 EXPECT_NEAR(actual[i].light.radius, expected[i].light.radius, kEpsilon);
                 EXPECT_NEAR(actual[i].light.intensity, expected[i].light.intensity, kEpsilon);
+                EXPECT_NEAR(actual[i].light.halfWidth, expected[i].light.halfWidth, kEpsilon);
+                EXPECT_NEAR(actual[i].light.halfHeight, expected[i].light.halfHeight, kEpsilon);
+                EXPECT_EQ(actual[i].light.castShadows, expected[i].light.castShadows);
             }
 
             ASSERT_EQ(actual[i].hasRigidBody, expected[i].hasRigidBody);

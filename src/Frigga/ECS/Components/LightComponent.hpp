@@ -16,8 +16,9 @@ namespace FRIGGA_NAMESPACE
         float innerAngleDegrees = 25.0f;
         float outerAngleDegrees = 35.0f;
         /// Area light rectangle half-extents (Freya LTC).
-        float halfWidth  = 1.0f;
-        float halfHeight = 1.0f;
+        float halfWidth   = 1.0f;
+        float halfHeight  = 1.0f;
+        bool  castShadows = false;
     };
 
 } // namespace FRIGGA_NAMESPACE

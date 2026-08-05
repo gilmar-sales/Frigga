@@ -118,6 +118,38 @@ void HierarchyLayer::addRigidBodyToSelection()
     }
 }
 
+void HierarchyLayer::addLightToSelection(fra::LightType type)
+{
+    if(!mSelection->HasSelection() || mSimulation->IsPlaying())
+    {
+        return;
+    }
+
+    addLightToEntity(mSelection->Get(), type);
+}
+
+void HierarchyLayer::addLightToEntity(fr::Entity entity, fra::LightType type)
+{
+    if(mSimulation->IsPlaying())
+    {
+        return;
+    }
+
+    if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
+    {
+        mRegistry->AddComponents(entity, fg::TransformComponent {});
+    }
+    if(!mRegistry->HasComponent<fg::LightComponent>(entity))
+    {
+        mRegistry->AddComponents(entity, fg::LightComponent {.type = type});
+    }
+    else
+    {
+        mRegistry->TryGetComponents<fg::LightComponent>(
+            entity, [type](fg::LightComponent &light) { light.type = type; });
+    }
+}
+
 bool HierarchyLayer::isEntityLocked(fr::Entity entity) const
 {
     if(mScene->IsMainCamera(entity))
@@ -291,19 +323,7 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
             {
                 if(ImGui::MenuItem(getLightDisplayName(type)))
                 {
-                    if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
-                    {
-                        mRegistry->AddComponents(entity, fg::TransformComponent {});
-                    }
-                    if(!mRegistry->HasComponent<fg::LightComponent>(entity))
-                    {
-                        mRegistry->AddComponents(entity, fg::LightComponent {.type = type});
-                    }
-                    else
-                    {
-                        mRegistry->TryGetComponents<fg::LightComponent>(
-                            entity, [type](fg::LightComponent &light) { light.type = type; });
-                    }
+                    addLightToEntity(entity, type);
                 }
             }
             ImGui::EndMenu();
@@ -443,6 +463,8 @@ void HierarchyLayer::drawComponents()
                     ImGui::DragFloat("Half Width", &light.halfWidth, 0.01f, 0.01f, 100.0f);
                     ImGui::DragFloat("Half Height", &light.halfHeight, 0.01f, 0.01f, 100.0f);
                 }
+
+                ImGui::Checkbox("Cast Shadows", &light.castShadows);
             }
         });
 

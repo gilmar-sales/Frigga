@@ -444,6 +444,19 @@ void MainLayer::drawMenuBar()
                 {
                     mHierarchy->addRigidBodyToSelection();
                 }
+                if(ImGui::BeginMenu("Light"))
+                {
+                    for(auto type:
+                        {fra::LightType::Point, fra::LightType::Directional, fra::LightType::Spot,
+                         fra::LightType::Area})
+                    {
+                        if(ImGui::MenuItem(HierarchyLayer::getLightDisplayName(type)))
+                        {
+                            mHierarchy->addLightToSelection(type);
+                        }
+                    }
+                    ImGui::EndMenu();
+                }
                 ImGui::EndDisabled();
                 ImGui::EndMenu();
             }

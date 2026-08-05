@@ -60,6 +60,10 @@ namespace FRIGGA_NAMESPACE
             float              intensity         = 30.0f;
             float              innerAngleDegrees = 25.0f;
             float              outerAngleDegrees = 35.0f;
+            // Optional for forward-compat with fixtures that predate these fields.
+            std::optional<float> halfWidth;
+            std::optional<float> halfHeight;
+            std::optional<bool>  castShadows;
         };
 
         struct SceneRigidBodyDto
@@ -354,6 +358,9 @@ namespace FRIGGA_NAMESPACE
                     .intensity         = light.intensity,
                     .innerAngleDegrees = light.innerAngleDegrees,
                     .outerAngleDegrees = light.outerAngleDegrees,
+                    .halfWidth         = light.halfWidth,
+                    .halfHeight        = light.halfHeight,
+                    .castShadows       = light.castShadows,
                 };
             });
 
@@ -459,19 +466,22 @@ namespace FRIGGA_NAMESPACE
 
         for(const auto &entityDto : document.entities)
         {
-            const auto entity = registry->CreateEntity(NameComponent {.name = entityDto.name});
+            NameComponent name {.name = entityDto.name};
 
+            std::optional<TransformComponent> transform;
             if(entityDto.transform)
             {
-                TransformComponent transform {};
-                if(!FromDto(*entityDto.transform, transform))
+                TransformComponent parsed {};
+                if(!FromDto(*entityDto.transform, parsed))
                 {
                     scene.mLogger->LogError("Invalid transform for entity '{}'", entityDto.name);
                     return false;
                 }
-                registry->AddComponents(entity, transform);
+                transform = parsed;
             }
 
+            std::optional<MeshComponent> mesh;
+            std::optional<MaterialComponent> material;
             if(entityDto.mesh)
             {
                 PrimitiveType primitive = PrimitiveType::Cube;
@@ -482,41 +492,28 @@ namespace FRIGGA_NAMESPACE
                     return false;
                 }
 
-                registry->AddComponents(entity,
-                                        MeshComponent {.meshId = primitives->GetMesh(primitive)});
-                registry->AddComponents(
-                    entity, MaterialComponent {.materialId = primitives->GetDefaultMaterial()});
+                mesh     = MeshComponent {.meshId = primitives->GetMesh(primitive)};
+                material = MaterialComponent {.materialId = primitives->GetDefaultMaterial()};
             }
             else if(entityDto.material)
             {
-                registry->AddComponents(
-                    entity, MaterialComponent {.materialId = primitives->GetDefaultMaterial()});
+                material = MaterialComponent {.materialId = primitives->GetDefaultMaterial()};
             }
 
+            std::optional<CameraComponent> camera;
             if(entityDto.camera)
             {
                 const auto &cameraDto = *entityDto.camera;
-                const CameraComponent camera {
-                    .fovDegrees = cameraDto.fovDegrees,
-                    .nearPlane  = cameraDto.nearPlane,
-                    .farPlane   = cameraDto.farPlane,
-                    .primary    = cameraDto.primary,
-                    .locked     = cameraDto.locked,
+                camera                = CameraComponent {
+                                   .fovDegrees = cameraDto.fovDegrees,
+                                   .nearPlane  = cameraDto.nearPlane,
+                                   .farPlane   = cameraDto.farPlane,
+                                   .primary    = cameraDto.primary,
+                                   .locked     = cameraDto.locked,
                 };
-                registry->AddComponents(entity, camera);
-
-                if(camera.locked)
-                {
-                    scene.mMainCameraEntity = entity;
-                    foundLockedCamera      = true;
-                }
-                else if(camera.primary && !foundPrimaryCamera)
-                {
-                    firstPrimaryCamera = entity;
-                    foundPrimaryCamera = true;
-                }
             }
 
+            std::optional<LightComponent> light;
             if(entityDto.light)
             {
                 const auto &lightDto = *entityDto.light;
@@ -535,28 +532,31 @@ namespace FRIGGA_NAMESPACE
                     return false;
                 }
 
-                registry->AddComponents(entity,
-                                        LightComponent {
-                                            .type              = type,
-                                            .color             = color,
-                                            .radius            = lightDto.radius,
-                                            .intensity         = lightDto.intensity,
-                                            .innerAngleDegrees = lightDto.innerAngleDegrees,
-                                            .outerAngleDegrees = lightDto.outerAngleDegrees,
-                                        });
+                light = LightComponent {
+                    .type              = type,
+                    .color             = color,
+                    .radius            = lightDto.radius,
+                    .intensity         = lightDto.intensity,
+                    .innerAngleDegrees = lightDto.innerAngleDegrees,
+                    .outerAngleDegrees = lightDto.outerAngleDegrees,
+                    .halfWidth         = lightDto.halfWidth.value_or(1.0f),
+                    .halfHeight        = lightDto.halfHeight.value_or(1.0f),
+                    .castShadows       = lightDto.castShadows.value_or(false),
+                };
             }
 
+            std::optional<RigidBodyComponent> rigidBody;
             if(entityDto.rigidBody)
             {
                 const auto &rbDto = *entityDto.rigidBody;
-                RigidBodyComponent rigidBody {};
-                if(!TryParseMotion(rbDto.motion, rigidBody.motion))
+                RigidBodyComponent rb {};
+                if(!TryParseMotion(rbDto.motion, rb.motion))
                 {
                     scene.mLogger->LogError("Unknown rigid body motion '{}' on '{}'", rbDto.motion,
                                             entityDto.name);
                     return false;
                 }
-                if(!TryParseShape(rbDto.shape, rigidBody.shape))
+                if(!TryParseShape(rbDto.shape, rb.shape))
                 {
                     scene.mLogger->LogError("Unknown collider shape '{}' on '{}'", rbDto.shape,
                                             entityDto.name);
@@ -564,28 +564,116 @@ namespace FRIGGA_NAMESPACE
                 }
                 if(rbDto.halfExtents.empty())
                 {
-                    rigidBody.halfExtents = {0.5f, 0.5f, 0.5f};
+                    rb.halfExtents = {0.5f, 0.5f, 0.5f};
                 }
-                else if(!ReadVec3(rbDto.halfExtents, rigidBody.halfExtents))
+                else if(!ReadVec3(rbDto.halfExtents, rb.halfExtents))
                 {
                     scene.mLogger->LogError("Invalid halfExtents on '{}'", entityDto.name);
                     return false;
                 }
-                rigidBody.radius            = rbDto.radius;
-                rigidBody.height            = rbDto.height;
-                rigidBody.mass              = rbDto.mass;
-                rigidBody.friction          = rbDto.friction;
-                rigidBody.restitution       = rbDto.restitution;
-                rigidBody.collisionLayer    = static_cast<std::uint8_t>(
+                rb.radius            = rbDto.radius;
+                rb.height            = rbDto.height;
+                rb.mass              = rbDto.mass;
+                rb.friction          = rbDto.friction;
+                rb.restitution       = rbDto.restitution;
+                rb.collisionLayer    = static_cast<std::uint8_t>(
                     std::clamp<int64_t>(rbDto.collisionLayer, 0, 15));
-                rigidBody.collideWithLayers = static_cast<std::uint16_t>(
+                rb.collideWithLayers = static_cast<std::uint16_t>(
                     std::clamp<int64_t>(rbDto.collideWithLayers, 0, 0xffff));
-                registry->AddComponents(entity, rigidBody);
+                rigidBody = rb;
             }
 
-            // Freyr defers AddComponents into archetype chunk tasks. Flushing per entity
-            // avoids interleaved archetype migrations corrupting component rows.
+            // Prefer a single CreateEntity(Name, ...) so Freyr writes one archetype row.
+            // Piecewise AddComponents without per-step flush corrupt deferred migrations.
+            fr::Entity entity {};
+            const bool hasT  = transform.has_value();
+            const bool hasM  = mesh.has_value();
+            const bool hasMat = material.has_value();
+            const bool hasC  = camera.has_value();
+            const bool hasL  = light.has_value();
+            const bool hasR  = rigidBody.has_value();
+
+            if(hasT && hasM && hasMat && !hasC && !hasL && hasR)
+            {
+                entity = registry->CreateEntity(name, *transform, *mesh, *material, *rigidBody);
+            }
+            else if(hasT && hasM && hasMat && !hasC && !hasL && !hasR)
+            {
+                entity = registry->CreateEntity(name, *transform, *mesh, *material);
+            }
+            else if(hasT && !hasM && !hasMat && hasC && !hasL && !hasR)
+            {
+                entity = registry->CreateEntity(name, *transform, *camera);
+            }
+            else if(hasT && !hasM && !hasMat && !hasC && hasL && !hasR)
+            {
+                entity = registry->CreateEntity(name, *transform, *light);
+            }
+            else if(hasT && !hasM && !hasMat && !hasC && !hasL && !hasR)
+            {
+                entity = registry->CreateEntity(name, *transform);
+            }
+            else if(!hasT && !hasM && !hasMat && !hasC && !hasL && !hasR)
+            {
+                entity = registry->CreateEntity(name);
+            }
+            else
+            {
+                // Uncommon combo: Name + flush between each attach.
+                entity = registry->CreateEntity(name);
+                scene.FlushEcs();
+                const auto attach = [&](const auto &... comps) {
+                    registry->AddComponents(entity, comps...);
+                    scene.FlushEcs();
+                };
+                if(hasT)
+                {
+                    attach(*transform);
+                }
+                if(hasM && hasMat)
+                {
+                    attach(*mesh, *material);
+                }
+                else
+                {
+                    if(hasM)
+                    {
+                        attach(*mesh);
+                    }
+                    if(hasMat)
+                    {
+                        attach(*material);
+                    }
+                }
+                if(hasC)
+                {
+                    attach(*camera);
+                }
+                if(hasL)
+                {
+                    attach(*light);
+                }
+                if(hasR)
+                {
+                    attach(*rigidBody);
+                }
+            }
+
             scene.FlushEcs();
+
+            if(camera)
+            {
+                if(camera->locked)
+                {
+                    scene.mMainCameraEntity = entity;
+                    foundLockedCamera       = true;
+                }
+                else if(camera->primary && !foundPrimaryCamera)
+                {
+                    firstPrimaryCamera = entity;
+                    foundPrimaryCamera = true;
+                }
+            }
         }
 
         if(!foundLockedCamera && foundPrimaryCamera)

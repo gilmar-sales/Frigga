@@ -5,6 +5,7 @@
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/Gui/Backends/imgui_impl_vulkan.h"
 #include "Frigga/Physics/ColliderDebugDraw.hpp"
+#include "Frigga/Editor/LightDebugDraw.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -112,6 +113,11 @@ void EditorLayer::onGui()
             const bool navigating = mNavMode != NavMode::None;
             ImGuizmo::Enable(!navigating);
             drawGizmos(imageMin, avail, !navigating);
+            {
+                const auto &projectionUbo = mRenderer->GetCurrentProjection();
+                fg::LightDebugDraw::Draw(ImGui::GetWindowDrawList(), mRegistry, projectionUbo.view,
+                                         projectionUbo.projection, imageMin, avail);
+            }
             if(mSimulation->GetShowColliders())
             {
                 const auto &projectionUbo = mRenderer->GetCurrentProjection();
