@@ -28,10 +28,11 @@ class HierarchyLayer: public fg::Layer
 
     void onGui() override;
 
+    static const char *getLightDisplayName(fra::LightType type);
+
   private:
     [[nodiscard]] bool isEntityLocked(fr::Entity entity) const;
     void setPrimaryCamera(fr::Entity entity);
-    static const char *getLightDisplayName(fra::LightType type);
 
     skr::Arc<fr::Registry> mRegistry;
     skr::Arc<fg::Scene> mScene;

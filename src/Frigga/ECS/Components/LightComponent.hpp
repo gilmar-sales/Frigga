@@ -15,6 +15,9 @@ namespace FRIGGA_NAMESPACE
         /// Spot cone half-angles in degrees (converted to cosines for Freya).
         float innerAngleDegrees = 25.0f;
         float outerAngleDegrees = 35.0f;
+        /// Area light rectangle half-extents (Freya LTC).
+        float halfWidth  = 1.0f;
+        float halfHeight = 1.0f;
     };
 
 } // namespace FRIGGA_NAMESPACE

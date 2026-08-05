@@ -7,6 +7,8 @@
 #include "../Components/TransformComponent.hpp"
 #include "Frigga/Scene/Scene.hpp"
 
+#include <Freya/Core/LightService.hpp>
+
 #include <algorithm>
 #include <cmath>
 
@@ -25,8 +27,10 @@ namespace FRIGGA_NAMESPACE
 
     void RenderSystem::Update(float deltaTime)
     {
-        updateCamera();
+        // LightService::Update (invoked by UpdateCamera) uploads the GPU UBO.
+        // Sync ECS lights first so ClearLights/AddLight populate CPU state before upload.
         syncLights();
+        updateCamera();
         drawMeshes();
     }
 
@@ -127,12 +131,22 @@ namespace FRIGGA_NAMESPACE
 
         mRegistry->CreateMutation()->Each<TransformComponent, LightComponent>(
             [this](auto, TransformComponent &transform, LightComponent &light) {
-                // Match Freya/OpenGL: entity local -Z is the aimed light direction.
+                // Match Freya/OpenGL: entity local -Z is the aimed light direction / area normal.
                 const glm::vec3 direction =
                     glm::normalize(transform.rotation * glm::vec3(0.0f, 0.0f, -1.0f));
                 const glm::vec3 safeDirection =
                     glm::dot(direction, direction) > 1e-6f ? direction
                                                            : glm::vec3(0.0f, -1.0f, 0.0f);
+
+                if(light.type == fra::LightType::Area)
+                {
+                    const glm::vec3 tangent =
+                        transform.rotation * glm::vec3(1.0f, 0.0f, 0.0f);
+                    mLightService->AddLight(fra::MakeAreaLight(
+                        transform.position, safeDirection, tangent, light.halfWidth,
+                        light.halfHeight, light.color, light.intensity));
+                    return;
+                }
 
                 fra::Light gpuLight {};
                 gpuLight.position  = transform.position;

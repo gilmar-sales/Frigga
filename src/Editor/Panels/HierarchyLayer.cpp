@@ -34,6 +34,8 @@ const char *HierarchyLayer::getLightDisplayName(fra::LightType type)
             return "Directional Light";
         case fra::LightType::Spot:
             return "Spot Light";
+        case fra::LightType::Area:
+            return "Area Light";
     }
     return "Light";
 }
@@ -179,8 +181,8 @@ void HierarchyLayer::onGui()
 
         if(ImGui::BeginMenu("Light"))
         {
-            for(auto type:
-                {fra::LightType::Point, fra::LightType::Directional, fra::LightType::Spot})
+            for(auto type: {fra::LightType::Point, fra::LightType::Directional, fra::LightType::Spot,
+                            fra::LightType::Area})
             {
                 if(ImGui::MenuItem(getLightDisplayName(type)))
                 {
@@ -284,11 +286,15 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
 
         if(ImGui::BeginMenu("Add light"))
         {
-            for(auto type:
-                {fra::LightType::Point, fra::LightType::Directional, fra::LightType::Spot})
+            for(auto type: {fra::LightType::Point, fra::LightType::Directional, fra::LightType::Spot,
+                            fra::LightType::Area})
             {
                 if(ImGui::MenuItem(getLightDisplayName(type)))
                 {
+                    if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
+                    {
+                        mRegistry->AddComponents(entity, fg::TransformComponent {});
+                    }
                     if(!mRegistry->HasComponent<fg::LightComponent>(entity))
                     {
                         mRegistry->AddComponents(entity, fg::LightComponent {.type = type});
@@ -413,7 +419,7 @@ void HierarchyLayer::drawComponents()
             if(ImGui::CollapsingHeader("Light Component", nullptr, ImGuiWindowFlags_ChildWindow))
             {
                 int typeIndex = static_cast<int>(light.type);
-                if(ImGui::Combo("Type", &typeIndex, "Point\0Directional\0Spot\0"))
+                if(ImGui::Combo("Type", &typeIndex, "Point\0Directional\0Spot\0Area\0"))
                 {
                     light.type = static_cast<fra::LightType>(typeIndex);
                 }
@@ -421,7 +427,7 @@ void HierarchyLayer::drawComponents()
                 ImGui::ColorEdit3("Color", &light.color[0]);
                 ImGui::DragFloat("Intensity", &light.intensity, 0.1f, 0.0f, 1000.0f);
 
-                if(light.type != fra::LightType::Directional)
+                if(light.type == fra::LightType::Point || light.type == fra::LightType::Spot)
                 {
                     ImGui::DragFloat("Radius", &light.radius, 0.1f, 0.1f, 1000.0f);
                 }
@@ -430,6 +436,12 @@ void HierarchyLayer::drawComponents()
                 {
                     ImGui::DragFloat("Inner Angle", &light.innerAngleDegrees, 0.1f, 0.0f, 89.0f);
                     ImGui::DragFloat("Outer Angle", &light.outerAngleDegrees, 0.1f, 0.0f, 89.0f);
+                }
+
+                if(light.type == fra::LightType::Area)
+                {
+                    ImGui::DragFloat("Half Width", &light.halfWidth, 0.01f, 0.01f, 100.0f);
+                    ImGui::DragFloat("Half Height", &light.halfHeight, 0.01f, 0.01f, 100.0f);
                 }
             }
         });
