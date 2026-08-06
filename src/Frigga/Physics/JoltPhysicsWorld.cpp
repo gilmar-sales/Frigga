@@ -181,8 +181,9 @@ namespace FRIGGA_NAMESPACE
               broadPhase(layerIsMoving), objectVsBroadphase(layerIsMoving),
               objectVsObject(layerMasks)
         {
-            layerMasks.fill(0xffff);
+            layerMasks.fill(0);
             layerIsMoving.fill(false);
+            layerBodyCount.fill(0);
 
             physicsSystem.Init(kMaxBodies, 0, kMaxBodyPairs, kMaxContactConstraints, broadPhase,
                                objectVsBroadphase, objectVsObject);
@@ -193,6 +194,7 @@ namespace FRIGGA_NAMESPACE
         JPH::JobSystemThreadPool jobSystem;
         std::array<bool, kLayerCount> layerIsMoving {};
         std::array<std::uint16_t, kLayerCount> layerMasks {};
+        std::array<std::uint16_t, kLayerCount> layerBodyCount {};
         BPLayerInterfaceImpl broadPhase;
         ObjectVsBroadPhaseLayerFilterImpl objectVsBroadphase;
         ObjectLayerPairFilterImpl objectVsObject;
@@ -222,8 +224,9 @@ namespace FRIGGA_NAMESPACE
             bodyInterface.RemoveBody(id);
             bodyInterface.DestroyBody(id);
         }
-        mImpl->layerMasks.fill(0xffff);
+        mImpl->layerMasks.fill(0);
         mImpl->layerIsMoving.fill(false);
+        mImpl->layerBodyCount.fill(0);
         mImpl->accumulator = 0.0f;
     }
 
@@ -269,9 +272,19 @@ namespace FRIGGA_NAMESPACE
 
         const auto layer =
             static_cast<ObjectLayer>(std::min<std::uint8_t>(desc.collisionLayer, kLayerCount - 1));
-        mImpl->layerMasks[layer] = desc.collideWithLayers;
+        // Union masks for bodies that share an ObjectLayer — last-writer-wins dropped filters.
+        if(mImpl->layerBodyCount[layer] == 0)
+        {
+            mImpl->layerMasks[layer] = desc.collideWithLayers;
+        }
+        else
+        {
+            mImpl->layerMasks[layer] |= desc.collideWithLayers;
+        }
+        ++mImpl->layerBodyCount[layer];
         mImpl->layerIsMoving[layer] =
-            desc.motion == BodyMotionType::Dynamic || desc.motion == BodyMotionType::Kinematic;
+            mImpl->layerIsMoving[layer] ||
+            (desc.motion == BodyMotionType::Dynamic || desc.motion == BodyMotionType::Kinematic);
 
         RefConst<Shape> shape;
         switch(desc.shape)
@@ -412,6 +425,22 @@ namespace FRIGGA_NAMESPACE
     {
         const auto g = mImpl->physicsSystem.GetGravity();
         return {g.GetX(), g.GetY(), g.GetZ()};
+    }
+
+    bool JoltPhysicsWorld::IsBodyActive(PhysicsBodyHandle handle) const
+    {
+        if(!handle.IsValid())
+        {
+            return false;
+        }
+
+        const JPH::BodyID id(handle.id);
+        auto &bodyInterface = mImpl->physicsSystem.GetBodyInterface();
+        if(!bodyInterface.IsAdded(id))
+        {
+            return false;
+        }
+        return bodyInterface.IsActive(id);
     }
 
 } // namespace FRIGGA_NAMESPACE

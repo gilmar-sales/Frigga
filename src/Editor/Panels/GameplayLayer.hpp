@@ -1,7 +1,10 @@
 #pragma once
 
+#include "Editor/SelectionContext.hpp"
+
 #include <Frigga/Frigga.hpp>
 #include <Frigga/Asset/PrimitiveMeshFactory.hpp>
+#include <Frigga/Physics/IPhysicsWorld.hpp>
 #include <Frigga/Scene/Scene.hpp>
 #include <Frigga/Scene/SceneSimulationState.hpp>
 
@@ -12,7 +15,9 @@ class GameplayLayer: public fg::Layer
   public:
     GameplayLayer(skr::Arc<fra::Renderer> renderer, skr::Arc<fr::Registry> registry,
                   skr::Arc<fg::Scene> scene, skr::Arc<fg::PrimitiveMeshFactory> primitives,
-                  skr::Arc<fg::SceneSimulationState> simulation);
+                  skr::Arc<fg::SceneSimulationState> simulation,
+                  skr::Arc<SelectionContext> selection,
+                  skr::Arc<fg::IPhysicsWorld> physicsWorld);
     ~GameplayLayer() override = default;
 
     void onAttach() override;
@@ -32,6 +37,8 @@ class GameplayLayer: public fg::Layer
     skr::Arc<fg::Scene> mScene;
     skr::Arc<fg::PrimitiveMeshFactory> mPrimitives;
     skr::Arc<fg::SceneSimulationState> mSimulation;
+    skr::Arc<SelectionContext> mSelection;
+    skr::Arc<fg::IPhysicsWorld> mPhysicsWorld;
     skr::Arc<fra::RenderTarget> mTarget;
     VkDescriptorSet mTextureId = VK_NULL_HANDLE;
     std::uint32_t mWidth         = 0;

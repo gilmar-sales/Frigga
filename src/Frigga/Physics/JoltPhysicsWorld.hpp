@@ -34,6 +34,8 @@ namespace FRIGGA_NAMESPACE
         void SetGravity(const glm::vec3 &gravity) override;
         [[nodiscard]] glm::vec3 GetGravity() const override;
 
+        [[nodiscard]] bool IsBodyActive(PhysicsBodyHandle handle) const override;
+
       private:
         struct Impl;
         std::unique_ptr<Impl> mImpl;

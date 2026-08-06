@@ -84,6 +84,12 @@ void MainLayer::handleShortcuts()
         return;
     }
 
+    if(io.KeyCtrl && io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_C, false))
+    {
+        mSimulation->ToggleShowColliders();
+        return;
+    }
+
     if(io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_P, false))
     {
         mSimulation->TogglePlayPause();
@@ -505,7 +511,8 @@ void MainLayer::drawMenuBar()
 
             ImGui::Separator();
             bool showColliders = mSimulation->GetShowColliders();
-            if(ImGui::MenuItem(ICON_BTSP_BOUNDINGBOX " Show Colliders", nullptr, showColliders))
+            if(ImGui::MenuItem(ICON_BTSP_BOUNDINGBOX " Show Colliders", "Ctrl+Shift+C",
+                               showColliders))
             {
                 mSimulation->SetShowColliders(!showColliders);
             }
@@ -524,6 +531,18 @@ void MainLayer::drawMenuBar()
         ImGui::SetCursorPosX(ImGui::GetWindowContentRegionMax().x * 0.5f - 150);
 
         ImGui::Text("%s", mScene->GetDisplayName().c_str());
+        if(mSimulation->IsPlaying())
+        {
+            ImGui::SameLine();
+            if(mSimulation->IsPaused())
+            {
+                ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.3f, 1.0f), ICON_BTSP_PAUSE " PAUSED");
+            }
+            else
+            {
+                ImGui::TextColored(ImVec4(0.35f, 0.9f, 0.45f, 1.0f), ICON_BTSP_PLAY " PLAY");
+            }
+        }
 
         ImGui::SetCursorPosX(ImGui::GetWindowContentRegionMax().x - 350);
 

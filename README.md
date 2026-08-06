@@ -105,6 +105,7 @@ cd build-release && ./Editor
 | Play / pause / resume | Ctrl+P |
 | Step one physics tick | Ctrl+. |
 | Stop play (restore edit scene) | Ctrl+Shift+P |
+| Toggle collider overlays | Ctrl+Shift+C |
 | Gizmo translate / rotate / scale | W / E / R (editor viewport focused) |
 | Frame selection | F (editor viewport) |
 

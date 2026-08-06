@@ -124,9 +124,12 @@ void EditorLayer::onGui()
             if(mSimulation->GetShowColliders())
             {
                 const auto &projectionUbo = mRenderer->GetCurrentProjection();
+                const fr::Entity selected = mSelection->HasSelection()
+                                                ? mSelection->Get()
+                                                : SelectionContext::Invalid;
                 fg::ColliderDebugDraw::Draw(ImGui::GetWindowDrawList(), mRegistry, mPrimitives,
                                             projectionUbo.view, projectionUbo.projection, imageMin,
-                                            avail);
+                                            avail, selected);
             }
             handlePicking(imageMin, avail);
         }

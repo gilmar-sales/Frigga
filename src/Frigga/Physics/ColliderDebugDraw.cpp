@@ -48,7 +48,7 @@ namespace FRIGGA_NAMESPACE
 
         void DrawSegment(ImDrawList *drawList, const glm::mat4 &viewProj, const ImVec2 &imageMin,
                          const ImVec2 &imageSize, const glm::vec3 &a, const glm::vec3 &b,
-                         ImU32 color)
+                         ImU32 color, float thickness)
         {
             ImVec2 sa {};
             ImVec2 sb {};
@@ -57,7 +57,7 @@ namespace FRIGGA_NAMESPACE
             {
                 return;
             }
-            drawList->AddLine(sa, sb, color, 1.5f);
+            drawList->AddLine(sa, sb, color, thickness);
         }
 
         ImU32 ColorForMotion(BodyMotionType motion)
@@ -74,9 +74,23 @@ namespace FRIGGA_NAMESPACE
             return IM_COL32(255, 255, 255, 220);
         }
 
+        ImU32 AdjustColor(ImU32 color, bool selected, bool inactive)
+        {
+            if(selected)
+            {
+                return IM_COL32(255, 230, 90, 255);
+            }
+            if(inactive)
+            {
+                const auto rgb = color & 0x00FFFFFFu;
+                return rgb | (90u << 24);
+            }
+            return color;
+        }
+
         void DrawBox(ImDrawList *drawList, const glm::mat4 &model, const glm::mat4 &viewProj,
                      const ImVec2 &imageMin, const ImVec2 &imageSize, const glm::vec3 &halfExtents,
-                     ImU32 color)
+                     ImU32 color, float thickness)
         {
             const glm::vec3 corners[8] = {
                 {-halfExtents.x, -halfExtents.y, -halfExtents.z},
@@ -102,12 +116,13 @@ namespace FRIGGA_NAMESPACE
             for(const auto &edge : edges)
             {
                 DrawSegment(drawList, viewProj, imageMin, imageSize, world[edge[0]],
-                            world[edge[1]], color);
+                            world[edge[1]], color, thickness);
             }
         }
 
         void DrawSphere(ImDrawList *drawList, const glm::mat4 &model, const glm::mat4 &viewProj,
-                        const ImVec2 &imageMin, const ImVec2 &imageSize, float radius, ImU32 color)
+                        const ImVec2 &imageMin, const ImVec2 &imageSize, float radius, ImU32 color,
+                        float thickness)
         {
             constexpr int segments = 24;
             for(int axis = 0; axis < 3; ++axis)
@@ -137,14 +152,14 @@ namespace FRIGGA_NAMESPACE
                     }
                     DrawSegment(drawList, viewProj, imageMin, imageSize,
                                 glm::vec3(model * glm::vec4(p0, 1.0f)),
-                                glm::vec3(model * glm::vec4(p1, 1.0f)), color);
+                                glm::vec3(model * glm::vec4(p1, 1.0f)), color, thickness);
                 }
             }
         }
 
         void DrawCapsule(ImDrawList *drawList, const glm::mat4 &model, const glm::mat4 &viewProj,
                          const ImVec2 &imageMin, const ImVec2 &imageSize, float radius, float height,
-                         ImU32 color)
+                         ImU32 color, float thickness)
         {
             const float halfCylinder = std::max(0.5f * height, 0.001f);
             constexpr int segments   = 20;
@@ -162,13 +177,12 @@ namespace FRIGGA_NAMESPACE
 
                 DrawSegment(drawList, viewProj, imageMin, imageSize,
                             glm::vec3(model * glm::vec4(top0, 1.0f)),
-                            glm::vec3(model * glm::vec4(top1, 1.0f)), color);
+                            glm::vec3(model * glm::vec4(top1, 1.0f)), color, thickness);
                 DrawSegment(drawList, viewProj, imageMin, imageSize,
                             glm::vec3(model * glm::vec4(bot0, 1.0f)),
-                            glm::vec3(model * glm::vec4(bot1, 1.0f)), color);
+                            glm::vec3(model * glm::vec4(bot1, 1.0f)), color, thickness);
             }
 
-            // Vertical seams + hemisphere arcs in two planes.
             for(int i = 0; i < 4; ++i)
             {
                 const float a = (static_cast<float>(i) / 4.0f) * 2.0f * std::numbers::pi_v<float>;
@@ -176,7 +190,7 @@ namespace FRIGGA_NAMESPACE
                 const glm::vec3 bot {radius * std::cos(a), -halfCylinder, radius * std::sin(a)};
                 DrawSegment(drawList, viewProj, imageMin, imageSize,
                             glm::vec3(model * glm::vec4(top, 1.0f)),
-                            glm::vec3(model * glm::vec4(bot, 1.0f)), color);
+                            glm::vec3(model * glm::vec4(bot, 1.0f)), color, thickness);
             }
 
             for(int hemi = 0; hemi < 2; ++hemi)
@@ -209,7 +223,7 @@ namespace FRIGGA_NAMESPACE
                         }
                         DrawSegment(drawList, viewProj, imageMin, imageSize,
                                     glm::vec3(model * glm::vec4(p0, 1.0f)),
-                                    glm::vec3(model * glm::vec4(p1, 1.0f)), color);
+                                    glm::vec3(model * glm::vec4(p1, 1.0f)), color, thickness);
                     }
                 }
             }
@@ -217,7 +231,7 @@ namespace FRIGGA_NAMESPACE
 
         void DrawMeshHull(ImDrawList *drawList, const glm::mat4 &model, const glm::mat4 &viewProj,
                           const ImVec2 &imageMin, const ImVec2 &imageSize,
-                          const std::vector<glm::vec3> &points, ImU32 color)
+                          const std::vector<glm::vec3> &points, ImU32 color, float thickness)
         {
             if(points.size() < 2)
             {
@@ -231,17 +245,20 @@ namespace FRIGGA_NAMESPACE
                 minP = glm::min(minP, p);
                 maxP = glm::max(maxP, p);
             }
-            const glm::vec3 half = 0.5f * (maxP - minP);
+            const glm::vec3 half   = 0.5f * (maxP - minP);
             const glm::vec3 center = 0.5f * (maxP + minP);
-            glm::mat4 centered = model * glm::translate(glm::mat4(1.0f), center);
-            DrawBox(drawList, centered, viewProj, imageMin, imageSize, half, color);
+            glm::mat4 centered     = model * glm::translate(glm::mat4(1.0f), center);
+            DrawBox(drawList, centered, viewProj, imageMin, imageSize, half, color, thickness);
         }
     } // namespace
 
     void ColliderDebugDraw::Draw(ImDrawList *drawList, const skr::Arc<fr::Registry> &registry,
                                  const skr::Arc<PrimitiveMeshFactory> &primitives,
                                  const glm::mat4 &view, const glm::mat4 &vulkanProjection,
-                                 const ImVec2 &imageMin, const ImVec2 &imageSize)
+                                 const ImVec2 &imageMin, const ImVec2 &imageSize,
+                                 fr::Entity selectedEntity,
+                                 const skr::Arc<IPhysicsWorld> &physicsWorld,
+                                 bool dimInactiveBodies)
     {
         if(drawList == nullptr || imageSize.x < 1.0f || imageSize.y < 1.0f)
         {
@@ -253,22 +270,31 @@ namespace FRIGGA_NAMESPACE
 
         registry->CreateMutation()->Each<TransformComponent, RigidBodyComponent>(
             [&](auto entity, TransformComponent &transform, RigidBodyComponent &rigidBody) {
-                const ImU32 color = ColorForMotion(rigidBody.motion);
+                const bool selected = entity == selectedEntity;
+                bool inactive       = false;
+                if(dimInactiveBodies && physicsWorld && rigidBody.body.IsValid())
+                {
+                    inactive = !physicsWorld->IsBodyActive(rigidBody.body);
+                }
+
+                const ImU32 color =
+                    AdjustColor(ColorForMotion(rigidBody.motion), selected, inactive);
+                const float thickness = selected ? 3.0f : 1.5f;
                 const glm::mat4 model = BuildModel(transform);
 
                 switch(rigidBody.shape)
                 {
                 case ColliderShape::Box:
                     DrawBox(drawList, model, viewProj, imageMin, imageSize, rigidBody.halfExtents,
-                            color);
+                            color, thickness);
                     break;
                 case ColliderShape::Sphere:
                     DrawSphere(drawList, model, viewProj, imageMin, imageSize, rigidBody.radius,
-                               color);
+                               color, thickness);
                     break;
                 case ColliderShape::Capsule:
                     DrawCapsule(drawList, model, viewProj, imageMin, imageSize, rigidBody.radius,
-                                rigidBody.height, color);
+                                rigidBody.height, color, thickness);
                     break;
                 case ColliderShape::Mesh:
                 {
@@ -282,7 +308,8 @@ namespace FRIGGA_NAMESPACE
                         primitive = PrimitiveType::Cube;
                     }
                     DrawMeshHull(drawList, model, viewProj, imageMin, imageSize,
-                                 PrimitiveMeshFactory::GetColliderHullPoints(primitive), color);
+                                 PrimitiveMeshFactory::GetColliderHullPoints(primitive), color,
+                                 thickness);
                     break;
                 }
                 }

@@ -31,6 +31,9 @@ namespace FRIGGA_NAMESPACE
 
         virtual void SetGravity(const glm::vec3 &gravity) = 0;
         [[nodiscard]] virtual glm::vec3 GetGravity() const = 0;
+
+        /// True when the body exists and is awake (not sleeping). Invalid handles return false.
+        [[nodiscard]] virtual bool IsBodyActive(PhysicsBodyHandle handle) const = 0;
     };
 
 } // namespace FRIGGA_NAMESPACE

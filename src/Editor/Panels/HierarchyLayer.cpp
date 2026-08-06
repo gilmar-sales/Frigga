@@ -718,13 +718,42 @@ void HierarchyLayer::drawComponents()
                 {
                     rigidBody.collisionLayer = static_cast<std::uint8_t>(layer);
                 }
-
-                int mask = rigidBody.collideWithLayers;
-                if(ImGui::InputInt("Collide Mask", &mask))
+                if(ImGui::IsItemHovered())
                 {
-                    rigidBody.collideWithLayers =
-                        static_cast<std::uint16_t>(std::clamp(mask, 0, 0xffff));
+                    ImGui::SetTooltip(
+                        "Object layer 0..15. Static bodies are remapped to layer 0 on Play.");
                 }
+
+                ImGui::Text("Collide With Layers");
+                if(ImGui::IsItemHovered())
+                {
+                    ImGui::SetTooltip(
+                        "Collision is mutual: both layers must include each other in their masks.");
+                }
+                for(int bit = 0; bit < 16; ++bit)
+                {
+                    if(bit % 8 != 0)
+                    {
+                        ImGui::SameLine();
+                    }
+                    bool value = (rigidBody.collideWithLayers & (1u << bit)) != 0;
+                    ImGui::PushID(bit);
+                    const auto label = std::format("{}", bit);
+                    if(ImGui::Checkbox(label.c_str(), &value))
+                    {
+                        if(value)
+                        {
+                            rigidBody.collideWithLayers |= static_cast<std::uint16_t>(1u << bit);
+                        }
+                        else
+                        {
+                            rigidBody.collideWithLayers &=
+                                static_cast<std::uint16_t>(~(1u << bit));
+                        }
+                    }
+                    ImGui::PopID();
+                }
+                ImGui::TextDisabled("Mask: 0x%04X", rigidBody.collideWithLayers);
                 ImGui::EndDisabled();
 
                 if(rigidBody.body.IsValid())

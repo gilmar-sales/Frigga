@@ -13,10 +13,13 @@
 GameplayLayer::GameplayLayer(skr::Arc<fra::Renderer> renderer, skr::Arc<fr::Registry> registry,
                              skr::Arc<fg::Scene> scene,
                              skr::Arc<fg::PrimitiveMeshFactory> primitives,
-                             skr::Arc<fg::SceneSimulationState> simulation)
+                             skr::Arc<fg::SceneSimulationState> simulation,
+                             skr::Arc<SelectionContext> selection,
+                             skr::Arc<fg::IPhysicsWorld> physicsWorld)
     : fg::Layer("Gameplay"), mRenderer(std::move(renderer)), mRegistry(std::move(registry)),
       mScene(std::move(scene)), mPrimitives(std::move(primitives)),
-      mSimulation(std::move(simulation))
+      mSimulation(std::move(simulation)), mSelection(std::move(selection)),
+      mPhysicsWorld(std::move(physicsWorld))
 {
 }
 
@@ -121,8 +124,11 @@ void GameplayLayer::drawColliders(const ImVec2 &imageMin, const ImVec2 &imageSiz
     }
 
     const auto &projectionUbo = mRenderer->GetCurrentProjection();
+    const fr::Entity selected =
+        mSelection->HasSelection() ? mSelection->Get() : SelectionContext::Invalid;
     fg::ColliderDebugDraw::Draw(ImGui::GetWindowDrawList(), mRegistry, mPrimitives,
-                                projectionUbo.view, projectionUbo.projection, imageMin, imageSize);
+                                projectionUbo.view, projectionUbo.projection, imageMin, imageSize,
+                                selected, mPhysicsWorld, /*dimInactiveBodies=*/true);
 }
 
 void GameplayLayer::onGui()

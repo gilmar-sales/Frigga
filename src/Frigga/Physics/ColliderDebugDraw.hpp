@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Frigga/Asset/PrimitiveMeshFactory.hpp"
+#include "Frigga/Physics/IPhysicsWorld.hpp"
 
 #include <Freyr/Freyr.hpp>
 #include <glm/glm.hpp>
@@ -15,7 +16,10 @@ namespace FRIGGA_NAMESPACE
         static void Draw(ImDrawList *drawList, const skr::Arc<fr::Registry> &registry,
                          const skr::Arc<PrimitiveMeshFactory> &primitives, const glm::mat4 &view,
                          const glm::mat4 &vulkanProjection, const ImVec2 &imageMin,
-                         const ImVec2 &imageSize);
+                         const ImVec2 &imageSize,
+                         fr::Entity selectedEntity = static_cast<fr::Entity>(-1),
+                         const skr::Arc<IPhysicsWorld> &physicsWorld = {},
+                         bool dimInactiveBodies = false);
     };
 
 } // namespace FRIGGA_NAMESPACE
