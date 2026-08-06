@@ -75,6 +75,18 @@ namespace FRIGGA_NAMESPACE
         }
     }
 
+    void GuiLayer::RecreateMainPipeline(const skr::Arc<fra::Renderer> &renderer)
+    {
+        if(renderer == nullptr || ImGui::GetCurrentContext() == nullptr)
+        {
+            return;
+        }
+
+        ImGui_ImplVulkan_PipelineInfo pipelineInfo {};
+        pipelineInfo.RenderPass = renderer->GetUIRenderPass();
+        ImGui_ImplVulkan_CreateMainPipeline(&pipelineInfo);
+    }
+
     void GuiLayer::begin()
     {
         ImGui_ImplVulkan_NewFrame();

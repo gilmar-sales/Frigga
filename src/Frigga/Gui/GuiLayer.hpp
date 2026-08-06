@@ -27,6 +27,10 @@ namespace FRIGGA_NAMESPACE
         void begin();
         void end();
 
+        /// Recreate the ImGui Vulkan main pipeline after Freya rebuilds the UI
+        /// render pass (swapchain/VSync, MSAA, rendering strategy, resize, …).
+        static void RecreateMainPipeline(const skr::Arc<fra::Renderer> &renderer);
+
         void setBlockEvents(bool block)
         {
             m_blockEvents = block;

@@ -6,6 +6,9 @@
 #include <Freya/FreyaOptions.hpp>
 #include <Frigga/Frigga.hpp>
 
+#include <cstdint>
+#include <optional>
+
 class PreferencesLayer: public fg::Layer
 {
   public:
@@ -27,16 +30,27 @@ class PreferencesLayer: public fg::Layer
 
     ~PreferencesLayer() = default;
 
+    void onUpdate() override;
     void onGui() override;
 
     static bool IsOpen;
 
   private:
+    /// Renderer mutations that rebuild the swapchain / composite pass. Must run
+    /// in onUpdate (before BeginFrame), never mid-ImGui while the UI pass is open.
+    struct PendingGraphics
+    {
+        std::optional<bool>                    vSync;
+        std::optional<std::uint32_t>           sampleCount;
+        std::optional<fra::RenderingStrategy>  strategy;
+    };
+
     void drawAppearanceTab();
     void drawGraphicsTab();
     void drawEcsTab();
     void persist();
     void applyTheme(int themeIndex) const;
+    void applyPendingGraphics();
 
     skr::Arc<fra::Window>           mWindow;
     skr::Arc<fra::Renderer>         mRenderer;
@@ -44,4 +58,5 @@ class PreferencesLayer: public fg::Layer
     skr::Arc<fra::FreyaOptions>     mFreyaOptions;
     skr::Arc<fr::FreyrOptions>      mFreyrOptions;
     skr::Arc<EditorPreferences>     mPreferences;
+    PendingGraphics                 mPendingGraphics {};
 };

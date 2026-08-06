@@ -4,6 +4,7 @@
 #include "Editor/DockLayout.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/Gui/Backends/imgui_impl_vulkan.h"
+#include "Frigga/Gui/GuiLayer.hpp"
 #include "Frigga/Physics/ColliderDebugDraw.hpp"
 #include "Frigga/Editor/LightDebugDraw.hpp"
 #include "Frigga/Editor/CameraDebugDraw.hpp"
@@ -640,7 +641,5 @@ void EditorLayer::releaseTexture()
 
 void EditorLayer::recreateUiPipeline()
 {
-    ImGui_ImplVulkan_PipelineInfo pipelineInfo {};
-    pipelineInfo.RenderPass = mRenderer->GetUIRenderPass();
-    ImGui_ImplVulkan_CreateMainPipeline(&pipelineInfo);
+    fg::GuiLayer::RecreateMainPipeline(mRenderer);
 }

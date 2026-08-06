@@ -2,6 +2,7 @@
 
 #include "../Preferences/PreferencesStore.hpp"
 
+#include <Frigga/Gui/GuiLayer.hpp>
 #include <Frigga/Gui/Styles/Styles.hpp>
 #include <imgui.h>
 
@@ -88,17 +89,51 @@ void PreferencesLayer::drawAppearanceTab()
     }
 }
 
+void PreferencesLayer::applyPendingGraphics()
+{
+    bool recreatePipeline = false;
+
+    if(mPendingGraphics.vSync.has_value())
+    {
+        mRenderer->SetVSync(*mPendingGraphics.vSync);
+        mPendingGraphics.vSync.reset();
+        recreatePipeline = true;
+    }
+    if(mPendingGraphics.sampleCount.has_value())
+    {
+        mRenderer->SetSamples(*mPendingGraphics.sampleCount);
+        mPendingGraphics.sampleCount.reset();
+        recreatePipeline = true;
+    }
+    if(mPendingGraphics.strategy.has_value())
+    {
+        mRenderer->SetRenderingStrategy(*mPendingGraphics.strategy);
+        mPendingGraphics.strategy.reset();
+        recreatePipeline = true;
+    }
+
+    if(recreatePipeline)
+    {
+        fg::GuiLayer::RecreateMainPipeline(mRenderer);
+    }
+}
+
+void PreferencesLayer::onUpdate()
+{
+    applyPendingGraphics();
+}
+
 void PreferencesLayer::drawGraphicsTab()
 {
     auto &prefs = mPreferences->graphics;
 
     ImGui::SeparatorText("Display");
 
-    bool vSync = mRenderer->GetVSync();
+    bool vSync = mPendingGraphics.vSync.value_or(mRenderer->GetVSync());
     if(ImGui::Checkbox("VSync", &vSync))
     {
-        mRenderer->SetVSync(vSync);
-        prefs.vSync = vSync;
+        mPendingGraphics.vSync = vSync;
+        prefs.vSync            = vSync;
         persist();
     }
 
@@ -110,12 +145,13 @@ void PreferencesLayer::drawGraphicsTab()
         persist();
     }
 
-    int sampleIndex = SampleCountToIndex(mRenderer->GetSamples());
+    int sampleIndex = SampleCountToIndex(
+        mPendingGraphics.sampleCount.value_or(mRenderer->GetSamples()));
     if(ImGui::Combo("MSAA", &sampleIndex, "1x\02x\04x\08x\0"))
     {
-        const auto samples = IndexToSampleCount(sampleIndex);
-        mRenderer->SetSamples(samples);
-        prefs.sampleCount = samples;
+        const auto samples             = IndexToSampleCount(sampleIndex);
+        mPendingGraphics.sampleCount   = samples;
+        prefs.sampleCount              = samples;
         persist();
     }
 
@@ -129,10 +165,12 @@ void PreferencesLayer::drawGraphicsTab()
         persist();
     }
 
-    int strategy = static_cast<int>(mRenderer->GetRenderingStrategy());
+    int strategy = static_cast<int>(
+        mPendingGraphics.strategy.value_or(mRenderer->GetRenderingStrategy()));
     if(ImGui::Combo("Strategy", &strategy, "Forward\0Deferred\0"))
     {
-        mRenderer->SetRenderingStrategy(static_cast<fra::RenderingStrategy>(strategy));
+        mPendingGraphics.strategy =
+            static_cast<fra::RenderingStrategy>(strategy);
         prefs.renderingStrategy = strategy;
         persist();
     }
