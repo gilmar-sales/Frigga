@@ -7,6 +7,7 @@
 #include "Frigga/Physics/ColliderDebugDraw.hpp"
 #include "Frigga/Editor/LightDebugDraw.hpp"
 #include "Frigga/Editor/CameraDebugDraw.hpp"
+#include "Frigga/Editor/InfiniteGridDraw.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -544,9 +545,9 @@ void EditorLayer::drawGizmos(const ImVec2 &imageMin, const ImVec2 &imageSize, bo
 
     if(mDrawGrid)
     {
-        const glm::mat4 identity(1.0f);
-        ImGuizmo::DrawGrid(glm::value_ptr(view), glm::value_ptr(proj), glm::value_ptr(identity),
-                           20.0f);
+        // Infinite Y=0 grid clipped to the visible ground region (soft contrast).
+        fg::InfiniteGridDraw::Draw(ImGui::GetWindowDrawList(), view, projectionUbo.projection,
+                                   imageMin, imageSize);
     }
 
     if(!allowManipulate || !mSelection->HasSelection())
