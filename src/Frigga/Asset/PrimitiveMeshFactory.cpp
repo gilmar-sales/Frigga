@@ -244,10 +244,15 @@ namespace FRIGGA_NAMESPACE
             return points;
         }
         case PrimitiveType::Plane:
+            // Must match createPlane() extents (-5..5 on XZ). Thin Y for a valid convex hull.
+            return {{-5.0f, 0.0f, -5.0f}, {5.0f, 0.0f, -5.0f}, {5.0f, 0.0f, 5.0f},
+                    {-5.0f, 0.0f, 5.0f},  {-5.0f, 0.02f, -5.0f}, {5.0f, 0.02f, -5.0f},
+                    {5.0f, 0.02f, 5.0f}, {-5.0f, 0.02f, 5.0f}};
         case PrimitiveType::Quad:
-            return {{-0.5f, 0.0f, -0.5f}, {0.5f, 0.0f, -0.5f}, {0.5f, 0.0f, 0.5f},
-                    {-0.5f, 0.0f, 0.5f},  {-0.5f, 0.02f, -0.5f}, {0.5f, 0.02f, -0.5f},
-                    {0.5f, 0.02f, 0.5f}, {-0.5f, 0.02f, 0.5f}};
+            // Must match createQuad() extents (-0.5..0.5 on XY), extruded slightly on Z.
+            return {{-0.5f, -0.5f, 0.0f}, {0.5f, -0.5f, 0.0f}, {0.5f, 0.5f, 0.0f},
+                    {-0.5f, 0.5f, 0.0f},  {-0.5f, -0.5f, 0.02f}, {0.5f, -0.5f, 0.02f},
+                    {0.5f, 0.5f, 0.02f}, {-0.5f, 0.5f, 0.02f}};
         case PrimitiveType::Count:
             break;
         }

@@ -6,6 +6,7 @@
 #include "Frigga/Gui/Backends/imgui_impl_vulkan.h"
 #include "Frigga/Physics/ColliderDebugDraw.hpp"
 #include "Frigga/Editor/LightDebugDraw.hpp"
+#include "Frigga/Editor/CameraDebugDraw.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -120,6 +121,9 @@ void EditorLayer::onGui()
                                                 : SelectionContext::Invalid;
                 fg::LightDebugDraw::Draw(ImGui::GetWindowDrawList(), mRegistry, projectionUbo.view,
                                          projectionUbo.projection, imageMin, avail, selected);
+                fg::CameraDebugDraw::Draw(ImGui::GetWindowDrawList(), mRegistry, projectionUbo.view,
+                                          projectionUbo.projection, imageMin, avail, selected,
+                                          mScene->GetMainCameraEntity());
             }
             if(mSimulation->GetShowColliders())
             {
@@ -279,12 +283,17 @@ void EditorLayer::handlePicking(const ImVec2 &imageMin, const ImVec2 &imageSize)
         return;
     }
 
-    // Prefer light gizmos (screen-space) over GPU mesh pick.
+    // Prefer light/camera gizmos (screen-space) over GPU mesh pick.
     {
         const auto &projectionUbo = mRenderer->GetCurrentProjection();
-        if(const auto lightHit =
-               fg::LightDebugDraw::HitTest(mRegistry, projectionUbo.view, projectionUbo.projection,
-                                           imageMin, imageSize, mouse))
+        if(const auto cameraHit = fg::CameraDebugDraw::HitTest(
+               mRegistry, projectionUbo.view, projectionUbo.projection, imageMin, imageSize, mouse))
+        {
+            mSelection->Select(*cameraHit);
+            return;
+        }
+        if(const auto lightHit = fg::LightDebugDraw::HitTest(
+               mRegistry, projectionUbo.view, projectionUbo.projection, imageMin, imageSize, mouse))
         {
             mSelection->Select(*lightHit);
             return;

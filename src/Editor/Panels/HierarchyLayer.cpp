@@ -129,6 +129,43 @@ fg::TransformComponent HierarchyLayer::makeDefaultLightTransform(fra::LightType 
                                    .rotation = LookDown()};
 }
 
+fg::RigidBodyComponent HierarchyLayer::makeDefaultRigidBody(fr::Entity entity) const
+{
+    fg::RigidBodyComponent rigidBody {};
+    mRegistry->TryGetComponents<fg::MeshComponent>(entity, [&](fg::MeshComponent &mesh) {
+        fg::PrimitiveType primitive = fg::PrimitiveType::Cube;
+        if(!mPrimitives->TryFindPrimitive(mesh.meshId, primitive))
+        {
+            return;
+        }
+
+        switch(primitive)
+        {
+        case fg::PrimitiveType::Cube:
+            rigidBody.shape = fg::ColliderShape::Box;
+            break;
+        case fg::PrimitiveType::Sphere:
+            rigidBody.shape  = fg::ColliderShape::Sphere;
+            rigidBody.radius = 0.5f;
+            break;
+        case fg::PrimitiveType::Capsule:
+            rigidBody.shape  = fg::ColliderShape::Capsule;
+            rigidBody.radius = 0.5f;
+            rigidBody.height = 1.0f;
+            break;
+        case fg::PrimitiveType::Cylinder:
+        case fg::PrimitiveType::Cone:
+        case fg::PrimitiveType::Plane:
+        case fg::PrimitiveType::Quad:
+        case fg::PrimitiveType::Count:
+            // Use mesh hull so scale matches the rendered primitive (Plane is 10x10, not 1x1).
+            rigidBody.shape = fg::ColliderShape::Mesh;
+            break;
+        }
+    });
+    return rigidBody;
+}
+
 const char *HierarchyLayer::resolveEntityIcon(fr::Entity entity) const
 {
     const char *icon = nullptr;
@@ -224,7 +261,7 @@ void HierarchyLayer::addRigidBodyToSelection()
     }
     if(!mRegistry->HasComponent<fg::RigidBodyComponent>(entity))
     {
-        mRegistry->AddComponents(entity, fg::RigidBodyComponent {});
+        mRegistry->AddComponents(entity, makeDefaultRigidBody(entity));
     }
 }
 
@@ -454,7 +491,7 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
             }
             if(!mRegistry->HasComponent<fg::RigidBodyComponent>(entity))
             {
-                mRegistry->AddComponents(entity, fg::RigidBodyComponent {});
+                mRegistry->AddComponents(entity, makeDefaultRigidBody(entity));
             }
         }
         ImGui::EndDisabled();
