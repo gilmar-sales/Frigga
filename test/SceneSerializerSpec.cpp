@@ -61,6 +61,7 @@ namespace
         fg::TransformComponent transform {};
         bool hasMesh = false;
         fg::PrimitiveType primitive = fg::PrimitiveType::Cube;
+        bool meshCastShadows = true;
         bool hasCamera = false;
         fg::CameraComponent camera {};
         bool hasLight = false;
@@ -87,7 +88,8 @@ namespace
                     });
 
                 registry->TryGetComponents<fg::MeshComponent>(entity, [&](fg::MeshComponent &mesh) {
-                    snap.hasMesh = true;
+                    snap.hasMesh         = true;
+                    snap.meshCastShadows = mesh.castShadows;
                     if(!primitives->TryFindPrimitive(mesh.meshId, snap.primitive))
                     {
                         snap.primitive = fg::PrimitiveType::Cube;
@@ -140,6 +142,7 @@ namespace
             if(expected[i].hasMesh)
             {
                 EXPECT_EQ(actual[i].primitive, expected[i].primitive);
+                EXPECT_EQ(actual[i].meshCastShadows, expected[i].meshCastShadows);
             }
 
             ASSERT_EQ(actual[i].hasCamera, expected[i].hasCamera);

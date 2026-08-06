@@ -35,7 +35,8 @@ namespace FRIGGA_NAMESPACE
 
         struct SceneMeshDto
         {
-            std::string primitive {"Cube"};
+            std::string          primitive {"Cube"};
+            std::optional<bool>  castShadows;
         };
 
         struct SceneMaterialDto
@@ -332,8 +333,8 @@ namespace FRIGGA_NAMESPACE
                         mesh.meshId, name.name);
                     primitive = PrimitiveType::Cube;
                 }
-                dto.mesh = SceneMeshDto {.primitive =
-                                             PrimitiveMeshFactory::GetDisplayName(primitive)};
+                dto.mesh = SceneMeshDto {.primitive = PrimitiveMeshFactory::GetDisplayName(primitive),
+                                         .castShadows = mesh.castShadows};
             });
 
             registry->TryGetComponents<MaterialComponent>(entity, [&](MaterialComponent &) {
@@ -492,7 +493,8 @@ namespace FRIGGA_NAMESPACE
                     return false;
                 }
 
-                mesh     = MeshComponent {.meshId = primitives->GetMesh(primitive)};
+                mesh     = MeshComponent {.meshId = primitives->GetMesh(primitive),
+                                          .castShadows = entityDto.mesh->castShadows.value_or(true)};
                 material = MaterialComponent {.materialId = primitives->GetDefaultMaterial()};
             }
             else if(entityDto.material)

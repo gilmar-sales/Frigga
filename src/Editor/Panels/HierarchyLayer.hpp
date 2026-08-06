@@ -2,7 +2,9 @@
 
 #include "Editor/SelectionContext.hpp"
 #include "Frigga/Asset/PrimitiveMeshFactory.hpp"
+#include "Frigga/ECS/Components/LightComponent.hpp"
 #include "Frigga/ECS/Components/NameComponent.hpp"
+#include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/Scene/Scene.hpp"
 #include "Frigga/Scene/SceneSimulationState.hpp"
 
@@ -31,10 +33,14 @@ class HierarchyLayer: public fg::Layer
     void onGui() override;
 
     static const char *getLightDisplayName(fra::LightType type);
+    static const char *getLightIcon(fra::LightType type);
 
   private:
     [[nodiscard]] bool isEntityLocked(fr::Entity entity) const;
     void setPrimaryCamera(fr::Entity entity);
+    [[nodiscard]] const char *resolveEntityIcon(fr::Entity entity) const;
+    static fg::LightComponent makeDefaultLight(fra::LightType type);
+    static fg::TransformComponent makeDefaultLightTransform(fra::LightType type);
 
     skr::Arc<fr::Registry> mRegistry;
     skr::Arc<fg::Scene> mScene;

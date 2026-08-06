@@ -115,8 +115,11 @@ void EditorLayer::onGui()
             drawGizmos(imageMin, avail, !navigating);
             {
                 const auto &projectionUbo = mRenderer->GetCurrentProjection();
+                const fr::Entity selected = mSelection->HasSelection()
+                                                ? mSelection->Get()
+                                                : SelectionContext::Invalid;
                 fg::LightDebugDraw::Draw(ImGui::GetWindowDrawList(), mRegistry, projectionUbo.view,
-                                         projectionUbo.projection, imageMin, avail);
+                                         projectionUbo.projection, imageMin, avail, selected);
             }
             if(mSimulation->GetShowColliders())
             {
@@ -271,6 +274,18 @@ void EditorLayer::handlePicking(const ImVec2 &imageMin, const ImVec2 &imageSize)
     if(u < 0.0f || v < 0.0f || u >= 1.0f || v >= 1.0f)
     {
         return;
+    }
+
+    // Prefer light gizmos (screen-space) over GPU mesh pick.
+    {
+        const auto &projectionUbo = mRenderer->GetCurrentProjection();
+        if(const auto lightHit =
+               fg::LightDebugDraw::HitTest(mRegistry, projectionUbo.view, projectionUbo.projection,
+                                           imageMin, imageSize, mouse))
+        {
+            mSelection->Select(*lightHit);
+            return;
+        }
     }
 
     const auto x = static_cast<std::uint32_t>(u * static_cast<float>(mWidth));

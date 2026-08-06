@@ -18,7 +18,7 @@
         "scale": [4.0, 1.0, 4.0],
         "rotation": [1.0, 0.0, 0.0, 0.0]
       },
-      "mesh": { "primitive": "Cube" },
+      "mesh": { "primitive": "Cube", "castShadows": true },
       "material": { "default": true },
       "rigidBody": {
         "motion": "Static",
@@ -40,7 +40,7 @@
         "scale": [1.0, 1.0, 1.0],
         "rotation": [1.0, 0.0, 0.0, 0.0]
       },
-      "mesh": { "primitive": "Sphere" },
+      "mesh": { "primitive": "Sphere", "castShadows": true },
       "material": { "default": true },
       "rigidBody": {
         "motion": "Dynamic",

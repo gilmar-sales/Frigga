@@ -18,6 +18,7 @@
 #include <SDL3/SDL_dialog.h>
 
 #include <cmath>
+#include <format>
 #include <imgui.h>
 #include <imgui_internal.h>
 
@@ -417,13 +418,15 @@ void MainLayer::drawMenuBar()
             {
                 mHierarchy->createCameraEntity();
             }
-            if(ImGui::BeginMenu("Create Light"))
+            if(ImGui::BeginMenu(ICON_BTSP_LIGHT " Create Light"))
             {
                 for(auto type:
                     {fra::LightType::Point, fra::LightType::Directional, fra::LightType::Spot,
                      fra::LightType::Area})
                 {
-                    if(ImGui::MenuItem(HierarchyLayer::getLightDisplayName(type)))
+                    const auto label = std::format("{} {}", HierarchyLayer::getLightIcon(type),
+                                                   HierarchyLayer::getLightDisplayName(type));
+                    if(ImGui::MenuItem(label.c_str()))
                     {
                         mHierarchy->createLightEntity(type);
                     }
@@ -444,13 +447,15 @@ void MainLayer::drawMenuBar()
                 {
                     mHierarchy->addRigidBodyToSelection();
                 }
-                if(ImGui::BeginMenu("Light"))
+                if(ImGui::BeginMenu(ICON_BTSP_LIGHT " Light"))
                 {
                     for(auto type:
                         {fra::LightType::Point, fra::LightType::Directional, fra::LightType::Spot,
                          fra::LightType::Area})
                     {
-                        if(ImGui::MenuItem(HierarchyLayer::getLightDisplayName(type)))
+                        const auto label = std::format("{} {}", HierarchyLayer::getLightIcon(type),
+                                                       HierarchyLayer::getLightDisplayName(type));
+                        if(ImGui::MenuItem(label.c_str()))
                         {
                             mHierarchy->addLightToSelection(type);
                         }

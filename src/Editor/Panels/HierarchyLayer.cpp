@@ -1,5 +1,6 @@
 #include "HierarchyLayer.hpp"
 
+#include "Editor/BoostrapIconsFont.hpp"
 #include "Editor/DockLayout.hpp"
 #include "Frigga/ECS/Components/CameraComponent.hpp"
 #include "Frigga/ECS/Components/LightComponent.hpp"
@@ -13,6 +14,14 @@
 #include <format>
 #include <imgui.h>
 #include <sstream>
+
+namespace
+{
+    glm::quat LookDown()
+    {
+        return glm::quatLookAt(glm::vec3 {0.0f, -1.0f, 0.0f}, glm::vec3 {0.0f, 0.0f, 1.0f});
+    }
+} // namespace
 
 HierarchyLayer::HierarchyLayer(skr::Arc<fr::Registry> registry, skr::Arc<fg::Scene> scene,
                                skr::Arc<fg::PrimitiveMeshFactory> primitives,
@@ -38,6 +47,112 @@ const char *HierarchyLayer::getLightDisplayName(fra::LightType type)
             return "Area Light";
     }
     return "Light";
+}
+
+const char *HierarchyLayer::getLightIcon(fra::LightType type)
+{
+    switch(type)
+    {
+        case fra::LightType::Point:
+            return ICON_BTSP_BRIGHTNESSHIGH;
+        case fra::LightType::Directional:
+            return ICON_BTSP_SUN;
+        case fra::LightType::Spot:
+            return ICON_BTSP_LIGHT;
+        case fra::LightType::Area:
+            return ICON_BTSP_BOUNDINGBOX;
+    }
+    return ICON_BTSP_LIGHT;
+}
+
+fg::LightComponent HierarchyLayer::makeDefaultLight(fra::LightType type)
+{
+    fg::LightComponent light {.type = type};
+    switch(type)
+    {
+        case fra::LightType::Point:
+            light.intensity = 15.0f;
+            light.radius    = 30.0f;
+            break;
+        case fra::LightType::Directional:
+            light.intensity   = 0.8f;
+            light.castShadows = true;
+            break;
+        case fra::LightType::Spot:
+            light.intensity         = 12.0f;
+            light.radius            = 40.0f;
+            light.innerAngleDegrees = 18.0f;
+            light.outerAngleDegrees = 28.0f;
+            break;
+        case fra::LightType::Area:
+            light.intensity  = 3.0f;
+            light.color      = {1.0f, 0.95f, 0.9f};
+            light.halfWidth  = 0.8f;
+            light.halfHeight = 0.8f;
+            break;
+    }
+    return light;
+}
+
+fg::TransformComponent HierarchyLayer::makeDefaultLightTransform(fra::LightType type)
+{
+    switch(type)
+    {
+        case fra::LightType::Point:
+            return fg::TransformComponent {.position = {2.0f, 3.0f, 2.0f},
+                                           .scale    = {1.0f, 1.0f, 1.0f},
+                                           .rotation = LookDown()};
+        case fra::LightType::Directional:
+        {
+            const glm::vec3 dir = glm::normalize(glm::vec3 {-0.4f, -1.0f, -0.3f});
+            return fg::TransformComponent {
+                .position = {0.0f, 4.0f, 0.0f},
+                .scale    = {1.0f, 1.0f, 1.0f},
+                .rotation = glm::quatLookAt(dir, glm::vec3 {0.0f, 1.0f, 0.0f})};
+        }
+        case fra::LightType::Spot:
+        {
+            const glm::vec3 position {2.0f, 4.0f, 2.0f};
+            const glm::vec3 dir = glm::normalize(glm::vec3 {0.0f, 0.0f, 0.0f} - position);
+            return fg::TransformComponent {
+                .position = position,
+                .scale    = {1.0f, 1.0f, 1.0f},
+                .rotation = glm::quatLookAt(dir, glm::vec3 {0.0f, 1.0f, 0.0f})};
+        }
+        case fra::LightType::Area:
+            return fg::TransformComponent {.position = {0.0f, 3.5f, 0.0f},
+                                           .scale    = {1.0f, 1.0f, 1.0f},
+                                           .rotation = LookDown()};
+    }
+    return fg::TransformComponent {.position = {0.0f, 3.0f, 0.0f},
+                                   .scale    = {1.0f, 1.0f, 1.0f},
+                                   .rotation = LookDown()};
+}
+
+const char *HierarchyLayer::resolveEntityIcon(fr::Entity entity) const
+{
+    const char *icon = nullptr;
+    mRegistry->TryGetComponents<fg::LightComponent>(entity, [&](fg::LightComponent &light) {
+        icon = getLightIcon(light.type);
+    });
+    if(icon != nullptr)
+    {
+        return icon;
+    }
+
+    if(mRegistry->HasComponent<fg::CameraComponent>(entity))
+    {
+        return ICON_BTSP_CAMERAVIDEO;
+    }
+    if(mRegistry->HasComponent<fg::MeshComponent>(entity))
+    {
+        return ICON_BTSP_BOX;
+    }
+    if(mRegistry->HasComponent<fg::RigidBodyComponent>(entity))
+    {
+        return ICON_BTSP_BOUNDINGBOX;
+    }
+    return "";
 }
 
 void HierarchyLayer::createEmptyEntity()
@@ -91,13 +206,8 @@ void HierarchyLayer::createLightEntity(fra::LightType type)
         return;
     }
 
-    mRegistry->CreateEntity(
-        fg::NameComponent {.name = getLightDisplayName(type)},
-        fg::TransformComponent {.position = {0.0f, 3.0f, 0.0f},
-                                .scale    = {1.0f, 1.0f, 1.0f},
-                                .rotation = glm::quatLookAt(glm::vec3 {0.0f, -1.0f, 0.0f},
-                                                            glm::vec3 {0.0f, 0.0f, 1.0f})},
-        fg::LightComponent {.type = type});
+    mRegistry->CreateEntity(fg::NameComponent {.name = getLightDisplayName(type)},
+                            makeDefaultLightTransform(type), makeDefaultLight(type));
 }
 
 void HierarchyLayer::addRigidBodyToSelection()
@@ -137,11 +247,11 @@ void HierarchyLayer::addLightToEntity(fr::Entity entity, fra::LightType type)
 
     if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
     {
-        mRegistry->AddComponents(entity, fg::TransformComponent {});
+        mRegistry->AddComponents(entity, makeDefaultLightTransform(type));
     }
     if(!mRegistry->HasComponent<fg::LightComponent>(entity))
     {
-        mRegistry->AddComponents(entity, fg::LightComponent {.type = type});
+        mRegistry->AddComponents(entity, makeDefaultLight(type));
     }
     else
     {
@@ -211,12 +321,14 @@ void HierarchyLayer::onGui()
             createCameraEntity();
         }
 
-        if(ImGui::BeginMenu("Light"))
+        if(ImGui::BeginMenu(ICON_BTSP_LIGHT " Light"))
         {
             for(auto type: {fra::LightType::Point, fra::LightType::Directional, fra::LightType::Spot,
                             fra::LightType::Area})
             {
-                if(ImGui::MenuItem(getLightDisplayName(type)))
+                const auto label =
+                    std::format("{} {}", getLightIcon(type), getLightDisplayName(type));
+                if(ImGui::MenuItem(label.c_str()))
                 {
                     createLightEntity(type);
                 }
@@ -250,9 +362,12 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
         ((mSelection->Get() == entity) ? ImGuiTreeNodeFlags_Selected : 0) |
         ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Leaf;
 
-    bool opened =
-        ImGui::TreeNodeEx(reinterpret_cast<void *>(static_cast<uintptr_t>(entity)), flags, "%s",
-                          name.name.c_str());
+    const char *icon = resolveEntityIcon(entity);
+    bool opened      = icon[0] != '\0'
+                           ? ImGui::TreeNodeEx(reinterpret_cast<void *>(static_cast<uintptr_t>(entity)),
+                                              flags, "%s %s", icon, name.name.c_str())
+                           : ImGui::TreeNodeEx(reinterpret_cast<void *>(static_cast<uintptr_t>(entity)),
+                                              flags, "%s", name.name.c_str());
 
     const std::string popUpId  = std::format("##PopUp{}", entity);
     const std::string renameId = std::format("##Rename{}", entity);
@@ -316,12 +431,14 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
             }
         }
 
-        if(ImGui::BeginMenu("Add light"))
+        if(ImGui::BeginMenu(ICON_BTSP_LIGHT " Add light"))
         {
             for(auto type: {fra::LightType::Point, fra::LightType::Directional, fra::LightType::Spot,
                             fra::LightType::Area})
             {
-                if(ImGui::MenuItem(getLightDisplayName(type)))
+                const auto label =
+                    std::format("{} {}", getLightIcon(type), getLightDisplayName(type));
+                if(ImGui::MenuItem(label.c_str()))
                 {
                     addLightToEntity(entity, type);
                 }
@@ -435,8 +552,9 @@ void HierarchyLayer::drawComponents()
         });
 
     mRegistry->TryGetComponents<fg::LightComponent>(
-        selection, [](fg::LightComponent &light) {
-            if(ImGui::CollapsingHeader("Light Component", nullptr, ImGuiWindowFlags_ChildWindow))
+        selection, [this, selection](fg::LightComponent &light) {
+            bool open = true;
+            if(ImGui::CollapsingHeader("Light Component", &open, ImGuiWindowFlags_ChildWindow))
             {
                 int typeIndex = static_cast<int>(light.type);
                 if(ImGui::Combo("Type", &typeIndex, "Point\0Directional\0Spot\0Area\0"))
@@ -446,6 +564,10 @@ void HierarchyLayer::drawComponents()
 
                 ImGui::ColorEdit3("Color", &light.color[0]);
                 ImGui::DragFloat("Intensity", &light.intensity, 0.1f, 0.0f, 1000.0f);
+                if(ImGui::IsItemHovered())
+                {
+                    ImGui::SetTooltip("Relative to IBL / exposure (Dir ~0.5–1, Area ~2–4, Point ~10–20)");
+                }
 
                 if(light.type == fra::LightType::Point || light.type == fra::LightType::Spot)
                 {
@@ -456,6 +578,10 @@ void HierarchyLayer::drawComponents()
                 {
                     ImGui::DragFloat("Inner Angle", &light.innerAngleDegrees, 0.1f, 0.0f, 89.0f);
                     ImGui::DragFloat("Outer Angle", &light.outerAngleDegrees, 0.1f, 0.0f, 89.0f);
+                    if(light.outerAngleDegrees < light.innerAngleDegrees)
+                    {
+                        light.outerAngleDegrees = light.innerAngleDegrees;
+                    }
                 }
 
                 if(light.type == fra::LightType::Area)
@@ -465,6 +591,11 @@ void HierarchyLayer::drawComponents()
                 }
 
                 ImGui::Checkbox("Cast Shadows", &light.castShadows);
+            }
+
+            if(!open && !mSimulation->IsPlaying())
+            {
+                mRegistry->RemoveComponent<fg::LightComponent>(selection);
             }
         });
 
@@ -494,6 +625,8 @@ void HierarchyLayer::drawComponents()
                 }
                 ImGui::EndCombo();
             }
+
+            ImGui::Checkbox("Cast Shadows", &mesh.castShadows);
 
             if(!known)
             {
