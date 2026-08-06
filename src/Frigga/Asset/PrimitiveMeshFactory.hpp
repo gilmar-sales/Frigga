@@ -43,6 +43,12 @@ namespace FRIGGA_NAMESPACE
 
         [[nodiscard]] std::uint32_t GetMesh(PrimitiveType type);
         [[nodiscard]] std::uint32_t GetDefaultMaterial() const;
+        [[nodiscard]] std::uint32_t CreateMaterial(
+            const fra::MaterialCreateInfo &createInfo = {});
+        [[nodiscard]] std::uint32_t DuplicateMaterial(std::uint32_t materialId);
+        void UpdateMaterial(std::uint32_t materialId, const fra::MaterialCreateInfo &createInfo);
+        [[nodiscard]] fra::MaterialCreateInfo GetMaterialCreateInfo(
+            std::uint32_t materialId) const;
         [[nodiscard]] bool TryFindPrimitive(std::uint32_t meshId, PrimitiveType &outType) const;
         [[nodiscard]] static const char *GetDisplayName(PrimitiveType type);
         [[nodiscard]] static bool TryParsePrimitive(std::string_view name, PrimitiveType &outType);
@@ -62,7 +68,8 @@ namespace FRIGGA_NAMESPACE
         skr::Arc<fra::MeshPool> mMeshPool;
         skr::Arc<fra::MaterialPool> mMaterialPool;
         skr::Arc<fra::TexturePool> mTexturePool;
-        std::uint32_t mDefaultMaterial = 0;
+        std::uint32_t mDefaultMaterial       = 0;
+        std::uint32_t mCatalogMaterialSeq    = 1;
         std::array<std::uint32_t, static_cast<std::size_t>(PrimitiveType::Count)> mMeshes {};
         std::array<bool, static_cast<std::size_t>(PrimitiveType::Count)> mCreated {};
     };

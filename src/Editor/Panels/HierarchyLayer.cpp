@@ -673,30 +673,53 @@ void HierarchyLayer::drawComponents()
     });
 
     mRegistry->TryGetComponents<fg::MaterialComponent>(
-        selection, [this](fg::MaterialComponent &material) {
-            if(ImGui::CollapsingHeader("Material Component", nullptr, ImGuiWindowFlags_ChildWindow))
+        selection, [this, selection](fg::MaterialComponent &material) {
+            bool open = true;
+            if(ImGui::CollapsingHeader("Material Component", &open, ImGuiWindowFlags_ChildWindow))
             {
+                ImGui::BeginDisabled(mSimulation->IsPlaying());
+
                 const auto defaultMaterial = mPrimitives->GetDefaultMaterial();
                 const bool isDefault       = material.materialId == defaultMaterial;
-                const char *preview        = isDefault ? "Default" : "Unknown";
 
-                if(ImGui::BeginCombo("Material", preview))
+                ImGui::Text("Material ID: %u%s", material.materialId,
+                            isDefault ? " (Default, shared)" : "");
+                if(isDefault)
                 {
-                    if(ImGui::Selectable("Default", isDefault))
-                    {
-                        material.materialId = defaultMaterial;
-                    }
-                    if(isDefault)
-                    {
-                        ImGui::SetItemDefaultFocus();
-                    }
-                    ImGui::EndCombo();
+                    ImGui::TextDisabled("Make Unique before editing factors.");
                 }
 
-                if(!isDefault)
+                if(ImGui::Button("Assign Default"))
                 {
-                    ImGui::TextDisabled("Material ID: %u", material.materialId);
+                    material.materialId = defaultMaterial;
                 }
+                ImGui::SameLine();
+                if(ImGui::Button("Make Unique"))
+                {
+                    material.materialId = mPrimitives->DuplicateMaterial(material.materialId);
+                }
+
+                ImGui::BeginDisabled(isDefault);
+                auto info     = mPrimitives->GetMaterialCreateInfo(material.materialId);
+                bool changed  = false;
+                changed |= ImGui::ColorEdit3("Albedo", &info.albedoFactor.x);
+                changed |=
+                    ImGui::DragFloat("Roughness", &info.roughnessFactor, 0.01f, 0.0f, 1.0f);
+                changed |=
+                    ImGui::DragFloat("Metalness", &info.metalnessFactor, 0.01f, 0.0f, 1.0f);
+                changed |= ImGui::ColorEdit3("Emissive", &info.emissiveFactor.x);
+                if(changed)
+                {
+                    mPrimitives->UpdateMaterial(material.materialId, info);
+                }
+                ImGui::EndDisabled();
+
+                ImGui::EndDisabled();
+            }
+
+            if(!open && !mSimulation->IsPlaying())
+            {
+                mRegistry->RemoveComponent<fg::MaterialComponent>(selection);
             }
         });
 

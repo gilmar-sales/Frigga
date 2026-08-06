@@ -60,7 +60,8 @@ namespace FRIGGA_NAMESPACE
             mMeshes[i]  = static_cast<std::uint32_t>(i + 1);
             mCreated[i] = true;
         }
-        mDefaultMaterial = 1;
+        mDefaultMaterial    = 1;
+        mCatalogMaterialSeq = 1;
     }
 
     void PrimitiveMeshFactory::createDefaultMaterial()
@@ -74,6 +75,45 @@ namespace FRIGGA_NAMESPACE
             .albedo    = albedo,
             .roughness = roughness,
         });
+    }
+
+    std::uint32_t PrimitiveMeshFactory::GetDefaultMaterial() const
+    {
+        return mDefaultMaterial;
+    }
+
+    std::uint32_t PrimitiveMeshFactory::CreateMaterial(const fra::MaterialCreateInfo &createInfo)
+    {
+        if(mMaterialPool == nullptr)
+        {
+            return ++mCatalogMaterialSeq;
+        }
+        return mMaterialPool->Create(createInfo);
+    }
+
+    std::uint32_t PrimitiveMeshFactory::DuplicateMaterial(std::uint32_t materialId)
+    {
+        return CreateMaterial(GetMaterialCreateInfo(materialId));
+    }
+
+    void PrimitiveMeshFactory::UpdateMaterial(std::uint32_t materialId,
+                                              const fra::MaterialCreateInfo &createInfo)
+    {
+        if(mMaterialPool == nullptr)
+        {
+            return;
+        }
+        mMaterialPool->Update(materialId, createInfo);
+    }
+
+    fra::MaterialCreateInfo PrimitiveMeshFactory::GetMaterialCreateInfo(
+        std::uint32_t materialId) const
+    {
+        if(mMaterialPool == nullptr)
+        {
+            return {};
+        }
+        return mMaterialPool->GetCreateInfo(materialId);
     }
 
     std::uint32_t PrimitiveMeshFactory::GetMesh(PrimitiveType type)
@@ -113,11 +153,6 @@ namespace FRIGGA_NAMESPACE
 
         mCreated[index] = true;
         return mMeshes[index];
-    }
-
-    std::uint32_t PrimitiveMeshFactory::GetDefaultMaterial() const
-    {
-        return mDefaultMaterial;
     }
 
     bool PrimitiveMeshFactory::TryFindPrimitive(std::uint32_t meshId, PrimitiveType &outType) const
