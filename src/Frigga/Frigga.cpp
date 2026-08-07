@@ -1,5 +1,6 @@
 #include "Frigga.hpp"
 
+#include "Asset/AssetRegistry.hpp"
 #include "Asset/PrimitiveMeshFactory.hpp"
 #include "Core/LayerStack.hpp"
 #include "ECS/Components/CameraComponent.hpp"
@@ -48,6 +49,7 @@ namespace FRIGGA_NAMESPACE
     void FriggaExtension::ConfigureServices(skr::ServiceCollection &services)
     {
         services.AddSingleton<fg::PrimitiveMeshFactory>();
+        services.AddSingleton<fg::AssetRegistry>();
         services.AddSingleton<fg::IPhysicsWorld, fg::JoltPhysicsWorld>();
         services.AddSingleton<fg::Scene>();
         services.AddSingleton<fg::SceneSimulationState>();

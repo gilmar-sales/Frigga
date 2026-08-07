@@ -36,12 +36,13 @@ class PreferencesLayer: public fg::Layer
     static bool IsOpen;
 
   private:
-    /// Renderer mutations that rebuild the swapchain / composite pass. Must run
-    /// in onUpdate (before BeginFrame), never mid-ImGui while the UI pass is open.
+    /// Renderer mutations that rebuild GPU resources. Must run in onUpdate
+    /// (before BeginFrame), never mid-ImGui while the UI pass is open.
     struct PendingGraphics
     {
-        std::optional<bool>          vSync;
-        std::optional<std::uint32_t> sampleCount;
+        std::optional<bool>               vSync;
+        std::optional<std::uint32_t>      sampleCount;
+        std::optional<fra::ShadowQuality> shadowQuality;
     };
 
     void drawAppearanceTab();
@@ -50,6 +51,7 @@ class PreferencesLayer: public fg::Layer
     void persist();
     void applyTheme(int themeIndex) const;
     void applyPendingGraphics();
+    void syncShadowPrefsFromOptions();
 
     skr::Arc<fra::Window>           mWindow;
     skr::Arc<fra::Renderer>         mRenderer;

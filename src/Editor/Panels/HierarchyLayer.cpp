@@ -10,6 +10,8 @@
 #include "Frigga/ECS/Components/RigidBodyComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 
+#include <SDL3/SDL_dialog.h>
+
 #include <algorithm>
 #include <format>
 #include <imgui.h>
@@ -17,6 +19,11 @@
 
 namespace
 {
+    const SDL_DialogFileFilter kTextureFilters[] = {
+        {"Images", "png;jpg;jpeg;tga;bmp;hdr;webp"},
+        {"All files", "*"},
+    };
+
     glm::quat LookDown()
     {
         return glm::quatLookAt(glm::vec3 {0.0f, -1.0f, 0.0f}, glm::vec3 {0.0f, 0.0f, 1.0f});
@@ -25,11 +32,14 @@ namespace
 
 HierarchyLayer::HierarchyLayer(skr::Arc<fr::Registry> registry, skr::Arc<fg::Scene> scene,
                                skr::Arc<fg::PrimitiveMeshFactory> primitives,
+                               skr::Arc<fg::AssetRegistry> assets,
                                skr::Arc<SelectionContext> selection,
-                               skr::Arc<fg::SceneSimulationState> simulation)
+                               skr::Arc<fg::SceneSimulationState> simulation,
+                               skr::Arc<fra::Window> window)
     : mRegistry(std::move(registry)), mScene(std::move(scene)),
-      mPrimitives(std::move(primitives)), mSelection(std::move(selection)),
-      mSimulation(std::move(simulation)), nodeToRename(SelectionContext::Invalid)
+      mPrimitives(std::move(primitives)), mAssets(std::move(assets)),
+      mSelection(std::move(selection)), mSimulation(std::move(simulation)),
+      mWindow(std::move(window)), nodeToRename(SelectionContext::Invalid)
 {
 }
 
@@ -317,6 +327,150 @@ void HierarchyLayer::setPrimaryCamera(fr::Entity entity)
         [entity](auto candidate, fg::CameraComponent &camera) {
             camera.primary = (candidate == entity);
         });
+}
+
+void HierarchyLayer::drawTextureSlot(const char *label, PendingTextureSlot slot,
+                                     std::optional<std::uint32_t> &textureId, bool &changed)
+{
+    std::string pathLabel = "(none)";
+    if(textureId)
+    {
+        std::string path;
+        if(mAssets->TryGetTexturePath(*textureId, path))
+        {
+            pathLabel = path;
+        }
+        else
+        {
+            pathLabel = std::format("id {}", *textureId);
+        }
+    }
+
+    ImGui::PushID(label);
+    ImGui::Text("%s", label);
+    ImGui::SameLine();
+    ImGui::TextDisabled("%s", pathLabel.c_str());
+    if(ImGui::Button("Import..."))
+    {
+        requestTextureForSlot(slot);
+    }
+    ImGui::SameLine();
+    ImGui::BeginDisabled(!textureId.has_value());
+    if(ImGui::Button("Clear"))
+    {
+        textureId.reset();
+        changed = true;
+    }
+    ImGui::EndDisabled();
+
+    if(ImGui::BeginCombo("##pick", "From library..."))
+    {
+        for(const auto &texture : mAssets->GetTextures())
+        {
+            const bool selected = textureId && *textureId == texture.textureId;
+            if(ImGui::Selectable(texture.relativePath.c_str(), selected))
+            {
+                textureId = texture.textureId;
+                changed   = true;
+            }
+        }
+        ImGui::EndCombo();
+    }
+    ImGui::PopID();
+}
+
+void HierarchyLayer::requestTextureForSlot(PendingTextureSlot slot)
+{
+    {
+        std::lock_guard lock(mDialogMutex);
+        mPendingTextureSlot   = slot;
+        mPendingTextureEntity = mSelection->Get();
+        mPendingTexturePath.reset();
+    }
+
+    SDL_ShowOpenFileDialog(onTextureDialog, this, mWindow->Get(), kTextureFilters,
+                           static_cast<int>(std::size(kTextureFilters)), nullptr, false);
+}
+
+void HierarchyLayer::onTextureDialog(void *userdata, const char *const *filelist, int)
+{
+    auto *self = static_cast<HierarchyLayer *>(userdata);
+    if(filelist == nullptr || filelist[0] == nullptr)
+    {
+        std::lock_guard lock(self->mDialogMutex);
+        self->mPendingTextureSlot = PendingTextureSlot::None;
+        return;
+    }
+
+    std::lock_guard lock(self->mDialogMutex);
+    self->mPendingTexturePath = filelist[0];
+}
+
+void HierarchyLayer::processPendingTextureImport()
+{
+    PendingTextureSlot slot = PendingTextureSlot::None;
+    std::filesystem::path path;
+    fr::Entity entity = SelectionContext::Invalid;
+    {
+        std::lock_guard lock(mDialogMutex);
+        if(mPendingTextureSlot == PendingTextureSlot::None || !mPendingTexturePath)
+        {
+            return;
+        }
+        slot                  = mPendingTextureSlot;
+        path                  = *mPendingTexturePath;
+        entity                = mPendingTextureEntity;
+        mPendingTextureSlot   = PendingTextureSlot::None;
+        mPendingTexturePath.reset();
+        mPendingTextureEntity = SelectionContext::Invalid;
+    }
+
+    if(entity == SelectionContext::Invalid || mSimulation->IsPlaying())
+    {
+        return;
+    }
+
+    const auto texture = mAssets->ImportTexture(path);
+    if(!texture)
+    {
+        return;
+    }
+
+    mRegistry->TryGetComponents<fg::MaterialComponent>(entity, [&](fg::MaterialComponent &material) {
+        if(material.materialId == mPrimitives->GetDefaultMaterial())
+        {
+            material.materialId =
+                mAssets->DuplicateMaterial(material.materialId, "Unique Material");
+        }
+
+        auto info = mPrimitives->GetMaterialCreateInfo(material.materialId);
+        switch(slot)
+        {
+        case PendingTextureSlot::Albedo:
+            info.albedo = texture->textureId;
+            break;
+        case PendingTextureSlot::Normal:
+            info.normal = texture->textureId;
+            break;
+        case PendingTextureSlot::Roughness:
+            info.roughness = texture->textureId;
+            break;
+        case PendingTextureSlot::Emissive:
+            info.emissive = texture->textureId;
+            break;
+        case PendingTextureSlot::Metalness:
+            info.metalness = texture->textureId;
+            break;
+        case PendingTextureSlot::None:
+            break;
+        }
+        mPrimitives->UpdateMaterial(material.materialId, info);
+    });
+}
+
+void HierarchyLayer::onUpdate()
+{
+    processPendingTextureImport();
 }
 
 void HierarchyLayer::onGui()
@@ -639,35 +793,91 @@ void HierarchyLayer::drawComponents()
     mRegistry->TryGetComponents<fg::MeshComponent>(selection, [this](fg::MeshComponent &mesh) {
         if(ImGui::CollapsingHeader("Mesh Component", nullptr, ImGuiWindowFlags_ChildWindow))
         {
-            fg::PrimitiveType current = fg::PrimitiveType::Cube;
-            const bool known          = mPrimitives->TryFindPrimitive(mesh.meshId, current);
-            const char *preview =
-                known ? fg::PrimitiveMeshFactory::GetDisplayName(current) : "Unknown";
+            fg::PrimitiveType currentPrimitive = fg::PrimitiveType::Cube;
+            const bool isPrimitive =
+                mPrimitives->TryFindPrimitive(mesh.meshId, currentPrimitive);
 
-            if(ImGui::BeginCombo("Primitive", preview))
+            fg::ModelAsset currentModel {};
+            std::uint32_t currentSubmesh = 0;
+            const bool isImported =
+                !isPrimitive &&
+                mAssets->TryFindModelByMeshId(mesh.meshId, currentModel, currentSubmesh);
+
+            std::string preview = "Unknown";
+            if(isPrimitive)
             {
-                for(std::uint8_t i = 0; i < static_cast<std::uint8_t>(fg::PrimitiveType::Count);
-                    ++i)
+                preview = fg::PrimitiveMeshFactory::GetDisplayName(currentPrimitive);
+            }
+            else if(isImported)
+            {
+                preview = currentModel.meshIds.size() == 1
+                              ? currentModel.label
+                              : std::format("{} [{}]", currentModel.label, currentSubmesh);
+            }
+
+            if(ImGui::BeginCombo("Mesh", preview.c_str()))
+            {
+                if(ImGui::BeginMenu("Primitives"))
                 {
-                    const auto type     = static_cast<fg::PrimitiveType>(i);
-                    const bool selected = known && type == current;
-                    if(ImGui::Selectable(fg::PrimitiveMeshFactory::GetDisplayName(type), selected))
+                    for(std::uint8_t i = 0;
+                        i < static_cast<std::uint8_t>(fg::PrimitiveType::Count); ++i)
                     {
-                        mesh.meshId = mPrimitives->GetMesh(type);
+                        const auto type     = static_cast<fg::PrimitiveType>(i);
+                        const bool selected = isPrimitive && type == currentPrimitive;
+                        if(ImGui::Selectable(fg::PrimitiveMeshFactory::GetDisplayName(type),
+                                             selected))
+                        {
+                            mesh.meshId = mPrimitives->GetMesh(type);
+                        }
+                        if(selected)
+                        {
+                            ImGui::SetItemDefaultFocus();
+                        }
                     }
-                    if(selected)
+                    ImGui::EndMenu();
+                }
+
+                if(ImGui::BeginMenu("Imported"))
+                {
+                    if(mAssets->GetModels().empty())
                     {
-                        ImGui::SetItemDefaultFocus();
+                        ImGui::TextDisabled("Import models in Resources");
                     }
+                    for(const auto &model : mAssets->GetModels())
+                    {
+                        for(std::size_t i = 0; i < model.meshIds.size(); ++i)
+                        {
+                            const auto label =
+                                model.meshIds.size() == 1
+                                    ? model.label
+                                    : std::format("{} [{}]", model.label, i);
+                            const bool selected =
+                                isImported && model.relativePath == currentModel.relativePath &&
+                                static_cast<std::uint32_t>(i) == currentSubmesh;
+                            if(ImGui::Selectable(label.c_str(), selected))
+                            {
+                                mesh.meshId = model.meshIds[i];
+                            }
+                            if(selected)
+                            {
+                                ImGui::SetItemDefaultFocus();
+                            }
+                        }
+                    }
+                    ImGui::EndMenu();
                 }
                 ImGui::EndCombo();
             }
 
             ImGui::Checkbox("Cast Shadows", &mesh.castShadows);
 
-            if(!known)
+            if(!isPrimitive)
             {
                 ImGui::TextDisabled("Mesh ID: %u", mesh.meshId);
+                if(isImported)
+                {
+                    ImGui::TextWrapped("Source: Resources/%s", currentModel.relativePath.c_str());
+                }
             }
         }
     });
@@ -686,7 +896,7 @@ void HierarchyLayer::drawComponents()
                             isDefault ? " (Default, shared)" : "");
                 if(isDefault)
                 {
-                    ImGui::TextDisabled("Make Unique before editing factors.");
+                    ImGui::TextDisabled("Make Unique before editing factors/maps.");
                 }
 
                 if(ImGui::Button("Assign Default"))
@@ -696,18 +906,43 @@ void HierarchyLayer::drawComponents()
                 ImGui::SameLine();
                 if(ImGui::Button("Make Unique"))
                 {
-                    material.materialId = mPrimitives->DuplicateMaterial(material.materialId);
+                    material.materialId =
+                        mAssets->DuplicateMaterial(material.materialId, "Unique Material");
+                }
+
+                if(!mAssets->GetMaterials().empty() && ImGui::BeginCombo("Library", "Assign..."))
+                {
+                    for(const auto &asset : mAssets->GetMaterials())
+                    {
+                        const bool selected = asset.materialId == material.materialId;
+                        if(ImGui::Selectable(asset.name.c_str(), selected))
+                        {
+                            material.materialId = asset.materialId;
+                        }
+                    }
+                    ImGui::EndCombo();
                 }
 
                 ImGui::BeginDisabled(isDefault);
-                auto info     = mPrimitives->GetMaterialCreateInfo(material.materialId);
-                bool changed  = false;
+                auto info    = mPrimitives->GetMaterialCreateInfo(material.materialId);
+                bool changed = false;
                 changed |= ImGui::ColorEdit3("Albedo", &info.albedoFactor.x);
                 changed |=
                     ImGui::DragFloat("Roughness", &info.roughnessFactor, 0.01f, 0.0f, 1.0f);
                 changed |=
                     ImGui::DragFloat("Metalness", &info.metalnessFactor, 0.01f, 0.0f, 1.0f);
                 changed |= ImGui::ColorEdit3("Emissive", &info.emissiveFactor.x);
+
+                ImGui::SeparatorText("Maps");
+                drawTextureSlot("Albedo Map", PendingTextureSlot::Albedo, info.albedo, changed);
+                drawTextureSlot("Normal Map", PendingTextureSlot::Normal, info.normal, changed);
+                drawTextureSlot("Roughness Map", PendingTextureSlot::Roughness, info.roughness,
+                                changed);
+                drawTextureSlot("Metalness Map", PendingTextureSlot::Metalness, info.metalness,
+                                changed);
+                drawTextureSlot("Emissive Map", PendingTextureSlot::Emissive, info.emissive,
+                                changed);
+
                 if(changed)
                 {
                     mPrimitives->UpdateMaterial(material.materialId, info);

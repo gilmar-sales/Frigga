@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Frigga/Asset/AssetRegistry.hpp"
 #include "Frigga/Asset/PrimitiveMeshFactory.hpp"
 #include "Frigga/Scene/EditorCamera.hpp"
 
@@ -21,7 +22,8 @@ namespace FRIGGA_NAMESPACE
       public:
         Scene(const skr::Arc<fra::Renderer> &renderer, const skr::Arc<skr::Logger<Scene>> &logger,
               const skr::Arc<fr::Registry> &ecsRegistry,
-              const skr::Arc<PrimitiveMeshFactory> &primitives);
+              const skr::Arc<PrimitiveMeshFactory> &primitives,
+              const skr::Arc<AssetRegistry> &assets);
         ~Scene() = default;
 
         void Update(float ts);
@@ -102,6 +104,7 @@ namespace FRIGGA_NAMESPACE
         skr::Arc<fra::Renderer> mRenderer;
         skr::Arc<skr::Logger<Scene>> mLogger;
         skr::Arc<PrimitiveMeshFactory> mPrimitives;
+        skr::Arc<AssetRegistry> mAssets;
         fr::Entity mMainCameraEntity {};
         EditorCamera mEditorCamera {};
         bool mUseEditorCamera = true;

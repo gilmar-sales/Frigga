@@ -22,7 +22,7 @@ namespace FRIGGA_NAMESPACE
 {
     namespace
     {
-        constexpr int64_t kSceneVersion = 1;
+        constexpr int64_t kSceneVersion = 2;
 
         struct SceneTransformDto
         {
@@ -35,13 +35,26 @@ namespace FRIGGA_NAMESPACE
 
         struct SceneMeshDto
         {
-            std::string          primitive {"Cube"};
-            std::optional<bool>  castShadows;
+            std::optional<std::string> primitive;
+            std::optional<std::string> source;
+            std::optional<int64_t>     index;
+            std::optional<bool>        castShadows;
         };
 
         struct SceneMaterialDto
         {
             [[= simdjson::rename<"default">]] bool isDefault = true;
+            std::optional<std::string>             albedo;
+            std::optional<std::string>             normal;
+            std::optional<std::string>             roughness;
+            std::optional<std::string>             emissive;
+            std::optional<std::string>             metalness;
+            std::optional<std::vector<float>>      albedoFactor;
+            std::optional<float>                   roughnessFactor;
+            std::optional<float>                   metalnessFactor;
+            std::optional<std::vector<float>>      emissiveFactor;
+            std::optional<float>                   aoFactor;
+            std::optional<float>                   alphaCutoff;
         };
 
         struct SceneCameraDto
@@ -300,6 +313,132 @@ namespace FRIGGA_NAMESPACE
             }
             return false;
         }
+
+        std::optional<std::string> TexturePathOrNull(const skr::Arc<AssetRegistry> &assets,
+                                                     std::optional<std::uint32_t> textureId)
+        {
+            if(!textureId || !assets)
+            {
+                return std::nullopt;
+            }
+            std::string path;
+            if(!assets->TryGetTexturePath(*textureId, path))
+            {
+                return std::nullopt;
+            }
+            return path;
+        }
+
+        SceneMaterialDto MaterialToDto(const skr::Arc<PrimitiveMeshFactory> &primitives,
+                                       const skr::Arc<AssetRegistry> &assets,
+                                       std::uint32_t materialId)
+        {
+            if(materialId == primitives->GetDefaultMaterial())
+            {
+                return SceneMaterialDto {.isDefault = true};
+            }
+
+            const auto info = primitives->GetMaterialCreateInfo(materialId);
+            SceneMaterialDto dto {.isDefault = false};
+            dto.albedo    = TexturePathOrNull(assets, info.albedo);
+            dto.normal    = TexturePathOrNull(assets, info.normal);
+            dto.roughness = TexturePathOrNull(assets, info.roughness);
+            dto.emissive  = TexturePathOrNull(assets, info.emissive);
+            dto.metalness = TexturePathOrNull(assets, info.metalness);
+            dto.albedoFactor = std::vector<float> {info.albedoFactor.x, info.albedoFactor.y,
+                                                   info.albedoFactor.z, info.albedoFactor.w};
+            dto.roughnessFactor = info.roughnessFactor;
+            dto.metalnessFactor = info.metalnessFactor;
+            dto.emissiveFactor =
+                std::vector<float> {info.emissiveFactor.x, info.emissiveFactor.y,
+                                    info.emissiveFactor.z};
+            dto.aoFactor     = info.aoFactor;
+            dto.alphaCutoff  = info.alphaCutoff;
+            return dto;
+        }
+
+        bool MaterialFromDto(const skr::Arc<PrimitiveMeshFactory> &primitives,
+                             const skr::Arc<AssetRegistry> &assets,
+                             const skr::Arc<skr::Logger<Scene>> &logger,
+                             const SceneMaterialDto &dto, MaterialComponent &outMaterial)
+        {
+            if(dto.isDefault)
+            {
+                outMaterial.materialId = primitives->GetDefaultMaterial();
+                return true;
+            }
+
+            fra::MaterialCreateInfo info {};
+            auto loadSlot = [&](const std::optional<std::string> &path,
+                                std::optional<std::uint32_t> &slot) {
+                if(!path || path->empty())
+                {
+                    return true;
+                }
+                std::uint32_t textureId = 0;
+                if(!assets || !assets->TryGetTextureId(*path, textureId))
+                {
+                    logger->LogError("Failed to load material texture '{}'", *path);
+                    return false;
+                }
+                slot = textureId;
+                return true;
+            };
+
+            if(!loadSlot(dto.albedo, info.albedo) || !loadSlot(dto.normal, info.normal) ||
+               !loadSlot(dto.roughness, info.roughness) || !loadSlot(dto.emissive, info.emissive) ||
+               !loadSlot(dto.metalness, info.metalness))
+            {
+                return false;
+            }
+
+            if(dto.albedoFactor)
+            {
+                const auto &v = *dto.albedoFactor;
+                if(v.size() == 3)
+                {
+                    info.albedoFactor = {v[0], v[1], v[2], 1.0f};
+                }
+                else if(v.size() >= 4)
+                {
+                    info.albedoFactor = {v[0], v[1], v[2], v[3]};
+                }
+            }
+            if(dto.emissiveFactor)
+            {
+                const auto &v = *dto.emissiveFactor;
+                if(v.size() >= 3)
+                {
+                    info.emissiveFactor = {v[0], v[1], v[2]};
+                }
+            }
+            if(dto.roughnessFactor)
+            {
+                info.roughnessFactor = *dto.roughnessFactor;
+            }
+            if(dto.metalnessFactor)
+            {
+                info.metalnessFactor = *dto.metalnessFactor;
+            }
+            if(dto.aoFactor)
+            {
+                info.aoFactor = *dto.aoFactor;
+            }
+            if(dto.alphaCutoff)
+            {
+                info.alphaCutoff = *dto.alphaCutoff;
+            }
+
+            if(assets)
+            {
+                outMaterial.materialId = assets->CreateMaterial(info, {}, false);
+            }
+            else
+            {
+                outMaterial.materialId = primitives->CreateMaterial(info);
+            }
+            return true;
+        }
     } // namespace
 
     bool SceneSerializer::Serialize(Scene &scene, std::string &outJson)
@@ -325,20 +464,38 @@ namespace FRIGGA_NAMESPACE
                 entity, [&](TransformComponent &transform) { dto.transform = ToDto(transform); });
 
             registry->TryGetComponents<MeshComponent>(entity, [&](MeshComponent &mesh) {
+                SceneMeshDto meshDto {.castShadows = mesh.castShadows};
+
                 PrimitiveType primitive = PrimitiveType::Cube;
-                if(!primitives->TryFindPrimitive(mesh.meshId, primitive))
+                if(primitives->TryFindPrimitive(mesh.meshId, primitive))
                 {
-                    scene.mLogger->LogWarning(
-                        "Scene save: meshId {} on '{}' is not a known primitive; defaulting to Cube",
-                        mesh.meshId, name.name);
-                    primitive = PrimitiveType::Cube;
+                    meshDto.primitive = PrimitiveMeshFactory::GetDisplayName(primitive);
                 }
-                dto.mesh = SceneMeshDto {.primitive = PrimitiveMeshFactory::GetDisplayName(primitive),
-                                         .castShadows = mesh.castShadows};
+                else
+                {
+                    ModelAsset model {};
+                    std::uint32_t submesh = 0;
+                    if(scene.mAssets &&
+                       scene.mAssets->TryFindModelByMeshId(mesh.meshId, model, submesh))
+                    {
+                        meshDto.source = model.relativePath;
+                        meshDto.index  = static_cast<int64_t>(submesh);
+                    }
+                    else
+                    {
+                        scene.mLogger->LogWarning(
+                            "Scene save: meshId {} on '{}' is not a known primitive or imported "
+                            "model; defaulting to Cube",
+                            mesh.meshId, name.name);
+                        meshDto.primitive = PrimitiveMeshFactory::GetDisplayName(PrimitiveType::Cube);
+                    }
+                }
+
+                dto.mesh = std::move(meshDto);
             });
 
-            registry->TryGetComponents<MaterialComponent>(entity, [&](MaterialComponent &) {
-                dto.material = SceneMaterialDto {.isDefault = true};
+            registry->TryGetComponents<MaterialComponent>(entity, [&](MaterialComponent &material) {
+                dto.material = MaterialToDto(primitives, scene.mAssets, material.materialId);
             });
 
             registry->TryGetComponents<CameraComponent>(entity, [&](CameraComponent &camera) {
@@ -485,21 +642,73 @@ namespace FRIGGA_NAMESPACE
             std::optional<MaterialComponent> material;
             if(entityDto.mesh)
             {
-                PrimitiveType primitive = PrimitiveType::Cube;
-                if(!PrimitiveMeshFactory::TryParsePrimitive(entityDto.mesh->primitive, primitive))
+                const auto &meshDto = *entityDto.mesh;
+                std::uint32_t meshId = 0;
+                bool resolved        = false;
+
+                if(meshDto.source && !meshDto.source->empty())
                 {
-                    scene.mLogger->LogError("Unknown primitive '{}' on entity '{}'",
-                                            entityDto.mesh->primitive, entityDto.name);
+                    const auto submesh = static_cast<std::uint32_t>(meshDto.index.value_or(0));
+                    if(!scene.mAssets ||
+                       !scene.mAssets->TryGetMeshId(*meshDto.source, submesh, meshId))
+                    {
+                        scene.mLogger->LogError(
+                            "Failed to load mesh source '{}' (index {}) on entity '{}'",
+                            *meshDto.source, submesh, entityDto.name);
+                        return false;
+                    }
+                    resolved = true;
+                }
+                else
+                {
+                    const std::string primitiveName =
+                        meshDto.primitive.value_or(std::string {"Cube"});
+                    PrimitiveType primitive = PrimitiveType::Cube;
+                    if(!PrimitiveMeshFactory::TryParsePrimitive(primitiveName, primitive))
+                    {
+                        scene.mLogger->LogError("Unknown primitive '{}' on entity '{}'",
+                                                primitiveName, entityDto.name);
+                        return false;
+                    }
+                    meshId   = primitives->GetMesh(primitive);
+                    resolved = true;
+                }
+
+                if(!resolved)
+                {
+                    scene.mLogger->LogError("Mesh on entity '{}' has neither primitive nor source",
+                                            entityDto.name);
                     return false;
                 }
 
-                mesh     = MeshComponent {.meshId = primitives->GetMesh(primitive),
-                                          .castShadows = entityDto.mesh->castShadows.value_or(true)};
-                material = MaterialComponent {.materialId = primitives->GetDefaultMaterial()};
+                mesh = MeshComponent {.meshId = meshId,
+                                      .castShadows = meshDto.castShadows.value_or(true)};
+
+                if(entityDto.material)
+                {
+                    MaterialComponent parsed {};
+                    if(!MaterialFromDto(primitives, scene.mAssets, scene.mLogger,
+                                        *entityDto.material, parsed))
+                    {
+                        return false;
+                    }
+                    material = parsed;
+                }
+                else
+                {
+                    material =
+                        MaterialComponent {.materialId = primitives->GetDefaultMaterial()};
+                }
             }
             else if(entityDto.material)
             {
-                material = MaterialComponent {.materialId = primitives->GetDefaultMaterial()};
+                MaterialComponent parsed {};
+                if(!MaterialFromDto(primitives, scene.mAssets, scene.mLogger, *entityDto.material,
+                                    parsed))
+                {
+                    return false;
+                }
+                material = parsed;
             }
 
             std::optional<CameraComponent> camera;

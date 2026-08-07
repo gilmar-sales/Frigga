@@ -18,6 +18,8 @@
 #include <Frigga/Frigga.hpp>
 #include <Frigga/Gui/Styles/Styles.hpp>
 
+#include <algorithm>
+
 namespace
 {
     void ApplyTheme(int themeIndex)
@@ -48,19 +50,43 @@ namespace
     void ApplyGraphicsPreferences(fra::FreyaOptionsBuilder &builder,
                                   const GraphicsPreferences &graphics)
     {
-        builder.SetFullscreen(graphics.fullscreen)
+        const auto shadowQuality = static_cast<fra::ShadowQuality>(
+            std::clamp(graphics.shadowQuality, 0, 3));
+
+        builder.SetTitle(graphics.title)
+            .SetWidth(graphics.width)
+            .SetHeight(graphics.height)
+            .SetFullscreen(graphics.fullscreen)
             .SetVSync(graphics.vSync)
             .SetSampleCount(graphics.sampleCount)
+            .SetFrameCount(graphics.frameCount)
+            .SetClearColor(vk::ClearColorValue {
+                static_cast<float>(graphics.clearColorR),
+                static_cast<float>(graphics.clearColorG),
+                static_cast<float>(graphics.clearColorB),
+                static_cast<float>(graphics.clearColorA),
+            })
             .SetDrawDistance(static_cast<float>(graphics.drawDistance))
+            .SetMaxLights(graphics.maxLights)
             .SetIblIntensity(static_cast<float>(graphics.iblIntensity))
             .SetExposure(static_cast<float>(graphics.exposure))
             .SetAmbient(glm::vec3(static_cast<float>(graphics.ambientColorR),
                                   static_cast<float>(graphics.ambientColorG),
                                   static_cast<float>(graphics.ambientColorB)),
                         static_cast<float>(graphics.ambientIntensity))
-            .SetFrameCount(graphics.frameCount)
-            .SetMaxLights(graphics.maxLights)
             .SetEnvironmentMapPath(graphics.environmentMapPath)
+            .SetShaderRoot(graphics.shaderRoot)
+            .SetShadowQuality(shadowQuality)
+            .SetShadowCascadeCount(graphics.shadowCascadeCount)
+            .SetShadowMapResolution(graphics.shadowMapResolution)
+            .SetShadowBias(static_cast<float>(graphics.shadowBias))
+            .SetShadowLightSize(static_cast<float>(graphics.shadowLightSize))
+            .SetShadowMaxSoftness(static_cast<float>(graphics.shadowMaxSoftness))
+            .SetShadowMinVisibility(
+                static_cast<float>(graphics.shadowMinVisibility))
+            .SetMaxSpotShadows(graphics.maxSpotShadows)
+            .SetMaxPointShadows(graphics.maxPointShadows)
+            .SetShadowSampleCount(graphics.shadowSampleCount)
             .WithReverseZ(graphics.reverseZ)
             .SetEnableSsao(graphics.enableSsao)
             .SetEnableTaa(graphics.enableTaa)

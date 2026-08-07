@@ -1,5 +1,6 @@
 #include "EmptyApp.hpp"
 
+#include <Frigga/Asset/AssetRegistry.hpp>
 #include <Frigga/Asset/PrimitiveMeshFactory.hpp>
 #include <Frigga/ECS/Components/CameraComponent.hpp>
 #include <Frigga/ECS/Components/LightComponent.hpp>
@@ -207,8 +208,9 @@ class SceneSerializerSpec: public ::testing::Test
         mRegistry   = mApp->GetRootServiceProvider()->GetService<fr::Registry>();
         mLogger     = skr::MakeArc<skr::Logger<fg::Scene>>(skr::MakeArc<skr::LoggerOptions>());
         mPrimitives = skr::MakeArc<fg::PrimitiveMeshFactory>(fg::PrimitiveMeshFactory::Catalog);
+        mAssets     = skr::MakeArc<fg::AssetRegistry>(fg::AssetRegistry::Catalog);
         mScene      = skr::MakeArc<fg::Scene>(skr::Arc<fra::Renderer> {}, mLogger, mRegistry,
-                                              mPrimitives);
+                                              mPrimitives, mAssets);
 
         ASSERT_EQ(mPrimitives->GetMesh(fg::PrimitiveType::Cube), 1u);
         ASSERT_EQ(mPrimitives->GetDefaultMaterial(), 1u);
@@ -217,6 +219,7 @@ class SceneSerializerSpec: public ::testing::Test
     void TearDown() override
     {
         mScene.reset();
+        mAssets.reset();
         mPrimitives.reset();
         mLogger.reset();
         mRegistry.reset();
@@ -227,6 +230,7 @@ class SceneSerializerSpec: public ::testing::Test
     skr::Arc<fr::Registry> mRegistry;
     skr::Arc<skr::Logger<fg::Scene>> mLogger;
     skr::Arc<fg::PrimitiveMeshFactory> mPrimitives;
+    skr::Arc<fg::AssetRegistry> mAssets;
     skr::Arc<fg::Scene> mScene;
 };
 
