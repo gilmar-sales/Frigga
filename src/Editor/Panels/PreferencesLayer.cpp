@@ -105,12 +105,6 @@ void PreferencesLayer::applyPendingGraphics()
         mPendingGraphics.sampleCount.reset();
         recreatePipeline = true;
     }
-    if(mPendingGraphics.strategy.has_value())
-    {
-        mRenderer->SetRenderingStrategy(*mPendingGraphics.strategy);
-        mPendingGraphics.strategy.reset();
-        recreatePipeline = true;
-    }
 
     if(recreatePipeline)
     {
@@ -162,16 +156,6 @@ void PreferencesLayer::drawGraphicsTab()
     {
         mRenderer->SetDrawDistance(drawDistance);
         prefs.drawDistance = drawDistance;
-        persist();
-    }
-
-    int strategy = static_cast<int>(
-        mPendingGraphics.strategy.value_or(mRenderer->GetRenderingStrategy()));
-    if(ImGui::Combo("Strategy", &strategy, "Forward\0Deferred\0"))
-    {
-        mPendingGraphics.strategy =
-            static_cast<fra::RenderingStrategy>(strategy);
-        prefs.renderingStrategy = strategy;
         persist();
     }
 
@@ -249,6 +233,27 @@ void PreferencesLayer::drawGraphicsTab()
     }
     RestartHint();
     ImGui::TextDisabled("Active: %s", mFreyaOptions->ReverseZ ? "on" : "off");
+
+    if(ImGui::Checkbox("SSAO", &prefs.enableSsao))
+    {
+        persist();
+    }
+    RestartHint();
+    ImGui::TextDisabled("Active: %s", mFreyaOptions->enableSsao ? "on" : "off");
+
+    if(ImGui::Checkbox("TAA", &prefs.enableTaa))
+    {
+        persist();
+    }
+    RestartHint();
+    ImGui::TextDisabled("Active: %s", mFreyaOptions->enableTaa ? "on" : "off");
+
+    if(ImGui::Checkbox("Bloom", &prefs.enableBloom))
+    {
+        persist();
+    }
+    RestartHint();
+    ImGui::TextDisabled("Active: %s", mFreyaOptions->enableBloom ? "on" : "off");
 }
 
 void PreferencesLayer::drawEcsTab()

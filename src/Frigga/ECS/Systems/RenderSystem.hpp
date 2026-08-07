@@ -2,7 +2,7 @@
 
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 
-#include <Freya/Freya.hpp>
+#include <Freya/Vulkan.hpp>
 #include <Freyr/Freyr.hpp>
 
 #include <vector>

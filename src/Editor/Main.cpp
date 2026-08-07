@@ -52,8 +52,6 @@ namespace
             .SetVSync(graphics.vSync)
             .SetSampleCount(graphics.sampleCount)
             .SetDrawDistance(static_cast<float>(graphics.drawDistance))
-            .SetRenderingStrategy(
-                static_cast<fra::RenderingStrategy>(graphics.renderingStrategy))
             .SetIblIntensity(static_cast<float>(graphics.iblIntensity))
             .SetExposure(static_cast<float>(graphics.exposure))
             .SetAmbient(glm::vec3(static_cast<float>(graphics.ambientColorR),
@@ -63,7 +61,10 @@ namespace
             .SetFrameCount(graphics.frameCount)
             .SetMaxLights(graphics.maxLights)
             .SetEnvironmentMapPath(graphics.environmentMapPath)
-            .WithReverseZ(graphics.reverseZ);
+            .WithReverseZ(graphics.reverseZ)
+            .SetEnableSsao(graphics.enableSsao)
+            .SetEnableTaa(graphics.enableTaa)
+            .SetEnableBloom(graphics.enableBloom);
     }
 } // namespace
 

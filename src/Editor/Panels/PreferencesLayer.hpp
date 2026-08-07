@@ -40,9 +40,8 @@ class PreferencesLayer: public fg::Layer
     /// in onUpdate (before BeginFrame), never mid-ImGui while the UI pass is open.
     struct PendingGraphics
     {
-        std::optional<bool>                    vSync;
-        std::optional<std::uint32_t>           sampleCount;
-        std::optional<fra::RenderingStrategy>  strategy;
+        std::optional<bool>          vSync;
+        std::optional<std::uint32_t> sampleCount;
     };
 
     void drawAppearanceTab();

@@ -123,7 +123,7 @@ src/
 CMakeLists.txt
 ```
 
-Pinned FetchContent tags (see root `CMakeLists.txt`): Freyr `v0.29.0`, Freya `v0.25.0`, Jolt `v5.3.0`, ImGui `docking` fork.
+Pinned FetchContent tags (see root `CMakeLists.txt`): Freyr `v0.29.0`, Freya `v0.28.0`, Jolt `v5.3.0`, ImGui `docking` fork.
 
 ## License
 

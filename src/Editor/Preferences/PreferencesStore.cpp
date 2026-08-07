@@ -69,7 +69,6 @@ void PreferencesStore::Save(const EditorPreferences &preferences,
     json << "    \"fullscreen\": " << g.fullscreen << ",\n";
     json << "    \"sampleCount\": " << g.sampleCount << ",\n";
     json << "    \"drawDistance\": " << g.drawDistance << ",\n";
-    json << "    \"renderingStrategy\": " << g.renderingStrategy << ",\n";
     json << "    \"iblIntensity\": " << g.iblIntensity << ",\n";
     json << "    \"exposure\": " << g.exposure << ",\n";
     json << "    \"ambientColorR\": " << g.ambientColorR << ",\n";
@@ -79,7 +78,10 @@ void PreferencesStore::Save(const EditorPreferences &preferences,
     json << "    \"frameCount\": " << g.frameCount << ",\n";
     json << "    \"maxLights\": " << g.maxLights << ",\n";
     json << "    \"environmentMapPath\": \"" << EscapeJson(g.environmentMapPath) << "\",\n";
-    json << "    \"reverseZ\": " << g.reverseZ << "\n";
+    json << "    \"reverseZ\": " << g.reverseZ << ",\n";
+    json << "    \"enableSsao\": " << g.enableSsao << ",\n";
+    json << "    \"enableTaa\": " << g.enableTaa << ",\n";
+    json << "    \"enableBloom\": " << g.enableBloom << "\n";
     json << "  },\n";
     json << "  \"ecs\": {\n";
     json << "    \"maxEntities\": " << e.maxEntities << ",\n";

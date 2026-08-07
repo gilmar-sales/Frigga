@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Backends/imgui_impl_sdl3.h"
-#include "Freya/Freya.hpp"
+#include <Freya/Vulkan.hpp>
 
 #include "Frigga/Core/Layer.hpp"
 
@@ -28,7 +28,7 @@ namespace FRIGGA_NAMESPACE
         void end();
 
         /// Recreate the ImGui Vulkan main pipeline after Freya rebuilds the UI
-        /// render pass (swapchain/VSync, MSAA, rendering strategy, resize, …).
+        /// render pass (swapchain/VSync, MSAA, resize, …).
         static void RecreateMainPipeline(const skr::Arc<fra::Renderer> &renderer);
 
         void setBlockEvents(bool block)

@@ -19,7 +19,6 @@ struct GraphicsPreferences
     bool          fullscreen        = false;
     std::uint32_t sampleCount       = 1;
     double        drawDistance      = 1000.0;
-    int           renderingStrategy = 0; ///< 0 = Forward, 1 = Deferred
     double        iblIntensity      = 0.7;
     double        exposure          = 0.7;
     double        ambientColorR     = 1.0;
@@ -32,7 +31,10 @@ struct GraphicsPreferences
     std::uint32_t maxLights          = 16;
     std::string   environmentMapPath =
         "./Resources/Environments/studio_small_09_4k.hdr";
-    bool reverseZ = false;
+    bool reverseZ    = false;
+    bool enableSsao  = true;
+    bool enableTaa   = true;
+    bool enableBloom = true;
 };
 
 struct EcsPreferences
