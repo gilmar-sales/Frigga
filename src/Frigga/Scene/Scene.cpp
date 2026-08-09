@@ -111,7 +111,8 @@ namespace FRIGGA_NAMESPACE
         ClearEntities();
         CreateDefaultEntities();
         mPath.clear();
-        mUseEditorCamera = true;
+        PreferEditorCamera();
+        ClearRenderIsolation();
         mLogger->LogInformation("Created new scene");
     }
 
@@ -146,8 +147,9 @@ namespace FRIGGA_NAMESPACE
         }
 
         FlushEcs();
-        mPath            = path;
-        mUseEditorCamera = true;
+        mPath = path;
+        PreferEditorCamera();
+        ClearRenderIsolation();
         return true;
     }
 

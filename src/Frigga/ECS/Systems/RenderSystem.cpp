@@ -76,6 +76,14 @@ namespace FRIGGA_NAMESPACE
 
     void RenderSystem::updateCamera()
     {
+        if(mScene->IsUsingPreviewCamera())
+        {
+            const auto &previewCamera = mScene->GetPreviewCamera();
+            applyCameraPose(previewCamera.transform, previewCamera.fovDegrees,
+                            previewCamera.nearPlane, previewCamera.farPlane);
+            return;
+        }
+
         if(mScene->IsUsingEditorCamera())
         {
             const auto &editorCamera = mScene->GetEditorCamera();
@@ -172,9 +180,18 @@ namespace FRIGGA_NAMESPACE
     {
         mSceneInstances.clear();
 
+        const bool isolate = mScene->IsUsingPreviewCamera() && mScene->HasRenderIsolation();
+        const fr::Entity isolatedEntity = isolate ? mScene->GetRenderIsolation()
+                                                  : static_cast<fr::Entity>(-1);
+
         mRegistry->CreateMutation()->Each<TransformComponent, MeshComponent, MaterialComponent>(
-            [this](auto entity, TransformComponent &transform, MeshComponent &mesh,
-                   MaterialComponent &material) {
+            [this, isolate, isolatedEntity](auto entity, TransformComponent &transform,
+                                            MeshComponent &mesh, MaterialComponent &material) {
+                if(isolate && entity != isolatedEntity)
+                {
+                    return;
+                }
+
                 glm::mat4 model = glm::translate(glm::mat4(1.0f), transform.position);
                 model           = model * glm::mat4_cast(transform.rotation);
                 model           = glm::scale(model, transform.scale);

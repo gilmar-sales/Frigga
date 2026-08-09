@@ -8,7 +8,9 @@
 #include <Freyr/Freyr.hpp>
 #include <Skirnir/Skirnir.hpp>
 
+#include <cstdint>
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -78,22 +80,69 @@ namespace FRIGGA_NAMESPACE
             return mEditorCamera;
         }
 
+        [[nodiscard]] EditorCamera &GetPreviewCamera()
+        {
+            return mPreviewCamera;
+        }
+
+        [[nodiscard]] const EditorCamera &GetPreviewCamera() const
+        {
+            return mPreviewCamera;
+        }
+
         void PreferEditorCamera()
         {
-            mUseEditorCamera = true;
+            mCameraMode = CameraMode::Editor;
         }
 
         void PreferGameplayCamera()
         {
-            mUseEditorCamera = false;
+            mCameraMode = CameraMode::Gameplay;
+        }
+
+        void PreferPreviewCamera()
+        {
+            mCameraMode = CameraMode::Preview;
         }
 
         [[nodiscard]] bool IsUsingEditorCamera() const
         {
-            return mUseEditorCamera;
+            return mCameraMode == CameraMode::Editor;
+        }
+
+        [[nodiscard]] bool IsUsingPreviewCamera() const
+        {
+            return mCameraMode == CameraMode::Preview;
+        }
+
+        void SetRenderIsolation(fr::Entity entity)
+        {
+            mRenderIsolation = entity;
+        }
+
+        void ClearRenderIsolation()
+        {
+            mRenderIsolation.reset();
+        }
+
+        [[nodiscard]] bool HasRenderIsolation() const
+        {
+            return mRenderIsolation.has_value();
+        }
+
+        [[nodiscard]] fr::Entity GetRenderIsolation() const
+        {
+            return mRenderIsolation.value_or(static_cast<fr::Entity>(-1));
         }
 
       private:
+        enum class CameraMode : std::uint8_t
+        {
+            Editor = 0,
+            Gameplay,
+            Preview,
+        };
+
         friend class SceneSerializer;
 
         void ClearEntities();
@@ -107,7 +156,9 @@ namespace FRIGGA_NAMESPACE
         skr::Arc<AssetRegistry> mAssets;
         fr::Entity mMainCameraEntity {};
         EditorCamera mEditorCamera {};
-        bool mUseEditorCamera = true;
+        EditorCamera mPreviewCamera {};
+        CameraMode mCameraMode = CameraMode::Editor;
+        std::optional<fr::Entity> mRenderIsolation {};
         std::filesystem::path mPath {};
     };
 
