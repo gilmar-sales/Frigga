@@ -172,7 +172,24 @@ namespace FRIGGA_NAMESPACE
         }
         else
         {
-            asset.meshIds = mMeshPool->CreateMeshFromFile(absolutePath.string());
+            // Prefer the skinned loader when the file contains a skeleton.
+            auto skinned = mMeshPool->CreateSkinnedModelFromFile(absolutePath.string());
+            if(skinned.skeleton.JointCount() > 0 && !skinned.meshIds.empty())
+            {
+                asset.skinned  = true;
+                asset.meshIds  = std::move(skinned.meshIds);
+                asset.skeleton = std::move(skinned.skeleton);
+                asset.clips    = std::move(skinned.clips);
+                for(auto &clip : asset.clips)
+                {
+                    fra::EnsureDefaultFootstepEvents(clip);
+                }
+            }
+            else
+            {
+                asset.meshIds = mMeshPool->CreateMeshFromFile(absolutePath.string());
+            }
+
             if(asset.meshIds.empty())
             {
                 if(mLogger)
@@ -184,14 +201,25 @@ namespace FRIGGA_NAMESPACE
         }
 
         mModelIndexByPath.emplace(key, mModels.size());
-        mModels.push_back(asset);
+        mModels.push_back(std::move(asset));
 
         if(mLogger)
         {
-            mLogger->LogInformation("Imported model '{}' ({} meshes)", key, asset.meshIds.size());
+            const auto &stored = mModels.back();
+            if(stored.skinned)
+            {
+                mLogger->LogInformation(
+                    "Imported skinned model '{}' ({} meshes, {} joints, {} clips)", key,
+                    stored.meshIds.size(), stored.skeleton.JointCount(), stored.clips.size());
+            }
+            else
+            {
+                mLogger->LogInformation("Imported model '{}' ({} meshes)", key,
+                                        stored.meshIds.size());
+            }
         }
 
-        return asset;
+        return mModels.back();
     }
 
     std::optional<TextureAsset> AssetRegistry::loadTextureAbsolute(
@@ -434,6 +462,30 @@ namespace FRIGGA_NAMESPACE
         }
         outTextureId = texture->textureId;
         return true;
+    }
+
+    const ModelAsset *AssetRegistry::FindModel(std::string_view relativePath) const
+    {
+        const auto key = normalizeRelativeKey(relativePath);
+        const auto it  = mModelIndexByPath.find(key);
+        if(it == mModelIndexByPath.end())
+        {
+            return nullptr;
+        }
+        return &mModels[it->second];
+    }
+
+    std::vector<const ModelAsset *> AssetRegistry::GetSkinnedModelsWithClips() const
+    {
+        std::vector<const ModelAsset *> result;
+        for(const auto &model : mModels)
+        {
+            if(model.skinned && !model.clips.empty())
+            {
+                result.push_back(&model);
+            }
+        }
+        return result;
     }
 
 } // namespace FRIGGA_NAMESPACE

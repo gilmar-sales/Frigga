@@ -93,7 +93,8 @@ namespace
             .SetSsaoPower(static_cast<float>(graphics.ssaoPower))
             .SetSsaoIntensity(static_cast<float>(graphics.ssaoIntensity))
             .SetSsaoDebugView(ssaoDebugView)
-            .WithReverseZ(graphics.reverseZ);
+            .WithReverseZ(graphics.reverseZ)
+            .SetAnimationQuality(fra::AnimationQuality::High);
     }
 } // namespace
 

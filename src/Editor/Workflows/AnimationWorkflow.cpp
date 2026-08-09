@@ -1,22 +1,26 @@
 #include "AnimationWorkflow.hpp"
 
 #include "Editor/DockLayout.hpp"
+#include "Editor/Panels/AnimationClipsLayer.hpp"
+#include "Editor/Panels/AnimationTimelineLayer.hpp"
+#include "Editor/Panels/AnimatorPanelLayer.hpp"
 #include "Editor/Panels/PlaceholderLayer.hpp"
 
 #include <imgui_internal.h>
 
-AnimationWorkflow::AnimationWorkflow(skr::Arc<HierarchyLayer> hierarchy)
+AnimationWorkflow::AnimationWorkflow(skr::Arc<HierarchyLayer> hierarchy,
+                                     skr::Arc<fg::AssetRegistry> assets,
+                                     skr::Arc<SelectionContext> selection,
+                                     skr::Arc<fr::Registry> registry,
+                                     skr::Arc<fg::SceneSimulationState> simulation)
     : Workflow("Animation",
                {
                    hierarchy,
-                   skr::MakeArc<PlaceholderLayer>(
-                       "Timeline", "Keyframe timeline for clips, tracks, and sequences."),
-                   skr::MakeArc<PlaceholderLayer>(
-                       "Animator", "State machines, blend trees, and transition graphs."),
+                   skr::MakeArc<AnimationTimelineLayer>(assets, selection, registry),
+                   skr::MakeArc<AnimatorPanelLayer>(assets, selection, registry, simulation),
                    skr::MakeArc<PlaceholderLayer>(
                        "Curve Editor", "Edit animation curves, keys, and tangents."),
-                   skr::MakeArc<PlaceholderLayer>(
-                       "Animation Clips", "Browse, import, and preview animation clips."),
+                   skr::MakeArc<AnimationClipsLayer>(assets, selection, registry, simulation),
                })
 {
 }

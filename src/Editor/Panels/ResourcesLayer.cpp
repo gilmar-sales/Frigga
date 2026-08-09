@@ -1,6 +1,7 @@
 #include "ResourcesLayer.hpp"
 
 #include "Editor/DockLayout.hpp"
+#include "Frigga/ECS/Components/AnimatorComponent.hpp"
 #include "Frigga/ECS/Components/MaterialComponent.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/NameComponent.hpp"
@@ -479,10 +480,28 @@ void ResourcesLayer::spawnModel(const std::filesystem::path &relativePath)
         const auto name = model->meshIds.size() == 1
                               ? model->label
                               : std::format("{} ({})", model->label, i);
-        const auto entity = mRegistry->CreateEntity(
-            fg::NameComponent {.name = name}, fg::TransformComponent {},
-            fg::MeshComponent {.meshId = model->meshIds[i]},
-            fg::MaterialComponent {.materialId = mPrimitives->GetDefaultMaterial()});
+
+        fr::Entity entity {};
+        if(model->skinned && !model->clips.empty())
+        {
+            entity = mRegistry->CreateEntity(
+                fg::NameComponent {.name = name},
+                fg::TransformComponent {.scale = model->label.find("Fox") != std::string::npos
+                                                     ? glm::vec3(0.02f)
+                                                     : glm::vec3(1.0f)},
+                fg::MeshComponent {.meshId = model->meshIds[i]},
+                fg::MaterialComponent {.materialId = mPrimitives->GetDefaultMaterial()},
+                fg::AnimatorComponent {.modelSource = model->relativePath, .playing = true,
+                                       .previewInEdit = true});
+        }
+        else
+        {
+            entity = mRegistry->CreateEntity(
+                fg::NameComponent {.name = name}, fg::TransformComponent {},
+                fg::MeshComponent {.meshId = model->meshIds[i]},
+                fg::MaterialComponent {.materialId = mPrimitives->GetDefaultMaterial()});
+        }
+
         if(first == SelectionContext::Invalid)
         {
             first = entity;
@@ -492,7 +511,8 @@ void ResourcesLayer::spawnModel(const std::filesystem::path &relativePath)
     {
         mSelection->Select(first);
     }
-    mStatus = std::format("Spawned model '{}' ({} meshes)", model->label, model->meshIds.size());
+    mStatus = std::format("Spawned model '{}' ({} meshes{})", model->label, model->meshIds.size(),
+                          model->skinned ? ", skinned" : "");
 }
 
 void ResourcesLayer::spawnSelected()

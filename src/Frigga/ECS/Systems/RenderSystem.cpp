@@ -1,5 +1,6 @@
 #include "RenderSystem.hpp"
 
+#include "../Components/AnimatorComponent.hpp"
 #include "../Components/CameraComponent.hpp"
 #include "../Components/LightComponent.hpp"
 #include "../Components/MaterialComponent.hpp"
@@ -178,13 +179,24 @@ namespace FRIGGA_NAMESPACE
                 model           = model * glm::mat4_cast(transform.rotation);
                 model           = glm::scale(model, transform.scale);
 
-                mSceneInstances.push_back({
+                fra::SceneInstanceUpload upload {
                     .model       = model,
                     .meshId      = mesh.meshId,
                     .materialId  = material.materialId,
                     .entityId    = static_cast<std::uint32_t>(entity),
                     .castShadows = mesh.castShadows,
-                });
+                };
+
+                mRegistry->TryGetComponents<AnimatorComponent>(
+                    entity, [&](AnimatorComponent &animator) {
+                        if(animator.boneCount > 0 && animator.boneOffset != fra::kNoSkin)
+                        {
+                            upload.boneOffset = animator.boneOffset;
+                            upload.boneCount  = animator.boneCount;
+                        }
+                    });
+
+                mSceneInstances.push_back(upload);
             });
 
         // Prefer entityId order so Freya resolves TAA prevModel by entity.

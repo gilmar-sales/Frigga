@@ -1,5 +1,6 @@
 #include "SceneSerializer.hpp"
 
+#include "Frigga/ECS/Components/AnimatorComponent.hpp"
 #include "Frigga/ECS/Components/CameraComponent.hpp"
 #include "Frigga/ECS/Components/LightComponent.hpp"
 #include "Frigga/ECS/Components/MaterialComponent.hpp"
@@ -22,7 +23,7 @@ namespace FRIGGA_NAMESPACE
 {
     namespace
     {
-        constexpr int64_t kSceneVersion = 2;
+        constexpr int64_t kSceneVersion = 3;
 
         struct SceneTransformDto
         {
@@ -95,6 +96,18 @@ namespace FRIGGA_NAMESPACE
             int64_t            collideWithLayers = 0xffff;
         };
 
+        struct SceneAnimatorDto
+        {
+            std::string          modelSource;
+            std::optional<std::string> clipName;
+            std::optional<float> timeSec;
+            std::optional<float> speed;
+            std::optional<bool>  playing;
+            std::optional<bool>  loop;
+            std::optional<bool>  useGpu;
+            std::optional<bool>  previewInEdit;
+        };
+
         struct SceneEntityDto
         {
             std::string                        name;
@@ -104,6 +117,7 @@ namespace FRIGGA_NAMESPACE
             std::optional<SceneCameraDto>      camera;
             std::optional<SceneLightDto>       light;
             std::optional<SceneRigidBodyDto>   rigidBody;
+            std::optional<SceneAnimatorDto>    animator;
         };
 
         struct SceneEditorCameraDto
@@ -566,6 +580,19 @@ namespace FRIGGA_NAMESPACE
                 };
             });
 
+            registry->TryGetComponents<AnimatorComponent>(entity, [&](AnimatorComponent &animator) {
+                dto.animator = SceneAnimatorDto {
+                    .modelSource   = animator.modelSource,
+                    .clipName      = animator.clipName,
+                    .timeSec       = animator.timeSec,
+                    .speed         = animator.speed,
+                    .playing       = animator.playing,
+                    .loop          = animator.loop,
+                    .useGpu        = animator.useGpu,
+                    .previewInEdit = animator.previewInEdit,
+                };
+            });
+
             document.entities.push_back(std::move(dto));
         });
 
@@ -823,6 +850,31 @@ namespace FRIGGA_NAMESPACE
                 rigidBody = rb;
             }
 
+            std::optional<AnimatorComponent> animator;
+            if(entityDto.animator)
+            {
+                const auto &animDto = *entityDto.animator;
+                if(animDto.modelSource.empty())
+                {
+                    scene.mLogger->LogError("Animator on '{}' missing modelSource", entityDto.name);
+                    return false;
+                }
+                if(scene.mAssets)
+                {
+                    (void)scene.mAssets->LoadModel(animDto.modelSource);
+                }
+                animator = AnimatorComponent {
+                    .modelSource   = animDto.modelSource,
+                    .clipName      = animDto.clipName.value_or(std::string {}),
+                    .timeSec       = animDto.timeSec.value_or(0.0f),
+                    .speed         = animDto.speed.value_or(1.0f),
+                    .playing       = animDto.playing.value_or(true),
+                    .loop          = animDto.loop.value_or(true),
+                    .useGpu        = animDto.useGpu.value_or(false),
+                    .previewInEdit = animDto.previewInEdit.value_or(true),
+                };
+            }
+
             // Prefer a single CreateEntity(Name, ...) so Freyr writes one archetype row.
             // Piecewise AddComponents without per-step flush corrupt deferred migrations.
             fr::Entity entity {};
@@ -832,28 +884,38 @@ namespace FRIGGA_NAMESPACE
             const bool hasC  = camera.has_value();
             const bool hasL  = light.has_value();
             const bool hasR  = rigidBody.has_value();
+            const bool hasA  = animator.has_value();
 
-            if(hasT && hasM && hasMat && !hasC && !hasL && hasR)
+            if(hasT && hasM && hasMat && !hasC && !hasL && hasR && hasA)
+            {
+                entity = registry->CreateEntity(name, *transform, *mesh, *material, *rigidBody,
+                                                *animator);
+            }
+            else if(hasT && hasM && hasMat && !hasC && !hasL && !hasR && hasA)
+            {
+                entity = registry->CreateEntity(name, *transform, *mesh, *material, *animator);
+            }
+            else if(hasT && hasM && hasMat && !hasC && !hasL && hasR && !hasA)
             {
                 entity = registry->CreateEntity(name, *transform, *mesh, *material, *rigidBody);
             }
-            else if(hasT && hasM && hasMat && !hasC && !hasL && !hasR)
+            else if(hasT && hasM && hasMat && !hasC && !hasL && !hasR && !hasA)
             {
                 entity = registry->CreateEntity(name, *transform, *mesh, *material);
             }
-            else if(hasT && !hasM && !hasMat && hasC && !hasL && !hasR)
+            else if(hasT && !hasM && !hasMat && hasC && !hasL && !hasR && !hasA)
             {
                 entity = registry->CreateEntity(name, *transform, *camera);
             }
-            else if(hasT && !hasM && !hasMat && !hasC && hasL && !hasR)
+            else if(hasT && !hasM && !hasMat && !hasC && hasL && !hasR && !hasA)
             {
                 entity = registry->CreateEntity(name, *transform, *light);
             }
-            else if(hasT && !hasM && !hasMat && !hasC && !hasL && !hasR)
+            else if(hasT && !hasM && !hasMat && !hasC && !hasL && !hasR && !hasA)
             {
                 entity = registry->CreateEntity(name, *transform);
             }
-            else if(!hasT && !hasM && !hasMat && !hasC && !hasL && !hasR)
+            else if(!hasT && !hasM && !hasMat && !hasC && !hasL && !hasR && !hasA)
             {
                 entity = registry->CreateEntity(name);
             }
@@ -896,6 +958,10 @@ namespace FRIGGA_NAMESPACE
                 if(hasR)
                 {
                     attach(*rigidBody);
+                }
+                if(hasA)
+                {
+                    attach(*animator);
                 }
             }
 

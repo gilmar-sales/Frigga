@@ -3,6 +3,7 @@
 #include "Asset/AssetRegistry.hpp"
 #include "Asset/PrimitiveMeshFactory.hpp"
 #include "Core/LayerStack.hpp"
+#include "ECS/Components/AnimatorComponent.hpp"
 #include "ECS/Components/CameraComponent.hpp"
 #include "ECS/Components/LightComponent.hpp"
 #include "ECS/Components/MaterialComponent.hpp"
@@ -10,6 +11,7 @@
 #include "ECS/Components/NameComponent.hpp"
 #include "ECS/Components/RigidBodyComponent.hpp"
 #include "ECS/Components/TransformComponent.hpp"
+#include "ECS/Systems/AnimationSystem.hpp"
 #include "ECS/Systems/PhysicsSystem.hpp"
 #include "ECS/Systems/RenderSystem.hpp"
 #include "Physics/IPhysicsWorld.hpp"
@@ -30,9 +32,11 @@ namespace FRIGGA_NAMESPACE
                     .WithComponent<CameraComponent>()
                     .WithComponent<LightComponent>()
                     .WithComponent<RigidBodyComponent>()
+                    .WithComponent<AnimatorComponent>()
                     .WithPipeline([](fr::PipelineBuilder &pipeline) {
                         pipeline.WithName("Main")
                             .WithSystem<PhysicsSystem>()
+                            .WithSystem<AnimationSystem>()
                             .WithSystem<RenderSystem>();
                     });
             })
@@ -41,7 +45,8 @@ namespace FRIGGA_NAMESPACE
                     freyaOptionsBuilder.SetTitle("Frigga Application")
                         .SetVSync(true)
                         .SetWidth(1280)
-                        .SetHeight(720);
+                        .SetHeight(720)
+                        .SetAnimationQuality(fra::AnimationQuality::High);
                 });
             });
     }

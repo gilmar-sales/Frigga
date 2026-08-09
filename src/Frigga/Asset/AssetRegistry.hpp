@@ -18,6 +18,9 @@ namespace FRIGGA_NAMESPACE
         std::string relativePath;
         std::string label;
         std::vector<std::uint32_t> meshIds;
+        bool skinned = false;
+        fra::Skeleton skeleton {};
+        std::vector<fra::AnimationClip> clips;
     };
 
     struct TextureAsset
@@ -80,6 +83,12 @@ namespace FRIGGA_NAMESPACE
         {
             return mModels;
         }
+
+        /// Returns a stable pointer into the registry, or nullptr if not loaded.
+        [[nodiscard]] const ModelAsset *FindModel(std::string_view relativePath) const;
+
+        /// Loaded skinned models that expose at least one animation clip.
+        [[nodiscard]] std::vector<const ModelAsset *> GetSkinnedModelsWithClips() const;
 
         [[nodiscard]] const std::vector<TextureAsset> &GetTextures() const
         {

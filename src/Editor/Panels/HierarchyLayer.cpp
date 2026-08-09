@@ -5,6 +5,7 @@
 #include "Frigga/ECS/Components/CameraComponent.hpp"
 #include "Frigga/ECS/Components/LightComponent.hpp"
 #include "Frigga/ECS/Components/MaterialComponent.hpp"
+#include "Frigga/ECS/Components/AnimatorComponent.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/NameComponent.hpp"
 #include "Frigga/ECS/Components/RigidBodyComponent.hpp"
@@ -13,6 +14,7 @@
 #include <SDL3/SDL_dialog.h>
 
 #include <algorithm>
+#include <cstdio>
 #include <format>
 #include <imgui.h>
 #include <sstream>
@@ -648,6 +650,23 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
                 mRegistry->AddComponents(entity, makeDefaultRigidBody(entity));
             }
         }
+
+        if(ImGui::MenuItem("Add animator"))
+        {
+            if(!mRegistry->HasComponent<fg::AnimatorComponent>(entity))
+            {
+                fg::AnimatorComponent animator {};
+                mRegistry->TryGetComponents<fg::MeshComponent>(entity, [&](fg::MeshComponent &mesh) {
+                    fg::ModelAsset model {};
+                    std::uint32_t submesh = 0;
+                    if(mAssets->TryFindModelByMeshId(mesh.meshId, model, submesh) && model.skinned)
+                    {
+                        animator.modelSource = model.relativePath;
+                    }
+                });
+                mRegistry->AddComponents(entity, std::move(animator));
+            }
+        }
         ImGui::EndDisabled();
 
         ImGui::EndPopup();
@@ -1071,6 +1090,63 @@ void HierarchyLayer::drawComponents()
                 {
                     ImGui::TextDisabled("Collider edits apply after Stop");
                 }
+            }
+        });
+
+    mRegistry->TryGetComponents<fg::AnimatorComponent>(
+        selection, [this, selection](fg::AnimatorComponent &animator) {
+            bool open = true;
+            if(ImGui::CollapsingHeader("Animator Component", &open, ImGuiWindowFlags_ChildWindow))
+            {
+                ImGui::BeginDisabled(mSimulation->IsPlaying());
+
+                char sourceBuf[256];
+                std::snprintf(sourceBuf, sizeof(sourceBuf), "%s", animator.modelSource.c_str());
+                if(ImGui::InputText("Model Source", sourceBuf, sizeof(sourceBuf)))
+                {
+                    animator.modelSource = sourceBuf;
+                }
+
+                if(ImGui::BeginCombo("Clip", animator.clipName.empty() ? "(first clip)"
+                                                                       : animator.clipName.c_str()))
+                {
+                    if(ImGui::Selectable("(first clip)", animator.clipName.empty()))
+                    {
+                        animator.clipName.clear();
+                        animator.timeSec = 0.0f;
+                    }
+
+                    if(const auto *model = mAssets->FindModel(animator.modelSource);
+                       model != nullptr)
+                    {
+                        for(const auto &clip : model->clips)
+                        {
+                            const bool selected = animator.clipName == clip.name;
+                            if(ImGui::Selectable(clip.name.c_str(), selected))
+                            {
+                                animator.clipName = clip.name;
+                                animator.timeSec  = 0.0f;
+                            }
+                        }
+                    }
+                    ImGui::EndCombo();
+                }
+
+                ImGui::DragFloat("Speed", &animator.speed, 0.01f, 0.0f, 8.0f, "%.2f");
+                ImGui::Checkbox("Playing", &animator.playing);
+                ImGui::SameLine();
+                ImGui::Checkbox("Loop", &animator.loop);
+                ImGui::Checkbox("Use GPU", &animator.useGpu);
+                ImGui::SameLine();
+                ImGui::Checkbox("Preview in Edit", &animator.previewInEdit);
+                ImGui::TextDisabled("Bones: offset %u count %u", animator.boneOffset,
+                                    animator.boneCount);
+                ImGui::EndDisabled();
+            }
+
+            if(!open && !mSimulation->IsPlaying())
+            {
+                mRegistry->RemoveComponent<fg::AnimatorComponent>(selection);
             }
         });
 }
