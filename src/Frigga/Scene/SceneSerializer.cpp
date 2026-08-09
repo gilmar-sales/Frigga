@@ -55,6 +55,7 @@ namespace FRIGGA_NAMESPACE
             std::optional<std::vector<float>>      emissiveFactor;
             std::optional<float>                   aoFactor;
             std::optional<float>                   alphaCutoff;
+            std::optional<std::string>             alphaMode;
         };
 
         struct SceneCameraDto
@@ -354,6 +355,19 @@ namespace FRIGGA_NAMESPACE
                                     info.emissiveFactor.z};
             dto.aoFactor     = info.aoFactor;
             dto.alphaCutoff  = info.alphaCutoff;
+            switch(info.alphaMode)
+            {
+            case fra::AlphaMode::Mask:
+                dto.alphaMode = "mask";
+                break;
+            case fra::AlphaMode::Blend:
+                dto.alphaMode = "blend";
+                break;
+            case fra::AlphaMode::Opaque:
+            default:
+                dto.alphaMode = "opaque";
+                break;
+            }
             return dto;
         }
 
@@ -427,6 +441,21 @@ namespace FRIGGA_NAMESPACE
             if(dto.alphaCutoff)
             {
                 info.alphaCutoff = *dto.alphaCutoff;
+            }
+            if(dto.alphaMode)
+            {
+                if(*dto.alphaMode == "mask")
+                {
+                    info.alphaMode = fra::AlphaMode::Mask;
+                }
+                else if(*dto.alphaMode == "blend")
+                {
+                    info.alphaMode = fra::AlphaMode::Blend;
+                }
+                else
+                {
+                    info.alphaMode = fra::AlphaMode::Opaque;
+                }
             }
 
             if(assets)

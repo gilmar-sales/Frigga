@@ -169,57 +169,35 @@ namespace FRIGGA_NAMESPACE
 
     void RenderSystem::drawMeshes()
     {
-        mInstanceMatrices.clear();
-
-        struct DrawItem
-        {
-            std::uint32_t meshId;
-            std::uint32_t materialId;
-            std::uint32_t firstInstance;
-            std::uint32_t entityId;
-            bool          castShadows;
-        };
-        std::vector<DrawItem> draws;
+        mSceneInstances.clear();
 
         mRegistry->CreateMutation()->Each<TransformComponent, MeshComponent, MaterialComponent>(
-            [this, &draws](auto entity, TransformComponent &transform, MeshComponent &mesh,
-                           MaterialComponent &material) {
+            [this](auto entity, TransformComponent &transform, MeshComponent &mesh,
+                   MaterialComponent &material) {
                 glm::mat4 model = glm::translate(glm::mat4(1.0f), transform.position);
                 model           = model * glm::mat4_cast(transform.rotation);
                 model           = glm::scale(model, transform.scale);
 
-                const auto firstInstance =
-                    static_cast<std::uint32_t>(mInstanceMatrices.size());
-                mInstanceMatrices.push_back(model);
-                draws.push_back({mesh.meshId, material.materialId, firstInstance,
-                                 static_cast<std::uint32_t>(entity), mesh.castShadows});
+                mSceneInstances.push_back({
+                    .model       = model,
+                    .meshId      = mesh.meshId,
+                    .materialId  = material.materialId,
+                    .entityId    = static_cast<std::uint32_t>(entity),
+                    .castShadows = mesh.castShadows,
+                });
             });
 
-        if(draws.empty())
-        {
-            return;
-        }
+        // Prefer entityId order so Freya resolves TAA prevModel by entity.
+        std::sort(mSceneInstances.begin(), mSceneInstances.end(),
+                  [](const fra::SceneInstanceUpload &a, const fra::SceneInstanceUpload &b) {
+                      if(a.meshId != b.meshId)
+                      {
+                          return a.meshId < b.meshId;
+                      }
+                      return a.entityId < b.entityId;
+                  });
 
-        const auto requiredSize = sizeof(glm::mat4) * mInstanceMatrices.size();
-        if(!mInstanceBuffer || mInstanceCapacity < mInstanceMatrices.size())
-        {
-            mInstanceCapacity = std::max<std::uint64_t>(mInstanceMatrices.size(), 16);
-            mInstanceBuffer =
-                mRenderer->GetBufferBuilder()
-                    .SetSize(sizeof(glm::mat4) * mInstanceCapacity)
-                    .SetUsage(fra::BufferUsage::Instance)
-                    .Build();
-        }
-
-        mInstanceBuffer->Copy(mInstanceMatrices.data(), requiredSize);
-
-        mRenderer->BindBuffer(mInstanceBuffer);
-
-        for(const auto &draw: draws)
-        {
-            mRenderer->DrawInstanced(draw.meshId, draw.materialId, 1, draw.firstInstance,
-                                     draw.castShadows, draw.entityId);
-        }
+        mRenderer->UploadSceneInstances(mSceneInstances);
     }
 
 } // namespace FRIGGA_NAMESPACE

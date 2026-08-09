@@ -50,15 +50,23 @@ namespace
     void ApplyGraphicsPreferences(fra::FreyaOptionsBuilder &builder,
                                   const GraphicsPreferences &graphics)
     {
-        const auto shadowQuality = static_cast<fra::ShadowQuality>(
-            std::clamp(graphics.shadowQuality, 0, 3));
+        const auto clampQuality = [](int value) { return std::clamp(value, 0, 4); };
+        const auto shadowQuality =
+            static_cast<fra::ShadowQuality>(clampQuality(graphics.shadowQuality));
+        const auto ssaoQuality =
+            static_cast<fra::SsaoQuality>(clampQuality(graphics.ssaoQuality));
+        const auto taaQuality =
+            static_cast<fra::TaaQuality>(clampQuality(graphics.taaQuality));
+        const auto bloomQuality =
+            static_cast<fra::BloomQuality>(clampQuality(graphics.bloomQuality));
+        const auto ssaoDebugView = static_cast<fra::SsaoDebugView>(
+            std::clamp(graphics.ssaoDebugView, 0, 2));
 
         builder.SetTitle(graphics.title)
             .SetWidth(graphics.width)
             .SetHeight(graphics.height)
             .SetFullscreen(graphics.fullscreen)
             .SetVSync(graphics.vSync)
-            .SetSampleCount(graphics.sampleCount)
             .SetFrameCount(graphics.frameCount)
             .SetClearColor(vk::ClearColorValue {
                 static_cast<float>(graphics.clearColorR),
@@ -77,20 +85,15 @@ namespace
             .SetEnvironmentMapPath(graphics.environmentMapPath)
             .SetShaderRoot(graphics.shaderRoot)
             .SetShadowQuality(shadowQuality)
-            .SetShadowCascadeCount(graphics.shadowCascadeCount)
-            .SetShadowMapResolution(graphics.shadowMapResolution)
-            .SetShadowBias(static_cast<float>(graphics.shadowBias))
-            .SetShadowLightSize(static_cast<float>(graphics.shadowLightSize))
-            .SetShadowMaxSoftness(static_cast<float>(graphics.shadowMaxSoftness))
-            .SetShadowMinVisibility(
-                static_cast<float>(graphics.shadowMinVisibility))
-            .SetMaxSpotShadows(graphics.maxSpotShadows)
-            .SetMaxPointShadows(graphics.maxPointShadows)
-            .SetShadowSampleCount(graphics.shadowSampleCount)
-            .WithReverseZ(graphics.reverseZ)
-            .SetEnableSsao(graphics.enableSsao)
-            .SetEnableTaa(graphics.enableTaa)
-            .SetEnableBloom(graphics.enableBloom);
+            .SetSsaoQuality(ssaoQuality)
+            .SetTaaQuality(taaQuality)
+            .SetBloomQuality(bloomQuality)
+            .SetSsaoRadius(static_cast<float>(graphics.ssaoRadius))
+            .SetSsaoBias(static_cast<float>(graphics.ssaoBias))
+            .SetSsaoPower(static_cast<float>(graphics.ssaoPower))
+            .SetSsaoIntensity(static_cast<float>(graphics.ssaoIntensity))
+            .SetSsaoDebugView(ssaoDebugView)
+            .WithReverseZ(graphics.reverseZ);
     }
 } // namespace
 

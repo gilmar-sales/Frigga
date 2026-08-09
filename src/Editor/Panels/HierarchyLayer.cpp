@@ -926,12 +926,24 @@ void HierarchyLayer::drawComponents()
                 ImGui::BeginDisabled(isDefault);
                 auto info    = mPrimitives->GetMaterialCreateInfo(material.materialId);
                 bool changed = false;
-                changed |= ImGui::ColorEdit3("Albedo", &info.albedoFactor.x);
+                changed |= ImGui::ColorEdit4("Albedo", &info.albedoFactor.x);
                 changed |=
                     ImGui::DragFloat("Roughness", &info.roughnessFactor, 0.01f, 0.0f, 1.0f);
                 changed |=
                     ImGui::DragFloat("Metalness", &info.metalnessFactor, 0.01f, 0.0f, 1.0f);
                 changed |= ImGui::ColorEdit3("Emissive", &info.emissiveFactor.x);
+
+                int alphaMode = static_cast<int>(info.alphaMode);
+                if(ImGui::Combo("Alpha Mode", &alphaMode, "Opaque\0Mask\0Blend\0"))
+                {
+                    info.alphaMode = static_cast<fra::AlphaMode>(std::clamp(alphaMode, 0, 2));
+                    changed        = true;
+                }
+                if(info.alphaMode == fra::AlphaMode::Mask)
+                {
+                    changed |=
+                        ImGui::DragFloat("Alpha Cutoff", &info.alphaCutoff, 0.01f, 0.0f, 1.0f);
+                }
 
                 ImGui::SeparatorText("Maps");
                 drawTextureSlot("Albedo Map", PendingTextureSlot::Albedo, info.albedo, changed);

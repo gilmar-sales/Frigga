@@ -28,20 +28,20 @@ namespace FRIGGA_NAMESPACE
             };
         }
 
-        void pushQuad(std::vector<fra::Vertex> &vertices, std::vector<std::uint16_t> &indices,
+        void pushQuad(std::vector<fra::Vertex> &vertices, std::vector<std::uint32_t> &indices,
                       const glm::vec3 &p0, const glm::vec3 &p1, const glm::vec3 &p2,
                       const glm::vec3 &p3, const glm::vec3 &normal)
         {
-            const auto base = static_cast<std::uint16_t>(vertices.size());
+            const auto base = static_cast<std::uint32_t>(vertices.size());
             vertices.push_back(makeVertex(p0, normal, {0.0f, 1.0f}));
             vertices.push_back(makeVertex(p1, normal, {1.0f, 1.0f}));
             vertices.push_back(makeVertex(p2, normal, {1.0f, 0.0f}));
             vertices.push_back(makeVertex(p3, normal, {0.0f, 0.0f}));
             indices.insert(indices.end(),
-                           {base, static_cast<std::uint16_t>(base + 1),
-                            static_cast<std::uint16_t>(base + 2), base,
-                            static_cast<std::uint16_t>(base + 2),
-                            static_cast<std::uint16_t>(base + 3)});
+                           {base, static_cast<std::uint32_t>(base + 1),
+                            static_cast<std::uint32_t>(base + 2), base,
+                            static_cast<std::uint32_t>(base + 2),
+                            static_cast<std::uint32_t>(base + 3)});
         }
     } // namespace
 
@@ -299,7 +299,7 @@ namespace FRIGGA_NAMESPACE
     std::uint32_t PrimitiveMeshFactory::createCube()
     {
         std::vector<fra::Vertex> vertices;
-        std::vector<std::uint16_t> indices;
+        std::vector<std::uint32_t> indices;
         vertices.reserve(24);
         indices.reserve(36);
 
@@ -322,7 +322,7 @@ namespace FRIGGA_NAMESPACE
     std::uint32_t PrimitiveMeshFactory::createSphere(std::uint32_t segments, std::uint32_t rings)
     {
         std::vector<fra::Vertex> vertices;
-        std::vector<std::uint16_t> indices;
+        std::vector<std::uint32_t> indices;
 
         constexpr float pi = std::numbers::pi_v<float>;
         for(std::uint32_t ring = 0; ring <= rings; ++ring)
@@ -347,12 +347,12 @@ namespace FRIGGA_NAMESPACE
             for(std::uint32_t segment = 0; segment < segments; ++segment)
             {
                 const auto current =
-                    static_cast<std::uint16_t>(ring * (segments + 1) + segment);
-                const auto next = static_cast<std::uint16_t>(current + segments + 1);
+                    static_cast<std::uint32_t>(ring * (segments + 1) + segment);
+                const auto next = static_cast<std::uint32_t>(current + segments + 1);
                 indices.insert(indices.end(),
-                               {current, next, static_cast<std::uint16_t>(current + 1), next,
-                                static_cast<std::uint16_t>(next + 1),
-                                static_cast<std::uint16_t>(current + 1)});
+                               {current, next, static_cast<std::uint32_t>(current + 1), next,
+                                static_cast<std::uint32_t>(next + 1),
+                                static_cast<std::uint32_t>(current + 1)});
             }
         }
 
@@ -362,7 +362,7 @@ namespace FRIGGA_NAMESPACE
     std::uint32_t PrimitiveMeshFactory::createCapsule(std::uint32_t segments, std::uint32_t rings)
     {
         std::vector<fra::Vertex> vertices;
-        std::vector<std::uint16_t> indices;
+        std::vector<std::uint32_t> indices;
 
         constexpr float pi       = std::numbers::pi_v<float>;
         constexpr float radius   = 0.5f;
@@ -419,12 +419,12 @@ namespace FRIGGA_NAMESPACE
             for(std::uint32_t segment = 0; segment < segments; ++segment)
             {
                 const auto current =
-                    static_cast<std::uint16_t>(ring * (segments + 1) + segment);
-                const auto next = static_cast<std::uint16_t>(current + segments + 1);
+                    static_cast<std::uint32_t>(ring * (segments + 1) + segment);
+                const auto next = static_cast<std::uint32_t>(current + segments + 1);
                 indices.insert(indices.end(),
-                               {current, next, static_cast<std::uint16_t>(current + 1), next,
-                                static_cast<std::uint16_t>(next + 1),
-                                static_cast<std::uint16_t>(current + 1)});
+                               {current, next, static_cast<std::uint32_t>(current + 1), next,
+                                static_cast<std::uint32_t>(next + 1),
+                                static_cast<std::uint32_t>(current + 1)});
             }
         }
 
@@ -434,7 +434,7 @@ namespace FRIGGA_NAMESPACE
     std::uint32_t PrimitiveMeshFactory::createCylinder(std::uint32_t segments)
     {
         std::vector<fra::Vertex> vertices;
-        std::vector<std::uint16_t> indices;
+        std::vector<std::uint32_t> indices;
 
         constexpr float pi     = std::numbers::pi_v<float>;
         constexpr float radius = 0.5f;
@@ -454,20 +454,20 @@ namespace FRIGGA_NAMESPACE
 
         for(std::uint32_t segment = 0; segment < segments; ++segment)
         {
-            const auto i = static_cast<std::uint16_t>(segment * 2);
+            const auto i = static_cast<std::uint32_t>(segment * 2);
             indices.insert(indices.end(),
-                           {i, static_cast<std::uint16_t>(i + 1),
-                            static_cast<std::uint16_t>(i + 2),
-                            static_cast<std::uint16_t>(i + 1),
-                            static_cast<std::uint16_t>(i + 3),
-                            static_cast<std::uint16_t>(i + 2)});
+                           {i, static_cast<std::uint32_t>(i + 1),
+                            static_cast<std::uint32_t>(i + 2),
+                            static_cast<std::uint32_t>(i + 1),
+                            static_cast<std::uint32_t>(i + 3),
+                            static_cast<std::uint32_t>(i + 2)});
         }
 
         const auto topCenter =
-            static_cast<std::uint16_t>(vertices.size());
+            static_cast<std::uint32_t>(vertices.size());
         vertices.push_back(makeVertex({0.0f, halfH, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.5f, 0.5f}));
         const auto bottomCenter =
-            static_cast<std::uint16_t>(vertices.size());
+            static_cast<std::uint32_t>(vertices.size());
         vertices.push_back(makeVertex({0.0f, -halfH, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.5f, 0.5f}));
 
         for(std::uint32_t segment = 0; segment < segments; ++segment)
@@ -479,7 +479,7 @@ namespace FRIGGA_NAMESPACE
             const glm::vec3 p2 {std::cos(theta0) * radius, -halfH, std::sin(theta0) * radius};
             const glm::vec3 p3 {std::cos(theta1) * radius, -halfH, std::sin(theta1) * radius};
 
-            const auto t0 = static_cast<std::uint16_t>(vertices.size());
+            const auto t0 = static_cast<std::uint32_t>(vertices.size());
             vertices.push_back(makeVertex(p0, {0.0f, 1.0f, 0.0f},
                                           {std::cos(theta0) * 0.5f + 0.5f,
                                            std::sin(theta0) * 0.5f + 0.5f}));
@@ -487,9 +487,9 @@ namespace FRIGGA_NAMESPACE
                                           {std::cos(theta1) * 0.5f + 0.5f,
                                            std::sin(theta1) * 0.5f + 0.5f}));
             indices.insert(indices.end(),
-                           {topCenter, t0, static_cast<std::uint16_t>(t0 + 1)});
+                           {topCenter, t0, static_cast<std::uint32_t>(t0 + 1)});
 
-            const auto b0 = static_cast<std::uint16_t>(vertices.size());
+            const auto b0 = static_cast<std::uint32_t>(vertices.size());
             vertices.push_back(makeVertex(p2, {0.0f, -1.0f, 0.0f},
                                           {std::cos(theta0) * 0.5f + 0.5f,
                                            std::sin(theta0) * 0.5f + 0.5f}));
@@ -497,7 +497,7 @@ namespace FRIGGA_NAMESPACE
                                           {std::cos(theta1) * 0.5f + 0.5f,
                                            std::sin(theta1) * 0.5f + 0.5f}));
             indices.insert(indices.end(),
-                           {bottomCenter, static_cast<std::uint16_t>(b0 + 1), b0});
+                           {bottomCenter, static_cast<std::uint32_t>(b0 + 1), b0});
         }
 
         return mMeshPool->CreateMesh(vertices, indices);
@@ -506,7 +506,7 @@ namespace FRIGGA_NAMESPACE
     std::uint32_t PrimitiveMeshFactory::createCone(std::uint32_t segments)
     {
         std::vector<fra::Vertex> vertices;
-        std::vector<std::uint16_t> indices;
+        std::vector<std::uint32_t> indices;
 
         constexpr float pi     = std::numbers::pi_v<float>;
         constexpr float radius = 0.5f;
@@ -521,17 +521,17 @@ namespace FRIGGA_NAMESPACE
             const glm::vec3 p1 {std::cos(theta1) * radius, -halfH, std::sin(theta1) * radius};
 
             const glm::vec3 normal = glm::normalize(glm::cross(p1 - apex, p0 - apex));
-            const auto base        = static_cast<std::uint16_t>(vertices.size());
+            const auto base        = static_cast<std::uint32_t>(vertices.size());
             vertices.push_back(makeVertex(apex, normal, {0.5f, 0.0f}));
             vertices.push_back(makeVertex(p0, normal, {0.0f, 1.0f}));
             vertices.push_back(makeVertex(p1, normal, {1.0f, 1.0f}));
             indices.insert(indices.end(),
-                           {base, static_cast<std::uint16_t>(base + 1),
-                            static_cast<std::uint16_t>(base + 2)});
+                           {base, static_cast<std::uint32_t>(base + 1),
+                            static_cast<std::uint32_t>(base + 2)});
         }
 
         const auto bottomCenter =
-            static_cast<std::uint16_t>(vertices.size());
+            static_cast<std::uint32_t>(vertices.size());
         vertices.push_back(makeVertex({0.0f, -halfH, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.5f, 0.5f}));
         for(std::uint32_t segment = 0; segment < segments; ++segment)
         {
@@ -539,7 +539,7 @@ namespace FRIGGA_NAMESPACE
             const float theta1 = (static_cast<float>(segment + 1) / segments) * 2.0f * pi;
             const glm::vec3 p0 {std::cos(theta0) * radius, -halfH, std::sin(theta0) * radius};
             const glm::vec3 p1 {std::cos(theta1) * radius, -halfH, std::sin(theta1) * radius};
-            const auto b0 = static_cast<std::uint16_t>(vertices.size());
+            const auto b0 = static_cast<std::uint32_t>(vertices.size());
             vertices.push_back(makeVertex(p0, {0.0f, -1.0f, 0.0f},
                                           {std::cos(theta0) * 0.5f + 0.5f,
                                            std::sin(theta0) * 0.5f + 0.5f}));
@@ -547,7 +547,7 @@ namespace FRIGGA_NAMESPACE
                                           {std::cos(theta1) * 0.5f + 0.5f,
                                            std::sin(theta1) * 0.5f + 0.5f}));
             indices.insert(indices.end(),
-                           {bottomCenter, static_cast<std::uint16_t>(b0 + 1), b0});
+                           {bottomCenter, static_cast<std::uint32_t>(b0 + 1), b0});
         }
 
         return mMeshPool->CreateMesh(vertices, indices);
@@ -556,7 +556,7 @@ namespace FRIGGA_NAMESPACE
     std::uint32_t PrimitiveMeshFactory::createPlane()
     {
         std::vector<fra::Vertex> vertices;
-        std::vector<std::uint16_t> indices;
+        std::vector<std::uint32_t> indices;
         pushQuad(vertices, indices, {-5.0f, 0.0f, 5.0f}, {5.0f, 0.0f, 5.0f},
                  {5.0f, 0.0f, -5.0f}, {-5.0f, 0.0f, -5.0f}, {0.0f, 1.0f, 0.0f});
         // Larger UVs for a tiled plane look
@@ -570,7 +570,7 @@ namespace FRIGGA_NAMESPACE
     std::uint32_t PrimitiveMeshFactory::createQuad()
     {
         std::vector<fra::Vertex> vertices;
-        std::vector<std::uint16_t> indices;
+        std::vector<std::uint32_t> indices;
         pushQuad(vertices, indices, {-0.5f, -0.5f, 0.0f}, {0.5f, -0.5f, 0.0f},
                  {0.5f, 0.5f, 0.0f}, {-0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f});
         return mMeshPool->CreateMesh(vertices, indices);

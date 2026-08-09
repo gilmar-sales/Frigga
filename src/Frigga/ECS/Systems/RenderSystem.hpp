@@ -35,9 +35,7 @@ namespace FRIGGA_NAMESPACE
         skr::Arc<fra::Window> mWindow;
         skr::Arc<fra::LightService> mLightService;
         skr::Arc<Scene> mScene;
-        skr::Arc<fra::Buffer> mInstanceBuffer;
-        std::vector<glm::mat4> mInstanceMatrices;
-        std::uint64_t mInstanceCapacity = 0;
+        std::vector<fra::SceneInstanceUpload> mSceneInstances;
     };
 
 } // namespace FRIGGA_NAMESPACE

@@ -7,7 +7,7 @@
  * @brief Serializable editor preferences (Skirnir Configuration::Bind compatible).
  *
  * Floating fields use double because JsonObjectReader binds numbers to double.
- * Graphics mirrors fra::FreyaOptions (plus a ShadowQuality preset index).
+ * Graphics quality indices match Freya enums: 0=Low … 3=Ultra, 4=Off.
  */
 struct AppearancePreferences
 {
@@ -17,12 +17,11 @@ struct AppearancePreferences
 struct GraphicsPreferences
 {
     /// Window
-    std::string   title      = "Frigga Application";
-    std::uint32_t width      = 1280;
-    std::uint32_t height     = 720;
-    bool          vSync      = true;
-    bool          fullscreen = false;
-    std::uint32_t sampleCount = 1;
+    std::string   title       = "Frigga Application";
+    std::uint32_t width       = 1280;
+    std::uint32_t height      = 720;
+    bool          vSync       = true;
+    bool          fullscreen  = false;
     std::uint32_t frameCount  = 4;
 
     double clearColorR = 0.0;
@@ -30,35 +29,34 @@ struct GraphicsPreferences
     double clearColorB = 0.0;
     double clearColorA = 0.0;
 
-    double        drawDistance = 1000.0;
-    std::uint32_t maxLights    = 16;
-    double        iblIntensity = 0.7;
-    double        exposure     = 0.7;
-    double        ambientColorR     = 1.0;
-    double        ambientColorG     = 1.0;
-    double        ambientColorB     = 1.0;
-    double        ambientIntensity  = 0.03;
+    double        drawDistance     = 1000.0;
+    std::uint32_t maxLights        = 16;
+    double        iblIntensity     = 0.7;
+    double        exposure         = 0.7;
+    double        ambientColorR    = 1.0;
+    double        ambientColorG    = 1.0;
+    double        ambientColorB    = 1.0;
+    double        ambientIntensity = 0.03;
 
     std::string environmentMapPath =
         "./Resources/Environments/studio_small_09_4k.hdr";
     std::string shaderRoot = "./Resources/Shaders";
 
-    /// 0=Low, 1=Medium, 2=High, 3=Ultra (fra::ShadowQuality).
-    int           shadowQuality       = 2;
-    std::uint32_t shadowCascadeCount  = 4;
-    std::uint32_t shadowMapResolution = 2048;
-    double        shadowBias          = 0.002;
-    double        shadowLightSize     = 0.03;
-    double        shadowMaxSoftness   = 8.0;
-    double        shadowMinVisibility = 0.0;
-    std::uint32_t maxSpotShadows      = 4;
-    std::uint32_t maxPointShadows     = 2;
-    std::uint32_t shadowSampleCount   = 16;
+    /// fra::ShadowQuality / SsaoQuality / TaaQuality / BloomQuality
+    int shadowQuality = 2;
+    int ssaoQuality   = 2;
+    int taaQuality    = 2;
+    int bloomQuality  = 2;
 
-    bool reverseZ    = false;
-    bool enableSsao  = true;
-    bool enableTaa   = true;
-    bool enableBloom = true;
+    /// Live SSAO knobs (applied after the quality preset).
+    double ssaoRadius    = 0.5;
+    double ssaoBias      = 0.025;
+    double ssaoPower     = 1.5;
+    double ssaoIntensity = 0.5;
+    /// 0=None, 1=Blurred, 2=Raw (fra::SsaoDebugView)
+    int ssaoDebugView = 0;
+
+    bool reverseZ = false;
 };
 
 struct EcsPreferences

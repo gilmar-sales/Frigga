@@ -6,7 +6,6 @@
 #include <Freya/FreyaOptions.hpp>
 #include <Frigga/Frigga.hpp>
 
-#include <cstdint>
 #include <optional>
 
 class PreferencesLayer: public fg::Layer
@@ -41,8 +40,10 @@ class PreferencesLayer: public fg::Layer
     struct PendingGraphics
     {
         std::optional<bool>               vSync;
-        std::optional<std::uint32_t>      sampleCount;
         std::optional<fra::ShadowQuality> shadowQuality;
+        std::optional<fra::SsaoQuality>   ssaoQuality;
+        std::optional<fra::TaaQuality>    taaQuality;
+        std::optional<fra::BloomQuality>  bloomQuality;
     };
 
     void drawAppearanceTab();
@@ -51,7 +52,8 @@ class PreferencesLayer: public fg::Layer
     void persist();
     void applyTheme(int themeIndex) const;
     void applyPendingGraphics();
-    void syncShadowPrefsFromOptions();
+    void syncQualityPrefsFromRenderer();
+    void syncSsaoFinePrefsFromRenderer();
 
     skr::Arc<fra::Window>           mWindow;
     skr::Arc<fra::Renderer>         mRenderer;

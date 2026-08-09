@@ -7,33 +7,17 @@
 #include <imgui.h>
 
 #include <algorithm>
-#include <array>
 #include <cstring>
 
 bool PreferencesLayer::IsOpen = false;
 
 namespace
 {
-    int SampleCountToIndex(std::uint32_t samples)
-    {
-        switch(samples)
-        {
-        case 2:
-            return 1;
-        case 4:
-            return 2;
-        case 8:
-            return 3;
-        default:
-            return 0;
-        }
-    }
+    constexpr const char *kQualityLabels = "Low\0Medium\0High\0Ultra\0Off\0";
 
-    std::uint32_t IndexToSampleCount(int index)
+    int ClampQuality(int value)
     {
-        constexpr std::array<std::uint32_t, 4> kSamples {1, 2, 4, 8};
-        const auto clamped = std::clamp(index, 0, 3);
-        return kSamples[static_cast<std::size_t>(clamped)];
+        return std::clamp(value, 0, 4);
     }
 
     void RestartHint()
@@ -56,14 +40,15 @@ namespace
         ImGui::TextDisabled("Active %s: %s", label, value ? "on" : "off");
     }
 
-    void ActiveFloat(const char *label, float value)
-    {
-        ImGui::TextDisabled("Active %s: %.4g", label, value);
-    }
-
     void ActivePath(const char *label, const std::string &value)
     {
         ImGui::TextDisabled("Active %s: %s", label, value.c_str());
+    }
+
+    template <typename Quality>
+    int PendingOrCurrent(const std::optional<Quality> &pending, Quality current)
+    {
+        return static_cast<int>(pending.value_or(current));
     }
 } // namespace
 
@@ -72,17 +57,24 @@ void PreferencesLayer::persist()
     PreferencesStore::Save(*mPreferences);
 }
 
-void PreferencesLayer::syncShadowPrefsFromOptions()
+void PreferencesLayer::syncQualityPrefsFromRenderer()
 {
-    auto &prefs                         = mPreferences->graphics;
-    const auto &o                       = *mFreyaOptions;
-    prefs.shadowCascadeCount            = o.shadowCascadeCount;
-    prefs.shadowMapResolution           = o.shadowMapResolution;
-    prefs.maxSpotShadows                = o.maxSpotShadows;
-    prefs.maxPointShadows               = o.maxPointShadows;
-    prefs.shadowSampleCount             = o.shadowSampleCount;
-    prefs.shadowQuality =
-        static_cast<int>(mRenderer->GetShadowQuality());
+    auto &prefs       = mPreferences->graphics;
+    prefs.shadowQuality = static_cast<int>(mRenderer->GetShadowQuality());
+    prefs.ssaoQuality   = static_cast<int>(mRenderer->GetSsaoQuality());
+    prefs.taaQuality    = static_cast<int>(mRenderer->GetTaaQuality());
+    prefs.bloomQuality  = static_cast<int>(mRenderer->GetBloomQuality());
+    syncSsaoFinePrefsFromRenderer();
+}
+
+void PreferencesLayer::syncSsaoFinePrefsFromRenderer()
+{
+    auto &prefs          = mPreferences->graphics;
+    prefs.ssaoRadius     = mRenderer->GetSsaoRadius();
+    prefs.ssaoBias       = mRenderer->GetSsaoBias();
+    prefs.ssaoPower      = mRenderer->GetSsaoPower();
+    prefs.ssaoIntensity  = mRenderer->GetSsaoIntensity();
+    prefs.ssaoDebugView  = static_cast<int>(mRenderer->GetSsaoDebugView());
 }
 
 void PreferencesLayer::applyTheme(int themeIndex) const
@@ -120,17 +112,35 @@ void PreferencesLayer::applyPendingGraphics()
         mPendingGraphics.vSync.reset();
         recreatePipeline = true;
     }
-    if(mPendingGraphics.sampleCount.has_value())
-    {
-        mRenderer->SetSamples(*mPendingGraphics.sampleCount);
-        mPendingGraphics.sampleCount.reset();
-        recreatePipeline = true;
-    }
     if(mPendingGraphics.shadowQuality.has_value())
     {
         mRenderer->SetShadowQuality(*mPendingGraphics.shadowQuality);
         mPendingGraphics.shadowQuality.reset();
-        syncShadowPrefsFromOptions();
+        syncQualityPrefsFromRenderer();
+        persist();
+        recreatePipeline = true;
+    }
+    if(mPendingGraphics.ssaoQuality.has_value())
+    {
+        mRenderer->SetSsaoQuality(*mPendingGraphics.ssaoQuality);
+        mPendingGraphics.ssaoQuality.reset();
+        syncQualityPrefsFromRenderer();
+        persist();
+        recreatePipeline = true;
+    }
+    if(mPendingGraphics.taaQuality.has_value())
+    {
+        mRenderer->SetTaaQuality(*mPendingGraphics.taaQuality);
+        mPendingGraphics.taaQuality.reset();
+        syncQualityPrefsFromRenderer();
+        persist();
+        recreatePipeline = true;
+    }
+    if(mPendingGraphics.bloomQuality.has_value())
+    {
+        mRenderer->SetBloomQuality(*mPendingGraphics.bloomQuality);
+        mPendingGraphics.bloomQuality.reset();
+        syncQualityPrefsFromRenderer();
         persist();
         recreatePipeline = true;
     }
@@ -165,16 +175,6 @@ void PreferencesLayer::drawGraphicsTab()
     {
         mWindow->SetFullscreen(fullscreen);
         prefs.fullscreen = fullscreen;
-        persist();
-    }
-
-    int sampleIndex = SampleCountToIndex(
-        mPendingGraphics.sampleCount.value_or(mRenderer->GetSamples()));
-    if(ImGui::Combo("MSAA", &sampleIndex, "1x\02x\04x\08x\0"))
-    {
-        const auto samples           = IndexToSampleCount(sampleIndex);
-        mPendingGraphics.sampleCount = samples;
-        prefs.sampleCount            = samples;
         persist();
     }
 
@@ -289,124 +289,99 @@ void PreferencesLayer::drawGraphicsTab()
     RestartHint();
     ActiveU32("maxLights", mFreyaOptions->maxLights);
 
-    ImGui::SeparatorText("Post-processing");
+    ImGui::SeparatorText("Quality");
 
-    if(ImGui::Checkbox("SSAO", &prefs.enableSsao))
-    {
-        persist();
-    }
-    RestartHint();
-    ActiveBool("SSAO", mFreyaOptions->enableSsao);
-
-    if(ImGui::Checkbox("TAA", &prefs.enableTaa))
-    {
-        persist();
-    }
-    RestartHint();
-    ActiveBool("TAA", mFreyaOptions->enableTaa);
-
-    if(ImGui::Checkbox("Bloom", &prefs.enableBloom))
-    {
-        persist();
-    }
-    RestartHint();
-    ActiveBool("Bloom", mFreyaOptions->enableBloom);
-
-    ImGui::SeparatorText("Shadows");
-
-    int shadowQuality = mPendingGraphics.shadowQuality.has_value()
-                            ? static_cast<int>(*mPendingGraphics.shadowQuality)
-                            : static_cast<int>(mRenderer->GetShadowQuality());
-    if(ImGui::Combo("Quality", &shadowQuality, "Low\0Medium\0High\0Ultra\0"))
+    int shadowQuality =
+        PendingOrCurrent(mPendingGraphics.shadowQuality, mRenderer->GetShadowQuality());
+    if(ImGui::Combo("Shadows", &shadowQuality, kQualityLabels))
     {
         const auto quality =
-            static_cast<fra::ShadowQuality>(std::clamp(shadowQuality, 0, 3));
+            static_cast<fra::ShadowQuality>(ClampQuality(shadowQuality));
         mPendingGraphics.shadowQuality = quality;
-        prefs.shadowQuality            = shadowQuality;
+        prefs.shadowQuality            = static_cast<int>(quality);
         persist();
     }
 
-    int cascades = static_cast<int>(prefs.shadowCascadeCount);
-    if(ImGui::SliderInt("Cascade Count", &cascades, 1, 4))
+    int ssaoQuality =
+        PendingOrCurrent(mPendingGraphics.ssaoQuality, mRenderer->GetSsaoQuality());
+    if(ImGui::Combo("SSAO", &ssaoQuality, kQualityLabels))
     {
-        prefs.shadowCascadeCount = static_cast<std::uint32_t>(cascades);
+        const auto quality = static_cast<fra::SsaoQuality>(ClampQuality(ssaoQuality));
+        mPendingGraphics.ssaoQuality = quality;
+        prefs.ssaoQuality            = static_cast<int>(quality);
         persist();
     }
-    RestartHint();
-    ActiveU32("cascades", mFreyaOptions->shadowCascadeCount);
 
-    int resolution = static_cast<int>(prefs.shadowMapResolution);
-    if(ImGui::InputInt("Map Resolution", &resolution))
+    const auto activeSsao =
+        mPendingGraphics.ssaoQuality.value_or(mRenderer->GetSsaoQuality());
+    if(activeSsao != fra::SsaoQuality::Off)
     {
-        prefs.shadowMapResolution =
-            static_cast<std::uint32_t>(std::max(64, resolution));
-        persist();
-    }
-    RestartHint();
-    ActiveU32("resolution", mFreyaOptions->shadowMapResolution);
+        ImGui::Indent();
 
-    float bias = static_cast<float>(prefs.shadowBias);
-    if(ImGui::DragFloat("Bias", &bias, 0.0001f, 0.0f, 0.1f, "%.5f"))
-    {
-        prefs.shadowBias = bias;
-        persist();
-    }
-    RestartHint();
-    ActiveFloat("bias", mFreyaOptions->shadowBias);
+        float radius = mRenderer->GetSsaoRadius();
+        if(ImGui::DragFloat("SSAO Radius", &radius, 0.01f, 0.05f, 4.0f, "%.3f"))
+        {
+            mRenderer->SetSsaoRadius(radius);
+            prefs.ssaoRadius = radius;
+            persist();
+        }
 
-    float lightSize = static_cast<float>(prefs.shadowLightSize);
-    if(ImGui::DragFloat("Light Size", &lightSize, 0.001f, 0.0f, 1.0f, "%.4f"))
-    {
-        prefs.shadowLightSize = lightSize;
-        persist();
-    }
-    RestartHint();
-    ActiveFloat("lightSize", mFreyaOptions->shadowLightSize);
+        float bias = mRenderer->GetSsaoBias();
+        if(ImGui::DragFloat("SSAO Bias", &bias, 0.001f, 0.0f, 0.2f, "%.4f"))
+        {
+            mRenderer->SetSsaoBias(bias);
+            prefs.ssaoBias = bias;
+            persist();
+        }
 
-    float maxSoftness = static_cast<float>(prefs.shadowMaxSoftness);
-    if(ImGui::DragFloat("Max Softness", &maxSoftness, 0.1f, 0.0f, 64.0f, "%.2f"))
-    {
-        prefs.shadowMaxSoftness = maxSoftness;
-        persist();
-    }
-    RestartHint();
-    ActiveFloat("maxSoftness", mFreyaOptions->shadowMaxSoftness);
+        float power = mRenderer->GetSsaoPower();
+        if(ImGui::DragFloat("SSAO Power", &power, 0.01f, 0.1f, 4.0f, "%.2f"))
+        {
+            mRenderer->SetSsaoPower(power);
+            prefs.ssaoPower = power;
+            persist();
+        }
 
-    float minVisibility = static_cast<float>(prefs.shadowMinVisibility);
-    if(ImGui::SliderFloat("Min Visibility", &minVisibility, 0.0f, 1.0f, "%.3f"))
-    {
-        prefs.shadowMinVisibility = minVisibility;
-        persist();
-    }
-    RestartHint();
-    ActiveFloat("minVisibility", mFreyaOptions->shadowMinVisibility);
+        float intensity = mRenderer->GetSsaoIntensity();
+        if(ImGui::SliderFloat("SSAO Intensity", &intensity, 0.0f, 2.0f, "%.2f"))
+        {
+            mRenderer->SetSsaoIntensity(intensity);
+            prefs.ssaoIntensity = intensity;
+            persist();
+        }
 
-    int maxSpot = static_cast<int>(prefs.maxSpotShadows);
-    if(ImGui::SliderInt("Max Spot Shadows", &maxSpot, 0, 4))
-    {
-        prefs.maxSpotShadows = static_cast<std::uint32_t>(maxSpot);
-        persist();
-    }
-    RestartHint();
-    ActiveU32("maxSpotShadows", mFreyaOptions->maxSpotShadows);
+        int debugView = static_cast<int>(mRenderer->GetSsaoDebugView());
+        if(ImGui::Combo("SSAO Debug", &debugView, "None\0Blurred\0Raw\0"))
+        {
+            const auto view =
+                static_cast<fra::SsaoDebugView>(std::clamp(debugView, 0, 2));
+            mRenderer->SetSsaoDebugView(view);
+            prefs.ssaoDebugView = static_cast<int>(view);
+            persist();
+        }
 
-    int maxPoint = static_cast<int>(prefs.maxPointShadows);
-    if(ImGui::SliderInt("Max Point Shadows", &maxPoint, 0, 2))
-    {
-        prefs.maxPointShadows = static_cast<std::uint32_t>(maxPoint);
-        persist();
+        ImGui::Unindent();
     }
-    RestartHint();
-    ActiveU32("maxPointShadows", mFreyaOptions->maxPointShadows);
 
-    int sampleCount = static_cast<int>(prefs.shadowSampleCount);
-    if(ImGui::SliderInt("Sample Count", &sampleCount, 1, 16))
+    int taaQuality =
+        PendingOrCurrent(mPendingGraphics.taaQuality, mRenderer->GetTaaQuality());
+    if(ImGui::Combo("TAA", &taaQuality, kQualityLabels))
     {
-        prefs.shadowSampleCount = static_cast<std::uint32_t>(sampleCount);
+        const auto quality = static_cast<fra::TaaQuality>(ClampQuality(taaQuality));
+        mPendingGraphics.taaQuality = quality;
+        prefs.taaQuality            = static_cast<int>(quality);
         persist();
     }
-    RestartHint();
-    ActiveU32("shadowSamples", mFreyaOptions->shadowSampleCount);
+
+    int bloomQuality =
+        PendingOrCurrent(mPendingGraphics.bloomQuality, mRenderer->GetBloomQuality());
+    if(ImGui::Combo("Bloom", &bloomQuality, kQualityLabels))
+    {
+        const auto quality = static_cast<fra::BloomQuality>(ClampQuality(bloomQuality));
+        mPendingGraphics.bloomQuality = quality;
+        prefs.bloomQuality            = static_cast<int>(quality);
+        persist();
+    }
 
     ImGui::SeparatorText("Paths");
 
