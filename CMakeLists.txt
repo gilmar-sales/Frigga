@@ -2,7 +2,9 @@ cmake_minimum_required(VERSION 3.29)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-project(Frigga LANGUAGES CXX VERSION 0.2.0)
+# CI release builds pass -DFRIGGA_VERSION=<tag without leading v>.
+set(FRIGGA_VERSION "0.2.0" CACHE STRING "Frigga package version")
+project(Frigga LANGUAGES CXX VERSION ${FRIGGA_VERSION})
 
 set(CMAKE_CXX_STANDARD 26)
 

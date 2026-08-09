@@ -40,6 +40,27 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    # Release tags (v1.2.3 or 1.2.3) drive CMAKE project()/CPack version.
+    # Push/PR builds keep the default from CMakeLists.txt (FRIGGA_VERSION).
+    - name: Resolve project version
+      id: version
+      shell: bash
+      run: |
+        set -euo pipefail
+        DEFAULT_VERSION="0.2.0"
+        if [[ "${{ github.event_name }}" == "release" ]]; then
+          TAG="${{ github.event.release.tag_name }}"
+          VERSION="${TAG#v}"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.+-].*)?$ ]]; then
+            echo "::error::Release tag '$TAG' must be SemVer (optional leading v), got '$VERSION'"
+            exit 1
+          fi
+        else
+          VERSION="$DEFAULT_VERSION"
+        fi
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+        echo "Project version: $VERSION"
+
     # cache-apt-pkgs-action's add-repository runs too late for package
     # resolution, so register the PPA (and refresh indexes) first.
     - name: Add ubuntu-toolchain-r PPA on Linux
@@ -212,8 +233,9 @@ jobs:
         path: build
         # Bump cache when shader tooling changes — stale configures without
         # glslc leave Resources/Shaders/Shaders (GLSL sources, not .spv).
-        key: ${{ runner.os }}-${{ matrix.c_compiler }}-${{ matrix.build_type }}-Ninja-glslc2-${{ hashFiles('CMakeLists.txt', '**/CMakeLists.txt', 'src/Frigga/**', 'src/Editor/**', 'test/**.cpp') }}
+        key: ${{ runner.os }}-${{ matrix.c_compiler }}-${{ matrix.build_type }}-Ninja-glslc2-v${{ steps.version.outputs.version }}-${{ hashFiles('CMakeLists.txt', '**/CMakeLists.txt', 'src/Frigga/**', 'src/Editor/**', 'test/**.cpp') }}
         restore-keys: |
+          ${{ runner.os }}-${{ matrix.c_compiler }}-${{ matrix.build_type }}-Ninja-glslc2-v${{ steps.version.outputs.version }}-
           ${{ runner.os }}-${{ matrix.c_compiler }}-${{ matrix.build_type }}-Ninja-glslc2-
 
     - name: Configure CMake
@@ -221,6 +243,7 @@ jobs:
       run: |
         set -euo pipefail
         echo "VULKAN_SDK=${VULKAN_SDK:-}"
+        echo "FRIGGA_VERSION=${{ steps.version.outputs.version }}"
         command -v glslc
         glslc --version
         cmake -B "build" \
@@ -228,7 +251,9 @@ jobs:
           -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }} \
           -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} \
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+          -DFRIGGA_VERSION=${{ steps.version.outputs.version }} \
           -S "${{ github.workspace }}"
+        cmake -L -N "build" | grep -E '^(FRIGGA_VERSION|CMAKE_PROJECT_VERSION):' || true
 
     - name: Build
       shell: bash
