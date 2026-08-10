@@ -36,9 +36,22 @@ namespace
         std::ostringstream out;
         out << "cmake_minimum_required(VERSION 3.29)\n";
         out << "project(" << desc.name << "Gameplay LANGUAGES CXX)\n\n";
+        out << "# Frigga gameplay plugins require C++26 (+ reflection), matching the Editor.\n";
         out << "set(CMAKE_CXX_STANDARD 26)\n";
         out << "set(CMAKE_CXX_STANDARD_REQUIRED ON)\n";
+        out << "set(CMAKE_CXX_EXTENSIONS ON)\n";
         out << "set(CMAKE_POSITION_INDEPENDENT_CODE ON)\n\n";
+        out << "if(CMAKE_CXX_COMPILER_ID STREQUAL \"GNU\")\n";
+        out << "  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 16)\n";
+        out << "    message(FATAL_ERROR \"Gameplay plugins need GCC 16+ (C++26 reflection). "
+               "Found ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}\")\n";
+        out << "  endif()\n";
+        out << "elseif(CMAKE_CXX_COMPILER_ID MATCHES \"Clang\")\n";
+        out << "  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 22)\n";
+        out << "    message(FATAL_ERROR \"Gameplay plugins need Clang 22+ (C++26 reflection). "
+               "Found ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}\")\n";
+        out << "  endif()\n";
+        out << "endif()\n\n";
         out << "if(NOT DEFINED FRIGGA_ROOT)\n";
         out << "  set(FRIGGA_ROOT \"" << desc.friggaRoot.generic_string() << "\")\n";
         out << "endif()\n";
@@ -54,11 +67,15 @@ namespace
         out << "  src/GameplayPlugin.cpp\n";
         out << "  src/GameplaySystem.cpp\n";
         out << ")\n\n";
+        out << "target_compile_features(" << desc.pluginTarget << " PRIVATE cxx_std_26)\n";
         out << "target_compile_definitions(" << desc.pluginTarget << " PRIVATE FRI_PLUGIN_EXPORTS)\n";
         out << "if(MSVC)\n";
-        out << "  target_compile_options(" << desc.pluginTarget << " PRIVATE /experimental:reflection)\n";
+        out << "  target_compile_options(" << desc.pluginTarget
+           << " PRIVATE /std:c++latest /experimental:reflection)\n";
         out << "else()\n";
-        out << "  target_compile_options(" << desc.pluginTarget << " PRIVATE -freflection)\n";
+        out << "  # Force the dialect Freyr/Skirnir need (gnu++26 + reflection).\n";
+        out << "  target_compile_options(" << desc.pluginTarget
+           << " PRIVATE -std=gnu++26 -freflection)\n";
         out << "endif()\n";
         out << "target_include_directories(" << desc.pluginTarget << " PRIVATE\n";
         out << "  ${CMAKE_CURRENT_SOURCE_DIR}/include\n";
@@ -77,6 +94,9 @@ namespace
         out << "  target_link_options(" << desc.pluginTarget << " PRIVATE -Wl,--allow-shlib-undefined)\n";
         out << "endif()\n";
         out << "set_target_properties(" << desc.pluginTarget << " PROPERTIES\n";
+        out << "  CXX_STANDARD 26\n";
+        out << "  CXX_STANDARD_REQUIRED ON\n";
+        out << "  CXX_EXTENSIONS ON\n";
         out << "  LIBRARY_OUTPUT_DIRECTORY \"${CMAKE_CURRENT_SOURCE_DIR}/build\"\n";
         out << "  RUNTIME_OUTPUT_DIRECTORY \"${CMAKE_CURRENT_SOURCE_DIR}/build\"\n";
         out << "  ARCHIVE_OUTPUT_DIRECTORY \"${CMAKE_CURRENT_SOURCE_DIR}/build\"\n";
@@ -232,10 +252,14 @@ extern "C" FRI_PLUGIN_API const FriPluginApi *fri_plugin_api(void)
         out << "- `src/GameplaySystem.*` — Freyr-style gameplay logic\n";
         out << "- `src/GameplayPlugin.cpp` — C ABI entry for the Editor\n\n";
         out << "## Build the plugin\n\n";
+        out << "Requires a **C++26** compiler with reflection (GCC 16+ or Clang 22+), same as Frigga.\n\n";
         out << "```bash\n";
-        out << "cmake -S . -B build-plugin -G Ninja -DCMAKE_BUILD_TYPE=Debug\n";
+        out << "cmake -S . -B build-plugin -G Ninja -DCMAKE_BUILD_TYPE=Debug "
+               "-DCMAKE_CXX_STANDARD=26\n";
         out << "cmake --build build-plugin\n";
         out << "```\n\n";
+        out << "Or use **File → Build Gameplay Plugin** in the Editor "
+               "(forces `gnu++26` + `-freflection`).\n\n";
         out << "The shared library is written to `" << desc.pluginLibraryRelative << "`.\n";
         out << "It resolves Freyr symbols from the Editor process (do not link `libfreyr.a` into the "
                "plugin).\n";
@@ -260,12 +284,53 @@ extern "C" FRI_PLUGIN_API const FriPluginApi *fri_plugin_api(void)
     }
 } // namespace
 
+ProjectManagedWriteResult ProjectScaffold::WriteManagedFiles(
+    const std::filesystem::path &projectRoot, const ProjectDescriptor &desc)
+{
+    ProjectManagedWriteResult result;
+    if(desc.friggaRoot.empty() || desc.friggaBuild.empty())
+    {
+        result.error = "Engine paths (friggaRoot / friggaBuild) are required";
+        return result;
+    }
+
+    std::error_code ec;
+    std::filesystem::create_directories(projectRoot / "include", ec);
+    if(ec)
+    {
+        result.error = "Failed to create include/";
+        return result;
+    }
+
+    if(!WriteTextFile(projectRoot / "CMakeLists.txt", MakeCMakeLists(desc)))
+    {
+        result.error = "Failed to write CMakeLists.txt";
+        return result;
+    }
+
+    if(!WriteTextFile(projectRoot / "README.md", MakeReadme(desc)))
+    {
+        result.error = "Failed to write README.md";
+        return result;
+    }
+
+    if(!CopyPluginHeader(desc.friggaRoot, projectRoot))
+    {
+        result.error = "Failed to copy frigga_plugin.h";
+        return result;
+    }
+
+    result.ok = true;
+    return result;
+}
+
 ProjectScaffoldResult ProjectScaffold::Create(const std::filesystem::path &parentDir,
                                               const ProjectDescriptor &descIn,
                                               fg::Scene &scene)
 {
     ProjectScaffoldResult result;
     ProjectDescriptor desc = descIn;
+    desc.formatVersion     = ProjectDescriptor::CurrentFormatVersion;
 
     if(desc.name.empty())
     {
@@ -308,19 +373,18 @@ ProjectScaffoldResult ProjectScaffold::Create(const std::filesystem::path &paren
         return result;
     }
 
-    if(!WriteTextFile(projectRoot / "CMakeLists.txt", MakeCMakeLists(desc)) ||
-       !WriteTextFile(projectRoot / "src/GameplaySystem.hpp", MakeGameplaySystemHpp()) ||
-       !WriteTextFile(projectRoot / "src/GameplaySystem.cpp", MakeGameplaySystemCpp()) ||
-       !WriteTextFile(projectRoot / "src/GameplayPlugin.cpp", MakeGameplayPluginCpp()) ||
-       !WriteTextFile(projectRoot / "README.md", MakeReadme(desc)))
+    const auto managed = WriteManagedFiles(projectRoot, desc);
+    if(!managed.ok)
     {
-        result.error = "Failed to write scaffold source files";
+        result.error = managed.error;
         return result;
     }
 
-    if(!CopyPluginHeader(desc.friggaRoot, projectRoot))
+    if(!WriteTextFile(projectRoot / "src/GameplaySystem.hpp", MakeGameplaySystemHpp()) ||
+       !WriteTextFile(projectRoot / "src/GameplaySystem.cpp", MakeGameplaySystemCpp()) ||
+       !WriteTextFile(projectRoot / "src/GameplayPlugin.cpp", MakeGameplayPluginCpp()))
     {
-        result.error = "Failed to copy frigga_plugin.h";
+        result.error = "Failed to write scaffold source files";
         return result;
     }
 

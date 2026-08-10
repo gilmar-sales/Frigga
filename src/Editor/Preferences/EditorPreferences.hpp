@@ -90,6 +90,12 @@ struct EcsPreferences
     std::uint64_t threadCount            = 4;
 };
 
+struct ToolsPreferences
+{
+    /// CLI used to open a project folder (VS Code default). Examples: code, cursor, codium.
+    std::string codeEditorCommand = "code";
+};
+
 struct RecentProjectEntry
 {
     std::string path;
@@ -102,6 +108,7 @@ struct EditorPreferences
     AppearancePreferences appearance;
     GraphicsPreferences   graphics;
     EcsPreferences        ecs;
+    ToolsPreferences      tools;
     /// Loaded/saved manually (Skirnir Bind does not cover this list).
     std::vector<RecentProjectEntry> recentProjects;
 };

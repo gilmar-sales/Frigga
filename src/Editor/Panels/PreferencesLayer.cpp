@@ -365,6 +365,17 @@ void PreferencesLayer::drawAppearanceTab()
         applyTheme(prefs.appearance.themeIndex);
         persist();
     }
+
+    ImGui::SeparatorText("Code editor");
+    char command[256] {};
+    std::strncpy(command, prefs.tools.codeEditorCommand.c_str(), sizeof(command) - 1);
+    if(ImGui::InputText("Command", command, sizeof(command)))
+    {
+        prefs.tools.codeEditorCommand = command;
+        persist();
+    }
+    ImGui::TextDisabled("Launched with the project folder as the first argument.");
+    ImGui::TextDisabled("Defaults to VS Code (code). Examples: cursor, codium, code.cmd");
 }
 
 void PreferencesLayer::drawEcsTab()

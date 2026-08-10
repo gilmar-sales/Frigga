@@ -2,12 +2,20 @@
 
 #include <Frigga/Scene/Scene.hpp>
 
+#include <cstdint>
 #include <filesystem>
 #include <string>
 #include <string_view>
 
 struct ProjectDescriptor
 {
+    /// Persistent project format version written to frigga.project.
+    /// Missing / 0 on disk is treated as LegacyFormatVersion (1).
+    static constexpr int LegacyFormatVersion  = 1;
+    static constexpr int CurrentFormatVersion = 2;
+
+    int formatVersion = CurrentFormatVersion;
+
     std::string name;
     fg::SceneTemplate sceneTemplate = fg::SceneTemplate::D3;
     std::string sceneRelativePath   = "scenes/main.json";

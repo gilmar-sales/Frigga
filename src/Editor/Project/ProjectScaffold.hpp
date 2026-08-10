@@ -14,6 +14,12 @@ struct ProjectScaffoldResult
     std::string error;
 };
 
+struct ProjectManagedWriteResult
+{
+    bool ok = false;
+    std::string error;
+};
+
 class ProjectScaffold
 {
   public:
@@ -22,4 +28,9 @@ class ProjectScaffold
     static ProjectScaffoldResult Create(const std::filesystem::path &parentDir,
                                         const ProjectDescriptor &desc,
                                         fg::Scene &scene);
+
+    /// Rewrites Editor-managed files (CMakeLists, frigga_plugin.h, README) without
+    /// touching user gameplay sources under src/.
+    static ProjectManagedWriteResult WriteManagedFiles(const std::filesystem::path &projectRoot,
+                                                       const ProjectDescriptor &desc);
 };

@@ -103,6 +103,7 @@ cd build-release && ./Editor
 | Save | Ctrl+S |
 | Save as | Ctrl+Shift+S |
 | Reload gameplay plugin | Ctrl+R |
+| Open project in code editor | Ctrl+Shift+E |
 | Play / pause / resume | Ctrl+P |
 | Step one physics tick | Ctrl+. |
 | Stop play (restore edit scene) | Ctrl+Shift+P |
@@ -110,7 +111,7 @@ cd build-release && ./Editor
 | Gizmo translate / rotate / scale | W / E / R (editor viewport focused) |
 | Frame selection | F (editor viewport) |
 
-The Editor starts on a **home screen**: create a 2D/3D project (scaffolds CMake + Freyr gameplay plugin stubs + scene), open an existing `frigga.project`, or pick a recent project. Use **File → Build Gameplay Plugin** then **Reload** (Ctrl+R); play mode runs the loaded `.so` / `.dll` through a Freyr bridge system.
+The Editor starts on a **home screen**: create a 2D/3D project (scaffolds CMake + Freyr gameplay plugin stubs + scene), open an existing `frigga.project`, or pick a recent project. Opening a project auto-migrates older `frigga.project` formats (rewrites managed `CMakeLists.txt` / plugin header; never overwrites `src/Gameplay*`). Use **File → Migrate Project Files** to force-refresh managed files, then **Build Gameplay Plugin** and **Reload** (Ctrl+R); play mode runs the loaded `.so` / `.dll` through a Freyr bridge system.
 
 Workflows other than **Gameplay** / **ECS** are placeholders. Preferences live in `preferences.json` next to the binary; some graphics options need a restart.
 

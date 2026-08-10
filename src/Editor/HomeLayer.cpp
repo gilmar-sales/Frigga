@@ -130,6 +130,10 @@ void HomeLayer::drawNewProjectPanel()
         {
             mUiError = mSession->GetLastError();
         }
+        else
+        {
+            mSession->OpenInCodeEditor();
+        }
     }
 
     ImGui::Dummy(ImVec2(0.0f, 8.0f));
@@ -161,6 +165,25 @@ void HomeLayer::drawRecentProjects()
         {
             ImGui::TextDisabled("%s", entry.openedAt.c_str());
         }
+
+        if(ImGui::Button(ICON_BTSP_CODE " Open in editor"))
+        {
+            mUiError.clear();
+            if(!mSession->OpenInCodeEditor(entry.path))
+            {
+                mUiError = mSession->GetLastError();
+            }
+        }
+        ImGui::SameLine();
+        if(ImGui::Button(ICON_BTSP_FOLDEROPEN " Open project"))
+        {
+            mUiError.clear();
+            if(!mSession->OpenProject(entry.path))
+            {
+                mUiError = mSession->GetLastError();
+            }
+        }
+
         if(clicked && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
         {
             mUiError.clear();

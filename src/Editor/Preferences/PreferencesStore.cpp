@@ -376,6 +376,10 @@ void PreferencesStore::Save(const EditorPreferences &preferences,
     json << "    \"archetypeChunkCapacity\": " << e.archetypeChunkCapacity << ",\n";
     json << "    \"threadCount\": " << e.threadCount << "\n";
     json << "  },\n";
+    json << "  \"tools\": {\n";
+    json << "    \"codeEditorCommand\": \"" << EscapeJson(preferences.tools.codeEditorCommand)
+         << "\"\n";
+    json << "  },\n";
     json << "  \"recentProjects\": [\n";
     for(std::size_t i = 0; i < preferences.recentProjects.size(); ++i)
     {

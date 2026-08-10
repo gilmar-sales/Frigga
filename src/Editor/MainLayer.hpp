@@ -47,6 +47,7 @@ class MainLayer: public fg::Layer
     void openSceneDialog();
     void saveSceneDialog();
     void ensureEditMode();
+    void drawBuildProgressOverlay();
 
     static void onOpenSceneDialog(void *userdata, const char *const *filelist, int filter);
     static void onSaveSceneDialog(void *userdata, const char *const *filelist, int filter);
@@ -55,6 +56,7 @@ class MainLayer: public fg::Layer
     skr::Arc<Workflow> m_activeTab;
     const char *m_activeTabName = "Gameplay";
     bool m_resetDockLayout      = false;
+    bool mShowBuildOverlay      = false;
 
     skr::Arc<fg::Scene> mScene;
     skr::Arc<fg::LayerStack> mLayerStack;

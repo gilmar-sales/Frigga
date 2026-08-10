@@ -1,5 +1,6 @@
 #include "ProjectFile.hpp"
 
+#include <cctype>
 #include <fstream>
 #include <sstream>
 
@@ -84,12 +85,55 @@ namespace
         }
         return false;
     }
+
+    bool ExtractJsonIntField(std::string_view text, std::string_view key, int &out)
+    {
+        const std::string needle = "\"" + std::string(key) + "\"";
+        const auto keyPos        = text.find(needle);
+        if(keyPos == std::string_view::npos)
+        {
+            return false;
+        }
+        const auto colon = text.find(':', keyPos + needle.size());
+        if(colon == std::string_view::npos)
+        {
+            return false;
+        }
+        std::size_t i = colon + 1;
+        while(i < text.size() && std::isspace(static_cast<unsigned char>(text[i])))
+        {
+            ++i;
+        }
+        if(i >= text.size() || (!std::isdigit(static_cast<unsigned char>(text[i])) && text[i] != '-'))
+        {
+            return false;
+        }
+        const auto begin = i;
+        if(text[i] == '-')
+        {
+            ++i;
+        }
+        while(i < text.size() && std::isdigit(static_cast<unsigned char>(text[i])))
+        {
+            ++i;
+        }
+        try
+        {
+            out = std::stoi(std::string(text.substr(begin, i - begin)));
+            return true;
+        }
+        catch(...)
+        {
+            return false;
+        }
+    }
 } // namespace
 
 bool ProjectFile::Save(const std::filesystem::path &projectFile, const ProjectDescriptor &desc)
 {
     std::ostringstream json;
     json << "{\n";
+    json << "  \"version\": " << desc.formatVersion << ",\n";
     json << "  \"name\": \"" << EscapeJson(desc.name) << "\",\n";
     json << "  \"template\": \"" << EscapeJson(desc.TemplateId()) << "\",\n";
     json << "  \"scene\": \"" << EscapeJson(desc.sceneRelativePath) << "\",\n";
@@ -130,6 +174,16 @@ std::optional<ProjectDescriptor> ProjectFile::Load(const std::filesystem::path &
     if(!ExtractJsonStringField(text, "name", desc.name))
     {
         return std::nullopt;
+    }
+
+    int version = ProjectDescriptor::LegacyFormatVersion;
+    if(ExtractJsonIntField(text, "version", version))
+    {
+        desc.formatVersion = version > 0 ? version : ProjectDescriptor::LegacyFormatVersion;
+    }
+    else
+    {
+        desc.formatVersion = ProjectDescriptor::LegacyFormatVersion;
     }
 
     std::string templateId;

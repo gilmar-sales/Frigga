@@ -18,6 +18,9 @@
 #include <SDL3/SDL_dialog.h>
 
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <format>
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -63,6 +66,8 @@ MainLayer::MainLayer(skr::Arc<fg::Scene> scene, skr::Arc<fg::LayerStack> layerSt
 
 void MainLayer::onUpdate()
 {
+    mSession->Poll();
+
     if(!mSession->IsInEditor())
     {
         return;
@@ -85,9 +90,21 @@ void MainLayer::handleShortcuts()
         return;
     }
 
+    if(io.KeyCtrl && io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_E, false))
+    {
+        if(mSession->HasProject())
+        {
+            mSession->OpenInCodeEditor();
+        }
+        return;
+    }
+
     if(io.KeyCtrl && !io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_R, false))
     {
-        mSession->ReloadPlugin();
+        if(!mSession->IsBuilding())
+        {
+            mSession->ReloadPlugin();
+        }
         return;
     }
 
@@ -322,15 +339,128 @@ void MainLayer::onGui()
 
         drawMenuBar();
 
+        drawBuildProgressOverlay();
+
         ImGui::End();
     }
+}
+
+void MainLayer::drawBuildProgressOverlay()
+{
+    if(mSession->IsBuilding() || mSession->GetBuildPhase() == PluginBuildPhase::Reloading)
+    {
+        mShowBuildOverlay = true;
+    }
+
+    if(!mShowBuildOverlay)
+    {
+        return;
+    }
+
+    const auto phase    = mSession->GetBuildPhase();
+    const bool building =
+        mSession->IsBuilding() || phase == PluginBuildPhase::Reloading;
+
+    ImGui::OpenPopup("##PluginBuildProgress");
+    ImGuiViewport *viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowSize(ImVec2(520.0f, 0.0f), ImGuiCond_Always);
+
+    const ImGuiWindowFlags flags =
+        ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
+        ImGuiWindowFlags_AlwaysAutoResize;
+
+    if(!ImGui::BeginPopupModal("##PluginBuildProgress", nullptr, flags))
+    {
+        return;
+    }
+
+    const char *title = "Building gameplay plugin";
+    switch(phase)
+    {
+    case PluginBuildPhase::Configuring:
+        title = "Configuring plugin (CMake)…";
+        break;
+    case PluginBuildPhase::Building:
+        title = "Compiling gameplay plugin…";
+        break;
+    case PluginBuildPhase::Reloading:
+        title = "Reloading plugin…";
+        break;
+    case PluginBuildPhase::Succeeded:
+        title = "Plugin build succeeded";
+        break;
+    case PluginBuildPhase::Failed:
+        title = "Plugin build failed";
+        break;
+    default:
+        break;
+    }
+
+    ImGui::TextUnformatted(title);
+    ImGui::Spacing();
+
+    const float progress = mSession->GetBuildProgress();
+    char        overlay[32];
+    if(mSession->IsBuildProgressDeterminate() && mSession->IsBuilding())
+    {
+        std::snprintf(overlay, sizeof(overlay), "%.0f%%", progress * 100.0f);
+        ImGui::ProgressBar(progress, ImVec2(-1.0f, 0.0f), overlay);
+    }
+    else if(building)
+    {
+        ImGui::ProgressBar(progress, ImVec2(-1.0f, 0.0f), "");
+    }
+    else if(phase == PluginBuildPhase::Succeeded)
+    {
+        ImGui::ProgressBar(1.0f, ImVec2(-1.0f, 0.0f), "Done");
+    }
+    else if(phase == PluginBuildPhase::Failed)
+    {
+        ImGui::ProgressBar(1.0f, ImVec2(-1.0f, 0.0f), "Failed");
+    }
+
+    const auto logTail = mSession->GetBuildLogTail();
+    if(!logTail.empty())
+    {
+        ImGui::Spacing();
+        ImGui::BeginChild("##BuildLog", ImVec2(0.0f, 160.0f), ImGuiChildFlags_Borders);
+        ImGui::TextUnformatted(logTail.c_str());
+        if(building)
+        {
+            ImGui::SetScrollHereY(1.0f);
+        }
+        ImGui::EndChild();
+    }
+
+    if(phase == PluginBuildPhase::Failed)
+    {
+        const auto err = mSession->GetLastError();
+        if(!err.empty())
+        {
+            ImGui::TextColored(ImVec4(0.95f, 0.35f, 0.35f, 1.0f), "%s", err.c_str());
+        }
+    }
+
+    ImGui::Spacing();
+    ImGui::BeginDisabled(building);
+    if(ImGui::Button("Close", ImVec2(120.0f, 0.0f)) ||
+       (!building && ImGui::IsKeyPressed(ImGuiKey_Escape, false)))
+    {
+        mShowBuildOverlay = false;
+        mSession->DismissBuildUi();
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::EndDisabled();
+
+    ImGui::EndPopup();
 }
 
 float MainLayer::drawTitleBar()
 {
     const float titlebar_height = 48.0f;
     const ImVec2 windowPadding  = ImGui::GetCurrentWindow()->WindowPadding;
-
+    (void)windowPadding;
     return titlebar_height;
 }
 
@@ -364,7 +494,10 @@ void MainLayer::drawMenuBar()
         {
             if(ImGui::MenuItem(ICON_BTSP_FOLDER " Back to Home"))
             {
-                mSession->CloseToHome();
+                if(!mSession->IsBuilding())
+                {
+                    mSession->CloseToHome();
+                }
             }
             ImGui::Separator();
             ImGui::BeginDisabled(mSimulation->IsPlaying());
@@ -388,19 +521,34 @@ void MainLayer::drawMenuBar()
             }
             ImGui::EndDisabled();
             ImGui::Separator();
-            ImGui::BeginDisabled(!mSession->HasProject() || mSimulation->IsPlaying());
+            ImGui::BeginDisabled(!mSession->HasProject() || mSimulation->IsPlaying() ||
+                                 mSession->IsBuilding());
+            if(ImGui::MenuItem(ICON_BTSP_CODE " Open in Code Editor", "Ctrl+Shift+E"))
+            {
+                mSession->OpenInCodeEditor();
+            }
             if(ImGui::MenuItem("Build Gameplay Plugin"))
             {
-                mSession->BuildPlugin();
+                if(mSession->BuildPlugin())
+                {
+                    mShowBuildOverlay = true;
+                }
+            }
+            if(ImGui::MenuItem("Migrate Project Files"))
+            {
+                mSession->MigrateOpenProject(true);
             }
             if(ImGui::MenuItem("Reload Gameplay Plugin", "Ctrl+R"))
             {
                 mSession->ReloadPlugin();
             }
             ImGui::EndDisabled();
-            if(!mSession->GetStatusMessage().empty())
             {
-                ImGui::TextDisabled("%s", mSession->GetStatusMessage().c_str());
+                const auto status = mSession->GetStatusMessage();
+                if(!status.empty())
+                {
+                    ImGui::TextDisabled("%s", status.c_str());
+                }
             }
             ImGui::Separator();
             if(ImGui::MenuItem(ICON_BTSP_SHUTDOWN " Close Phantom", "Alt+F4"))
