@@ -552,16 +552,39 @@ void HierarchyLayer::onGui()
 
 void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
 {
+    const bool renaming = nodeToRename == entity;
+
     ImGuiTreeNodeFlags flags =
         ((mSelection->Get() == entity) ? ImGuiTreeNodeFlags_Selected : 0) |
         ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Leaf;
+    if(renaming)
+    {
+        flags |= ImGuiTreeNodeFlags_AllowOverlap;
+    }
 
     const char *icon = resolveEntityIcon(entity);
-    bool opened      = icon[0] != '\0'
-                           ? ImGui::TreeNodeEx(reinterpret_cast<void *>(static_cast<uintptr_t>(entity)),
-                                              flags, "%s %s", icon, name.name.c_str())
-                           : ImGui::TreeNodeEx(reinterpret_cast<void *>(static_cast<uintptr_t>(entity)),
-                                              flags, "%s", name.name.c_str());
+    bool        opened = false;
+    if(renaming)
+    {
+        // Keep the icon in the row; the name is drawn by the overlay InputText.
+        opened = icon[0] != '\0'
+                     ? ImGui::TreeNodeEx(reinterpret_cast<void *>(static_cast<uintptr_t>(entity)),
+                                        flags, "%s", icon)
+                     : ImGui::TreeNodeEx(reinterpret_cast<void *>(static_cast<uintptr_t>(entity)),
+                                        flags, "");
+    }
+    else
+    {
+        opened = icon[0] != '\0'
+                     ? ImGui::TreeNodeEx(reinterpret_cast<void *>(static_cast<uintptr_t>(entity)),
+                                        flags, "%s %s", icon, name.name.c_str())
+                     : ImGui::TreeNodeEx(reinterpret_cast<void *>(static_cast<uintptr_t>(entity)),
+                                        flags, "%s", name.name.c_str());
+    }
+
+    const ImVec2 rowMin       = ImGui::GetItemRectMin();
+    const ImVec2 rowMax       = ImGui::GetItemRectMax();
+    const ImVec2 backupCursor = ImGui::GetCursorScreenPos();
 
     const std::string popUpId  = std::format("##PopUp{}", entity);
     const std::string renameId = std::format("##Rename{}", entity);
@@ -673,38 +696,72 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
         ImGui::EndPopup();
     }
 
-    if(ImGui::IsItemClicked() || ImGui::IsItemClicked(1))
+    if(!renaming && (ImGui::IsItemClicked() || ImGui::IsItemClicked(1)))
     {
         mSelection->Select(entity);
     }
 
-    if(!mSimulation->IsPlaying() && ImGui::IsItemHovered() &&
+    if(!renaming && !mSimulation->IsPlaying() && ImGui::IsItemHovered() &&
        ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
     {
         nodeToRename = entity;
     }
 
-    if(nodeToRename == entity)
+    if(renaming)
     {
-        ImGui::SameLine();
-
         static char buffer[65] {};
         static fr::Entity bufferEntity = SelectionContext::Invalid;
+        static bool       needsFocus   = false;
         if(bufferEntity != entity)
         {
             bufferEntity = entity;
+            needsFocus   = true;
             buffer[0]    = '\0';
             mRegistry->TryGetComponents<fg::NameComponent>(
                 entity, [](fg::NameComponent &name) {
                     std::strncpy(buffer, name.name.c_str(), sizeof(buffer) - 1);
                     buffer[sizeof(buffer) - 1] = '\0';
                 });
+        }
+
+        float labelX = rowMin.x + ImGui::GetTreeNodeToLabelSpacing();
+        if(icon[0] != '\0')
+        {
+            labelX += ImGui::CalcTextSize(icon).x + ImGui::CalcTextSize(" ").x;
+        }
+
+        const float rowHeight = rowMax.y - rowMin.y;
+        const float framePadY =
+            std::max(0.0f, (rowHeight - ImGui::GetFontSize()) * 0.5f);
+
+        ImGui::SetCursorScreenPos(ImVec2(labelX, rowMin.y));
+        ImGui::PushItemWidth(std::max(24.0f, rowMax.x - labelX));
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0.0f, framePadY));
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
+
+        // Blend with the selected tree-row background.
+        const ImVec4 header =
+            ImGui::GetStyleColorVec4(mSelection->Get() == entity ? ImGuiCol_Header
+                                                                : ImGuiCol_FrameBg);
+        ImGui::PushStyleColor(ImGuiCol_FrameBg, header);
+        ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, header);
+        ImGui::PushStyleColor(ImGuiCol_FrameBgActive, header);
+
+        if(needsFocus)
+        {
             ImGui::SetKeyboardFocusHere();
+            needsFocus = false;
         }
 
         const bool committed = ImGui::InputText(
             renameId.data(), buffer, sizeof(buffer),
             ImGuiInputTextFlags_AutoSelectAll | ImGuiInputTextFlags_EnterReturnsTrue);
+
+        ImGui::PopStyleColor(3);
+        ImGui::PopStyleVar(2);
+        ImGui::PopItemWidth();
+        ImGui::SetCursorScreenPos(backupCursor);
+
         if(committed)
         {
             mRegistry->TryGetComponents<fg::NameComponent>(
