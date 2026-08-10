@@ -62,7 +62,8 @@ namespace FRIGGA_NAMESPACE
         }
 
         const auto relative = std::filesystem::relative(absolute, root, ec);
-        if(ec || relative.empty() || relative.native().starts_with(".."))
+        // Use generic_string(): path::native() is wchar_t on Windows MinGW.
+        if(ec || relative.empty() || relative.generic_string().starts_with(".."))
         {
             return {};
         }
