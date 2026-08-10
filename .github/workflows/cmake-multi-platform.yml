@@ -140,19 +140,15 @@ jobs:
         command -v glslc
         glslc --version
 
-    - name: Cache and install gcc-16 on Linux
-      if: matrix.os == 'ubuntu-latest'
-      uses: awalsh128/cache-apt-pkgs-action@v1
-      with:
-        packages: gcc-16 g++-16
-        version: gcc16-1.0
-
-    - name: Switch default gcc/g++ to 16 on Linux
+    - name: Install gcc-16 on Linux
       if: matrix.os == 'ubuntu-latest'
       run: |
-        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-16 100 --slave /usr/bin/g++ g++ /usr/bin/g++-16 --slave /usr/bin/gcov gcov /usr/bin/gcov-16
+        sudo apt-get update
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gcc-16 g++-16
+        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-16 100 \
+          --slave /usr/bin/g++ g++ /usr/bin/g++-16 \
+          --slave /usr/bin/gcov gcov /usr/bin/gcov-16
         sudo update-alternatives --set gcc /usr/bin/gcc-16
-        gcc --version
         g++ --version
 
     - name: Cache MinGW-w64 GCC 16 on Windows
