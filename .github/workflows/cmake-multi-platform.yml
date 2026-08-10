@@ -73,8 +73,7 @@ jobs:
         shell: bash
         run: echo "GLSLC_DIR=$(dirname "$(command -v glslc)")" >> "$GITHUB_ENV"
 
-      - name: Windows Vulkan headers
-        if: runner.os == 'Windows'
+      - name: Vulkan
         uses: humbletim/setup-vulkan-sdk@v1.2.1
         with:
           vulkan-query-version: 1.4.328.1
