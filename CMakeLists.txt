@@ -91,6 +91,17 @@ target_link_libraries(frigga PUBLIC
         ${CMAKE_DL_LIBS}
 )
 
+# Skirnir propagates -freflection (needed for UserComponentReflection / plugins).
+# GCC ≤16 with -freflection eagerly instantiates JPH::StaticArray<Vec3,...> while
+# Vec3 is still incomplete (https://gcc.gnu.org/bugzilla/show_bug.cgi?id=125280).
+# This TU only wraps Jolt and does not use reflection — strip the flag here.
+set_source_files_properties(
+        src/Frigga/Physics/JoltPhysicsWorld.cpp
+        PROPERTIES
+        SKIP_PRECOMPILE_HEADERS ON
+        COMPILE_OPTIONS "$<$<CXX_COMPILER_ID:GNU,Clang>:-fno-reflection>"
+)
+
 file(GLOB_RECURSE EDITOR_SRC src/Editor/*.cpp src/Editor/*.hpp)
 
 add_executable(Editor ${EDITOR_SRC}
