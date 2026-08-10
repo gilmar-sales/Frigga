@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Frigga/Macro.hpp"
 #include "Frigga/Physics/IPhysicsWorld.hpp"
 
 #include <array>
