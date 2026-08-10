@@ -7,8 +7,8 @@
 
 namespace
 {
-    bool ApplyManagedV2Layout(const std::filesystem::path &projectRoot, ProjectDescriptor &desc,
-                              std::string &error)
+    bool ApplyManagedLayout(const std::filesystem::path &projectRoot, ProjectDescriptor &desc,
+                            std::string &error)
     {
         const auto written = ProjectScaffold::WriteManagedFiles(projectRoot, desc);
         if(!written.ok)
@@ -16,6 +16,17 @@ namespace
             error = written.error;
             return false;
         }
+
+        if(!ProjectScaffold::WriteExampleUserComponents(projectRoot, error))
+        {
+            return false;
+        }
+
+        if(!ProjectScaffold::MaybeRewriteManagedPluginEntry(projectRoot, error))
+        {
+            return false;
+        }
+
         desc.formatVersion = ProjectDescriptor::CurrentFormatVersion;
         return true;
     }
@@ -63,10 +74,10 @@ ProjectMigrationResult ProjectMigrator::Migrate(const std::filesystem::path &pro
         return result;
     }
 
-    // v1 (legacy / no version) → v2: C++26 CMake + refreshed plugin header / README.
-    // Future versions append additional steps here (e.g. if(from < 3) …).
+    // v1 → v2: C++26 CMake + plugin header / README
+    // v2 → v3: user-component helpers, Health example, managed plugin registration
     std::string stepError;
-    if(!ApplyManagedV2Layout(projectFile.parent_path(), desc, stepError))
+    if(!ApplyManagedLayout(projectFile.parent_path(), desc, stepError))
     {
         result.error = stepError;
         return result;
@@ -88,7 +99,7 @@ ProjectMigrationResult ProjectMigrator::Migrate(const std::filesystem::path &pro
     else
     {
         msg << "Migrated project format v" << result.fromVersion << " → v" << result.toVersion
-            << " (CMake C++26, plugin header)";
+            << " (user components, CMake C++26, plugin header)";
     }
     msg << ". Rebuild the gameplay plugin.";
     result.message = msg.str();

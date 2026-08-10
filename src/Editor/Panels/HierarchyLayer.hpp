@@ -7,6 +7,7 @@
 #include "Frigga/ECS/Components/NameComponent.hpp"
 #include "Frigga/ECS/Components/RigidBodyComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
+#include "Frigga/ECS/UserComponentRegistry.hpp"
 #include "Frigga/Scene/Scene.hpp"
 #include "Frigga/Scene/SceneSimulationState.hpp"
 
@@ -16,6 +17,7 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <string_view>
 
 class HierarchyLayer: public fg::Layer
 {
@@ -23,7 +25,8 @@ class HierarchyLayer: public fg::Layer
     HierarchyLayer(skr::Arc<fr::Registry> registry, skr::Arc<fg::Scene> scene,
                    skr::Arc<fg::PrimitiveMeshFactory> primitives,
                    skr::Arc<fg::AssetRegistry> assets, skr::Arc<SelectionContext> selection,
-                   skr::Arc<fg::SceneSimulationState> simulation, skr::Arc<fra::Window> window);
+                   skr::Arc<fg::SceneSimulationState> simulation, skr::Arc<fra::Window> window,
+                   skr::Arc<fg::UserComponentRegistry> userComponents);
     ~HierarchyLayer() override = default;
 
     void createEmptyEntity();
@@ -33,9 +36,12 @@ class HierarchyLayer: public fg::Layer
     void addRigidBodyToSelection();
     void addLightToSelection(fra::LightType type);
     void addLightToEntity(fr::Entity entity, fra::LightType type);
+    void addUserComponentToSelection(std::string_view typeId);
+    void addUserComponentToEntity(fr::Entity entity, std::string_view typeId);
     void drawEntityNode(fr::Entity entity, fg::NameComponent &name);
 
     void drawComponents();
+    void drawGameplayAddComponentMenu(fr::Entity entity);
 
     void onUpdate() override;
     void onGui() override;
@@ -74,6 +80,7 @@ class HierarchyLayer: public fg::Layer
     skr::Arc<SelectionContext> mSelection;
     skr::Arc<fg::SceneSimulationState> mSimulation;
     skr::Arc<fra::Window> mWindow;
+    skr::Arc<fg::UserComponentRegistry> mUserComponents;
     fr::Entity nodeToRename;
 
     std::mutex mDialogMutex;

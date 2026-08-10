@@ -64,8 +64,9 @@ namespace FRIGGA_NAMESPACE
 
     GameplayPluginHost::GameplayPluginHost(
         const skr::Arc<fr::Registry> &registry,
+        const skr::Arc<UserComponentRegistry> &userComponents,
         const skr::Arc<skr::Logger<GameplayPluginHost>> &logger)
-        : mRegistry(registry), mLogger(logger)
+        : mRegistry(registry), mUserComponents(userComponents), mLogger(logger)
     {
     }
 
@@ -198,7 +199,8 @@ namespace FRIGGA_NAMESPACE
             return;
         }
 
-        FriHost host {.registry = mRegistry.get()};
+        FriHost host {.registry         = mRegistry.get(),
+                      .user_components  = mUserComponents.get()};
         mApi->on_attach(mPlugin, &host);
         mAttached = true;
     }
@@ -215,6 +217,7 @@ namespace FRIGGA_NAMESPACE
         {
             mApi->on_detach(mPlugin);
         }
+        mUserComponents->ClearPluginTypes();
         mAttached = false;
     }
 

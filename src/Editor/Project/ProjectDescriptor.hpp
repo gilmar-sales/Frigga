@@ -12,7 +12,7 @@ struct ProjectDescriptor
     /// Persistent project format version written to frigga.project.
     /// Missing / 0 on disk is treated as LegacyFormatVersion (1).
     static constexpr int LegacyFormatVersion  = 1;
-    static constexpr int CurrentFormatVersion = 2;
+    static constexpr int CurrentFormatVersion = 3;
 
     int formatVersion = CurrentFormatVersion;
 

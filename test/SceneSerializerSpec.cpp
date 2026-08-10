@@ -9,6 +9,7 @@
 #include <Frigga/ECS/Components/NameComponent.hpp>
 #include <Frigga/ECS/Components/RigidBodyComponent.hpp>
 #include <Frigga/ECS/Components/TransformComponent.hpp>
+#include <Frigga/ECS/Components/UserDataComponent.hpp>
 #include <Frigga/Scene/Scene.hpp>
 #include <Frigga/Scene/SceneSerializer.hpp>
 
@@ -400,3 +401,50 @@ TEST_F(SceneSerializerSpec, CaptureRestore_KeepsDisplayPathIntact)
 
     std::filesystem::remove(path, ec);
 }
+
+TEST_F(SceneSerializerSpec, RoundTrip_UserComponents)
+{
+    fg::UserDataComponent data {};
+    fg::UserComponentInstance health {.typeId = "Health"};
+    health.properties.push_back(fg::NamedProperty {
+        .name  = "current",
+        .value = fg::PropertyValue {.kind = fg::PropertyKind::Float, .floatValue = 42.5f},
+    });
+    health.properties.push_back(fg::NamedProperty {
+        .name  = "max",
+        .value = fg::PropertyValue {.kind = fg::PropertyKind::Float, .floatValue = 100.0f},
+    });
+    data.instances.push_back(std::move(health));
+
+    mRegistry->CreateEntity(fg::NameComponent {.name = "WithHealth"},
+                            fg::TransformComponent {}, std::move(data));
+    mRegistry->ExecuteTasks();
+
+    std::string json;
+    ASSERT_TRUE(fg::SceneSerializer::Serialize(*mScene, json));
+    EXPECT_NE(json.find("\"userComponents\""), std::string::npos);
+    EXPECT_NE(json.find("\"Health\""), std::string::npos);
+    ASSERT_TRUE(mScene->RestoreSnapshot(json));
+
+    bool found = false;
+    mRegistry->CreateMutation()->Each<fg::NameComponent, fg::UserDataComponent>(
+        [&](auto, fg::NameComponent &name, fg::UserDataComponent &userData) {
+            if(name.name != "WithHealth")
+            {
+                return;
+            }
+            found = true;
+            ASSERT_EQ(userData.instances.size(), 1u);
+            EXPECT_EQ(userData.instances[0].typeId, "Health");
+            ASSERT_EQ(userData.instances[0].properties.size(), 2u);
+            const auto *current = fg::FindProperty(userData.instances[0], "current");
+            const auto *max     = fg::FindProperty(userData.instances[0], "max");
+            ASSERT_NE(current, nullptr);
+            ASSERT_NE(max, nullptr);
+            EXPECT_EQ(current->value.kind, fg::PropertyKind::Float);
+            EXPECT_NEAR(current->value.floatValue, 42.5f, kEpsilon);
+            EXPECT_NEAR(max->value.floatValue, 100.0f, kEpsilon);
+        });
+    EXPECT_TRUE(found);
+}
+

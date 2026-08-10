@@ -12,9 +12,11 @@
 #include "ECS/Components/NameComponent.hpp"
 #include "ECS/Components/RigidBodyComponent.hpp"
 #include "ECS/Components/TransformComponent.hpp"
+#include "ECS/Components/UserDataComponent.hpp"
 #include "ECS/Systems/AnimationSystem.hpp"
 #include "ECS/Systems/PhysicsSystem.hpp"
 #include "ECS/Systems/RenderSystem.hpp"
+#include "ECS/UserComponentRegistry.hpp"
 #include "Physics/IPhysicsWorld.hpp"
 #include "Physics/JoltPhysicsWorld.hpp"
 #include "Plugin/GameplayPluginBridge.hpp"
@@ -36,6 +38,7 @@ namespace FRIGGA_NAMESPACE
                     .WithComponent<LightComponent>()
                     .WithComponent<RigidBodyComponent>()
                     .WithComponent<AnimatorComponent>()
+                    .WithComponent<UserDataComponent>()
                     .WithPipeline([](fr::PipelineBuilder &pipeline) {
                         pipeline.WithName("Main")
                             .WithSystem<PhysicsSystem>()
@@ -63,6 +66,7 @@ namespace FRIGGA_NAMESPACE
         services.AddSingleton<fg::IPhysicsWorld, fg::JoltPhysicsWorld>();
         services.AddSingleton<fg::Scene>();
         services.AddSingleton<fg::SceneSimulationState>();
+        services.AddSingleton<fg::UserComponentRegistry>();
         services.AddSingleton<fg::GameplayPluginHost>();
         services.AddScoped<fg::LayerStack>();
         services.AddSingleton<fg::GuiLayer>();

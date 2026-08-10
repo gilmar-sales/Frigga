@@ -32,7 +32,6 @@
 #else
 #error "Platform doesn't support debugbreak yet!"
 #endif
-#define FG_ASSERT
 #else
 #define debug_break()
 #endif
@@ -47,4 +46,6 @@
                "expression: " #expression " failed!");                                                                 \
         debug_break();                                                                                                 \
     }
+#else
+#define FG_ASSERT(expression) ((void)0)
 #endif

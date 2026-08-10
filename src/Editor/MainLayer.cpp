@@ -443,6 +443,14 @@ void MainLayer::drawBuildProgressOverlay()
     }
 
     ImGui::Spacing();
+    if(!logTail.empty())
+    {
+        if(ImGui::Button("Copy log", ImVec2(120.0f, 0.0f)))
+        {
+            ImGui::SetClipboardText(logTail.c_str());
+        }
+        ImGui::SameLine();
+    }
     ImGui::BeginDisabled(building);
     if(ImGui::Button("Close", ImVec2(120.0f, 0.0f)) ||
        (!building && ImGui::IsKeyPressed(ImGuiKey_Escape, false)))
@@ -653,6 +661,10 @@ void MainLayer::drawMenuBar()
                         }
                     }
                     ImGui::EndMenu();
+                }
+                if(mSelection->HasSelection())
+                {
+                    mHierarchy->drawGameplayAddComponentMenu(mSelection->Get());
                 }
                 ImGui::EndDisabled();
                 ImGui::EndMenu();

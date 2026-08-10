@@ -6,6 +6,7 @@
 
 #include <filesystem>
 #include <string>
+#include <string_view>
 
 struct ProjectScaffoldResult
 {
@@ -23,14 +24,24 @@ struct ProjectManagedWriteResult
 class ProjectScaffold
 {
   public:
+    static constexpr std::string_view ManagedPluginMarker = "// FRIGGA_MANAGED_PLUGIN_ENTRY";
+
     /// Creates project directory under parentDir/name and writes all scaffold files.
     /// Uses @p scene to seed and serialize the template scene JSON.
     static ProjectScaffoldResult Create(const std::filesystem::path &parentDir,
                                         const ProjectDescriptor &desc,
                                         fg::Scene &scene);
 
-    /// Rewrites Editor-managed files (CMakeLists, frigga_plugin.h, README) without
-    /// touching user gameplay sources under src/.
+    /// Rewrites Editor-managed files (CMakeLists, frigga_plugin.h, README,
+    /// frigga_user_components.hpp) without touching user gameplay sources under src/.
     static ProjectManagedWriteResult WriteManagedFiles(const std::filesystem::path &projectRoot,
                                                        const ProjectDescriptor &desc);
+
+    /// Writes example Health component when missing (migration / create).
+    static bool WriteExampleUserComponents(const std::filesystem::path &projectRoot,
+                                           std::string &error);
+
+    /// Rewrites GameplayPlugin.cpp only if missing or still marked managed.
+    static bool MaybeRewriteManagedPluginEntry(const std::filesystem::path &projectRoot,
+                                               std::string &error);
 };

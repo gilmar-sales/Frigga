@@ -5,8 +5,9 @@
  * @brief Stable C ABI for Frigga gameplay plugins (shared libraries).
  *
  * Plugins are built against the same Freyr/Frigga tree as the Editor and cast
- * FriHost::registry to fr::Registry* to drive mutations. Custom component types
- * are not supported until the engine registers them at bootstrap.
+ * FriHost::registry to fr::Registry*. Gameplay/plugin component types are
+ * registered into FriHost::user_components (UserComponentRegistry*) via
+ * C++26 reflection helpers in UserComponentReflection.hpp.
  */
 
 #include <stdint.h>
@@ -29,6 +30,8 @@ typedef struct FriHost
 {
     /** Opaque pointer to fr::Registry in the Editor process. */
     void *registry;
+    /** Opaque pointer to fg::UserComponentRegistry in the Editor process. */
+    void *user_components;
 } FriHost;
 
 typedef struct FriPlugin FriPlugin;

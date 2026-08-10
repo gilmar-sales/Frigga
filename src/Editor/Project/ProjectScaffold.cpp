@@ -4,6 +4,7 @@
 
 #include <fstream>
 #include <sstream>
+#include <string_view>
 
 namespace
 {
@@ -122,7 +123,8 @@ namespace
  * This type mirrors fr::System but is NOT registered with Freyr — the Editor
  * bridge calls Update() through the C plugin API while play mode is running.
  *
- * Only engine-registered components (Name, Transform, Mesh, …) may be used.
+ * Prefer engine components (Name, Transform, Mesh, …) plus project user
+ * components stored in UserDataComponent (see Health.hpp + fri helpers).
  */
 class GameplaySystem
 {
@@ -171,9 +173,12 @@ void GameplaySystem::Update(float deltaTime)
 
     std::string MakeGameplayPluginCpp()
     {
-        return R"cpp(#include "GameplaySystem.hpp"
+        return R"cpp(// FRIGGA_MANAGED_PLUGIN_ENTRY
+#include "GameplaySystem.hpp"
+#include "Components/Health.hpp"
 
 #include <frigga_plugin.h>
+#include <frigga_user_components.hpp>
 
 #include <Freyr/Freyr.hpp>
 
@@ -203,6 +208,12 @@ namespace
             return;
         }
         auto *registry = static_cast<fr::Registry *>(host->registry);
+        if(host->user_components)
+        {
+            auto *userComponents =
+                static_cast<fg::UserComponentRegistry *>(host->user_components);
+            FriRegisterUserComponent<Health>(*userComponents, "Health");
+        }
         plugin->system = std::make_unique<GameplaySystem>(registry);
         plugin->system->OnAttach();
     }
@@ -241,6 +252,36 @@ extern "C" FRI_PLUGIN_API const FriPluginApi *fri_plugin_api(void)
 )cpp";
     }
 
+    std::string MakeUserComponentsHeader()
+    {
+        return R"cpp(#pragma once
+
+/**
+ * Convenience aliases for project gameplay components.
+ * Types live as property bags inside fg::UserDataComponent (not Freyr SOA types).
+ */
+
+#include <Frigga/ECS/UserComponentReflection.hpp>
+
+using fg::FriRegisterUserComponent;
+using fg::FriSet;
+using fg::FriTryGet;
+)cpp";
+    }
+
+    std::string MakeHealthComponentHpp()
+    {
+        return R"cpp(#pragma once
+
+/// Example project component (POD). Register in GameplayPlugin on_attach.
+struct Health
+{
+    float current = 100.0f;
+    float max     = 100.0f;
+};
+)cpp";
+    }
+
     std::string MakeReadme(const ProjectDescriptor &desc)
     {
         std::ostringstream out;
@@ -250,13 +291,22 @@ extern "C" FRI_PLUGIN_API const FriPluginApi *fri_plugin_api(void)
         out << "- `frigga.project` — project metadata\n";
         out << "- `scenes/main.json` — default scene\n";
         out << "- `src/GameplaySystem.*` — Freyr-style gameplay logic\n";
-        out << "- `src/GameplayPlugin.cpp` — C ABI entry for the Editor\n\n";
+        out << "- `src/GameplayPlugin.cpp` — C ABI entry for the Editor\n";
+        out << "- `src/Components/` — project POD components (example: Health)\n";
+        out << "- `include/frigga_user_components.hpp` — FriRegister / FriTryGet / FriSet\n\n";
+        out << "## Project components\n\n";
+        out << "1. Declare a POD struct (bool / int / float / string / glm::vec2/3/4 fields).\n";
+        out << "2. In `on_attach`: `FriRegisterUserComponent<Foo>(*userComponents, \"Foo\");`\n";
+        out << "3. Build + **Reload Gameplay Plugin**.\n";
+        out << "4. In the Editor: Entity → Add Component → Gameplay → Foo.\n";
+        out << "5. In systems: `FriTryGet` / `FriSet` on `UserDataComponent`.\n\n";
         out << "## Build the plugin\n\n";
-        out << "Requires a **C++26** compiler with reflection (GCC 16+ or Clang 22+), same as Frigga.\n\n";
+        out << "Requires a **C++26** compiler with reflection (GCC 16+ or Clang 22+), "
+               "same as Frigga.\n\n";
         out << "```bash\n";
-        out << "cmake -S . -B build-plugin -G Ninja -DCMAKE_BUILD_TYPE=Debug "
+        out << "cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug "
                "-DCMAKE_CXX_STANDARD=26\n";
-        out << "cmake --build build-plugin\n";
+        out << "cmake --build build\n";
         out << "```\n\n";
         out << "Or use **File → Build Gameplay Plugin** in the Editor "
                "(forces `gnu++26` + `-freflection`).\n\n";
@@ -264,11 +314,7 @@ extern "C" FRI_PLUGIN_API const FriPluginApi *fri_plugin_api(void)
         out << "It resolves Freyr symbols from the Editor process (do not link `libfreyr.a` into the "
                "plugin).\n";
         out << "In the Editor: **File → Build Gameplay Plugin**, then **Reload Gameplay Plugin** "
-               "(Ctrl+R), and press Play.\n\n";
-        out << "## Constraints\n\n";
-        out << "Use only components already registered by Frigga "
-               "(`Transform`, `Name`, `Mesh`, …). "
-               "Custom component types require engine bootstrap registration.\n";
+               "(Ctrl+R), and press Play.\n";
         return out.str();
     }
 
@@ -281,6 +327,18 @@ extern "C" FRI_PLUGIN_API const FriPluginApi *fri_plugin_api(void)
         std::filesystem::create_directories(dst.parent_path(), ec);
         std::filesystem::copy_file(src, dst, std::filesystem::copy_options::overwrite_existing, ec);
         return !ec;
+    }
+
+    bool FileContains(const std::filesystem::path &path, std::string_view needle)
+    {
+        std::ifstream file(path, std::ios::binary);
+        if(!file)
+        {
+            return false;
+        }
+        std::ostringstream buffer;
+        buffer << file.rdbuf();
+        return buffer.str().find(needle) != std::string::npos;
     }
 } // namespace
 
@@ -320,8 +378,48 @@ ProjectManagedWriteResult ProjectScaffold::WriteManagedFiles(
         return result;
     }
 
+    if(!WriteTextFile(projectRoot / "include/frigga_user_components.hpp",
+                       MakeUserComponentsHeader()))
+    {
+        result.error = "Failed to write frigga_user_components.hpp";
+        return result;
+    }
+
     result.ok = true;
     return result;
+}
+
+bool ProjectScaffold::WriteExampleUserComponents(const std::filesystem::path &projectRoot,
+                                                 std::string &error)
+{
+    const auto healthPath = projectRoot / "src/Components/Health.hpp";
+    if(std::filesystem::exists(healthPath))
+    {
+        return true;
+    }
+    if(!WriteTextFile(healthPath, MakeHealthComponentHpp()))
+    {
+        error = "Failed to write src/Components/Health.hpp";
+        return false;
+    }
+    return true;
+}
+
+bool ProjectScaffold::MaybeRewriteManagedPluginEntry(const std::filesystem::path &projectRoot,
+                                                     std::string &error)
+{
+    const auto pluginPath = projectRoot / "src/GameplayPlugin.cpp";
+    const bool exists     = std::filesystem::exists(pluginPath);
+    if(exists && !FileContains(pluginPath, ManagedPluginMarker))
+    {
+        return true;
+    }
+    if(!WriteTextFile(pluginPath, MakeGameplayPluginCpp()))
+    {
+        error = "Failed to write src/GameplayPlugin.cpp";
+        return false;
+    }
+    return true;
 }
 
 ProjectScaffoldResult ProjectScaffold::Create(const std::filesystem::path &parentDir,
@@ -385,6 +483,13 @@ ProjectScaffoldResult ProjectScaffold::Create(const std::filesystem::path &paren
        !WriteTextFile(projectRoot / "src/GameplayPlugin.cpp", MakeGameplayPluginCpp()))
     {
         result.error = "Failed to write scaffold source files";
+        return result;
+    }
+
+    std::string exampleError;
+    if(!WriteExampleUserComponents(projectRoot, exampleError))
+    {
+        result.error = exampleError;
         return result;
     }
 

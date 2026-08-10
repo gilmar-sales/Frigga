@@ -10,6 +10,7 @@
 #include "Frigga/ECS/Components/NameComponent.hpp"
 #include "Frigga/ECS/Components/RigidBodyComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
+#include "Frigga/ECS/Components/UserDataComponent.hpp"
 
 #include <SDL3/SDL_dialog.h>
 
@@ -31,6 +32,50 @@ namespace
     {
         return glm::quatLookAt(glm::vec3 {0.0f, -1.0f, 0.0f}, glm::vec3 {0.0f, 0.0f, 1.0f});
     }
+
+    void DrawNamedProperty(fg::NamedProperty &property)
+    {
+        ImGui::PushID(property.name.c_str());
+        auto &value = property.value;
+        switch(value.kind)
+        {
+        case fg::PropertyKind::Bool:
+            ImGui::Checkbox(property.name.c_str(), &value.boolValue);
+            break;
+        case fg::PropertyKind::Int64:
+        {
+            int asInt = static_cast<int>(value.intValue);
+            if(ImGui::InputInt(property.name.c_str(), &asInt))
+            {
+                value.intValue = asInt;
+            }
+            break;
+        }
+        case fg::PropertyKind::Float:
+            ImGui::DragFloat(property.name.c_str(), &value.floatValue, 0.01f);
+            break;
+        case fg::PropertyKind::String:
+        {
+            char buffer[256];
+            std::snprintf(buffer, sizeof(buffer), "%s", value.stringValue.c_str());
+            if(ImGui::InputText(property.name.c_str(), buffer, sizeof(buffer)))
+            {
+                value.stringValue = buffer;
+            }
+            break;
+        }
+        case fg::PropertyKind::Vec2:
+            ImGui::DragFloat2(property.name.c_str(), &value.vec2Value[0], 0.01f);
+            break;
+        case fg::PropertyKind::Vec3:
+            ImGui::DragFloat3(property.name.c_str(), &value.vec3Value[0], 0.01f);
+            break;
+        case fg::PropertyKind::Vec4:
+            ImGui::DragFloat4(property.name.c_str(), &value.vec4Value[0], 0.01f);
+            break;
+        }
+        ImGui::PopID();
+    }
 } // namespace
 
 HierarchyLayer::HierarchyLayer(skr::Arc<fr::Registry> registry, skr::Arc<fg::Scene> scene,
@@ -38,11 +83,13 @@ HierarchyLayer::HierarchyLayer(skr::Arc<fr::Registry> registry, skr::Arc<fg::Sce
                                skr::Arc<fg::AssetRegistry> assets,
                                skr::Arc<SelectionContext> selection,
                                skr::Arc<fg::SceneSimulationState> simulation,
-                               skr::Arc<fra::Window> window)
+                               skr::Arc<fra::Window> window,
+                               skr::Arc<fg::UserComponentRegistry> userComponents)
     : mRegistry(std::move(registry)), mScene(std::move(scene)),
       mPrimitives(std::move(primitives)), mAssets(std::move(assets)),
       mSelection(std::move(selection)), mSimulation(std::move(simulation)),
-      mWindow(std::move(window)), nodeToRename(SelectionContext::Invalid)
+      mWindow(std::move(window)), mUserComponents(std::move(userComponents)),
+      nodeToRename(SelectionContext::Invalid)
 {
 }
 
@@ -286,6 +333,99 @@ void HierarchyLayer::addLightToSelection(fra::LightType type)
     }
 
     addLightToEntity(mSelection->Get(), type);
+}
+
+void HierarchyLayer::addUserComponentToSelection(std::string_view typeId)
+{
+    if(!mSelection->HasSelection() || mSimulation->IsPlaying())
+    {
+        return;
+    }
+    addUserComponentToEntity(mSelection->Get(), typeId);
+}
+
+void HierarchyLayer::addUserComponentToEntity(fr::Entity entity, std::string_view typeId)
+{
+    if(mSimulation->IsPlaying() || typeId.empty() || !mUserComponents)
+    {
+        return;
+    }
+
+    const auto desc = mUserComponents->Find(typeId);
+    if(!desc)
+    {
+        return;
+    }
+
+    auto makeInstance = [&]() -> fg::UserComponentInstance {
+        if(!desc->defaultInstance.typeId.empty())
+        {
+            return desc->defaultInstance;
+        }
+        if(desc->makeDefault)
+        {
+            return desc->makeDefault();
+        }
+        return fg::UserComponentInstance {.typeId = std::string(typeId)};
+    };
+
+    if(!mRegistry->HasComponent<fg::UserDataComponent>(entity))
+    {
+        fg::UserDataComponent data {};
+        data.instances.push_back(makeInstance());
+        mRegistry->AddComponents(entity, std::move(data));
+        // Freyr defers archetype migrations; flush before inspector reads the bag.
+        mRegistry->ExecuteTasks();
+        return;
+    }
+
+    mRegistry->TryGetComponents<fg::UserDataComponent>(entity, [&](fg::UserDataComponent &data) {
+        if(fg::FindUserComponent(data, typeId))
+        {
+            return;
+        }
+        data.instances.push_back(makeInstance());
+    });
+}
+
+void HierarchyLayer::drawGameplayAddComponentMenu(fr::Entity entity)
+{
+    if(!mUserComponents)
+    {
+        return;
+    }
+
+    const auto types = mUserComponents->GetTypes();
+    if(types.empty())
+    {
+        return;
+    }
+
+    ImGui::Separator();
+    if(!ImGui::BeginMenu("Gameplay"))
+    {
+        return;
+    }
+
+    for(const auto &type : types)
+    {
+        bool alreadyHas = false;
+        if(mRegistry->HasComponent<fg::UserDataComponent>(entity))
+        {
+            mRegistry->TryGetComponents<fg::UserDataComponent>(
+                entity, [&](fg::UserDataComponent &data) {
+                    alreadyHas = fg::FindUserComponent(data, type.typeId) != nullptr;
+                });
+        }
+
+        ImGui::BeginDisabled(alreadyHas);
+        if(ImGui::MenuItem(type.displayName.c_str()))
+        {
+            addUserComponentToEntity(entity, type.typeId);
+        }
+        ImGui::EndDisabled();
+    }
+    ImGui::EndMenu();
 }
 
 void HierarchyLayer::addLightToEntity(fr::Entity entity, fra::LightType type)
@@ -691,6 +831,8 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
                 mRegistry->AddComponents(entity, std::move(animator));
             }
         }
+
+        drawGameplayAddComponentMenu(entity);
         ImGui::EndDisabled();
 
         ImGui::EndPopup();
@@ -1229,6 +1371,51 @@ void HierarchyLayer::drawComponents()
             if(!open && !mSimulation->IsPlaying())
             {
                 mRegistry->RemoveComponent<fg::AnimatorComponent>(selection);
+            }
+        });
+
+    mRegistry->TryGetComponents<fg::UserDataComponent>(
+        selection, [this, selection](fg::UserDataComponent &data) {
+            for(std::size_t i = 0; i < data.instances.size();)
+            {
+                auto &instance = data.instances[i];
+                std::string header = instance.typeId;
+                if(mUserComponents)
+                {
+                    if(const auto desc = mUserComponents->Find(instance.typeId))
+                    {
+                        header = desc->displayName;
+                    }
+                }
+
+                ImGui::PushID(static_cast<int>(i));
+                bool open = true;
+                if(ImGui::CollapsingHeader(header.c_str(), &open, ImGuiWindowFlags_ChildWindow))
+                {
+                    ImGui::BeginDisabled(mSimulation->IsPlaying());
+                    for(auto &property : instance.properties)
+                    {
+                        DrawNamedProperty(property);
+                    }
+                    ImGui::EndDisabled();
+                }
+
+                if(!open && !mSimulation->IsPlaying())
+                {
+                    data.instances.erase(data.instances.begin() +
+                                         static_cast<std::ptrdiff_t>(i));
+                    ImGui::PopID();
+                    if(data.instances.empty())
+                    {
+                        mRegistry->RemoveComponent<fg::UserDataComponent>(selection);
+                        mRegistry->ExecuteTasks();
+                        return;
+                    }
+                    continue;
+                }
+
+                ImGui::PopID();
+                ++i;
             }
         });
 }

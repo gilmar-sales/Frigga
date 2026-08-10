@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Frigga/ECS/UserComponentRegistry.hpp"
 #include "Frigga/Plugin/frigga_plugin.h"
 
 #include <Freyr/Freyr.hpp>
@@ -20,6 +21,7 @@ namespace FRIGGA_NAMESPACE
     {
       public:
         GameplayPluginHost(const skr::Arc<fr::Registry> &registry,
+                           const skr::Arc<UserComponentRegistry> &userComponents,
                            const skr::Arc<skr::Logger<GameplayPluginHost>> &logger);
         ~GameplayPluginHost();
 
@@ -51,6 +53,7 @@ namespace FRIGGA_NAMESPACE
         void detachUnlocked();
 
         skr::Arc<fr::Registry> mRegistry;
+        skr::Arc<UserComponentRegistry> mUserComponents;
         skr::Arc<skr::Logger<GameplayPluginHost>> mLogger;
 
         mutable std::mutex mMutex;

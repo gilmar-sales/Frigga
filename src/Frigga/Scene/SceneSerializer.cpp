@@ -8,6 +8,7 @@
 #include "Frigga/ECS/Components/NameComponent.hpp"
 #include "Frigga/ECS/Components/RigidBodyComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
+#include "Frigga/ECS/Components/UserDataComponent.hpp"
 
 #define SIMDJSON_STATIC_REFLECTION 1
 #include <simdjson.h>
@@ -23,7 +24,7 @@ namespace FRIGGA_NAMESPACE
 {
     namespace
     {
-        constexpr int64_t kSceneVersion = 3;
+        constexpr int64_t kSceneVersion = 4;
 
         struct SceneTransformDto
         {
@@ -108,6 +109,23 @@ namespace FRIGGA_NAMESPACE
             std::optional<bool>  previewInEdit;
         };
 
+        struct ScenePropertyDto
+        {
+            std::string                name;
+            std::string                kind {"Float"};
+            std::optional<bool>        boolValue;
+            std::optional<int64_t>     intValue;
+            std::optional<float>       floatValue;
+            std::optional<std::string> stringValue;
+            std::optional<std::vector<float>> vec;
+        };
+
+        struct SceneUserComponentDto
+        {
+            std::string                  typeId;
+            std::vector<ScenePropertyDto> properties;
+        };
+
         struct SceneEntityDto
         {
             std::string                        name;
@@ -118,6 +136,7 @@ namespace FRIGGA_NAMESPACE
             std::optional<SceneLightDto>       light;
             std::optional<SceneRigidBodyDto>   rigidBody;
             std::optional<SceneAnimatorDto>    animator;
+            std::optional<std::vector<SceneUserComponentDto>> userComponents;
         };
 
         struct SceneEditorCameraDto
@@ -167,6 +186,196 @@ namespace FRIGGA_NAMESPACE
                 return true;
             }
             return false;
+        }
+
+        bool ReadVec4(const std::vector<float> &values, glm::vec4 &out)
+        {
+            if(values.size() == 4)
+            {
+                out = {values[0], values[1], values[2], values[3]};
+                return true;
+            }
+            if(values.size() >= 8 && values.size() % 4 == 0)
+            {
+                const auto base = values.size() - 4;
+                out = {values[base], values[base + 1], values[base + 2], values[base + 3]};
+                return true;
+            }
+            return false;
+        }
+
+        bool ReadVec2(const std::vector<float> &values, glm::vec2 &out)
+        {
+            if(values.size() == 2)
+            {
+                out = {values[0], values[1]};
+                return true;
+            }
+            if(values.size() >= 4 && values.size() % 2 == 0)
+            {
+                const auto base = values.size() - 2;
+                out = {values[base], values[base + 1]};
+                return true;
+            }
+            return false;
+        }
+
+        const char *PropertyKindToString(PropertyKind kind)
+        {
+            switch(kind)
+            {
+            case PropertyKind::Bool:
+                return "Bool";
+            case PropertyKind::Int64:
+                return "Int64";
+            case PropertyKind::Float:
+                return "Float";
+            case PropertyKind::String:
+                return "String";
+            case PropertyKind::Vec2:
+                return "Vec2";
+            case PropertyKind::Vec3:
+                return "Vec3";
+            case PropertyKind::Vec4:
+                return "Vec4";
+            }
+            return "Float";
+        }
+
+        bool TryParsePropertyKind(std::string_view name, PropertyKind &out)
+        {
+            if(name == "Bool")
+            {
+                out = PropertyKind::Bool;
+                return true;
+            }
+            if(name == "Int64")
+            {
+                out = PropertyKind::Int64;
+                return true;
+            }
+            if(name == "Float")
+            {
+                out = PropertyKind::Float;
+                return true;
+            }
+            if(name == "String")
+            {
+                out = PropertyKind::String;
+                return true;
+            }
+            if(name == "Vec2")
+            {
+                out = PropertyKind::Vec2;
+                return true;
+            }
+            if(name == "Vec3")
+            {
+                out = PropertyKind::Vec3;
+                return true;
+            }
+            if(name == "Vec4")
+            {
+                out = PropertyKind::Vec4;
+                return true;
+            }
+            return false;
+        }
+
+        ScenePropertyDto PropertyToDto(const NamedProperty &property)
+        {
+            ScenePropertyDto dto {.name = property.name,
+                                  .kind = PropertyKindToString(property.value.kind)};
+            switch(property.value.kind)
+            {
+            case PropertyKind::Bool:
+                dto.boolValue = property.value.boolValue;
+                break;
+            case PropertyKind::Int64:
+                dto.intValue = property.value.intValue;
+                break;
+            case PropertyKind::Float:
+                dto.floatValue = property.value.floatValue;
+                break;
+            case PropertyKind::String:
+                dto.stringValue = property.value.stringValue;
+                break;
+            case PropertyKind::Vec2:
+                dto.vec = std::vector<float> {property.value.vec2Value.x,
+                                              property.value.vec2Value.y};
+                break;
+            case PropertyKind::Vec3:
+                dto.vec = std::vector<float> {property.value.vec3Value.x,
+                                              property.value.vec3Value.y,
+                                              property.value.vec3Value.z};
+                break;
+            case PropertyKind::Vec4:
+                dto.vec = std::vector<float> {property.value.vec4Value.x,
+                                              property.value.vec4Value.y,
+                                              property.value.vec4Value.z,
+                                              property.value.vec4Value.w};
+                break;
+            }
+            return dto;
+        }
+
+        bool PropertyFromDto(const ScenePropertyDto &dto, NamedProperty &out)
+        {
+            PropertyKind kind = PropertyKind::Float;
+            if(!TryParsePropertyKind(dto.kind, kind))
+            {
+                return false;
+            }
+
+            NamedProperty property {.name = dto.name};
+            property.value.kind = kind;
+            switch(kind)
+            {
+            case PropertyKind::Bool:
+                property.value.boolValue = dto.boolValue.value_or(false);
+                break;
+            case PropertyKind::Int64:
+                property.value.intValue = dto.intValue.value_or(0);
+                break;
+            case PropertyKind::Float:
+                property.value.floatValue = dto.floatValue.value_or(0.0f);
+                break;
+            case PropertyKind::String:
+                property.value.stringValue = dto.stringValue.value_or(std::string {});
+                break;
+            case PropertyKind::Vec2:
+            {
+                glm::vec2 vec {0.0f};
+                if(dto.vec && !dto.vec->empty() && !ReadVec2(*dto.vec, vec))
+                {
+                    return false;
+                }
+                property.value.vec2Value = vec;
+                break;
+            }
+            case PropertyKind::Vec3:
+            {
+                glm::vec3 vec {0.0f};
+                if(dto.vec && !dto.vec->empty() && !ReadVec3(*dto.vec, vec))
+                {
+                    return false;
+                }
+                property.value.vec3Value = vec;
+                break;
+            }
+            case PropertyKind::Vec4:
+            {
+                glm::vec4 vec {0.0f};
+                if(dto.vec && !dto.vec->empty() && !ReadVec4(*dto.vec, vec))
+                {
+                    return false;
+                }
+                property.value.vec4Value = vec;
+                break;
+            }
+            }
+            out = std::move(property);
+            return true;
         }
 
         SceneTransformDto ToDto(const TransformComponent &transform)
@@ -593,6 +802,26 @@ namespace FRIGGA_NAMESPACE
                 };
             });
 
+            registry->TryGetComponents<UserDataComponent>(entity, [&](UserDataComponent &data) {
+                if(data.instances.empty())
+                {
+                    return;
+                }
+                std::vector<SceneUserComponentDto> components;
+                components.reserve(data.instances.size());
+                for(const auto &instance : data.instances)
+                {
+                    SceneUserComponentDto userDto {.typeId = instance.typeId};
+                    userDto.properties.reserve(instance.properties.size());
+                    for(const auto &property : instance.properties)
+                    {
+                        userDto.properties.push_back(PropertyToDto(property));
+                    }
+                    components.push_back(std::move(userDto));
+                }
+                dto.userComponents = std::move(components);
+            });
+
             document.entities.push_back(std::move(dto));
         });
 
@@ -875,6 +1104,38 @@ namespace FRIGGA_NAMESPACE
                 };
             }
 
+            std::optional<UserDataComponent> userData;
+            if(entityDto.userComponents && !entityDto.userComponents->empty())
+            {
+                UserDataComponent data {};
+                data.instances.reserve(entityDto.userComponents->size());
+                for(const auto &userDto : *entityDto.userComponents)
+                {
+                    if(userDto.typeId.empty())
+                    {
+                        scene.mLogger->LogError("userComponents entry on '{}' missing typeId",
+                                                entityDto.name);
+                        return false;
+                    }
+                    UserComponentInstance instance {.typeId = userDto.typeId};
+                    instance.properties.reserve(userDto.properties.size());
+                    for(const auto &propertyDto : userDto.properties)
+                    {
+                        NamedProperty property {};
+                        if(!PropertyFromDto(propertyDto, property))
+                        {
+                            scene.mLogger->LogError(
+                                "Invalid user component property '{}' on '{}' ({})",
+                                propertyDto.name, entityDto.name, userDto.typeId);
+                            return false;
+                        }
+                        instance.properties.push_back(std::move(property));
+                    }
+                    data.instances.push_back(std::move(instance));
+                }
+                userData = std::move(data);
+            }
+
             // Prefer a single CreateEntity(Name, ...) so Freyr writes one archetype row.
             // Piecewise AddComponents without per-step flush corrupt deferred migrations.
             fr::Entity entity {};
@@ -885,7 +1146,9 @@ namespace FRIGGA_NAMESPACE
             const bool hasL  = light.has_value();
             const bool hasR  = rigidBody.has_value();
             const bool hasA  = animator.has_value();
+            bool       needUserData = userData.has_value();
 
+            // Fast paths omit UserDataComponent; attach it after create when present.
             if(hasT && hasM && hasMat && !hasC && !hasL && hasR && hasA)
             {
                 entity = registry->CreateEntity(name, *transform, *mesh, *material, *rigidBody,
@@ -963,9 +1226,20 @@ namespace FRIGGA_NAMESPACE
                 {
                     attach(*animator);
                 }
+                if(needUserData)
+                {
+                    attach(*userData);
+                    needUserData = false;
+                }
             }
 
             scene.FlushEcs();
+
+            if(needUserData)
+            {
+                registry->AddComponents(entity, *userData);
+                scene.FlushEcs();
+            }
 
             if(camera)
             {

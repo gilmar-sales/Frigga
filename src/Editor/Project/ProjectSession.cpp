@@ -464,7 +464,7 @@ bool ProjectSession::BuildPlugin()
     joinBuildThread();
 
     const auto root     = mProjectFile->parent_path();
-    const auto buildDir = root / "build-plugin";
+    const auto buildDir = root / "build";
 
     mReloadAfterBuild = true;
     mBuildFinished.store(false, std::memory_order_release);
