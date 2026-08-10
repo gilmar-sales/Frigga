@@ -301,6 +301,11 @@ namespace FRIGGA_NAMESPACE
                     (void)id;
                 });
             };
+        ops.forEachEntity =
+            [](fr::Registry &reg, const std::function<void(fr::Entity)> &visit) {
+                reg.CreateMutation()->Each<T>(
+                    [&](fr::Entity entity, T &) { visit(entity); });
+            };
         ops.removeFromAllEntities = [](fr::Registry &reg) {
             std::vector<fr::Entity> toStrip;
             reg.CreateMutation()->Each<T>([&](fr::Entity entity, T &) { toStrip.push_back(entity); });

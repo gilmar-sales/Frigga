@@ -42,6 +42,7 @@ namespace FRIGGA_NAMESPACE
         [[nodiscard]] std::vector<std::string> GetRegisteredTypeIds() const;
 
         /// Unload any previous plugin, then load @p libraryPath.
+        /// Preserves gameplay component instances across the swap when possible.
         bool Load(const std::filesystem::path &libraryPath);
         bool Reload();
         void Unload();
@@ -51,9 +52,9 @@ namespace FRIGGA_NAMESPACE
 
       private:
         bool loadUnlocked(const std::filesystem::path &libraryPath);
-        void unloadUnlocked();
+        void unloadUnlocked(bool preserveUserComponents);
         void attachUnlocked();
-        void detachUnlocked();
+        void detachUnlocked(bool preserveUserComponents);
 
         skr::Arc<fr::Registry> mRegistry;
         skr::Arc<UserComponentRegistry> mUserComponents;
@@ -66,6 +67,7 @@ namespace FRIGGA_NAMESPACE
         FriPlugin *mPlugin         = nullptr;
         bool mAttached             = false;
         std::string mLastError;
+        UserComponentWorldSnapshot mPendingRestore {};
     };
 
 } // namespace FRIGGA_NAMESPACE

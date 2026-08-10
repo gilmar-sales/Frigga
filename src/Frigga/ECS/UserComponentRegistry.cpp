@@ -6,8 +6,8 @@ namespace FRIGGA_NAMESPACE
     void UserComponentRegistry::Register(RuntimeComponentOps ops)
     {
         if(ops.typeId.empty() || !ops.addDefault || !ops.remove || !ops.has ||
-           !ops.toInstance || !ops.fromInstance || !ops.removeFromAllEntities ||
-           !ops.unregisterFromFreyr)
+           !ops.toInstance || !ops.fromInstance || !ops.forEachEntity ||
+           !ops.removeFromAllEntities || !ops.unregisterFromFreyr)
         {
             return;
         }
@@ -71,6 +71,50 @@ namespace FRIGGA_NAMESPACE
         std::lock_guard lock(mMutex);
         mTypes.clear();
         mOrder.clear();
+    }
+
+    UserComponentWorldSnapshot UserComponentRegistry::CaptureAll(fr::Registry &registry) const
+    {
+        UserComponentWorldSnapshot snapshot;
+        const auto types = GetTypes();
+        for(const auto &ops : types)
+        {
+            if(!ops.forEachEntity || !ops.toInstance)
+            {
+                continue;
+            }
+            ops.forEachEntity(registry, [&](fr::Entity entity) {
+                UserComponentInstance instance {};
+                if(!ops.toInstance(registry, entity, instance))
+                {
+                    return;
+                }
+                snapshot.entries.push_back(
+                    UserComponentSnapshotEntry {.entity = entity, .instance = std::move(instance)});
+            });
+        }
+        return snapshot;
+    }
+
+    std::size_t UserComponentRegistry::RestoreAll(fr::Registry &registry,
+                                                  const UserComponentWorldSnapshot &snapshot)
+    {
+        std::size_t restored = 0;
+        for(const auto &entry : snapshot.entries)
+        {
+            const auto ops = Find(entry.instance.typeId);
+            if(!ops || !ops->fromInstance)
+            {
+                continue;
+            }
+            ops->fromInstance(registry, entry.entity, entry.instance);
+            ++restored;
+        }
+        if(restored > 0)
+        {
+            registry.ExecuteTasks();
+        }
+        return restored;
     }
 
     bool UserComponentRegistry::Has(std::string_view typeId) const

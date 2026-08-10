@@ -38,8 +38,22 @@ namespace FRIGGA_NAMESPACE
         std::function<bool(fr::Registry &, fr::Entity)> has;
         std::function<bool(fr::Registry &, fr::Entity, UserComponentInstance &)> toInstance;
         std::function<void(fr::Registry &, fr::Entity, const UserComponentInstance &)> fromInstance;
+        /// Visit every entity that currently has this component (read-only iteration).
+        std::function<void(fr::Registry &, const std::function<void(fr::Entity)> &)> forEachEntity;
         std::function<void(fr::Registry &)> removeFromAllEntities;
         std::function<bool(fr::Registry &)> unregisterFromFreyr;
+    };
+
+    struct UserComponentSnapshotEntry
+    {
+        fr::Entity              entity = 0;
+        UserComponentInstance   instance {};
+    };
+
+    /// Type-erased bag used to keep gameplay components alive across plugin unload/reload.
+    struct UserComponentWorldSnapshot
+    {
+        std::vector<UserComponentSnapshotEntry> entries;
     };
 
     /**
@@ -53,6 +67,12 @@ namespace FRIGGA_NAMESPACE
         /// Strip entities + Freyr unregister via ops, then clear catalogue. Call before dlclose.
         void DetachAll(fr::Registry &registry);
         void ClearPluginTypes();
+
+        /// Serialize every attached user-component instance (call before DetachAll).
+        [[nodiscard]] UserComponentWorldSnapshot CaptureAll(fr::Registry &registry) const;
+        /// Re-apply a snapshot after types are registered again. Skips unknown typeIds.
+        /// @return number of instances successfully restored
+        std::size_t RestoreAll(fr::Registry &registry, const UserComponentWorldSnapshot &snapshot);
 
         [[nodiscard]] bool Has(std::string_view typeId) const;
         [[nodiscard]] std::optional<RuntimeComponentOps> Find(std::string_view typeId) const;

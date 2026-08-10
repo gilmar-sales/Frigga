@@ -98,7 +98,7 @@ namespace FRIGGA_NAMESPACE
     bool GameplayPluginHost::Load(const std::filesystem::path &libraryPath)
     {
         std::lock_guard lock(mMutex);
-        unloadUnlocked();
+        unloadUnlocked(/*preserveUserComponents=*/true);
         return loadUnlocked(libraryPath);
     }
 
@@ -111,14 +111,14 @@ namespace FRIGGA_NAMESPACE
             return false;
         }
         const auto path = mLibraryPath;
-        unloadUnlocked();
+        unloadUnlocked(/*preserveUserComponents=*/true);
         return loadUnlocked(path);
     }
 
     void GameplayPluginHost::Unload()
     {
         std::lock_guard lock(mMutex);
-        unloadUnlocked();
+        unloadUnlocked(/*preserveUserComponents=*/false);
     }
 
     void GameplayPluginHost::UpdatePlugin(float deltaTime)
@@ -190,9 +190,9 @@ namespace FRIGGA_NAMESPACE
         return true;
     }
 
-    void GameplayPluginHost::unloadUnlocked()
+    void GameplayPluginHost::unloadUnlocked(bool preserveUserComponents)
     {
-        detachUnlocked();
+        detachUnlocked(preserveUserComponents);
         if(mPlugin && mApi && mApi->destroy)
         {
             mApi->destroy(mPlugin);
@@ -203,6 +203,10 @@ namespace FRIGGA_NAMESPACE
         {
             CloseLibrary(mHandle);
             mHandle = nullptr;
+        }
+        if(!preserveUserComponents)
+        {
+            mPendingRestore = {};
         }
     }
 
@@ -231,14 +235,39 @@ namespace FRIGGA_NAMESPACE
         mLogger->LogInformation("Gameplay plugin registered {} user component(s): {}",
                                 types.size(),
                                 registered.empty() ? "(none)" : registered);
+
+        if(!mPendingRestore.entries.empty())
+        {
+            const auto restored =
+                mUserComponents->RestoreAll(*mRegistry, mPendingRestore);
+            mLogger->LogInformation(
+                "Restored {} gameplay component instance(s) after plugin load", restored);
+            mPendingRestore = {};
+        }
     }
 
-    void GameplayPluginHost::detachUnlocked()
+    void GameplayPluginHost::detachUnlocked(bool preserveUserComponents)
     {
         if(!mPlugin || !mApi || !mAttached)
         {
             mAttached = false;
+            if(!preserveUserComponents)
+            {
+                mPendingRestore = {};
+            }
             return;
+        }
+
+        if(preserveUserComponents)
+        {
+            mPendingRestore = mUserComponents->CaptureAll(*mRegistry);
+            mLogger->LogInformation(
+                "Captured {} gameplay component instance(s) before plugin unload",
+                mPendingRestore.entries.size());
+        }
+        else
+        {
+            mPendingRestore = {};
         }
 
         // Strip Freyr SoA instances + unregister while .so (and ops) are still mapped.

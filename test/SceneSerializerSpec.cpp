@@ -471,3 +471,54 @@ TEST_F(SceneSerializerSpec, Register_EmptyTagComponentAppearsInCatalog)
     EXPECT_TRUE(types[1].has(*mRegistry, entity));
 }
 
+TEST_F(SceneSerializerSpec, CaptureRestore_PreservesUserComponentsAcrossDetach)
+{
+    fg::FriRegisterUserComponent<SpecHealth>(*mRegistry, *mUserComponents, "Health");
+    fg::FriRegisterUserComponent<SpecEmptyTag>(*mRegistry, *mUserComponents, "Player");
+
+    SpecHealth health {.current = 42.5f, .max = 100.0f};
+    const auto entity = mRegistry->CreateEntity(fg::NameComponent {.name = "Hero"},
+                                                fg::TransformComponent {}, health);
+    mRegistry->ExecuteTasks();
+
+    const auto playerOps = mUserComponents->Find("Player");
+    ASSERT_TRUE(playerOps.has_value());
+    playerOps->addDefault(*mRegistry, entity);
+    mRegistry->ExecuteTasks();
+
+    const auto snapshot = mUserComponents->CaptureAll(*mRegistry);
+    ASSERT_EQ(snapshot.entries.size(), 2u);
+
+    mUserComponents->DetachAll(*mRegistry);
+    EXPECT_TRUE(mUserComponents->GetTypes().empty());
+    EXPECT_FALSE(mRegistry->IsComponentRegistered<SpecHealth>());
+    EXPECT_FALSE(mRegistry->IsComponentRegistered<SpecEmptyTag>());
+
+    fg::FriRegisterUserComponent<SpecHealth>(*mRegistry, *mUserComponents, "Health");
+    fg::FriRegisterUserComponent<SpecEmptyTag>(*mRegistry, *mUserComponents, "Player");
+
+    EXPECT_EQ(mUserComponents->RestoreAll(*mRegistry, snapshot), 2u);
+
+    bool foundHealth = false;
+    bool foundPlayer = false;
+    mRegistry->CreateMutation()->Each<fg::NameComponent, SpecHealth>(
+        [&](auto, fg::NameComponent &name, SpecHealth &comp) {
+            if(name.name != "Hero")
+            {
+                return;
+            }
+            foundHealth = true;
+            EXPECT_NEAR(comp.current, 42.5f, kEpsilon);
+            EXPECT_NEAR(comp.max, 100.0f, kEpsilon);
+        });
+    mRegistry->CreateMutation()->Each<fg::NameComponent, SpecEmptyTag>(
+        [&](auto, fg::NameComponent &name, SpecEmptyTag &) {
+            if(name.name == "Hero")
+            {
+                foundPlayer = true;
+            }
+        });
+    EXPECT_TRUE(foundHealth);
+    EXPECT_TRUE(foundPlayer);
+}
+
