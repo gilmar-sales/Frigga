@@ -2,6 +2,7 @@
 
 #include "Editor/DockLayout.hpp"
 #include "Editor/ViewportDpi.hpp"
+#include "Editor/ViewportQuality.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/Gui/Backends/imgui_impl_vulkan.h"
@@ -24,9 +25,11 @@ AnimationPreviewLayer::AnimationPreviewLayer(skr::Arc<fra::Renderer> renderer,
                                              skr::Arc<fr::Registry> registry,
                                              skr::Arc<fra::MeshPool> meshPool,
                                              skr::Arc<SelectionContext> selection,
-                                             skr::Arc<fg::Scene> scene)
+                                             skr::Arc<fg::Scene> scene,
+                                             skr::Arc<EditorPreferences> preferences)
     : fg::Layer("Preview"), mRenderer(std::move(renderer)), mRegistry(std::move(registry)),
-      mMeshPool(std::move(meshPool)), mSelection(std::move(selection)), mScene(std::move(scene))
+      mMeshPool(std::move(meshPool)), mSelection(std::move(selection)), mScene(std::move(scene)),
+      mPreferences(std::move(preferences))
 {
 }
 
@@ -58,6 +61,13 @@ void AnimationPreviewLayer::onUpdate()
     }
 
     mScene->PreferPreviewCamera();
+
+    if(mPreferences &&
+       EditorViewport::ApplyQualityPreferences(*mRenderer,
+                                               mPreferences->graphics.editorViewport))
+    {
+        recreateUiPipeline();
+    }
 
     if(mSelection->HasSelection())
     {

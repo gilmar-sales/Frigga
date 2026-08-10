@@ -3,6 +3,7 @@
 #include "Editor/BoostrapIconsFont.hpp"
 #include "Editor/DockLayout.hpp"
 #include "Editor/ViewportDpi.hpp"
+#include "Editor/ViewportQuality.hpp"
 
 #include <Frigga/Gui/Backends/imgui_impl_vulkan.h>
 #include <Frigga/Gui/GuiLayer.hpp>
@@ -17,11 +18,12 @@ GameplayLayer::GameplayLayer(skr::Arc<fra::Renderer> renderer, skr::Arc<fr::Regi
                              skr::Arc<fg::PrimitiveMeshFactory> primitives,
                              skr::Arc<fg::SceneSimulationState> simulation,
                              skr::Arc<SelectionContext> selection,
-                             skr::Arc<fg::IPhysicsWorld> physicsWorld)
+                             skr::Arc<fg::IPhysicsWorld> physicsWorld,
+                             skr::Arc<EditorPreferences> preferences)
     : fg::Layer("Gameplay"), mRenderer(std::move(renderer)), mRegistry(std::move(registry)),
       mScene(std::move(scene)), mPrimitives(std::move(primitives)),
       mSimulation(std::move(simulation)), mSelection(std::move(selection)),
-      mPhysicsWorld(std::move(physicsWorld))
+      mPhysicsWorld(std::move(physicsWorld)), mPreferences(std::move(preferences))
 {
 }
 
@@ -52,6 +54,12 @@ void GameplayLayer::onUpdate()
     }
 
     mClaimOutput = true;
+    if(mPreferences &&
+       EditorViewport::ApplyQualityPreferences(*mRenderer,
+                                               mPreferences->graphics.gameplayViewport))
+    {
+        recreateUiPipeline();
+    }
     mScene->PreferGameplayCamera();
     ensureTarget(mPendingWidth, mPendingHeight);
 }

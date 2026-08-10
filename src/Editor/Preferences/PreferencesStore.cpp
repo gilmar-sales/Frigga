@@ -2,6 +2,7 @@
 
 #include <fstream>
 #include <sstream>
+#include <string>
 
 namespace
 {
@@ -34,6 +35,44 @@ namespace
         }
         return out.str();
     }
+
+    void WriteViewportQuality(std::ostringstream &json, const char *key,
+                               const ViewportQualityPreferences &q)
+    {
+        json << "    \"" << key << "\": {\n";
+        json << "      \"shadowQuality\": " << q.shadowQuality << ",\n";
+        json << "      \"ssaoQuality\": " << q.ssaoQuality << ",\n";
+        json << "      \"taaQuality\": " << q.taaQuality << ",\n";
+        json << "      \"bloomQuality\": " << q.bloomQuality << "\n";
+        json << "    }";
+    }
+
+    void MigrateLegacyViewportQualities(GraphicsPreferences &graphics,
+                                        const std::filesystem::path &path)
+    {
+        if(!std::filesystem::exists(path))
+        {
+            return;
+        }
+
+        std::ifstream file(path);
+        std::ostringstream buffer;
+        buffer << file.rdbuf();
+        const std::string text = buffer.str();
+        if(text.find("\"editorViewport\"") != std::string::npos)
+        {
+            return;
+        }
+
+        // Old preferences.json only had flat quality fields — seed both viewports.
+        graphics.editorViewport = {
+            .shadowQuality = graphics.shadowQuality,
+            .ssaoQuality   = graphics.ssaoQuality,
+            .taaQuality    = graphics.taaQuality,
+            .bloomQuality  = graphics.bloomQuality,
+        };
+        graphics.gameplayViewport = graphics.editorViewport;
+    }
 } // namespace
 
 void PreferencesStore::Configure(skr::ConfigurationBuilder &configurationBuilder,
@@ -49,7 +88,14 @@ skr::Arc<EditorPreferences> PreferencesStore::Load(const std::filesystem::path &
 {
     auto configurationBuilder = skr::ConfigurationBuilder();
     Configure(configurationBuilder, path);
-    return configurationBuilder.Build()->Bind<EditorPreferences>();
+    auto preferences = configurationBuilder.Build()->Bind<EditorPreferences>();
+    MigrateLegacyViewportQualities(preferences->graphics, path);
+    // Keep flat aliases mirrored to gameplay for any leftover readers.
+    preferences->graphics.shadowQuality = preferences->graphics.gameplayViewport.shadowQuality;
+    preferences->graphics.ssaoQuality   = preferences->graphics.gameplayViewport.ssaoQuality;
+    preferences->graphics.taaQuality    = preferences->graphics.gameplayViewport.taaQuality;
+    preferences->graphics.bloomQuality  = preferences->graphics.gameplayViewport.bloomQuality;
+    return preferences;
 }
 
 void PreferencesStore::Save(const EditorPreferences &preferences,
@@ -86,10 +132,15 @@ void PreferencesStore::Save(const EditorPreferences &preferences,
     json << "    \"environmentMapPath\": \"" << EscapeJson(g.environmentMapPath)
          << "\",\n";
     json << "    \"shaderRoot\": \"" << EscapeJson(g.shaderRoot) << "\",\n";
-    json << "    \"shadowQuality\": " << g.shadowQuality << ",\n";
-    json << "    \"ssaoQuality\": " << g.ssaoQuality << ",\n";
-    json << "    \"taaQuality\": " << g.taaQuality << ",\n";
-    json << "    \"bloomQuality\": " << g.bloomQuality << ",\n";
+    WriteViewportQuality(json, "editorViewport", g.editorViewport);
+    json << ",\n";
+    WriteViewportQuality(json, "gameplayViewport", g.gameplayViewport);
+    json << ",\n";
+    // Legacy flat aliases (gameplay) for older tools / soft compat.
+    json << "    \"shadowQuality\": " << g.gameplayViewport.shadowQuality << ",\n";
+    json << "    \"ssaoQuality\": " << g.gameplayViewport.ssaoQuality << ",\n";
+    json << "    \"taaQuality\": " << g.gameplayViewport.taaQuality << ",\n";
+    json << "    \"bloomQuality\": " << g.gameplayViewport.bloomQuality << ",\n";
     json << "    \"ssaoRadius\": " << g.ssaoRadius << ",\n";
     json << "    \"ssaoBias\": " << g.ssaoBias << ",\n";
     json << "    \"ssaoPower\": " << g.ssaoPower << ",\n";

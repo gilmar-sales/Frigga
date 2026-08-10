@@ -44,27 +44,11 @@ namespace
     {
         ImGui::TextDisabled("Active %s: %s", label, value.c_str());
     }
-
-    template <typename Quality>
-    int PendingOrCurrent(const std::optional<Quality> &pending, Quality current)
-    {
-        return static_cast<int>(pending.value_or(current));
-    }
 } // namespace
 
 void PreferencesLayer::persist()
 {
     PreferencesStore::Save(*mPreferences);
-}
-
-void PreferencesLayer::syncQualityPrefsFromRenderer()
-{
-    auto &prefs       = mPreferences->graphics;
-    prefs.shadowQuality = static_cast<int>(mRenderer->GetShadowQuality());
-    prefs.ssaoQuality   = static_cast<int>(mRenderer->GetSsaoQuality());
-    prefs.taaQuality    = static_cast<int>(mRenderer->GetTaaQuality());
-    prefs.bloomQuality  = static_cast<int>(mRenderer->GetBloomQuality());
-    syncSsaoFinePrefsFromRenderer();
 }
 
 void PreferencesLayer::syncSsaoFinePrefsFromRenderer()
@@ -104,51 +88,50 @@ void PreferencesLayer::applyTheme(int themeIndex) const
 
 void PreferencesLayer::applyPendingGraphics()
 {
-    bool recreatePipeline = false;
-
-    if(mPendingGraphics.vSync.has_value())
+    if(!mPendingGraphics.vSync.has_value())
     {
-        mRenderer->SetVSync(*mPendingGraphics.vSync);
-        mPendingGraphics.vSync.reset();
-        recreatePipeline = true;
-    }
-    if(mPendingGraphics.shadowQuality.has_value())
-    {
-        mRenderer->SetShadowQuality(*mPendingGraphics.shadowQuality);
-        mPendingGraphics.shadowQuality.reset();
-        syncQualityPrefsFromRenderer();
-        persist();
-        recreatePipeline = true;
-    }
-    if(mPendingGraphics.ssaoQuality.has_value())
-    {
-        mRenderer->SetSsaoQuality(*mPendingGraphics.ssaoQuality);
-        mPendingGraphics.ssaoQuality.reset();
-        syncQualityPrefsFromRenderer();
-        persist();
-        recreatePipeline = true;
-    }
-    if(mPendingGraphics.taaQuality.has_value())
-    {
-        mRenderer->SetTaaQuality(*mPendingGraphics.taaQuality);
-        mPendingGraphics.taaQuality.reset();
-        syncQualityPrefsFromRenderer();
-        persist();
-        recreatePipeline = true;
-    }
-    if(mPendingGraphics.bloomQuality.has_value())
-    {
-        mRenderer->SetBloomQuality(*mPendingGraphics.bloomQuality);
-        mPendingGraphics.bloomQuality.reset();
-        syncQualityPrefsFromRenderer();
-        persist();
-        recreatePipeline = true;
+        return;
     }
 
-    if(recreatePipeline)
+    mRenderer->SetVSync(*mPendingGraphics.vSync);
+    mPendingGraphics.vSync.reset();
+    fg::GuiLayer::RecreateMainPipeline(mRenderer);
+}
+
+void PreferencesLayer::drawViewportQuality(const char *label, ViewportQualityPreferences &quality)
+{
+    ImGui::PushID(label);
+    ImGui::SeparatorText(label);
+
+    int shadowQuality = ClampQuality(quality.shadowQuality);
+    if(ImGui::Combo("Shadows", &shadowQuality, kQualityLabels))
     {
-        fg::GuiLayer::RecreateMainPipeline(mRenderer);
+        quality.shadowQuality = ClampQuality(shadowQuality);
+        persist();
     }
+
+    int ssaoQuality = ClampQuality(quality.ssaoQuality);
+    if(ImGui::Combo("SSAO", &ssaoQuality, kQualityLabels))
+    {
+        quality.ssaoQuality = ClampQuality(ssaoQuality);
+        persist();
+    }
+
+    int taaQuality = ClampQuality(quality.taaQuality);
+    if(ImGui::Combo("TAA", &taaQuality, kQualityLabels))
+    {
+        quality.taaQuality = ClampQuality(taaQuality);
+        persist();
+    }
+
+    int bloomQuality = ClampQuality(quality.bloomQuality);
+    if(ImGui::Combo("Bloom", &bloomQuality, kQualityLabels))
+    {
+        quality.bloomQuality = ClampQuality(bloomQuality);
+        persist();
+    }
+
+    ImGui::PopID();
 }
 
 void PreferencesLayer::onUpdate()
@@ -289,97 +272,53 @@ void PreferencesLayer::drawGraphicsTab()
     RestartHint();
     ActiveU32("maxLights", mFreyaOptions->maxLights);
 
-    ImGui::SeparatorText("Quality");
+    drawViewportQuality("Editor Viewport", prefs.editorViewport);
+    ImGui::TextDisabled("Also used by Animation Preview.");
 
-    int shadowQuality =
-        PendingOrCurrent(mPendingGraphics.shadowQuality, mRenderer->GetShadowQuality());
-    if(ImGui::Combo("Shadows", &shadowQuality, kQualityLabels))
+    drawViewportQuality("Gameplay Viewport", prefs.gameplayViewport);
+    ImGui::TextDisabled("Applied while the Gameplay viewport is rendering.");
+
+    ImGui::SeparatorText("SSAO Fine Tuning");
+    ImGui::TextDisabled("Shared knobs applied on top of the active viewport preset.");
+
+    float radius = mRenderer->GetSsaoRadius();
+    if(ImGui::DragFloat("SSAO Radius", &radius, 0.01f, 0.05f, 4.0f, "%.3f"))
     {
-        const auto quality =
-            static_cast<fra::ShadowQuality>(ClampQuality(shadowQuality));
-        mPendingGraphics.shadowQuality = quality;
-        prefs.shadowQuality            = static_cast<int>(quality);
+        mRenderer->SetSsaoRadius(radius);
+        prefs.ssaoRadius = radius;
         persist();
     }
 
-    int ssaoQuality =
-        PendingOrCurrent(mPendingGraphics.ssaoQuality, mRenderer->GetSsaoQuality());
-    if(ImGui::Combo("SSAO", &ssaoQuality, kQualityLabels))
+    float bias = mRenderer->GetSsaoBias();
+    if(ImGui::DragFloat("SSAO Bias", &bias, 0.001f, 0.0f, 0.2f, "%.4f"))
     {
-        const auto quality = static_cast<fra::SsaoQuality>(ClampQuality(ssaoQuality));
-        mPendingGraphics.ssaoQuality = quality;
-        prefs.ssaoQuality            = static_cast<int>(quality);
+        mRenderer->SetSsaoBias(bias);
+        prefs.ssaoBias = bias;
         persist();
     }
 
-    const auto activeSsao =
-        mPendingGraphics.ssaoQuality.value_or(mRenderer->GetSsaoQuality());
-    if(activeSsao != fra::SsaoQuality::Off)
+    float power = mRenderer->GetSsaoPower();
+    if(ImGui::DragFloat("SSAO Power", &power, 0.01f, 0.1f, 4.0f, "%.2f"))
     {
-        ImGui::Indent();
-
-        float radius = mRenderer->GetSsaoRadius();
-        if(ImGui::DragFloat("SSAO Radius", &radius, 0.01f, 0.05f, 4.0f, "%.3f"))
-        {
-            mRenderer->SetSsaoRadius(radius);
-            prefs.ssaoRadius = radius;
-            persist();
-        }
-
-        float bias = mRenderer->GetSsaoBias();
-        if(ImGui::DragFloat("SSAO Bias", &bias, 0.001f, 0.0f, 0.2f, "%.4f"))
-        {
-            mRenderer->SetSsaoBias(bias);
-            prefs.ssaoBias = bias;
-            persist();
-        }
-
-        float power = mRenderer->GetSsaoPower();
-        if(ImGui::DragFloat("SSAO Power", &power, 0.01f, 0.1f, 4.0f, "%.2f"))
-        {
-            mRenderer->SetSsaoPower(power);
-            prefs.ssaoPower = power;
-            persist();
-        }
-
-        float intensity = mRenderer->GetSsaoIntensity();
-        if(ImGui::SliderFloat("SSAO Intensity", &intensity, 0.0f, 2.0f, "%.2f"))
-        {
-            mRenderer->SetSsaoIntensity(intensity);
-            prefs.ssaoIntensity = intensity;
-            persist();
-        }
-
-        int debugView = static_cast<int>(mRenderer->GetSsaoDebugView());
-        if(ImGui::Combo("SSAO Debug", &debugView, "None\0Blurred\0Raw\0"))
-        {
-            const auto view =
-                static_cast<fra::SsaoDebugView>(std::clamp(debugView, 0, 2));
-            mRenderer->SetSsaoDebugView(view);
-            prefs.ssaoDebugView = static_cast<int>(view);
-            persist();
-        }
-
-        ImGui::Unindent();
-    }
-
-    int taaQuality =
-        PendingOrCurrent(mPendingGraphics.taaQuality, mRenderer->GetTaaQuality());
-    if(ImGui::Combo("TAA", &taaQuality, kQualityLabels))
-    {
-        const auto quality = static_cast<fra::TaaQuality>(ClampQuality(taaQuality));
-        mPendingGraphics.taaQuality = quality;
-        prefs.taaQuality            = static_cast<int>(quality);
+        mRenderer->SetSsaoPower(power);
+        prefs.ssaoPower = power;
         persist();
     }
 
-    int bloomQuality =
-        PendingOrCurrent(mPendingGraphics.bloomQuality, mRenderer->GetBloomQuality());
-    if(ImGui::Combo("Bloom", &bloomQuality, kQualityLabels))
+    float intensity = mRenderer->GetSsaoIntensity();
+    if(ImGui::SliderFloat("SSAO Intensity", &intensity, 0.0f, 2.0f, "%.2f"))
     {
-        const auto quality = static_cast<fra::BloomQuality>(ClampQuality(bloomQuality));
-        mPendingGraphics.bloomQuality = quality;
-        prefs.bloomQuality            = static_cast<int>(quality);
+        mRenderer->SetSsaoIntensity(intensity);
+        prefs.ssaoIntensity = intensity;
+        persist();
+    }
+
+    int debugView = static_cast<int>(mRenderer->GetSsaoDebugView());
+    if(ImGui::Combo("SSAO Debug", &debugView, "None\0Blurred\0Raw\0"))
+    {
+        const auto view = static_cast<fra::SsaoDebugView>(std::clamp(debugView, 0, 2));
+        mRenderer->SetSsaoDebugView(view);
+        prefs.ssaoDebugView = static_cast<int>(view);
         persist();
     }
 

@@ -15,12 +15,13 @@ AnimationWorkflow::AnimationWorkflow(skr::Arc<HierarchyLayer> hierarchy,
                                      skr::Arc<fr::Registry> registry,
                                      skr::Arc<fg::SceneSimulationState> simulation,
                                      skr::Arc<fra::Renderer> renderer,
-                                     skr::Arc<fra::MeshPool> meshPool, skr::Arc<fg::Scene> scene)
+                                     skr::Arc<fra::MeshPool> meshPool, skr::Arc<fg::Scene> scene,
+                                     skr::Arc<EditorPreferences> preferences)
     : Workflow("Animation",
                {
                    hierarchy,
                    skr::MakeArc<AnimationPreviewLayer>(renderer, registry, meshPool, selection,
-                                                       scene),
+                                                       scene, preferences),
                    skr::MakeArc<AnimationTimelineLayer>(assets, selection, registry),
                    skr::MakeArc<AnimatorPanelLayer>(assets, selection, registry, simulation),
                    skr::MakeArc<PlaceholderLayer>(

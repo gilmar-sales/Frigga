@@ -14,6 +14,15 @@ struct AppearancePreferences
     int themeIndex = 0;
 };
 
+/// Per-viewport Freya pass qualities (Shadow / SSAO / TAA / Bloom).
+struct ViewportQualityPreferences
+{
+    int shadowQuality = 2;
+    int ssaoQuality   = 2;
+    int taaQuality    = 2;
+    int bloomQuality  = 2;
+};
+
 struct GraphicsPreferences
 {
     /// Window
@@ -42,7 +51,20 @@ struct GraphicsPreferences
         "./Resources/Environments/studio_small_09_4k.hdr";
     std::string shaderRoot = "./Resources/Shaders";
 
-    /// fra::ShadowQuality / SsaoQuality / TaaQuality / BloomQuality
+    /// Editor / Animation Preview: default Medium for snappier editing.
+    ViewportQualityPreferences editorViewport {.shadowQuality = 1,
+                                               .ssaoQuality   = 1,
+                                               .taaQuality    = 1,
+                                               .bloomQuality  = 1};
+
+    /// Gameplay Play mode: default High.
+    ViewportQualityPreferences gameplayViewport {.shadowQuality = 2,
+                                                 .ssaoQuality   = 2,
+                                                 .taaQuality    = 2,
+                                                 .bloomQuality  = 2};
+
+    /// Legacy flat fields (pre viewport split). Still bound from old JSON;
+    /// migrated into both viewports when nested keys are absent from the file.
     int shadowQuality = 2;
     int ssaoQuality   = 2;
     int taaQuality    = 2;

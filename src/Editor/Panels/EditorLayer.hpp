@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Editor/SelectionContext.hpp"
+#include "Editor/Preferences/EditorPreferences.hpp"
 
 #include "Frigga/Asset/PrimitiveMeshFactory.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
@@ -17,7 +18,8 @@ class EditorLayer: public fg::Layer
   public:
     EditorLayer(skr::Arc<fra::Renderer> renderer, skr::Arc<fr::Registry> registry,
                 skr::Arc<fg::PrimitiveMeshFactory> primitives, skr::Arc<SelectionContext> selection,
-                skr::Arc<fg::Scene> scene, skr::Arc<fg::SceneSimulationState> simulation);
+                skr::Arc<fg::Scene> scene, skr::Arc<fg::SceneSimulationState> simulation,
+                skr::Arc<EditorPreferences> preferences);
     ~EditorLayer() override = default;
 
     void onAttach() override;
@@ -59,6 +61,7 @@ class EditorLayer: public fg::Layer
     skr::Arc<SelectionContext> mSelection;
     skr::Arc<fg::Scene> mScene;
     skr::Arc<fg::SceneSimulationState> mSimulation;
+    skr::Arc<EditorPreferences> mPreferences;
     skr::Arc<fra::RenderTarget> mTarget;
     VkDescriptorSet mTextureId = VK_NULL_HANDLE;
     std::uint32_t mWidth         = 0;

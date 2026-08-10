@@ -3,6 +3,7 @@
 #include "Editor/BoostrapIconsFont.hpp"
 #include "Editor/DockLayout.hpp"
 #include "Editor/ViewportDpi.hpp"
+#include "Editor/ViewportQuality.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/Gui/Backends/imgui_impl_vulkan.h"
 #include "Frigga/Gui/GuiLayer.hpp"
@@ -30,10 +31,12 @@ namespace
 EditorLayer::EditorLayer(skr::Arc<fra::Renderer> renderer, skr::Arc<fr::Registry> registry,
                          skr::Arc<fg::PrimitiveMeshFactory> primitives,
                          skr::Arc<SelectionContext> selection, skr::Arc<fg::Scene> scene,
-                         skr::Arc<fg::SceneSimulationState> simulation)
+                         skr::Arc<fg::SceneSimulationState> simulation,
+                         skr::Arc<EditorPreferences> preferences)
     : fg::Layer("Editor"), mRenderer(std::move(renderer)), mRegistry(std::move(registry)),
       mPrimitives(std::move(primitives)), mSelection(std::move(selection)),
-      mScene(std::move(scene)), mSimulation(std::move(simulation))
+      mScene(std::move(scene)), mSimulation(std::move(simulation)),
+      mPreferences(std::move(preferences))
 {
 }
 
@@ -67,6 +70,12 @@ void EditorLayer::onUpdate()
 
     if(mClaimOutput)
     {
+        if(mPreferences &&
+           EditorViewport::ApplyQualityPreferences(*mRenderer,
+                                                   mPreferences->graphics.editorViewport))
+        {
+            recreateUiPipeline();
+        }
         mScene->PreferEditorCamera();
         ensureTarget(mPendingWidth, mPendingHeight);
     }

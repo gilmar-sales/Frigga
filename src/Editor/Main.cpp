@@ -51,14 +51,16 @@ namespace
                                   const GraphicsPreferences &graphics)
     {
         const auto clampQuality = [](int value) { return std::clamp(value, 0, 4); };
+        // Startup / edit session uses the Editor viewport profile.
+        const auto &viewport = graphics.editorViewport;
         const auto shadowQuality =
-            static_cast<fra::ShadowQuality>(clampQuality(graphics.shadowQuality));
+            static_cast<fra::ShadowQuality>(clampQuality(viewport.shadowQuality));
         const auto ssaoQuality =
-            static_cast<fra::SsaoQuality>(clampQuality(graphics.ssaoQuality));
+            static_cast<fra::SsaoQuality>(clampQuality(viewport.ssaoQuality));
         const auto taaQuality =
-            static_cast<fra::TaaQuality>(clampQuality(graphics.taaQuality));
+            static_cast<fra::TaaQuality>(clampQuality(viewport.taaQuality));
         const auto bloomQuality =
-            static_cast<fra::BloomQuality>(clampQuality(graphics.bloomQuality));
+            static_cast<fra::BloomQuality>(clampQuality(viewport.bloomQuality));
         const auto ssaoDebugView = static_cast<fra::SsaoDebugView>(
             std::clamp(graphics.ssaoDebugView, 0, 2));
 

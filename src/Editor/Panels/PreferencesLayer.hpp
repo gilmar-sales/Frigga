@@ -39,20 +39,16 @@ class PreferencesLayer: public fg::Layer
     /// (before BeginFrame), never mid-ImGui while the UI pass is open.
     struct PendingGraphics
     {
-        std::optional<bool>               vSync;
-        std::optional<fra::ShadowQuality> shadowQuality;
-        std::optional<fra::SsaoQuality>   ssaoQuality;
-        std::optional<fra::TaaQuality>    taaQuality;
-        std::optional<fra::BloomQuality>  bloomQuality;
+        std::optional<bool> vSync;
     };
 
     void drawAppearanceTab();
     void drawGraphicsTab();
     void drawEcsTab();
+    void drawViewportQuality(const char *label, ViewportQualityPreferences &quality);
     void persist();
     void applyTheme(int themeIndex) const;
     void applyPendingGraphics();
-    void syncQualityPrefsFromRenderer();
     void syncSsaoFinePrefsFromRenderer();
 
     skr::Arc<fra::Window>           mWindow;
