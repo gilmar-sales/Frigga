@@ -141,6 +141,8 @@ jobs:
             echo "Editor not found"; exit 1
           fi
           cp -a build/Resources publish/
+          cp -a build/Sdk publish/
+          test -f publish/Sdk/src/Frigga/Plugin/frigga_plugin.h
           find publish/Resources/Shaders -name '*.spv' | grep -q .
 
       - name: Upload artifact

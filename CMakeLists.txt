@@ -60,6 +60,9 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(JoltPhysics)
 
+# Headers needed to scaffold/build gameplay plugins from a published Editor.
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/PackFriggaSdk.cmake")
+
 file(GLOB_RECURSE FRIGGA_SRC src/Frigga/*.cpp src/Frigga/*.hpp)
 
 add_library(frigga ${FRIGGA_SRC}
@@ -139,6 +142,11 @@ install(TARGETS Editor
 # so relative "./Resources/..." lookups keep working when launched from the
 # install prefix / package root.
 install(DIRECTORY "${CMAKE_BINARY_DIR}/Resources"
+        DESTINATION ${CMAKE_INSTALL_BINDIR}
+        COMPONENT Runtime
+        OPTIONAL)
+
+install(DIRECTORY "${CMAKE_BINARY_DIR}/Sdk"
         DESTINATION ${CMAKE_INSTALL_BINDIR}
         COMPONENT Runtime
         OPTIONAL)

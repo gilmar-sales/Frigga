@@ -17,6 +17,10 @@
 
 #if defined(_WIN32)
 #    include <stdio.h>
+#    include <windows.h>
+#elif defined(__APPLE__)
+#    include <mach-o/dyld.h>
+#    include <cstdint>
 #else
 #    include <spawn.h>
 #    include <sys/wait.h>
@@ -28,19 +32,49 @@ namespace
 {
     std::filesystem::path ExecutableDirectory()
     {
-#if defined(__linux__)
+#if defined(_WIN32)
+        char buffer[MAX_PATH];
+        const DWORD len = GetModuleFileNameA(nullptr, buffer, MAX_PATH);
+        if(len > 0 && len < MAX_PATH)
+        {
+            return std::filesystem::path(buffer).parent_path();
+        }
+#elif defined(__linux__)
         std::error_code ec;
         const auto self = std::filesystem::read_symlink("/proc/self/exe", ec);
         if(!ec)
         {
             return self.parent_path();
         }
+#elif defined(__APPLE__)
+        char buffer[4096];
+        uint32_t size = sizeof(buffer);
+        if(_NSGetExecutablePath(buffer, &size) == 0)
+        {
+            std::error_code ec;
+            const auto canonical = std::filesystem::weakly_canonical(buffer, ec);
+            if(!ec)
+            {
+                return canonical.parent_path();
+            }
+            return std::filesystem::path(buffer).parent_path();
+        }
 #endif
         return std::filesystem::current_path();
     }
 
+    bool LooksLikeFriggaSdk(const std::filesystem::path &path)
+    {
+        return std::filesystem::exists(path / "src/Frigga/Plugin/frigga_plugin.h") &&
+               std::filesystem::exists(path / "_deps/freyr-src/include/Freyr");
+    }
+
     bool LooksLikeFriggaRoot(const std::filesystem::path &path)
     {
+        if(LooksLikeFriggaSdk(path))
+        {
+            return true;
+        }
         return std::filesystem::exists(path / "src/Frigga/Frigga.hpp") &&
                std::filesystem::exists(path / "CMakeLists.txt");
     }
@@ -265,9 +299,17 @@ void ProjectSession::Poll()
 std::filesystem::path ProjectSession::DiscoverFriggaBuild()
 {
     const auto exeDir = ExecutableDirectory();
+    const auto sdk    = exeDir / "Sdk";
+    if(LooksLikeFriggaSdk(sdk))
+    {
+        std::error_code ec;
+        const auto canonical = std::filesystem::weakly_canonical(sdk, ec);
+        return ec ? sdk : canonical;
+    }
     if(std::filesystem::exists(exeDir / "libfrigga.a") ||
        std::filesystem::exists(exeDir / "libfriggad.a") ||
-       std::filesystem::exists(exeDir / "Editor"))
+       std::filesystem::exists(exeDir / "Editor") ||
+       std::filesystem::exists(exeDir / "Editor.exe"))
     {
         return exeDir;
     }
@@ -276,6 +318,15 @@ std::filesystem::path ProjectSession::DiscoverFriggaBuild()
 
 std::filesystem::path ProjectSession::DiscoverFriggaRoot()
 {
+    const auto exeDir = ExecutableDirectory();
+    const auto sdk    = exeDir / "Sdk";
+    if(LooksLikeFriggaSdk(sdk))
+    {
+        std::error_code ec;
+        const auto canonical = std::filesystem::weakly_canonical(sdk, ec);
+        return ec ? sdk : canonical;
+    }
+
     const auto build = DiscoverFriggaBuild();
     const std::filesystem::path candidates[] = {
         build.parent_path(),
