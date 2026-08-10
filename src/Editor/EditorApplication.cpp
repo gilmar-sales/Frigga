@@ -1,5 +1,7 @@
 #include "EditorApplication.hpp"
 
+#include "UiScale.hpp"
+
 void EditorApplication::RenderScene()
 {
     // Freyr defers CreateEntity/AddComponents into archetype task queues.
@@ -12,6 +14,9 @@ void EditorApplication::RenderScene()
 
 void EditorApplication::Update()
 {
+    // Poll every frame: monitor moves often skip DISPLAY_SCALE_CHANGED until resize.
+    EditorUiScale::Sync(mWindow->GetScale());
+
     AbstractApplication::Update();
     // Flush entities created from Hierarchy/menus during onGui this frame.
     mRegistry->ExecuteTasks();

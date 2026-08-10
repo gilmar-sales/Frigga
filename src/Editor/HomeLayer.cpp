@@ -1,6 +1,7 @@
 #include "HomeLayer.hpp"
 
 #include "BoostrapIconsFont.hpp"
+#include "UiScale.hpp"
 
 #include <SDL3/SDL_dialog.h>
 
@@ -45,7 +46,7 @@ void HomeLayer::onGui()
         ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
         ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDocking;
 
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(48.0f, 40.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, EditorUiScale::V(48.0f, 40.0f));
     if(ImGui::Begin("##FriggaHome", nullptr, flags))
     {
         ImGui::PopStyleVar();
@@ -58,7 +59,7 @@ void HomeLayer::onGui()
 
         ImGui::Spacing();
         ImGui::TextDisabled("Create a gameplay project or open a recent one.");
-        ImGui::Dummy(ImVec2(0.0f, 18.0f));
+        ImGui::Dummy(EditorUiScale::V(0.0f, 18.0f));
 
         const float columnWidth = ImGui::GetContentRegionAvail().x * 0.48f;
         ImGui::BeginChild("##NewProject", ImVec2(columnWidth, 0.0f),
@@ -66,7 +67,7 @@ void HomeLayer::onGui()
         drawNewProjectPanel();
         ImGui::EndChild();
 
-        ImGui::SameLine(0.0f, 24.0f);
+        ImGui::SameLine(0.0f, EditorUiScale::S(24.0f));
 
         ImGui::BeginChild("##RecentProjects", ImVec2(0.0f, 0.0f),
                           ImGuiChildFlags_Borders | ImGuiChildFlags_AutoResizeY);
@@ -75,7 +76,7 @@ void HomeLayer::onGui()
 
         if(!mUiError.empty())
         {
-            ImGui::Dummy(ImVec2(0.0f, 12.0f));
+            ImGui::Dummy(EditorUiScale::V(0.0f, 12.0f));
             ImGui::TextColored(ImVec4(0.95f, 0.35f, 0.35f, 1.0f), "%s", mUiError.c_str());
         }
         if(!mSession->GetLastError().empty())
@@ -96,13 +97,13 @@ void HomeLayer::drawNewProjectPanel()
 {
     ImGui::TextUnformatted("New project");
     ImGui::Separator();
-    ImGui::Dummy(ImVec2(0.0f, 6.0f));
+    ImGui::Dummy(EditorUiScale::V(0.0f, 6.0f));
 
     ImGui::SetNextItemWidth(-1.0f);
     ImGui::InputText("##ProjectName", mProjectName, sizeof(mProjectName));
     ImGui::TextDisabled("Name");
 
-    ImGui::Dummy(ImVec2(0.0f, 8.0f));
+    ImGui::Dummy(EditorUiScale::V(0.0f, 8.0f));
     ImGui::RadioButton("3D template", &mTemplateIndex, 0);
     ImGui::SameLine();
     ImGui::RadioButton("2D template", &mTemplateIndex, 1);
@@ -110,18 +111,19 @@ void HomeLayer::drawNewProjectPanel()
                             ? "Top-down XZ plane + Player quad + Freyr system stub"
                             : "Cube + camera + light + Freyr system stub");
 
-    ImGui::Dummy(ImVec2(0.0f, 8.0f));
-    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 96.0f);
+    ImGui::Dummy(EditorUiScale::V(0.0f, 8.0f));
+    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - EditorUiScale::S(96.0f));
     ImGui::InputText("##ParentDir", mParentDir, sizeof(mParentDir));
     ImGui::SameLine();
-    if(ImGui::Button("Browse…", ImVec2(88.0f, 0.0f)))
+    if(ImGui::Button("Browse…", EditorUiScale::V(88.0f, 0.0f)))
     {
         requestBrowseParentDialog();
     }
     ImGui::TextDisabled("Parent folder");
 
-    ImGui::Dummy(ImVec2(0.0f, 14.0f));
-    if(ImGui::Button(ICON_BTSP_FOLDERPLUS " Create project", ImVec2(-1.0f, 36.0f)))
+    ImGui::Dummy(EditorUiScale::V(0.0f, 14.0f));
+    if(ImGui::Button(ICON_BTSP_FOLDERPLUS " Create project",
+                     ImVec2(-1.0f, EditorUiScale::S(36.0f))))
     {
         mUiError.clear();
         const auto tmpl =
@@ -136,7 +138,7 @@ void HomeLayer::drawNewProjectPanel()
         }
     }
 
-    ImGui::Dummy(ImVec2(0.0f, 8.0f));
+    ImGui::Dummy(EditorUiScale::V(0.0f, 8.0f));
     if(ImGui::Button(ICON_BTSP_FOLDEROPEN " Open project…", ImVec2(-1.0f, 0.0f)))
     {
         requestOpenProjectDialog();
@@ -147,7 +149,7 @@ void HomeLayer::drawRecentProjects()
 {
     ImGui::TextUnformatted("Recent projects");
     ImGui::Separator();
-    ImGui::Dummy(ImVec2(0.0f, 6.0f));
+    ImGui::Dummy(EditorUiScale::V(0.0f, 6.0f));
 
     if(mPreferences->recentProjects.empty())
     {

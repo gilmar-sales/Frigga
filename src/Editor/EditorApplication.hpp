@@ -1,6 +1,7 @@
 #pragma once
 
 #include "BoostrapIconsFont.hpp"
+#include "UiScale.hpp"
 
 #include <Frigga/Frigga.hpp>
 
@@ -20,16 +21,15 @@ class EditorApplication final: public fg::AbstractApplication
         PushLayer(mScope->GetServiceProvider()->GetService<MainLayer>());
         PushLayer(mScope->GetServiceProvider()->GetService<PreferencesLayer>());
 
-        ImGuiIO &io        = ImGui::GetIO();
-        io.FontGlobalScale = mWindow->GetScale();
+        EditorUiScale::Sync(mWindow->GetScale());
 
         mWindow->AddEventPollCallback([window = mWindow](SDL_Event event) {
-            if(event.window.type == SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED)
+            if(EditorUiScale::IsDisplayTopologyEvent(event))
             {
-                ImGuiIO &io        = ImGui::GetIO();
-                io.FontGlobalScale = window->GetScale();
+                EditorUiScale::Sync(window->GetScale());
             }
         });
+        ImGuiIO &io = ImGui::GetIO();
         io.Fonts->AddFontFromFileTTF("Resources/OpenSans.ttf", 18);
 
         static const ImWchar icons_ranges[] = {ICON_MIN_BTSP, ICON_MAX_BTSP, 0};

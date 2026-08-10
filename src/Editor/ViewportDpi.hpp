@@ -8,6 +8,8 @@
 namespace EditorViewport
 {
     /// ImGui content sizes are in logical points; Freya render targets need pixels.
+    /// For ImGui font / layout DPI (multi-monitor), use EditorUiScale in UiScale.hpp —
+    /// do not reuse DisplayFramebufferScale as FontGlobalScale.
     [[nodiscard]] inline ImVec2 FramebufferScale()
     {
         const ImVec2 scale = ImGui::GetIO().DisplayFramebufferScale;
