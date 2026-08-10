@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -688,6 +689,202 @@ void ProjectSession::CloseToHome()
         mStatusMessage.clear();
     }
     mScene->NewScene();
+}
+
+std::optional<std::filesystem::path> ProjectSession::GetProjectRoot() const
+{
+    if(!mProjectFile)
+    {
+        return std::nullopt;
+    }
+    return mProjectFile->parent_path();
+}
+
+std::filesystem::path ProjectSession::GetScenesDirectory() const
+{
+    const auto root = GetProjectRoot();
+    if(!root)
+    {
+        return {};
+    }
+    return *root / "scenes";
+}
+
+std::vector<std::filesystem::path> ProjectSession::ListSceneFiles() const
+{
+    std::vector<std::filesystem::path> scenes;
+    const auto dir = GetScenesDirectory();
+    if(dir.empty() || !std::filesystem::exists(dir))
+    {
+        return scenes;
+    }
+
+    std::error_code ec;
+    for(const auto &entry : std::filesystem::directory_iterator(dir, ec))
+    {
+        if(ec || !entry.is_regular_file())
+        {
+            continue;
+        }
+        if(entry.path().extension() == ".json")
+        {
+            scenes.push_back(entry.path());
+        }
+    }
+    std::sort(scenes.begin(), scenes.end(), [](const auto &a, const auto &b) {
+        return a.filename().string() < b.filename().string();
+    });
+    return scenes;
+}
+
+bool ProjectSession::OpenSceneFile(const std::filesystem::path &scenePath)
+{
+    {
+        std::lock_guard lock(mMutex);
+        mLastError.clear();
+    }
+    if(!mProjectFile)
+    {
+        std::lock_guard lock(mMutex);
+        mLastError = "No project open";
+        return false;
+    }
+    if(mSimulation->IsPlaying())
+    {
+        std::lock_guard lock(mMutex);
+        mLastError = "Stop play mode before switching scenes";
+        return false;
+    }
+    if(!std::filesystem::exists(scenePath))
+    {
+        std::lock_guard lock(mMutex);
+        mLastError = "Scene not found: " + scenePath.string();
+        return false;
+    }
+    if(!mScene->LoadScene(scenePath))
+    {
+        std::lock_guard lock(mMutex);
+        mLastError = "Failed to load scene: " + scenePath.string();
+        return false;
+    }
+    {
+        std::lock_guard lock(mMutex);
+        mStatusMessage = "Opened scene " + scenePath.filename().string();
+    }
+    return true;
+}
+
+bool ProjectSession::SetStartupScene(const std::filesystem::path &scenePath)
+{
+    {
+        std::lock_guard lock(mMutex);
+        mLastError.clear();
+    }
+    if(!mProjectFile)
+    {
+        std::lock_guard lock(mMutex);
+        mLastError = "No project open";
+        return false;
+    }
+
+    const auto root = mProjectFile->parent_path();
+    std::error_code ec;
+    const auto relative = std::filesystem::relative(scenePath, root, ec);
+    if(ec || relative.empty() || *relative.begin() == "..")
+    {
+        std::lock_guard lock(mMutex);
+        mLastError = "Scene must be inside the project folder";
+        return false;
+    }
+
+    mDescriptor.sceneRelativePath = relative.generic_string();
+    if(!ProjectFile::Save(*mProjectFile, mDescriptor))
+    {
+        std::lock_guard lock(mMutex);
+        mLastError = "Failed to update frigga.project";
+        return false;
+    }
+    {
+        std::lock_guard lock(mMutex);
+        mStatusMessage = "Startup scene: " + mDescriptor.sceneRelativePath;
+    }
+    return true;
+}
+
+bool ProjectSession::CreateScene(std::string name, fg::SceneTemplate sceneTemplate,
+                                 bool setAsStartup)
+{
+    {
+        std::lock_guard lock(mMutex);
+        mLastError.clear();
+    }
+    if(!mProjectFile)
+    {
+        std::lock_guard lock(mMutex);
+        mLastError = "No project open";
+        return false;
+    }
+    if(mSimulation->IsPlaying())
+    {
+        std::lock_guard lock(mMutex);
+        mLastError = "Stop play mode before creating a scene";
+        return false;
+    }
+
+    // Sanitize to a simple file stem.
+    std::string stem;
+    stem.reserve(name.size());
+    for(const char ch : name)
+    {
+        if(std::isalnum(static_cast<unsigned char>(ch)) || ch == '_' || ch == '-')
+        {
+            stem.push_back(ch);
+        }
+        else if(ch == ' ' && !stem.empty() && stem.back() != '_')
+        {
+            stem.push_back('_');
+        }
+    }
+    while(!stem.empty() && stem.back() == '_')
+    {
+        stem.pop_back();
+    }
+    if(stem.empty())
+    {
+        std::lock_guard lock(mMutex);
+        mLastError = "Enter a valid scene name";
+        return false;
+    }
+
+    const auto scenesDir = GetScenesDirectory();
+    std::error_code ec;
+    std::filesystem::create_directories(scenesDir, ec);
+    auto path = scenesDir / (stem + ".json");
+    if(std::filesystem::exists(path))
+    {
+        std::lock_guard lock(mMutex);
+        mLastError = "Scene already exists: " + path.filename().string();
+        return false;
+    }
+
+    mScene->NewSceneFromTemplate(sceneTemplate);
+    if(!mScene->SaveScene(path))
+    {
+        std::lock_guard lock(mMutex);
+        mLastError = "Failed to save scene: " + path.string();
+        return false;
+    }
+
+    if(setAsStartup && !SetStartupScene(path))
+    {
+        return false;
+    }
+
+    {
+        std::lock_guard lock(mMutex);
+        mStatusMessage = "Created scene " + path.filename().string();
+    }
+    return true;
 }
 
 bool ProjectSession::BuildPlugin()

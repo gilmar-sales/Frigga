@@ -13,7 +13,7 @@ Personal C++ game engine and ImGui editor built on [Freyr](https://github.com/gi
 - Separate editor camera vs gameplay (Main Camera) camera
 - JSON scene serialization (v1) with open/save dialogs
 - Jolt-backed play mode with transform snapshot/restore
-- Persistent `preferences.json` (graphics, theme, environment map)
+- Persistent preferences in the OS preferred config dir (via SDL `GetPrefPath`)
 
 ## Requirements
 
@@ -123,7 +123,7 @@ The Editor starts on a **home screen**: create a 2D/3D project (scaffolds CMake 
 
 Build progress and other background work appear in the Editor bottom status bar (click the mini progress indicator to expand the task list).
 
-Workflows other than **Gameplay** / **ECS** are placeholders. Preferences live in `preferences.json` next to the binary; some graphics options need a restart.
+Workflows other than **Gameplay** / **ECS** are placeholders. Preferences live under the OS preferred dir (`~/.local/share/Frigga/Editor/preferences.json` on Linux); some graphics options need a restart. New projects default to `~/FriggaProjects`.
 
 Default environment map path in preferences may point at a missing HDR under `Resources/Environments/` — place an HDR there or change the path in Preferences.
 

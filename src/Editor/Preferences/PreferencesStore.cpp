@@ -1,5 +1,7 @@
 #include "PreferencesStore.hpp"
 
+#include "../Paths/EditorPaths.hpp"
+
 #include <algorithm>
 #include <chrono>
 #include <fstream>
@@ -8,6 +10,34 @@
 
 namespace
 {
+    std::filesystem::path ResolvePreferencesPath(const std::filesystem::path &path)
+    {
+        if(!path.empty())
+        {
+            return path;
+        }
+        return PreferencesStore::DefaultPath();
+    }
+
+    /// One-shot: copy cwd preferences.json into the OS preferred dir when migrating.
+    void MigrateLegacyPreferencesIfNeeded(const std::filesystem::path &target)
+    {
+        if(std::filesystem::exists(target))
+        {
+            return;
+        }
+
+        const auto legacy = std::filesystem::current_path() / "preferences.json";
+        if(!std::filesystem::exists(legacy))
+        {
+            return;
+        }
+
+        std::error_code ec;
+        std::filesystem::create_directories(target.parent_path(), ec);
+        std::filesystem::copy_file(legacy, target, ec);
+    }
+
     std::string EscapeJson(std::string_view value)
     {
         std::ostringstream out;
@@ -234,18 +264,30 @@ namespace
 void PreferencesStore::Configure(skr::ConfigurationBuilder &configurationBuilder,
                                  const std::filesystem::path &path)
 {
-    if(std::filesystem::exists(path))
+    const auto resolved = ResolvePreferencesPath(path);
+    MigrateLegacyPreferencesIfNeeded(resolved);
+    if(std::filesystem::exists(resolved))
     {
-        configurationBuilder.AddJsonFile(path);
+        configurationBuilder.AddJsonFile(resolved);
     }
+}
+
+std::filesystem::path PreferencesStore::DefaultPath()
+{
+    EditorPaths::EnsureDirectories();
+    return EditorPaths::PreferencesFile();
 }
 
 skr::Arc<EditorPreferences> PreferencesStore::Load(const std::filesystem::path &path)
 {
+    const auto resolved = ResolvePreferencesPath(path);
+    EditorPaths::EnsureDirectories();
+    MigrateLegacyPreferencesIfNeeded(resolved);
+
     auto configurationBuilder = skr::ConfigurationBuilder();
-    if(std::filesystem::exists(path))
+    if(std::filesystem::exists(resolved))
     {
-        std::ifstream file(path);
+        std::ifstream file(resolved);
         std::ostringstream buffer;
         buffer << file.rdbuf();
         std::string text = buffer.str();
@@ -275,13 +317,13 @@ skr::Arc<EditorPreferences> PreferencesStore::Load(const std::filesystem::path &
         configurationBuilder.AddJsonString(text);
     }
     auto preferences = configurationBuilder.Build()->Bind<EditorPreferences>();
-    MigrateLegacyViewportQualities(preferences->graphics, path);
+    MigrateLegacyViewportQualities(preferences->graphics, resolved);
     // Keep flat aliases mirrored to gameplay for any leftover readers.
     preferences->graphics.shadowQuality = preferences->graphics.gameplayViewport.shadowQuality;
     preferences->graphics.ssaoQuality   = preferences->graphics.gameplayViewport.ssaoQuality;
     preferences->graphics.taaQuality    = preferences->graphics.gameplayViewport.taaQuality;
     preferences->graphics.bloomQuality  = preferences->graphics.gameplayViewport.bloomQuality;
-    LoadRecentProjects(*preferences, path);
+    LoadRecentProjects(*preferences, resolved);
     return preferences;
 }
 
@@ -324,6 +366,9 @@ void PreferencesStore::TouchRecentProject(EditorPreferences &preferences,
 void PreferencesStore::Save(const EditorPreferences &preferences,
                             const std::filesystem::path &path)
 {
+    const auto resolved = ResolvePreferencesPath(path);
+    EditorPaths::EnsureDirectories();
+
     const auto &g = preferences.graphics;
     const auto &e = preferences.ecs;
 
@@ -398,6 +443,6 @@ void PreferencesStore::Save(const EditorPreferences &preferences,
     json << "  ]\n";
     json << "}\n";
 
-    std::ofstream file(path, std::ios::binary | std::ios::trunc);
+    std::ofstream file(resolved, std::ios::binary | std::ios::trunc);
     file << json.str();
 }

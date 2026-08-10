@@ -20,12 +20,14 @@ void GamePlayWorkflow::buildDefaultDockLayout(ImGuiID dockspaceId)
     const auto editor     = EditorDock::WindowId("Editor");
     const auto gameplay   = EditorDock::WindowId("Gameplay");
     const auto resources  = EditorDock::WindowId("Resources");
+    const auto scenes     = EditorDock::WindowId("Scenes");
 
     ImGui::DockBuilderDockWindow(hierarchy.c_str(), leftId);
     ImGui::DockBuilderDockWindow(components.c_str(), rightId);
     ImGui::DockBuilderDockWindow(editor.c_str(), mainId);
     ImGui::DockBuilderDockWindow(gameplay.c_str(), mainId);
     ImGui::DockBuilderDockWindow(resources.c_str(), bottomId);
+    ImGui::DockBuilderDockWindow(scenes.c_str(), bottomId);
 
     ImGui::DockBuilderFinish(dockspaceId);
 }

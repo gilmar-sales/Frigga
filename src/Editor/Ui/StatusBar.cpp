@@ -185,7 +185,45 @@ void StatusBar::drawStrip(const ImGuiViewport *viewport, float barHeight)
         ImGui::TextDisabled("%s", status.c_str());
     }
 
+    // Dedicated gameplay plugin actions (always on the editor status strip).
     const float progressWidth = EditorUiScale::S(140.0f);
+    const float pluginGroupWidth =
+        EditorUiScale::S(8.0f) + EditorUiScale::S(72.0f) + EditorUiScale::S(6.0f) +
+        EditorUiScale::S(74.0f) + EditorUiScale::S(12.0f);
+    ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - progressWidth - pluginGroupWidth);
+    ImGui::SetCursorPosY(ImGui::GetCursorPosY());
+
+    {
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
+                            ImVec2(EditorUiScale::S(6.0f), EditorUiScale::S(1.0f)));
+        const bool busy    = mSession->IsBuilding();
+        const bool playing = mSimulation->IsPlaying();
+        ImGui::BeginDisabled(busy || playing || !mSession->HasProject());
+        if(ImGui::SmallButton(ICON_BTSP_HAMMER " Build##statusBuild"))
+        {
+            mSession->BuildPlugin();
+            mTasksExpanded = true;
+        }
+        if(ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        {
+            ImGui::SetTooltip("Build gameplay plugin (Ctrl+B)");
+        }
+        ImGui::EndDisabled();
+
+        ImGui::SameLine(0.0f, EditorUiScale::S(6.0f));
+        ImGui::BeginDisabled(busy || !mSession->HasProject());
+        if(ImGui::SmallButton(ICON_BTSP_RELOAD " Reload##statusReload"))
+        {
+            mSession->ReloadPlugin();
+        }
+        if(ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        {
+            ImGui::SetTooltip("Reload gameplay plugin (Ctrl+R)");
+        }
+        ImGui::EndDisabled();
+        ImGui::PopStyleVar();
+    }
+
     ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - progressWidth);
     ImGui::SetCursorPosY(ImGui::GetCursorPosY() + EditorUiScale::S(2.0f));
 

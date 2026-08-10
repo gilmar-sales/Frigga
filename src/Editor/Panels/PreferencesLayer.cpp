@@ -26,7 +26,7 @@ namespace
         ImGui::TextDisabled("(restart)");
         if(ImGui::IsItemHovered())
         {
-            ImGui::SetTooltip("Saved to preferences.json. Requires editor restart.");
+            ImGui::SetTooltip("Saved to the OS preferred config dir. Requires editor restart.");
         }
     }
 

@@ -6,6 +6,7 @@
 #include "Panels/HierarchyLayer.hpp"
 #include "Panels/PreferencesLayer.hpp"
 #include "Panels/ResourcesLayer.hpp"
+#include "Panels/ScenesLayer.hpp"
 #include "Preferences/EditorPreferences.hpp"
 #include "Preferences/PreferencesStore.hpp"
 #include "Project/ProjectSession.hpp"
@@ -139,6 +140,7 @@ int main(int argc, char *argv[])
         .AddTransient<GameplayLayer>()
         .AddTransient<EditorLayer>()
         .AddTransient<ResourcesLayer>()
+        .AddTransient<ScenesLayer>()
         .AddTransient<ArchetypesLayer>()
         .AddScoped<HierarchyLayer>()
         .AddTransient<PreferencesLayer>()

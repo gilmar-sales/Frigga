@@ -1,6 +1,7 @@
 #include "HomeLayer.hpp"
 
 #include "BoostrapIconsFont.hpp"
+#include "Paths/EditorPaths.hpp"
 #include "UiScale.hpp"
 
 #include <SDL3/SDL_dialog.h>
@@ -22,8 +23,9 @@ HomeLayer::HomeLayer(skr::Arc<ProjectSession> session, skr::Arc<fra::Window> win
     : fg::Layer("Home Layer"), mSession(std::move(session)), mWindow(std::move(window)),
       mPreferences(std::move(preferences))
 {
-    const auto home = std::filesystem::current_path() / "Projects";
-    std::snprintf(mParentDir, sizeof(mParentDir), "%s", home.string().c_str());
+    EditorPaths::EnsureDirectories();
+    const auto projects = EditorPaths::DefaultProjectsDir();
+    std::snprintf(mParentDir, sizeof(mParentDir), "%s", projects.string().c_str());
 }
 
 void HomeLayer::onUpdate()

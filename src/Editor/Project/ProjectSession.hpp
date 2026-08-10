@@ -119,6 +119,16 @@ class ProjectSession
     bool OpenProject(const std::filesystem::path &projectFile);
     void CloseToHome();
 
+    [[nodiscard]] std::optional<std::filesystem::path> GetProjectRoot() const;
+    [[nodiscard]] std::filesystem::path GetScenesDirectory() const;
+    /// Absolute paths to `scenes/*.json` in the open project (sorted by filename).
+    [[nodiscard]] std::vector<std::filesystem::path> ListSceneFiles() const;
+    bool OpenSceneFile(const std::filesystem::path &scenePath);
+    /// Creates `scenes/<name>.json` from a template and opens it. Updates startup scene.
+    bool CreateScene(std::string name, fg::SceneTemplate sceneTemplate,
+                     bool setAsStartup = true);
+    bool SetStartupScene(const std::filesystem::path &scenePath);
+
     /// Starts an asynchronous cmake configure+build. Returns false if busy / no project.
     bool BuildPlugin();
     bool ReloadPlugin();
