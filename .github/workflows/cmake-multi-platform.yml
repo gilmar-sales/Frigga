@@ -1,15 +1,14 @@
-
-name: CMake on multiple platforms
+name: CMake
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
     paths-ignore:
-      - '*.md'
-      - 'docs/**'
+      - "*.md"
+      - "docs/**"
       - mkdocs.yml
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
   release:
     types: [published]
 
@@ -18,327 +17,157 @@ jobs:
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
-
     strategy:
       fail-fast: false
-
       matrix:
-        os: [ubuntu-latest, windows-latest]
-        build_type: [Release]
         include:
           - os: ubuntu-latest
             c_compiler: gcc
-            cpp_compiler: g++
-            cc: gcc
-            cxx: g++
+            cxx_compiler: g++
           - os: windows-latest
-            c_compiler: 'C:/mingw64-gcc16/bin/gcc.exe'
-            cpp_compiler: 'C:/mingw64-gcc16/bin/g++.exe'
-            cc: 'C:/mingw64-gcc16/bin/gcc.exe'
-            cxx: 'C:/mingw64-gcc16/bin/g++.exe'
+            c_compiler: C:/mingw64-gcc16/bin/gcc.exe
+            cxx_compiler: C:/mingw64-gcc16/bin/g++.exe
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    # Release tags (v1.2.3 or 1.2.3) drive CMAKE project()/CPack version.
-    # Push/PR builds keep the default from CMakeLists.txt (FRIGGA_VERSION).
-    - name: Resolve project version
-      id: version
-      shell: bash
-      run: |
-        set -euo pipefail
-        DEFAULT_VERSION="0.2.0"
-        if [[ "${{ github.event_name }}" == "release" ]]; then
-          TAG="${{ github.event.release.tag_name }}"
-          VERSION="${TAG#v}"
-          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.+-].*)?$ ]]; then
-            echo "::error::Release tag '$TAG' must be SemVer (optional leading v), got '$VERSION'"
-            exit 1
+      - name: Version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=0.2.0" >> "$GITHUB_OUTPUT"
           fi
-        else
-          VERSION="$DEFAULT_VERSION"
-        fi
-        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-        echo "Project version: $VERSION"
 
-    # cache-apt-pkgs-action's add-repository runs too late for package
-    # resolution, so register the PPA (and refresh indexes) first.
-    - name: Add ubuntu-toolchain-r PPA on Linux
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y software-properties-common
-        sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
-        sudo apt-get update
+      - name: Linux deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y software-properties-common
+          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            gcc-16 g++-16 glslc ninja-build \
+            libx11-dev libxext-dev libxrandr-dev libxcursor-dev \
+            libxi-dev libxinerama-dev libxxf86vm-dev libxss-dev \
+            libxkbcommon-dev libxkbcommon-x11-dev \
+            libwayland-dev wayland-protocols \
+            libdrm-dev libgbm-dev \
+            libudev-dev libdbus-1-dev \
+            libpulse-dev libasound2-dev
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-16 100 \
+            --slave /usr/bin/g++ g++ /usr/bin/g++-16
+          sudo update-alternatives --set gcc /usr/bin/gcc-16
 
-    - name: Install SDL3 build dependencies
-      if: ${{ matrix.os == 'ubuntu-latest' }}
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          libx11-dev libxext-dev libxrandr-dev libxcursor-dev \
-          libxi-dev libxinerama-dev libxxf86vm-dev libxss-dev \
-          libxkbcommon-dev libxkbcommon-x11-dev \
-          libwayland-dev wayland-protocols \
-          libdrm-dev libgbm-dev \
-          libudev-dev libdbus-1-dev \
-          libpulse-dev libasound2-dev
+      - name: Windows glslc
+        if: runner.os == 'Windows'
+        uses: humbletim/install-vulkan-sdk@v1.2
+        with:
+          version: 1.4.309.0
+          cache: true
 
-    - name: Set reusable strings
-      # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
-      id: strings
-      shell: bash
-      run: |
-        echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
+      - name: Remember glslc
+        if: runner.os == 'Windows'
+        shell: bash
+        run: echo "GLSLC_DIR=$(dirname "$(command -v glslc)")" >> "$GITHUB_ENV"
 
-    # Windows: install full LunarG SDK first only to get glslc. Its MSVC-oriented
-    # libs are not what MinGW/FindVulkan need — setup-vulkan-sdk below replaces
-    # VULKAN_SDK with a MinGW-compatible headers+loader build.
-    - name: Install Vulkan SDK (Windows, for glslc)
-      if: matrix.os == 'windows-latest'
-      uses: humbletim/install-vulkan-sdk@v1.2
-      with:
-        version: 1.4.309.0
-        cache: true
+      - name: Windows Vulkan headers
+        if: runner.os == 'Windows'
+        uses: humbletim/setup-vulkan-sdk@v1.2.1
+        with:
+          vulkan-query-version: 1.4.328.1
+          vulkan-components: Vulkan-Headers, Vulkan-Loader
+          vulkan-use-cache: true
 
-    - name: Capture glslc location (Windows)
-      if: matrix.os == 'windows-latest'
-      shell: bash
-      run: |
-        GLSLC_PATH="$(command -v glslc)"
-        if [[ -z "$GLSLC_PATH" ]]; then
-          echo "glslc not found after Vulkan SDK install"
-          exit 1
-        fi
-        echo "GLSLC_DIR=$(dirname "$GLSLC_PATH")" >> "$GITHUB_ENV"
-        "$GLSLC_PATH" --version
+      - name: Cache MinGW
+        if: runner.os == 'Windows'
+        id: cache-mingw
+        uses: actions/cache@v4
+        with:
+          path: C:\mingw64-gcc16
+          key: mingw64-gcc16-16.1.0-rt_v14-rev1-posix-seh-ucrt
 
-    # Lightweight Vulkan headers + loader (MinGW-friendly on Windows).
-    # Without glslc Freya falls back to copying GLSL into
-    # Resources/Shaders/Shaders instead of compiling .spv.
-    - name: Prepare Vulkan SDK
-      uses: humbletim/setup-vulkan-sdk@v1.2.1
-      with:
-        vulkan-query-version: 1.4.328.1
-        vulkan-components: Vulkan-Headers, Vulkan-Loader
-        vulkan-use-cache: true
+      - name: Install MinGW
+        if: runner.os == 'Windows' && steps.cache-mingw.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $url = 'https://github.com/niXman/mingw-builds-binaries/releases/download/16.1.0-rt_v14-rev1/x86_64-16.1.0-release-posix-seh-ucrt-rt_v14-rev1.7z'
+          $zip = "$env:TEMP\mingw64.7z"
+          Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
+          Remove-Item -Recurse -Force C:\mingw64-scratch -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path C:\mingw64-scratch | Out-Null
+          & 7z.exe x $zip "-oC:\mingw64-scratch\" -y | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "7z failed: $LASTEXITCODE" }
+          $extracted = Get-ChildItem C:\mingw64-scratch -Directory | Select-Object -First 1
+          Remove-Item -Recurse -Force C:\mingw64-gcc16 -ErrorAction SilentlyContinue
+          Move-Item $extracted.FullName C:\mingw64-gcc16
 
-    - name: Install glslc on Linux
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y glslc
-        command -v glslc
-        glslc --version
+      - name: Windows PATH
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          echo "C:/mingw64-gcc16/bin" >> "$GITHUB_PATH"
+          echo "${GLSLC_DIR}" >> "$GITHUB_PATH"
 
-    - name: Restore glslc on PATH (Windows)
-      if: matrix.os == 'windows-latest'
-      shell: bash
-      run: |
-        echo "${GLSLC_DIR}" >> "$GITHUB_PATH"
-        export PATH="${GLSLC_DIR}:${PATH}"
-        command -v glslc
-        glslc --version
+      - name: Configure
+        shell: bash
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_C_COMPILER="${{ matrix.c_compiler }}" \
+            -DCMAKE_CXX_COMPILER="${{ matrix.cxx_compiler }}" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DFRIGGA_VERSION="${{ steps.version.outputs.version }}"
 
-    - name: Install gcc-16 on Linux
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        sudo apt-get update
-        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gcc-16 g++-16
-        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-16 100 \
-          --slave /usr/bin/g++ g++ /usr/bin/g++-16 \
-          --slave /usr/bin/gcov gcov /usr/bin/gcov-16
-        sudo update-alternatives --set gcc /usr/bin/gcc-16
-        g++ --version
+      - name: Build
+        shell: bash
+        run: cmake --build build --config Release
 
-    - name: Cache MinGW-w64 GCC 16 on Windows
-      if: matrix.os == 'windows-latest'
-      id: cache-mingw
-      uses: actions/cache@v4
-      with:
-        path: C:\mingw64-gcc16
-        key: mingw64-gcc16-16.1.0-rt_v14-rev1-posix-seh-ucrt
+      - name: Test
+        working-directory: build
+        shell: bash
+        run: ctest --output-on-failure -C Release
 
-    - name: Install MinGW-w64 GCC 16 (niXman mingw-builds) on Windows
-      if: matrix.os == 'windows-latest' && steps.cache-mingw.outputs.cache-hit != 'true'
-      shell: pwsh
-      run: |
-        $ErrorActionPreference = 'Stop'
-        $url = 'https://github.com/niXman/mingw-builds-binaries/releases/download/16.1.0-rt_v14-rev1/x86_64-16.1.0-release-posix-seh-ucrt-rt_v14-rev1.7z'
-        $zip = "$env:TEMP\mingw64.7z"
-        $scratch = 'C:\mingw64-scratch'
-        $toolchain = 'C:\mingw64-gcc16'
-        Write-Host "Downloading $url"
-        Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
-        Write-Host "Extracting toolchain to $scratch"
-        if (Test-Path $scratch) { Remove-Item -Recurse -Force $scratch }
-        New-Item -ItemType Directory -Path $scratch | Out-Null
-        # Use forward-slash style output path; 7z requires the trailing slash to
-        # treat it as a directory rather than a prefix.
-        & 7z.exe x $zip "-o${scratch}\" -y | Out-Null
-        if ($LASTEXITCODE -ne 0) { throw "7z extraction failed with exit code $LASTEXITCODE" }
-        Write-Host 'Contents of scratch directory:'
-        Get-ChildItem -Path $scratch -Force | Select-Object Name, FullName | Format-Table -AutoSize | Out-String | Write-Host
-        # The archive's top-level folder is the build name; rename it to a stable path.
-        $extracted = Get-ChildItem -Path $scratch -Directory |
-          Select-Object -First 1
-        if (-not $extracted) { throw "No directory found under $scratch after 7z extraction" }
-        if (Test-Path $toolchain) { Remove-Item -Recurse -Force $toolchain }
-        Rename-Item -Path $extracted.FullName -NewName 'mingw64-gcc16'
-        # `Rename-Item` moves into the parent (i.e. $scratch), so move it up to C:\.
-        Move-Item -Path (Join-Path $scratch 'mingw64-gcc16') -Destination $toolchain -Force
-        Remove-Item -Recurse -Force $scratch
-        $gcc = Join-Path $toolchain 'bin\gcc.exe'
-        if (-not (Test-Path $gcc)) { throw "gcc.exe not found at $gcc" }
-        & $gcc --version
+      - name: Stage
+        shell: bash
+        run: |
+          mkdir -p publish
+          if [[ -f build/Editor ]]; then
+            cp build/Editor publish/
+          elif [[ -f build/Editor.exe ]]; then
+            cp build/Editor.exe publish/
+          else
+            echo "Editor not found"; exit 1
+          fi
+          cp -a build/Resources publish/
+          find publish/Resources/Shaders -name '*.spv' | grep -q .
 
-    - name: Prepend MinGW GCC 16 to PATH on Windows
-      if: matrix.os == 'windows-latest'
-      shell: pwsh
-      run: |
-        $ErrorActionPreference = 'Stop'
-        $toolchain = 'C:\mingw64-gcc16'
-        $gcc = Join-Path $toolchain 'bin\gcc.exe'
-        if (-not (Test-Path $gcc)) { throw "gcc.exe not found at $gcc" }
-        # Strip any preinstalled mingw64/msys64 entries from machine PATH so our
-        # GCC 16 wins, and prepend our toolchain. Keep the current process PATH
-        # suffix (GitHub Actions injects glslc / job tools via GITHUB_PATH).
-        $sysPath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
-        $cleanSysPath = ($sysPath -split ';' | Where-Object { $_ -and ($_ -notmatch 'mingw64') -and ($_ -notmatch 'msys64') }) -join ';'
-        [Environment]::SetEnvironmentVariable('Path', "$toolchain\bin;$cleanSysPath", 'Machine')
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Frigga-${{ matrix.os }}-Release
+          path: publish/*
+          if-no-files-found: error
 
-        $jobEntries = ($env:Path -split ';' | Where-Object {
-          $_ -and
-          ($_ -notmatch '(?i)mingw64') -and
-          ($_ -notmatch '(?i)msys64') -and
-          (($cleanSysPath -split ';') -notcontains $_)
-        })
-        $env:Path = (@("$toolchain\bin") + $jobEntries + @($cleanSysPath) | Select-Object -Unique) -join ';'
-        echo "$toolchain\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-        if ($env:GLSLC_DIR) {
-          echo "$env:GLSLC_DIR" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          $env:Path = "$env:GLSLC_DIR;$env:Path"
-        }
-        & $gcc --version
-        & (Join-Path $toolchain 'bin\g++.exe') --version
-        & glslc --version
+      - name: Release zip
+        if: github.event_name == 'release'
+        id: pack
+        shell: bash
+        run: |
+          case "${{ matrix.os }}" in
+            ubuntu-latest) PLATFORM=linux ;;
+            windows-latest) PLATFORM=windows ;;
+            *) PLATFORM="${{ matrix.os }}" ;;
+          esac
+          ASSET="Frigga-${PLATFORM}-Release"
+          python -c "import shutil; shutil.make_archive('${ASSET}', 'zip', 'publish')"
+          echo "asset=${ASSET}.zip" >> "$GITHUB_OUTPUT"
 
-    - name: Cache CMake build directory
-      uses: actions/cache@v4
-      with:
-        path: build
-        # Bump cache when shader tooling changes — stale configures without
-        # glslc leave Resources/Shaders/Shaders (GLSL sources, not .spv).
-        key: ${{ runner.os }}-${{ matrix.c_compiler }}-${{ matrix.build_type }}-Ninja-glslc2-v${{ steps.version.outputs.version }}-${{ hashFiles('CMakeLists.txt', '**/CMakeLists.txt', 'src/Frigga/**', 'src/Editor/**', 'test/**.cpp') }}
-        restore-keys: |
-          ${{ runner.os }}-${{ matrix.c_compiler }}-${{ matrix.build_type }}-Ninja-glslc2-v${{ steps.version.outputs.version }}-
-          ${{ runner.os }}-${{ matrix.c_compiler }}-${{ matrix.build_type }}-Ninja-glslc2-
-
-    - name: Configure CMake
-      shell: bash
-      run: |
-        set -euo pipefail
-        echo "VULKAN_SDK=${VULKAN_SDK:-}"
-        echo "FRIGGA_VERSION=${{ steps.version.outputs.version }}"
-        command -v glslc
-        glslc --version
-        cmake -B "build" \
-          -G "Ninja" \
-          -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }} \
-          -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} \
-          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
-          -DFRIGGA_VERSION=${{ steps.version.outputs.version }} \
-          -S "${{ github.workspace }}"
-        cmake -L -N "build" | grep -E '^(FRIGGA_VERSION|CMAKE_PROJECT_VERSION):' || true
-
-    - name: Build
-      shell: bash
-      run: |
-        export PATH="/c/mingw64-gcc16/bin:${GLSLC_DIR:-}:$PATH"
-        cmake --build "build" --config ${{ matrix.build_type }}
-
-    - name: Test
-      shell: bash
-      working-directory: build
-      run: |
-        export PATH="/c/mingw64-gcc16/bin:$PATH"
-        ctest --rerun-failed --output-on-failure --build-config ${{ matrix.build_type }}
-
-    # Layout matches the build tree: executable at root, Resources/ beside it.
-    - name: Stage publish
-      shell: bash
-      run: |
-        set -euo pipefail
-        BUILD="${{ steps.strings.outputs.build-output-dir }}"
-        STAGE="${{ github.workspace }}/publish"
-        rm -rf "$STAGE"
-        mkdir -p "$STAGE"
-
-        if [[ -f "$BUILD/Editor" ]]; then
-          cp "$BUILD/Editor" "$STAGE/"
-        elif [[ -f "$BUILD/Editor.exe" ]]; then
-          cp "$BUILD/Editor.exe" "$STAGE/"
-        elif [[ -f "$BUILD/Release/Editor.exe" ]]; then
-          cp "$BUILD/Release/Editor.exe" "$STAGE/"
-        else
-          echo "Editor executable not found under $BUILD"
-          find "$BUILD" -maxdepth 2 -name 'Editor*' -print || true
-          exit 1
-        fi
-
-        if [[ ! -d "$BUILD/Resources" ]]; then
-          echo "Resources directory not found at $BUILD/Resources"
-          exit 1
-        fi
-        cp -a "$BUILD/Resources" "$STAGE/"
-
-        SHADERS="$STAGE/Resources/Shaders"
-        if [[ -d "$SHADERS/Shaders" ]]; then
-          echo "Nested Resources/Shaders/Shaders detected — glslc was missing at configure time."
-          find "$SHADERS" -maxdepth 3 -print | sort
-          exit 1
-        fi
-
-        mapfile -t SPVS < <(find "$SHADERS" -type f -name '*.spv' | sort)
-        if [[ ${#SPVS[@]} -eq 0 ]]; then
-          echo "No compiled .spv shaders under $SHADERS"
-          find "$SHADERS" -maxdepth 3 -print | sort || true
-          exit 1
-        fi
-
-        echo "Publish layout:"
-        find "$STAGE" -maxdepth 2 -print | sort
-        echo "Compiled shaders (${#SPVS[@]}):"
-        printf '  %s\n' "${SPVS[@]}"
-
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: Frigga-${{ matrix.os }}-${{ matrix.build_type }}
-        path: publish/*
-        if-no-files-found: error
-
-    # Actions artifacts (above) expire and live only on the workflow run.
-    # Release assets below are permanent attachments on the GitHub Release.
-    - name: Pack release zip
-      if: github.event_name == 'release'
-      id: pack
-      shell: bash
-      run: |
-        set -euo pipefail
-        case "${{ matrix.os }}" in
-          ubuntu-latest) PLATFORM=linux ;;
-          windows-latest) PLATFORM=windows ;;
-          *) PLATFORM="${{ matrix.os }}" ;;
-        esac
-        ASSET="Frigga-${PLATFORM}-${{ matrix.build_type }}"
-        python -c "import shutil; shutil.make_archive('${ASSET}', 'zip', 'publish')"
-        echo "asset=${ASSET}.zip" >> "$GITHUB_OUTPUT"
-        ls -lh "${ASSET}.zip"
-
-    - name: Attach zip to GitHub Release
-      if: github.event_name == 'release'
-      uses: softprops/action-gh-release@v2
-      with:
-        files: ${{ steps.pack.outputs.asset }}
-        fail_on_unmatched_files: true
+      - name: Attach release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.pack.outputs.asset }}
+          fail_on_unmatched_files: true
