@@ -588,17 +588,34 @@ bool ProjectSession::OpenProject(const std::filesystem::path &projectFile)
         return false;
     }
 
+    // Register gameplay types before scene deserialize so userComponents apply immediately.
+    // If the .so is missing, deserialize stashes them until the first successful plugin load.
+    mProjectFile = projectFile;
+    mDescriptor  = *loaded;
+    const auto lib = pluginLibraryAbsolute();
+    if(std::filesystem::exists(lib))
+    {
+        if(!mPluginHost->Load(lib))
+        {
+            mLogger->LogWarning("Plugin present but failed to load before scene: {}",
+                                mPluginHost->GetLastError());
+        }
+    }
+
     const auto root      = projectFile.parent_path();
     const auto scenePath = root / loaded->sceneRelativePath;
     if(!mScene->LoadScene(scenePath))
     {
+        mPluginHost->Unload();
+        mProjectFile.reset();
+        mDescriptor = {};
         std::lock_guard lock(mMutex);
         mLastError = "Failed to load scene: " + scenePath.string();
         mLogger->LogError("{}", mLastError);
         return false;
     }
 
-    return enterEditor(projectFile, std::move(*loaded));
+    return enterEditor(projectFile, std::move(*loaded), /*loadPlugin=*/false);
 }
 
 bool ProjectSession::migrateProjectFile(const std::filesystem::path &projectFile,
@@ -839,7 +856,8 @@ void ProjectSession::DismissBuildUi()
     mBuildProgressDeterminate.store(false, std::memory_order_release);
 }
 
-bool ProjectSession::enterEditor(const std::filesystem::path &projectFile, ProjectDescriptor desc)
+bool ProjectSession::enterEditor(const std::filesystem::path &projectFile, ProjectDescriptor desc,
+                                 bool loadPlugin)
 {
     std::string pendingStatus;
     {
@@ -852,23 +870,42 @@ bool ProjectSession::enterEditor(const std::filesystem::path &projectFile, Proje
     mMode        = EditorSessionMode::Editor;
     touchRecent();
 
-    // Best-effort plugin load (may be missing until first build).
-    const auto lib = pluginLibraryAbsolute();
     std::string opened;
-    if(std::filesystem::exists(lib))
+    if(loadPlugin)
     {
-        if(mPluginHost->Load(lib))
+        // Best-effort plugin load (may be missing until first build).
+        const auto lib = pluginLibraryAbsolute();
+        if(std::filesystem::exists(lib))
         {
-            opened = "Opened " + mDescriptor.name;
+            if(mPluginHost->Load(lib))
+            {
+                opened = "Opened " + mDescriptor.name;
+            }
+            else
+            {
+                opened = "Opened " + mDescriptor.name + " (plugin not loaded)";
+            }
         }
         else
         {
-            opened = "Opened " + mDescriptor.name + " (plugin not loaded)";
+            opened = "Opened " + mDescriptor.name + " — build the gameplay plugin to load code";
         }
+    }
+    else if(mPluginHost->IsLoaded())
+    {
+        opened = "Opened " + mDescriptor.name;
     }
     else
     {
-        opened = "Opened " + mDescriptor.name + " — build the gameplay plugin to load code";
+        const auto lib = pluginLibraryAbsolute();
+        if(std::filesystem::exists(lib))
+        {
+            opened = "Opened " + mDescriptor.name + " (plugin not loaded)";
+        }
+        else
+        {
+            opened = "Opened " + mDescriptor.name + " — build the gameplay plugin to load code";
+        }
     }
 
     {

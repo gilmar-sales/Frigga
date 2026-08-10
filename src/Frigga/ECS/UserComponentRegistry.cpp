@@ -117,6 +117,94 @@ namespace FRIGGA_NAMESPACE
         return restored;
     }
 
+    void UserComponentRegistry::EnqueueDeferred(fr::Entity entity, UserComponentInstance instance)
+    {
+        if(instance.typeId.empty())
+        {
+            return;
+        }
+
+        std::lock_guard lock(mMutex);
+        for(auto &entry : mDeferred)
+        {
+            if(entry.entity == entity && entry.instance.typeId == instance.typeId)
+            {
+                entry.instance = std::move(instance);
+                return;
+            }
+        }
+        mDeferred.push_back(
+            UserComponentSnapshotEntry {.entity = entity, .instance = std::move(instance)});
+    }
+
+    void UserComponentRegistry::ClearDeferred()
+    {
+        std::lock_guard lock(mMutex);
+        mDeferred.clear();
+    }
+
+    std::size_t UserComponentRegistry::ApplyDeferred(fr::Registry &registry)
+    {
+        std::vector<UserComponentSnapshotEntry> pending;
+        {
+            std::lock_guard lock(mMutex);
+            pending = mDeferred;
+        }
+
+        if(pending.empty())
+        {
+            return 0;
+        }
+
+        std::vector<UserComponentSnapshotEntry> remaining;
+        remaining.reserve(pending.size());
+        std::size_t applied = 0;
+
+        for(auto &entry : pending)
+        {
+            const auto ops = Find(entry.instance.typeId);
+            if(!ops || !ops->fromInstance)
+            {
+                remaining.push_back(std::move(entry));
+                continue;
+            }
+            ops->fromInstance(registry, entry.entity, entry.instance);
+            ++applied;
+        }
+
+        if(applied > 0)
+        {
+            registry.ExecuteTasks();
+        }
+
+        {
+            std::lock_guard lock(mMutex);
+            mDeferred = std::move(remaining);
+        }
+        return applied;
+    }
+
+    std::vector<UserComponentSnapshotEntry> UserComponentRegistry::GetDeferred() const
+    {
+        std::lock_guard lock(mMutex);
+        return mDeferred;
+    }
+
+    std::vector<UserComponentSnapshotEntry> UserComponentRegistry::GetDeferredForEntity(
+        fr::Entity entity) const
+    {
+        std::lock_guard lock(mMutex);
+        std::vector<UserComponentSnapshotEntry> result;
+        for(const auto &entry : mDeferred)
+        {
+            if(entry.entity == entity)
+            {
+                result.push_back(entry);
+            }
+        }
+        return result;
+    }
+
     bool UserComponentRegistry::Has(std::string_view typeId) const
     {
         std::lock_guard lock(mMutex);

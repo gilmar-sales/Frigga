@@ -324,6 +324,13 @@ namespace FRIGGA_NAMESPACE
                                 types.size(),
                                 registered.empty() ? "(none)" : registered);
 
+        // Scene deserialize may have stashed gameplay components before types existed.
+        if(const auto deferred = mUserComponents->ApplyDeferred(*mRegistry); deferred > 0)
+        {
+            mLogger->LogInformation(
+                "Applied {} deferred gameplay component instance(s) after plugin load", deferred);
+        }
+
         if(!mPendingRestore.entries.empty())
         {
             const auto restored = mUserComponents->RestoreAll(*mRegistry, mPendingRestore);

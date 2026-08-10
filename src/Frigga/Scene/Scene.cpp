@@ -52,6 +52,11 @@ namespace FRIGGA_NAMESPACE
 
     void Scene::ClearEntities()
     {
+        if(mUserComponents)
+        {
+            mUserComponents->ClearDeferred();
+        }
+
         std::vector<fr::Entity> entities;
         mEcsRegistry->CreateMutation()->Each<NameComponent>(
             [&](auto entity, NameComponent &) { entities.push_back(entity); });

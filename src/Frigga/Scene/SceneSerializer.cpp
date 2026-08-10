@@ -10,7 +10,6 @@
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/ECS/Components/UserDataComponent.hpp"
 #include "Frigga/ECS/UserComponentRegistry.hpp"
-#include "Frigga/ECS/UserComponentRegistry.hpp"
 
 #define SIMDJSON_STATIC_REFLECTION 1
 #include <simdjson.h>
@@ -18,6 +17,7 @@
 #include <algorithm>
 #include <fstream>
 #include <optional>
+#include <ranges>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -826,6 +826,27 @@ namespace FRIGGA_NAMESPACE
                     }
                     components.push_back(std::move(userDto));
                 }
+
+                // Preserve gameplay data still waiting for the plugin to register types.
+                for(const auto &deferred : scene.mUserComponents->GetDeferredForEntity(entity))
+                {
+                    const bool already =
+                        std::ranges::any_of(components, [&](const SceneUserComponentDto &dto) {
+                            return dto.typeId == deferred.instance.typeId;
+                        });
+                    if(already)
+                    {
+                        continue;
+                    }
+                    SceneUserComponentDto userDto {.typeId = deferred.instance.typeId};
+                    userDto.properties.reserve(deferred.instance.properties.size());
+                    for(const auto &property : deferred.instance.properties)
+                    {
+                        userDto.properties.push_back(PropertyToDto(property));
+                    }
+                    components.push_back(std::move(userDto));
+                }
+
                 if(!components.empty())
                 {
                     dto.userComponents = std::move(components);
@@ -1226,14 +1247,6 @@ namespace FRIGGA_NAMESPACE
                             return false;
                         }
                         const auto ops = scene.mUserComponents->Find(userDto.typeId);
-                        if(!ops || !ops->fromInstance)
-                        {
-                            scene.mLogger->LogWarning(
-                                "Unknown gameplay component '{}' on '{}' (plugin not loaded?); "
-                                "skipped",
-                                userDto.typeId, entityDto.name);
-                            continue;
-                        }
                         UserComponentInstance instance {.typeId = userDto.typeId};
                         instance.properties.reserve(userDto.properties.size());
                         for(const auto &propertyDto : userDto.properties)
@@ -1248,6 +1261,17 @@ namespace FRIGGA_NAMESPACE
                             }
                             instance.properties.push_back(std::move(property));
                         }
+
+                        if(!ops || !ops->fromInstance)
+                        {
+                            scene.mUserComponents->EnqueueDeferred(entity, std::move(instance));
+                            scene.mLogger->LogWarning(
+                                "Deferred gameplay component '{}' on '{}' until the plugin "
+                                "registers it",
+                                userDto.typeId, entityDto.name);
+                            continue;
+                        }
+
                         ops->fromInstance(*registry, entity, instance);
                         scene.FlushEcs();
                     }

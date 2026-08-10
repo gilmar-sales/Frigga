@@ -74,6 +74,18 @@ namespace FRIGGA_NAMESPACE
         /// @return number of instances successfully restored
         std::size_t RestoreAll(fr::Registry &registry, const UserComponentWorldSnapshot &snapshot);
 
+        /// Stash a gameplay component read from disk while its typeId is not yet registered
+        /// (plugin not loaded). Survives until ApplyDeferred or ClearDeferred; not cleared by
+        /// DetachAll / ClearPluginTypes so first-build reload can still apply scene data.
+        void EnqueueDeferred(fr::Entity entity, UserComponentInstance instance);
+        void ClearDeferred();
+        /// Apply every deferred instance whose typeId is now registered. Removes applied entries.
+        /// @return number of instances successfully applied
+        std::size_t ApplyDeferred(fr::Registry &registry);
+        [[nodiscard]] std::vector<UserComponentSnapshotEntry> GetDeferred() const;
+        [[nodiscard]] std::vector<UserComponentSnapshotEntry> GetDeferredForEntity(
+            fr::Entity entity) const;
+
         [[nodiscard]] bool Has(std::string_view typeId) const;
         [[nodiscard]] std::optional<RuntimeComponentOps> Find(std::string_view typeId) const;
         [[nodiscard]] std::vector<RuntimeComponentOps> GetTypes() const;
@@ -82,6 +94,7 @@ namespace FRIGGA_NAMESPACE
         mutable std::mutex mMutex;
         std::unordered_map<std::string, RuntimeComponentOps> mTypes;
         std::vector<std::string> mOrder;
+        std::vector<UserComponentSnapshotEntry> mDeferred;
     };
 
 } // namespace FRIGGA_NAMESPACE

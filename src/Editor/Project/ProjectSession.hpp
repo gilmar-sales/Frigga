@@ -134,7 +134,8 @@ class ProjectSession
     bool OpenInCodeEditor(const std::filesystem::path &projectFileOrRoot);
 
   private:
-    bool enterEditor(const std::filesystem::path &projectFile, ProjectDescriptor desc);
+    bool enterEditor(const std::filesystem::path &projectFile, ProjectDescriptor desc,
+                     bool loadPlugin = true);
     bool migrateProjectFile(const std::filesystem::path &projectFile, ProjectDescriptor &desc,
                             bool force);
     void touchRecent();

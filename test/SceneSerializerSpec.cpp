@@ -522,3 +522,62 @@ TEST_F(SceneSerializerSpec, CaptureRestore_PreservesUserComponentsAcrossDetach)
     EXPECT_TRUE(foundPlayer);
 }
 
+TEST_F(SceneSerializerSpec, DeferredUserComponents_ApplyWhenTypesRegister)
+{
+    SpecHealth health {.current = 42.5f, .max = 100.0f};
+    fg::FriRegisterUserComponent<SpecHealth>(*mRegistry, *mUserComponents, "Health");
+    mRegistry->CreateEntity(fg::NameComponent {.name = "WithHealth"}, fg::TransformComponent {},
+                            health);
+    mRegistry->ExecuteTasks();
+
+    std::string json;
+    ASSERT_TRUE(fg::SceneSerializer::Serialize(*mScene, json));
+
+    // Simulate project open before the gameplay plugin is available.
+    mUserComponents->DetachAll(*mRegistry);
+    ASSERT_TRUE(mScene->RestoreSnapshot(json));
+    EXPECT_EQ(mUserComponents->GetDeferred().size(), 1u);
+    EXPECT_EQ(mUserComponents->GetDeferred().front().instance.typeId, "Health");
+
+    // Save must keep deferred bags so a later reopen after build still has data.
+    std::string deferredJson;
+    ASSERT_TRUE(fg::SceneSerializer::Serialize(*mScene, deferredJson));
+    EXPECT_NE(deferredJson.find("\"Health\""), std::string::npos);
+    EXPECT_NE(deferredJson.find("\"userComponents\""), std::string::npos);
+
+    fg::FriRegisterUserComponent<SpecHealth>(*mRegistry, *mUserComponents, "Health");
+    EXPECT_EQ(mUserComponents->ApplyDeferred(*mRegistry), 1u);
+    EXPECT_TRUE(mUserComponents->GetDeferred().empty());
+
+    bool found = false;
+    mRegistry->CreateMutation()->Each<fg::NameComponent, SpecHealth>(
+        [&](auto, fg::NameComponent &name, SpecHealth &comp) {
+            if(name.name != "WithHealth")
+            {
+                return;
+            }
+            found = true;
+            EXPECT_NEAR(comp.current, 42.5f, kEpsilon);
+            EXPECT_NEAR(comp.max, 100.0f, kEpsilon);
+        });
+    EXPECT_TRUE(found);
+}
+
+TEST_F(SceneSerializerSpec, ClearEntities_DropsDeferredUserComponents)
+{
+    SpecHealth health {.current = 7.0f, .max = 10.0f};
+    fg::FriRegisterUserComponent<SpecHealth>(*mRegistry, *mUserComponents, "Health");
+    mRegistry->CreateEntity(fg::NameComponent {.name = "Hero"}, fg::TransformComponent {}, health);
+    mRegistry->ExecuteTasks();
+
+    std::string json;
+    ASSERT_TRUE(fg::SceneSerializer::Serialize(*mScene, json));
+
+    mUserComponents->DetachAll(*mRegistry);
+    ASSERT_TRUE(mScene->RestoreSnapshot(json));
+    ASSERT_EQ(mUserComponents->GetDeferred().size(), 1u);
+
+    mScene->NewScene();
+    EXPECT_TRUE(mUserComponents->GetDeferred().empty());
+}
+
