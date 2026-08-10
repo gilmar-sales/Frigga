@@ -2,6 +2,7 @@
 
 #include "Editor/BoostrapIconsFont.hpp"
 #include "Editor/DockLayout.hpp"
+#include "Editor/ViewportDpi.hpp"
 
 #include <Frigga/Gui/Backends/imgui_impl_vulkan.h>
 #include <Frigga/Gui/GuiLayer.hpp>
@@ -156,8 +157,7 @@ void GameplayLayer::onGui()
         drawToolbar();
 
         const ImVec2 avail = ImGui::GetContentRegionAvail();
-        mPendingWidth      = static_cast<std::uint32_t>(std::max(avail.x, 1.0f));
-        mPendingHeight     = static_cast<std::uint32_t>(std::max(avail.y, 1.0f));
+        EditorViewport::ContentSizeToRenderPixels(avail, mPendingWidth, mPendingHeight);
 
         const ImVec2 imageMin = ImGui::GetCursorScreenPos();
         if(mTextureId != VK_NULL_HANDLE)

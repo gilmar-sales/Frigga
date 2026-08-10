@@ -1,6 +1,7 @@
 #include "AnimationPreviewLayer.hpp"
 
 #include "Editor/DockLayout.hpp"
+#include "Editor/ViewportDpi.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/Gui/Backends/imgui_impl_vulkan.h"
@@ -82,8 +83,7 @@ void AnimationPreviewLayer::onGui()
         mClaimOutput = true;
 
         const ImVec2 avail = ImGui::GetContentRegionAvail();
-        mPendingWidth      = static_cast<std::uint32_t>(std::max(avail.x, 1.0f));
-        mPendingHeight     = static_cast<std::uint32_t>(std::max(avail.y, 1.0f));
+        EditorViewport::ContentSizeToRenderPixels(avail, mPendingWidth, mPendingHeight);
 
         if(!mSelection->HasSelection())
         {
