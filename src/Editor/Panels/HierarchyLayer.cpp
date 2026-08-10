@@ -712,7 +712,7 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
             nodeToRename = SelectionContext::Invalid;
             bufferEntity = SelectionContext::Invalid;
         }
-        else if(ImGui::IsKeyPressed(ImGuiKey_Escape, false))
+        else if(ImGui::IsItemDeactivated())
         {
             nodeToRename = SelectionContext::Invalid;
             bufferEntity = SelectionContext::Invalid;
