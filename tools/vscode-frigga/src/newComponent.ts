@@ -13,7 +13,6 @@ function componentHeader(name: string, emptyTag: boolean): string {
 
 #include <Freyr/Freyr.hpp>
 
-/// Tag component. Register in GameplayPlugin on_attach.
 struct ${name} : fr::Component
 {
 };
@@ -24,7 +23,6 @@ struct ${name} : fr::Component
 
 #include <Freyr/Freyr.hpp>
 
-/// Project gameplay component. Register in GameplayPlugin on_attach.
 struct ${name} : fr::Component
 {
     float value = 0.0f;
