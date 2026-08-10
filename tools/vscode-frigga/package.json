@@ -1,0 +1,55 @@
+{
+  "name": "frigga",
+  "displayName": "Frigga",
+  "description": "Scaffold gameplay components and systems for Frigga projects",
+  "version": "0.1.0",
+  "publisher": "frigga",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "workspaceContains:**/frigga.project"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "frigga.newComponent",
+        "title": "Frigga: New Gameplay Component"
+      },
+      {
+        "command": "frigga.newSystem",
+        "title": "Frigga: New Gameplay System"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "frigga.newComponent",
+          "when": "frigga.projectOpen",
+          "group": "frigga@1"
+        },
+        {
+          "command": "frigga.newSystem",
+          "when": "frigga.projectOpen",
+          "group": "frigga@2"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "pnpm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.9.2",
+    "typescript": "^5.3.3"
+  }
+}
