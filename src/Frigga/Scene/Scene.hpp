@@ -2,6 +2,7 @@
 
 #include "Frigga/Asset/AssetRegistry.hpp"
 #include "Frigga/Asset/PrimitiveMeshFactory.hpp"
+#include "Frigga/ECS/UserComponentRegistry.hpp"
 #include "Frigga/Scene/EditorCamera.hpp"
 
 #include <Freya/Core/Renderer.hpp>
@@ -31,7 +32,8 @@ namespace FRIGGA_NAMESPACE
         Scene(const skr::Arc<fra::Renderer> &renderer, const skr::Arc<skr::Logger<Scene>> &logger,
               const skr::Arc<fr::Registry> &ecsRegistry,
               const skr::Arc<PrimitiveMeshFactory> &primitives,
-              const skr::Arc<AssetRegistry> &assets);
+              const skr::Arc<AssetRegistry> &assets,
+              const skr::Arc<UserComponentRegistry> &userComponents);
         ~Scene() = default;
 
         void Update(float ts);
@@ -163,6 +165,7 @@ namespace FRIGGA_NAMESPACE
         skr::Arc<skr::Logger<Scene>> mLogger;
         skr::Arc<PrimitiveMeshFactory> mPrimitives;
         skr::Arc<AssetRegistry> mAssets;
+        skr::Arc<UserComponentRegistry> mUserComponents;
         fr::Entity mMainCameraEntity {};
         EditorCamera mEditorCamera {};
         EditorCamera mPreviewCamera {};

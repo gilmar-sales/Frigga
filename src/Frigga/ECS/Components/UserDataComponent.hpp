@@ -1,11 +1,12 @@
 #pragma once
 
-#include <Frigga/Macro.hpp>
-
 #include <Freyr/Freyr.hpp>
+
+#include <Frigga/Macro.hpp>
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <glm/glm.hpp>
@@ -42,16 +43,11 @@ namespace FRIGGA_NAMESPACE
         PropertyValue value;
     };
 
+    /// DTO for scene JSON / inspector edit bags (not a Freyr component).
     struct UserComponentInstance
     {
         std::string                typeId;
         std::vector<NamedProperty> properties;
-    };
-
-    /// Engine Freyr component that stores gameplay/plugin component instances as property bags.
-    struct UserDataComponent: fr::Component
-    {
-        std::vector<UserComponentInstance> instances;
     };
 
     [[nodiscard]] inline NamedProperty *FindProperty(UserComponentInstance &instance,
@@ -75,32 +71,6 @@ namespace FRIGGA_NAMESPACE
             if(property.name == name)
             {
                 return &property;
-            }
-        }
-        return nullptr;
-    }
-
-    [[nodiscard]] inline UserComponentInstance *FindUserComponent(UserDataComponent &data,
-                                                                  std::string_view typeId)
-    {
-        for(auto &instance : data.instances)
-        {
-            if(instance.typeId == typeId)
-            {
-                return &instance;
-            }
-        }
-        return nullptr;
-    }
-
-    [[nodiscard]] inline const UserComponentInstance *FindUserComponent(
-        const UserDataComponent &data, std::string_view typeId)
-    {
-        for(const auto &instance : data.instances)
-        {
-            if(instance.typeId == typeId)
-            {
-                return &instance;
             }
         }
         return nullptr;

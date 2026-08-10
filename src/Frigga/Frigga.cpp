@@ -12,7 +12,6 @@
 #include "ECS/Components/NameComponent.hpp"
 #include "ECS/Components/RigidBodyComponent.hpp"
 #include "ECS/Components/TransformComponent.hpp"
-#include "ECS/Components/UserDataComponent.hpp"
 #include "ECS/Systems/AnimationSystem.hpp"
 #include "ECS/Systems/PhysicsSystem.hpp"
 #include "ECS/Systems/RenderSystem.hpp"
@@ -38,7 +37,6 @@ namespace FRIGGA_NAMESPACE
                     .WithComponent<LightComponent>()
                     .WithComponent<RigidBodyComponent>()
                     .WithComponent<AnimatorComponent>()
-                    .WithComponent<UserDataComponent>()
                     .WithPipeline([](fr::PipelineBuilder &pipeline) {
                         pipeline.WithName("Main")
                             .WithSystem<PhysicsSystem>()

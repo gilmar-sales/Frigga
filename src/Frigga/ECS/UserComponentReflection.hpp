@@ -3,6 +3,8 @@
 #include "Frigga/ECS/Components/UserDataComponent.hpp"
 #include "Frigga/ECS/UserComponentRegistry.hpp"
 
+#include <Freyr/Freyr.hpp>
+
 #include <glm/glm.hpp>
 
 #include <concepts>
@@ -179,8 +181,6 @@ namespace FRIGGA_NAMESPACE
             }
         }
 
-        /// GCC reflection: avoid refl::for_each_member (stores vector<meta::info> as
-        /// constexpr), which fails consteval allocation checks. Use define_static_array.
         template <typename T, typename Fn>
         constexpr void ForEachMember(T &obj, Fn &&fn)
         {
@@ -194,6 +194,7 @@ namespace FRIGGA_NAMESPACE
     } // namespace user_comp_detail
 
     template <typename T>
+        requires fr::IsComponent<T>
     UserComponentInstance ToUserComponentInstance(const T &object, std::string_view typeId)
     {
         UserComponentInstance instance;
@@ -212,6 +213,7 @@ namespace FRIGGA_NAMESPACE
     }
 
     template <typename T>
+        requires fr::IsComponent<T>
     bool FromUserComponentInstance(const UserComponentInstance &instance, T &out)
     {
         bool any = false;
@@ -229,61 +231,108 @@ namespace FRIGGA_NAMESPACE
         return any;
     }
 
+    /**
+     * Registers T as a Freyr component and publishes type-erased Editor ops.
+     * Must be called from the plugin TU (so ops lambdas stay valid until detach).
+     */
     template <typename T>
-    UserComponentTypeDesc BuildUserComponentTypeDesc(std::string_view typeId,
-                                                     std::string_view displayName = {})
+        requires fr::IsComponent<T>
+    void FriRegisterUserComponent(fr::Registry &registry, UserComponentRegistry &catalog,
+                                  std::string_view typeId, std::string_view displayName = {})
     {
-        UserComponentTypeDesc desc;
-        desc.typeId      = std::string(typeId);
-        desc.displayName = displayName.empty() ? desc.typeId : std::string(displayName);
+        registry.RegisterComponent<T>();
+
+        RuntimeComponentOps ops;
+        ops.typeId      = std::string(typeId);
+        ops.displayName = displayName.empty() ? ops.typeId : std::string(displayName);
+        ops.componentId = fr::GetComponentId<T>();
 
         T sample {};
         user_comp_detail::ForEachMember(sample, [&](std::string_view name, auto &field) {
             using FieldT = std::remove_cvref_t<decltype(field)>;
             if constexpr(user_comp_detail::IsSupportedField<FieldT>)
             {
-                desc.fields.push_back(UserComponentFieldDesc {
+                ops.fields.push_back(UserComponentFieldDesc {
                     .name = std::string(name),
                     .kind = user_comp_detail::KindOf<FieldT>(),
                 });
             }
         });
+        ops.defaultInstance = ToUserComponentInstance(sample, ops.typeId);
 
-        const std::string id = desc.typeId;
-        desc.defaultInstance = ToUserComponentInstance(sample, id);
-        desc.makeDefault     = [defaults = desc.defaultInstance]() { return defaults; };
-        return desc;
+        const std::string id = ops.typeId;
+        ops.addDefault       = [id](fr::Registry &reg, fr::Entity entity) {
+            if(reg.HasComponent<T>(entity))
+            {
+                return;
+            }
+            T value {};
+            // Prefer defaults from T member initializers.
+            (void)id;
+            reg.AddComponents(entity, value);
+        };
+        ops.remove = [](fr::Registry &reg, fr::Entity entity) {
+            if(reg.HasComponent<T>(entity))
+            {
+                reg.RemoveComponent<T>(entity);
+            }
+        };
+        ops.has = [](fr::Registry &reg, fr::Entity entity) { return reg.HasComponent<T>(entity); };
+        ops.toInstance =
+            [id](fr::Registry &reg, fr::Entity entity, UserComponentInstance &out) -> bool {
+            bool ok = false;
+            reg.TryGetComponents<T>(entity, [&](T &comp) {
+                out = ToUserComponentInstance(comp, id);
+                ok  = true;
+            });
+            return ok;
+        };
+        ops.fromInstance =
+            [id](fr::Registry &reg, fr::Entity entity, const UserComponentInstance &in) {
+                if(!reg.HasComponent<T>(entity))
+                {
+                    T value {};
+                    FromUserComponentInstance(in, value);
+                    reg.AddComponents(entity, value);
+                    return;
+                }
+                reg.TryGetComponents<T>(entity, [&](T &comp) {
+                    FromUserComponentInstance(in, comp);
+                    (void)id;
+                });
+            };
+        ops.removeFromAllEntities = [](fr::Registry &reg) {
+            std::vector<fr::Entity> toStrip;
+            reg.CreateMutation()->Each<T>([&](fr::Entity entity, T &) { toStrip.push_back(entity); });
+            for(const auto entity : toStrip)
+            {
+                reg.RemoveComponent<T>(entity);
+            }
+        };
+        ops.unregisterFromFreyr = [](fr::Registry &reg) {
+            return reg.UnregisterComponent<T>();
+        };
+
+        catalog.Register(std::move(ops));
     }
 
     template <typename T>
-    void FriRegisterUserComponent(UserComponentRegistry &registry, std::string_view typeId,
-                                  std::string_view displayName = {})
+        requires fr::IsComponent<T>
+    bool FriTryGet(fr::Registry &registry, fr::Entity entity, T &out)
     {
-        registry.Register(BuildUserComponentTypeDesc<T>(typeId, displayName));
+        return registry.TryGetComponents<T>(entity, [&](T &comp) { out = comp; });
     }
 
     template <typename T>
-    bool FriTryGet(const UserDataComponent &data, std::string_view typeId, T &out)
+        requires fr::IsComponent<T>
+    void FriSet(fr::Registry &registry, fr::Entity entity, const T &value)
     {
-        const auto *instance = FindUserComponent(data, typeId);
-        if(!instance)
+        if(registry.HasComponent<T>(entity))
         {
-            return false;
-        }
-        out = T {};
-        return FromUserComponentInstance(*instance, out);
-    }
-
-    template <typename T>
-    void FriSet(UserDataComponent &data, std::string_view typeId, const T &value)
-    {
-        auto *instance = FindUserComponent(data, typeId);
-        if(instance)
-        {
-            *instance = ToUserComponentInstance(value, typeId);
+            registry.TryGetComponents<T>(entity, [&](T &comp) { comp = value; });
             return;
         }
-        data.instances.push_back(ToUserComponentInstance(value, typeId));
+        registry.AddComponents(entity, value);
     }
 
 } // namespace FRIGGA_NAMESPACE

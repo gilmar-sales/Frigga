@@ -76,6 +76,7 @@ ProjectMigrationResult ProjectMigrator::Migrate(const std::filesystem::path &pro
 
     // v1 → v2: C++26 CMake + plugin header / README
     // v2 → v3: user-component helpers, Health example, managed plugin registration
+    // v3 → v4: Health : fr::Component + FriRegister(registry, catalog) + Freyr Mutatons
     std::string stepError;
     if(!ApplyManagedLayout(projectFile.parent_path(), desc, stepError))
     {
@@ -99,7 +100,7 @@ ProjectMigrationResult ProjectMigrator::Migrate(const std::filesystem::path &pro
     else
     {
         msg << "Migrated project format v" << result.fromVersion << " → v" << result.toVersion
-            << " (user components, CMake C++26, plugin header)";
+            << " (Freyr gameplay components, CMake C++26, plugin header)";
     }
     msg << ". Rebuild the gameplay plugin.";
     result.message = msg.str();

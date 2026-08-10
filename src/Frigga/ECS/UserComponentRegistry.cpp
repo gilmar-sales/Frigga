@@ -3,34 +3,67 @@
 namespace FRIGGA_NAMESPACE
 {
 
-    void UserComponentRegistry::Register(UserComponentTypeDesc desc)
+    void UserComponentRegistry::Register(RuntimeComponentOps ops)
     {
-        if(desc.typeId.empty())
+        if(ops.typeId.empty() || !ops.addDefault || !ops.remove || !ops.has ||
+           !ops.toInstance || !ops.fromInstance || !ops.removeFromAllEntities ||
+           !ops.unregisterFromFreyr)
         {
             return;
         }
-        if(desc.displayName.empty())
+        if(ops.displayName.empty())
         {
-            desc.displayName = desc.typeId;
+            ops.displayName = ops.typeId;
         }
-        if(desc.defaultInstance.typeId.empty())
+        if(ops.defaultInstance.typeId.empty())
         {
-            desc.defaultInstance.typeId = desc.typeId;
-        }
-        if(!desc.makeDefault)
-        {
-            const auto fallback = desc.defaultInstance;
-            desc.makeDefault    = [fallback]() { return fallback; };
+            ops.defaultInstance.typeId = ops.typeId;
         }
 
-        const std::string typeId = desc.typeId;
+        const std::string typeId = ops.typeId;
         std::lock_guard lock(mMutex);
         const bool isNew = !mTypes.contains(typeId);
-        mTypes[typeId]   = std::move(desc);
+        mTypes[typeId]   = std::move(ops);
         if(isNew)
         {
             mOrder.push_back(typeId);
         }
+    }
+
+    void UserComponentRegistry::DetachAll(fr::Registry &registry)
+    {
+        std::vector<RuntimeComponentOps> snapshot;
+        {
+            std::lock_guard lock(mMutex);
+            snapshot.reserve(mOrder.size());
+            for(const auto &id : mOrder)
+            {
+                const auto it = mTypes.find(id);
+                if(it != mTypes.end())
+                {
+                    snapshot.push_back(it->second);
+                }
+            }
+        }
+
+        for(const auto &ops : snapshot)
+        {
+            if(ops.removeFromAllEntities)
+            {
+                ops.removeFromAllEntities(registry);
+            }
+        }
+        registry.ExecuteTasks();
+
+        for(const auto &ops : snapshot)
+        {
+            if(ops.unregisterFromFreyr)
+            {
+                (void)ops.unregisterFromFreyr(registry);
+            }
+        }
+
+        ClearPluginTypes();
     }
 
     void UserComponentRegistry::ClearPluginTypes()
@@ -46,7 +79,7 @@ namespace FRIGGA_NAMESPACE
         return mTypes.contains(std::string(typeId));
     }
 
-    std::optional<UserComponentTypeDesc> UserComponentRegistry::Find(std::string_view typeId) const
+    std::optional<RuntimeComponentOps> UserComponentRegistry::Find(std::string_view typeId) const
     {
         std::lock_guard lock(mMutex);
         const auto it = mTypes.find(std::string(typeId));
@@ -57,10 +90,10 @@ namespace FRIGGA_NAMESPACE
         return it->second;
     }
 
-    std::vector<UserComponentTypeDesc> UserComponentRegistry::GetTypes() const
+    std::vector<RuntimeComponentOps> UserComponentRegistry::GetTypes() const
     {
         std::lock_guard lock(mMutex);
-        std::vector<UserComponentTypeDesc> result;
+        std::vector<RuntimeComponentOps> result;
         result.reserve(mOrder.size());
         for(const auto &id : mOrder)
         {

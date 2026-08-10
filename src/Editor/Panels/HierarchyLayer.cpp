@@ -351,41 +351,19 @@ void HierarchyLayer::addUserComponentToEntity(fr::Entity entity, std::string_vie
         return;
     }
 
-    const auto desc = mUserComponents->Find(typeId);
-    if(!desc)
+    const auto ops = mUserComponents->Find(typeId);
+    if(!ops || !ops->addDefault || !ops->has)
     {
         return;
     }
 
-    auto makeInstance = [&]() -> fg::UserComponentInstance {
-        if(!desc->defaultInstance.typeId.empty())
-        {
-            return desc->defaultInstance;
-        }
-        if(desc->makeDefault)
-        {
-            return desc->makeDefault();
-        }
-        return fg::UserComponentInstance {.typeId = std::string(typeId)};
-    };
-
-    if(!mRegistry->HasComponent<fg::UserDataComponent>(entity))
+    if(ops->has(*mRegistry, entity))
     {
-        fg::UserDataComponent data {};
-        data.instances.push_back(makeInstance());
-        mRegistry->AddComponents(entity, std::move(data));
-        // Freyr defers archetype migrations; flush before inspector reads the bag.
-        mRegistry->ExecuteTasks();
         return;
     }
 
-    mRegistry->TryGetComponents<fg::UserDataComponent>(entity, [&](fg::UserDataComponent &data) {
-        if(fg::FindUserComponent(data, typeId))
-        {
-            return;
-        }
-        data.instances.push_back(makeInstance());
-    });
+    ops->addDefault(*mRegistry, entity);
+    mRegistry->ExecuteTasks();
 }
 
 void HierarchyLayer::drawGameplayAddComponentMenu(fr::Entity entity)
@@ -407,21 +385,13 @@ void HierarchyLayer::drawGameplayAddComponentMenu(fr::Entity entity)
         return;
     }
 
-    for(const auto &type : types)
+    for(const auto &ops : types)
     {
-        bool alreadyHas = false;
-        if(mRegistry->HasComponent<fg::UserDataComponent>(entity))
-        {
-            mRegistry->TryGetComponents<fg::UserDataComponent>(
-                entity, [&](fg::UserDataComponent &data) {
-                    alreadyHas = fg::FindUserComponent(data, type.typeId) != nullptr;
-                });
-        }
-
+        const bool alreadyHas = ops.has && ops.has(*mRegistry, entity);
         ImGui::BeginDisabled(alreadyHas);
-        if(ImGui::MenuItem(type.displayName.c_str()))
+        if(ImGui::MenuItem(ops.displayName.c_str()))
         {
-            addUserComponentToEntity(entity, type.typeId);
+            addUserComponentToEntity(entity, ops.typeId);
         }
         ImGui::EndDisabled();
     }
@@ -1374,48 +1344,47 @@ void HierarchyLayer::drawComponents()
             }
         });
 
-    mRegistry->TryGetComponents<fg::UserDataComponent>(
-        selection, [this, selection](fg::UserDataComponent &data) {
-            for(std::size_t i = 0; i < data.instances.size();)
+    if(!mUserComponents)
+    {
+        return;
+    }
+
+    const auto types = mUserComponents->GetTypes();
+    for(std::size_t typeIndex = 0; typeIndex < types.size(); ++typeIndex)
+    {
+        const auto &ops = types[typeIndex];
+        if(!ops.has || !ops.has(*mRegistry, selection))
+        {
+            continue;
+        }
+
+        fg::UserComponentInstance instance {};
+        if(!ops.toInstance || !ops.toInstance(*mRegistry, selection, instance))
+        {
+            continue;
+        }
+
+        ImGui::PushID(static_cast<int>(typeIndex));
+        bool open = true;
+        if(ImGui::CollapsingHeader(ops.displayName.c_str(), &open, ImGuiWindowFlags_ChildWindow))
+        {
+            ImGui::BeginDisabled(mSimulation->IsPlaying());
+            for(auto &property : instance.properties)
             {
-                auto &instance = data.instances[i];
-                std::string header = instance.typeId;
-                if(mUserComponents)
-                {
-                    if(const auto desc = mUserComponents->Find(instance.typeId))
-                    {
-                        header = desc->displayName;
-                    }
-                }
-
-                ImGui::PushID(static_cast<int>(i));
-                bool open = true;
-                if(ImGui::CollapsingHeader(header.c_str(), &open, ImGuiWindowFlags_ChildWindow))
-                {
-                    ImGui::BeginDisabled(mSimulation->IsPlaying());
-                    for(auto &property : instance.properties)
-                    {
-                        DrawNamedProperty(property);
-                    }
-                    ImGui::EndDisabled();
-                }
-
-                if(!open && !mSimulation->IsPlaying())
-                {
-                    data.instances.erase(data.instances.begin() +
-                                         static_cast<std::ptrdiff_t>(i));
-                    ImGui::PopID();
-                    if(data.instances.empty())
-                    {
-                        mRegistry->RemoveComponent<fg::UserDataComponent>(selection);
-                        mRegistry->ExecuteTasks();
-                        return;
-                    }
-                    continue;
-                }
-
-                ImGui::PopID();
-                ++i;
+                DrawNamedProperty(property);
             }
-        });
+            ImGui::EndDisabled();
+            if(!mSimulation->IsPlaying() && ops.fromInstance)
+            {
+                ops.fromInstance(*mRegistry, selection, instance);
+            }
+        }
+
+        if(!open && !mSimulation->IsPlaying() && ops.remove)
+        {
+            ops.remove(*mRegistry, selection);
+            mRegistry->ExecuteTasks();
+        }
+        ImGui::PopID();
+    }
 }

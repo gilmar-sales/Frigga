@@ -123,8 +123,8 @@ namespace
  * This type mirrors fr::System but is NOT registered with Freyr — the Editor
  * bridge calls Update() through the C plugin API while play mode is running.
  *
- * Prefer engine components (Name, Transform, Mesh, …) plus project user
- * components stored in UserDataComponent (see Health.hpp + fri helpers).
+ * Use engine components and project Freyr components (Health : fr::Component)
+ * registered in on_attach via FriRegisterUserComponent.
  */
 class GameplaySystem
 {
@@ -144,6 +144,7 @@ class GameplaySystem
     std::string MakeGameplaySystemCpp()
     {
         return R"cpp(#include "GameplaySystem.hpp"
+#include "Components/Health.hpp"
 
 GameplaySystem::GameplaySystem(fr::Registry *registry) : mRegistry(registry) {}
 
@@ -158,14 +159,18 @@ void GameplaySystem::Update(float deltaTime)
         return;
     }
 
-    // Example: nudge entities named "Player" along +X (edit for your game).
-    mRegistry->CreateMutation()->Each<fg::NameComponent, fg::TransformComponent>(
-        [deltaTime](fr::Entity, fg::NameComponent &name, fg::TransformComponent &transform) {
+    (void)deltaTime;
+    // Example: Freyr Mutation over Name + Health (SoA component from the plugin).
+    mRegistry->CreateMutation()->Each<fg::NameComponent, Health>(
+        [](fr::Entity, fg::NameComponent &name, Health &health) {
             if(name.name != "Player" && name.name != "Cube")
             {
                 return;
             }
-            transform.position.x += 0.5f * deltaTime;
+            if(health.current > health.max)
+            {
+                health.current = health.max;
+            }
         });
 }
 )cpp";
@@ -203,17 +208,14 @@ namespace
 
     void OnAttach(FriPlugin *plugin, const FriHost *host)
     {
-        if(!plugin || !host || !host->registry)
+        if(!plugin || !host || !host->registry || !host->user_components)
         {
             return;
         }
         auto *registry = static_cast<fr::Registry *>(host->registry);
-        if(host->user_components)
-        {
-            auto *userComponents =
-                static_cast<fg::UserComponentRegistry *>(host->user_components);
-            FriRegisterUserComponent<Health>(*userComponents, "Health");
-        }
+        auto *userComponents =
+            static_cast<fg::UserComponentRegistry *>(host->user_components);
+        FriRegisterUserComponent<Health>(*registry, *userComponents, "Health");
         plugin->system = std::make_unique<GameplaySystem>(registry);
         plugin->system->OnAttach();
     }
@@ -257,8 +259,8 @@ extern "C" FRI_PLUGIN_API const FriPluginApi *fri_plugin_api(void)
         return R"cpp(#pragma once
 
 /**
- * Convenience aliases for project gameplay components.
- * Types live as property bags inside fg::UserDataComponent (not Freyr SOA types).
+ * Convenience aliases for project Freyr gameplay components.
+ * Types must inherit fr::Component and be registered with FriRegisterUserComponent.
  */
 
 #include <Frigga/ECS/UserComponentReflection.hpp>
@@ -273,8 +275,10 @@ using fg::FriTryGet;
     {
         return R"cpp(#pragma once
 
-/// Example project component (POD). Register in GameplayPlugin on_attach.
-struct Health
+#include <Freyr/Freyr.hpp>
+
+/// Example project component. Register in GameplayPlugin on_attach.
+struct Health: fr::Component
 {
     float current = 100.0f;
     float max     = 100.0f;
@@ -295,11 +299,13 @@ struct Health
         out << "- `src/Components/` — project POD components (example: Health)\n";
         out << "- `include/frigga_user_components.hpp` — FriRegister / FriTryGet / FriSet\n\n";
         out << "## Project components\n\n";
-        out << "1. Declare a POD struct (bool / int / float / string / glm::vec2/3/4 fields).\n";
-        out << "2. In `on_attach`: `FriRegisterUserComponent<Foo>(*userComponents, \"Foo\");`\n";
+        out << "1. Declare `struct Foo : fr::Component { float x; };`\n";
+        out << "2. In `on_attach`: "
+               "`FriRegisterUserComponent<Foo>(*registry, *userComponents, \"Foo\");`\n";
         out << "3. Build + **Reload Gameplay Plugin**.\n";
         out << "4. In the Editor: Entity → Add Component → Gameplay → Foo.\n";
-        out << "5. In systems: `FriTryGet` / `FriSet` on `UserDataComponent`.\n\n";
+        out << "5. In systems: `CreateMutation()->Each<Foo>(...)` "
+               "(real Freyr Queries/Mutations).\n\n";
         out << "## Build the plugin\n\n";
         out << "Requires a **C++26** compiler with reflection (GCC 16+ or Clang 22+), "
                "same as Frigga.\n\n";
@@ -392,12 +398,8 @@ ProjectManagedWriteResult ProjectScaffold::WriteManagedFiles(
 bool ProjectScaffold::WriteExampleUserComponents(const std::filesystem::path &projectRoot,
                                                  std::string &error)
 {
-    const auto healthPath = projectRoot / "src/Components/Health.hpp";
-    if(std::filesystem::exists(healthPath))
-    {
-        return true;
-    }
-    if(!WriteTextFile(healthPath, MakeHealthComponentHpp()))
+    // Always refresh the example Health header so migrators pick up fr::Component.
+    if(!WriteTextFile(projectRoot / "src/Components/Health.hpp", MakeHealthComponentHpp()))
     {
         error = "Failed to write src/Components/Health.hpp";
         return false;

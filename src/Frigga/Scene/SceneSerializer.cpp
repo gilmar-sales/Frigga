@@ -9,6 +9,8 @@
 #include "Frigga/ECS/Components/RigidBodyComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/ECS/Components/UserDataComponent.hpp"
+#include "Frigga/ECS/UserComponentRegistry.hpp"
+#include "Frigga/ECS/UserComponentRegistry.hpp"
 
 #define SIMDJSON_STATIC_REFLECTION 1
 #include <simdjson.h>
@@ -802,15 +804,20 @@ namespace FRIGGA_NAMESPACE
                 };
             });
 
-            registry->TryGetComponents<UserDataComponent>(entity, [&](UserDataComponent &data) {
-                if(data.instances.empty())
-                {
-                    return;
-                }
+            if(scene.mUserComponents)
+            {
                 std::vector<SceneUserComponentDto> components;
-                components.reserve(data.instances.size());
-                for(const auto &instance : data.instances)
+                for(const auto &ops : scene.mUserComponents->GetTypes())
                 {
+                    if(!ops.has || !ops.has(*registry, entity) || !ops.toInstance)
+                    {
+                        continue;
+                    }
+                    UserComponentInstance instance {};
+                    if(!ops.toInstance(*registry, entity, instance))
+                    {
+                        continue;
+                    }
                     SceneUserComponentDto userDto {.typeId = instance.typeId};
                     userDto.properties.reserve(instance.properties.size());
                     for(const auto &property : instance.properties)
@@ -819,8 +826,11 @@ namespace FRIGGA_NAMESPACE
                     }
                     components.push_back(std::move(userDto));
                 }
-                dto.userComponents = std::move(components);
-            });
+                if(!components.empty())
+                {
+                    dto.userComponents = std::move(components);
+                }
+            }
 
             document.entities.push_back(std::move(dto));
         });
@@ -1104,38 +1114,6 @@ namespace FRIGGA_NAMESPACE
                 };
             }
 
-            std::optional<UserDataComponent> userData;
-            if(entityDto.userComponents && !entityDto.userComponents->empty())
-            {
-                UserDataComponent data {};
-                data.instances.reserve(entityDto.userComponents->size());
-                for(const auto &userDto : *entityDto.userComponents)
-                {
-                    if(userDto.typeId.empty())
-                    {
-                        scene.mLogger->LogError("userComponents entry on '{}' missing typeId",
-                                                entityDto.name);
-                        return false;
-                    }
-                    UserComponentInstance instance {.typeId = userDto.typeId};
-                    instance.properties.reserve(userDto.properties.size());
-                    for(const auto &propertyDto : userDto.properties)
-                    {
-                        NamedProperty property {};
-                        if(!PropertyFromDto(propertyDto, property))
-                        {
-                            scene.mLogger->LogError(
-                                "Invalid user component property '{}' on '{}' ({})",
-                                propertyDto.name, entityDto.name, userDto.typeId);
-                            return false;
-                        }
-                        instance.properties.push_back(std::move(property));
-                    }
-                    data.instances.push_back(std::move(instance));
-                }
-                userData = std::move(data);
-            }
-
             // Prefer a single CreateEntity(Name, ...) so Freyr writes one archetype row.
             // Piecewise AddComponents without per-step flush corrupt deferred migrations.
             fr::Entity entity {};
@@ -1146,9 +1124,7 @@ namespace FRIGGA_NAMESPACE
             const bool hasL  = light.has_value();
             const bool hasR  = rigidBody.has_value();
             const bool hasA  = animator.has_value();
-            bool       needUserData = userData.has_value();
 
-            // Fast paths omit UserDataComponent; attach it after create when present.
             if(hasT && hasM && hasMat && !hasC && !hasL && hasR && hasA)
             {
                 entity = registry->CreateEntity(name, *transform, *mesh, *material, *rigidBody,
@@ -1226,19 +1202,56 @@ namespace FRIGGA_NAMESPACE
                 {
                     attach(*animator);
                 }
-                if(needUserData)
-                {
-                    attach(*userData);
-                    needUserData = false;
-                }
             }
 
             scene.FlushEcs();
 
-            if(needUserData)
+            // Plugin gameplay components (Freyr SoA) via type-erased ops.
+            if(entityDto.userComponents && !entityDto.userComponents->empty())
             {
-                registry->AddComponents(entity, *userData);
-                scene.FlushEcs();
+                if(!scene.mUserComponents)
+                {
+                    scene.mLogger->LogWarning(
+                        "Entity '{}' has userComponents but no UserComponentRegistry; skipped",
+                        entityDto.name);
+                }
+                else
+                {
+                    for(const auto &userDto : *entityDto.userComponents)
+                    {
+                        if(userDto.typeId.empty())
+                        {
+                            scene.mLogger->LogError("userComponents entry on '{}' missing typeId",
+                                                    entityDto.name);
+                            return false;
+                        }
+                        const auto ops = scene.mUserComponents->Find(userDto.typeId);
+                        if(!ops || !ops->fromInstance)
+                        {
+                            scene.mLogger->LogWarning(
+                                "Unknown gameplay component '{}' on '{}' (plugin not loaded?); "
+                                "skipped",
+                                userDto.typeId, entityDto.name);
+                            continue;
+                        }
+                        UserComponentInstance instance {.typeId = userDto.typeId};
+                        instance.properties.reserve(userDto.properties.size());
+                        for(const auto &propertyDto : userDto.properties)
+                        {
+                            NamedProperty property {};
+                            if(!PropertyFromDto(propertyDto, property))
+                            {
+                                scene.mLogger->LogError(
+                                    "Invalid user component property '{}' on '{}' ({})",
+                                    propertyDto.name, entityDto.name, userDto.typeId);
+                                return false;
+                            }
+                            instance.properties.push_back(std::move(property));
+                        }
+                        ops->fromInstance(*registry, entity, instance);
+                        scene.FlushEcs();
+                    }
+                }
             }
 
             if(camera)

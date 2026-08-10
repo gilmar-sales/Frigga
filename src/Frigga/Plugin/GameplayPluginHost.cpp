@@ -213,11 +213,13 @@ namespace FRIGGA_NAMESPACE
             return;
         }
 
+        // Strip Freyr SoA instances + unregister while .so (and ops) are still mapped.
+        mUserComponents->DetachAll(*mRegistry);
+
         if(mApi->on_detach)
         {
             mApi->on_detach(mPlugin);
         }
-        mUserComponents->ClearPluginTypes();
         mAttached = false;
     }
 

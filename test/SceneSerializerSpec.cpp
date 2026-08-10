@@ -10,6 +10,8 @@
 #include <Frigga/ECS/Components/RigidBodyComponent.hpp>
 #include <Frigga/ECS/Components/TransformComponent.hpp>
 #include <Frigga/ECS/Components/UserDataComponent.hpp>
+#include <Frigga/ECS/UserComponentReflection.hpp>
+#include <Frigga/ECS/UserComponentRegistry.hpp>
 #include <Frigga/Scene/Scene.hpp>
 #include <Frigga/Scene/SceneSerializer.hpp>
 
@@ -189,6 +191,12 @@ namespace
     }
 } // namespace
 
+struct SpecHealth: fr::Component
+{
+    float current = 100.0f;
+    float max     = 100.0f;
+};
+
 class SceneSerializerSpec: public ::testing::Test
 {
   protected:
@@ -210,8 +218,9 @@ class SceneSerializerSpec: public ::testing::Test
         mLogger     = skr::MakeArc<skr::Logger<fg::Scene>>(skr::MakeArc<skr::LoggerOptions>());
         mPrimitives = skr::MakeArc<fg::PrimitiveMeshFactory>(fg::PrimitiveMeshFactory::Catalog);
         mAssets     = skr::MakeArc<fg::AssetRegistry>(fg::AssetRegistry::Catalog);
+        mUserComponents = skr::MakeArc<fg::UserComponentRegistry>();
         mScene      = skr::MakeArc<fg::Scene>(skr::Arc<fra::Renderer> {}, mLogger, mRegistry,
-                                              mPrimitives, mAssets);
+                                              mPrimitives, mAssets, mUserComponents);
 
         ASSERT_EQ(mPrimitives->GetMesh(fg::PrimitiveType::Cube), 1u);
         ASSERT_EQ(mPrimitives->GetDefaultMaterial(), 1u);
@@ -219,7 +228,12 @@ class SceneSerializerSpec: public ::testing::Test
 
     void TearDown() override
     {
+        if(mUserComponents && mRegistry)
+        {
+            mUserComponents->DetachAll(*mRegistry);
+        }
         mScene.reset();
+        mUserComponents.reset();
         mAssets.reset();
         mPrimitives.reset();
         mLogger.reset();
@@ -232,6 +246,7 @@ class SceneSerializerSpec: public ::testing::Test
     skr::Arc<skr::Logger<fg::Scene>> mLogger;
     skr::Arc<fg::PrimitiveMeshFactory> mPrimitives;
     skr::Arc<fg::AssetRegistry> mAssets;
+    skr::Arc<fg::UserComponentRegistry> mUserComponents;
     skr::Arc<fg::Scene> mScene;
 };
 
@@ -404,20 +419,11 @@ TEST_F(SceneSerializerSpec, CaptureRestore_KeepsDisplayPathIntact)
 
 TEST_F(SceneSerializerSpec, RoundTrip_UserComponents)
 {
-    fg::UserDataComponent data {};
-    fg::UserComponentInstance health {.typeId = "Health"};
-    health.properties.push_back(fg::NamedProperty {
-        .name  = "current",
-        .value = fg::PropertyValue {.kind = fg::PropertyKind::Float, .floatValue = 42.5f},
-    });
-    health.properties.push_back(fg::NamedProperty {
-        .name  = "max",
-        .value = fg::PropertyValue {.kind = fg::PropertyKind::Float, .floatValue = 100.0f},
-    });
-    data.instances.push_back(std::move(health));
+    fg::FriRegisterUserComponent<SpecHealth>(*mRegistry, *mUserComponents, "Health");
 
-    mRegistry->CreateEntity(fg::NameComponent {.name = "WithHealth"},
-                            fg::TransformComponent {}, std::move(data));
+    SpecHealth health {.current = 42.5f, .max = 100.0f};
+    mRegistry->CreateEntity(fg::NameComponent {.name = "WithHealth"}, fg::TransformComponent {},
+                            health);
     mRegistry->ExecuteTasks();
 
     std::string json;
@@ -427,23 +433,15 @@ TEST_F(SceneSerializerSpec, RoundTrip_UserComponents)
     ASSERT_TRUE(mScene->RestoreSnapshot(json));
 
     bool found = false;
-    mRegistry->CreateMutation()->Each<fg::NameComponent, fg::UserDataComponent>(
-        [&](auto, fg::NameComponent &name, fg::UserDataComponent &userData) {
+    mRegistry->CreateMutation()->Each<fg::NameComponent, SpecHealth>(
+        [&](auto, fg::NameComponent &name, SpecHealth &comp) {
             if(name.name != "WithHealth")
             {
                 return;
             }
             found = true;
-            ASSERT_EQ(userData.instances.size(), 1u);
-            EXPECT_EQ(userData.instances[0].typeId, "Health");
-            ASSERT_EQ(userData.instances[0].properties.size(), 2u);
-            const auto *current = fg::FindProperty(userData.instances[0], "current");
-            const auto *max     = fg::FindProperty(userData.instances[0], "max");
-            ASSERT_NE(current, nullptr);
-            ASSERT_NE(max, nullptr);
-            EXPECT_EQ(current->value.kind, fg::PropertyKind::Float);
-            EXPECT_NEAR(current->value.floatValue, 42.5f, kEpsilon);
-            EXPECT_NEAR(max->value.floatValue, 100.0f, kEpsilon);
+            EXPECT_NEAR(comp.current, 42.5f, kEpsilon);
+            EXPECT_NEAR(comp.max, 100.0f, kEpsilon);
         });
     EXPECT_TRUE(found);
 }
