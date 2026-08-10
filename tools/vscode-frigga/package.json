@@ -1,17 +1,21 @@
 {
   "name": "frigga",
   "displayName": "Frigga",
-  "description": "Scaffold gameplay components and systems for Frigga projects",
-  "version": "0.1.0",
+  "description": "Scaffold gameplay components/systems and attach GDB to the Frigga Editor",
+  "version": "0.2.0",
   "publisher": "frigga",
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": [
-    "Other"
+    "Other",
+    "Debuggers"
   ],
   "activationEvents": [
     "workspaceContains:**/frigga.project"
+  ],
+  "extensionDependencies": [
+    "ms-vscode.cpptools"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -23,6 +27,10 @@
       {
         "command": "frigga.newSystem",
         "title": "Frigga: New Gameplay System"
+      },
+      {
+        "command": "frigga.attachDebugger",
+        "title": "Frigga: Attach Debugger to Editor"
       }
     ],
     "menus": {
@@ -36,26 +44,25 @@
           "command": "frigga.newSystem",
           "when": "frigga.projectOpen",
           "group": "frigga@2"
+        },
+        {
+          "command": "frigga.attachDebugger",
+          "when": "frigga.projectOpen",
+          "group": "frigga@3"
         }
       ]
     }
   },
   "scripts": {
-    "vscode:prepublish": "pnpm run compile",
+    "vscode:prepublish": "tsc -p ./",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "package": "bash ./package-vsix.sh"
+    "package": "vsce package --no-dependencies --allow-missing-repository"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
     "@types/vscode": "^1.85.0",
     "@vscode/vsce": "^3.9.2",
     "typescript": "^5.3.3"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@vscode/vsce-sign",
-      "keytar"
-    ]
   }
 }

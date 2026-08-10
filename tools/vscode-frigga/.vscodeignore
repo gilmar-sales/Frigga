@@ -6,3 +6,6 @@ tsconfig.json
 node_modules/**
 .vscode/**
 *.vsix
+pnpm-lock.yaml
+pnpm-workspace.yaml
+.npmrc

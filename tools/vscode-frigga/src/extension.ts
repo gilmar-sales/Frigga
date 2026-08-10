@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { attachDebuggerToEditor } from "./attachDebugger";
 import { createGameplayComponent } from "./newComponent";
 import { createGameplaySystem } from "./newSystem";
 import { refreshProjectContext, resolveFriggaProject } from "./project";
@@ -29,6 +30,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         return;
       }
       await createGameplaySystem(project);
+    }),
+    vscode.commands.registerCommand("frigga.attachDebugger", async (uri?: vscode.Uri) => {
+      await attachDebuggerToEditor(uri);
     }),
     vscode.workspace.onDidChangeWorkspaceFolders(() => {
       void refreshProjectContext();

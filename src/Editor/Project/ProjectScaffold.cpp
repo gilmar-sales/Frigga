@@ -314,14 +314,25 @@ struct Health: fr::Component
                "-DCMAKE_CXX_STANDARD=26\n";
         out << "cmake --build build\n";
         out << "```\n\n";
-        out << "Or use **File → Build Gameplay Plugin** in the Editor "
+        out << "Or use **File → Build Gameplay Plugin** (Ctrl+B) in the Editor "
                "(forces `gnu++26` + `-freflection`).\n\n";
         out << "The shared library is written to `" << desc.pluginLibraryRelative << "`.\n";
         out << "It resolves Freyr symbols from the Editor process (do not link `libfreyr.a` into the "
                "plugin).\n";
-        out << "In the Editor: **File → Build Gameplay Plugin**, then **Reload Gameplay Plugin** "
-               "(Ctrl+R), and press Play.\n";
+        out << "In the Editor: **File → Build Gameplay Plugin** (Ctrl+B), then **Reload Gameplay "
+               "Plugin** "
+               "(Ctrl+R), and press Play.\n\n";
+        out << "## Debug gameplay code\n\n";
+        out << "1. Keep the Frigga Editor open on this project.\n";
+        out << "2. Open this folder in VS Code with the Frigga extension.\n";
+        out << "3. Run **Frigga: Attach Debugger to Editor** (requires C/C++ extension / GDB).\n";
+        out << "4. Set breakpoints in your gameplay sources and hit Play in the Editor.\n";
         return out.str();
+    }
+
+    std::string MakeGitignore()
+    {
+        return "build/\n.frigga/\n";
     }
 
     bool CopyPluginHeader(const std::filesystem::path &friggaRoot,
@@ -375,6 +386,12 @@ ProjectManagedWriteResult ProjectScaffold::WriteManagedFiles(
     if(!WriteTextFile(projectRoot / "README.md", MakeReadme(desc)))
     {
         result.error = "Failed to write README.md";
+        return result;
+    }
+
+    if(!WriteTextFile(projectRoot / ".gitignore", MakeGitignore()))
+    {
+        result.error = "Failed to write .gitignore";
         return result;
     }
 

@@ -5,8 +5,10 @@
 #include <Frigga/Scene/SceneSimulationState.hpp>
 
 #include "Project/ProjectSession.hpp"
+#include "Ui/StatusBar.hpp"
 
 #include <filesystem>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -47,7 +49,6 @@ class MainLayer: public fg::Layer
     void openSceneDialog();
     void saveSceneDialog();
     void ensureEditMode();
-    void drawBuildProgressOverlay();
 
     static void onOpenSceneDialog(void *userdata, const char *const *filelist, int filter);
     static void onSaveSceneDialog(void *userdata, const char *const *filelist, int filter);
@@ -56,7 +57,6 @@ class MainLayer: public fg::Layer
     skr::Arc<Workflow> m_activeTab;
     const char *m_activeTabName = "Gameplay";
     bool m_resetDockLayout      = false;
-    bool mShowBuildOverlay      = false;
 
     skr::Arc<fg::Scene> mScene;
     skr::Arc<fg::LayerStack> mLayerStack;
@@ -65,6 +65,7 @@ class MainLayer: public fg::Layer
     skr::Arc<SelectionContext> mSelection;
     skr::Arc<fg::SceneSimulationState> mSimulation;
     skr::Arc<ProjectSession> mSession;
+    std::unique_ptr<StatusBar> mStatusBar;
 
     std::mutex mDialogMutex;
     PendingSceneAction mPendingAction = PendingSceneAction::None;

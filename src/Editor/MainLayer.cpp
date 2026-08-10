@@ -9,11 +9,14 @@
 #include "Workflows/AudioWorkflow.hpp"
 #include "Workflows/EcsWorkflow.hpp"
 #include "Workflows/GamePlayWorkflow.hpp"
-#include "Workflows/ScriptingWorkflow.hpp"
 #include "Workflows/ShadingWorkflow.hpp"
 
+#include "Ui/StatusBar.hpp"
+
+#include <Frigga/Asset/AssetRegistry.hpp>
 #include <Frigga/Asset/PrimitiveMeshFactory.hpp>
 #include <Frigga/Gui/Extensions/Extensions.hpp>
+#include <Frigga/Plugin/GameplayPluginHost.hpp>
 
 #include <SDL3/SDL_dialog.h>
 
@@ -56,12 +59,15 @@ MainLayer::MainLayer(skr::Arc<fg::Scene> scene, skr::Arc<fg::LayerStack> layerSt
         {"Animation", serviceProvider->GetService<AnimationWorkflow>()},
         {"Audio",     serviceProvider->GetService<AudioWorkflow>()    },
         {"Shading",   serviceProvider->GetService<ShadingWorkflow>()  },
-        {"Scripting", serviceProvider->GetService<ScriptingWorkflow>()},
         {"ECS",       serviceProvider->GetService<EcsWorkflow>()      }
     };
 
     m_activeTab     = m_tabIds.begin()->second;
     m_activeTabName = m_tabIds.begin()->first;
+
+    mStatusBar = std::make_unique<StatusBar>(
+        mSession, mScene, serviceProvider->GetService<fg::AssetRegistry>(),
+        serviceProvider->GetService<fg::GameplayPluginHost>(), mSimulation);
 }
 
 void MainLayer::onUpdate()
@@ -95,6 +101,15 @@ void MainLayer::handleShortcuts()
         if(mSession->HasProject())
         {
             mSession->OpenInCodeEditor();
+        }
+        return;
+    }
+
+    if(io.KeyCtrl && !io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_B, false))
+    {
+        if(mSession->HasProject() && !mSession->IsBuilding() && !mSimulation->IsPlaying())
+        {
+            mSession->BuildPlugin();
         }
         return;
     }
@@ -304,18 +319,18 @@ void MainLayer::onGui()
         ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
 
     ImGuiViewport *viewport = ImGui::GetMainViewport();
+    const float statusHeight = StatusBar::Height();
 
     ImGui::SetNextWindowPos(viewport->WorkPos);
-    ImGui::SetNextWindowSize(viewport->WorkSize);
+    ImGui::SetNextWindowSize(ImVec2(viewport->WorkSize.x, viewport->WorkSize.y - statusHeight));
     ImGui::SetNextWindowViewport(viewport->ID);
 
     static ImGuiIO &io = ImGui::GetIO();
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {0.0f, 0.0f});
-    if(ImGui::Begin("DockSpace", nullptr, window_flags))
+    const bool dockOpen = ImGui::Begin("DockSpace", nullptr, window_flags);
+    ImGui::PopStyleVar();
+    if(dockOpen)
     {
-        auto mainWindow = ImGui::GetCurrentWindow();
-        ImGui::PopStyleVar();
-
         if(io.ConfigFlags & ImGuiConfigFlags_DockingEnable)
         {
             EditorDock::SetLayoutId(m_activeTabName);
@@ -338,130 +353,13 @@ void MainLayer::onGui()
         drawTitleBar();
 
         drawMenuBar();
-
-        drawBuildProgressOverlay();
-
-        ImGui::End();
     }
-}
+    ImGui::End();
 
-void MainLayer::drawBuildProgressOverlay()
-{
-    if(mSession->IsBuilding() || mSession->GetBuildPhase() == PluginBuildPhase::Reloading)
+    if(mStatusBar)
     {
-        mShowBuildOverlay = true;
+        mStatusBar->Draw(viewport);
     }
-
-    if(!mShowBuildOverlay)
-    {
-        return;
-    }
-
-    const auto phase    = mSession->GetBuildPhase();
-    const bool building =
-        mSession->IsBuilding() || phase == PluginBuildPhase::Reloading;
-
-    ImGui::OpenPopup("##PluginBuildProgress");
-    ImGuiViewport *viewport = ImGui::GetMainViewport();
-    ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
-    ImGui::SetNextWindowSize(ImVec2(520.0f, 0.0f), ImGuiCond_Always);
-
-    const ImGuiWindowFlags flags =
-        ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
-        ImGuiWindowFlags_AlwaysAutoResize;
-
-    if(!ImGui::BeginPopupModal("##PluginBuildProgress", nullptr, flags))
-    {
-        return;
-    }
-
-    const char *title = "Building gameplay plugin";
-    switch(phase)
-    {
-    case PluginBuildPhase::Configuring:
-        title = "Configuring plugin (CMake)…";
-        break;
-    case PluginBuildPhase::Building:
-        title = "Compiling gameplay plugin…";
-        break;
-    case PluginBuildPhase::Reloading:
-        title = "Reloading plugin…";
-        break;
-    case PluginBuildPhase::Succeeded:
-        title = "Plugin build succeeded";
-        break;
-    case PluginBuildPhase::Failed:
-        title = "Plugin build failed";
-        break;
-    default:
-        break;
-    }
-
-    ImGui::TextUnformatted(title);
-    ImGui::Spacing();
-
-    const float progress = mSession->GetBuildProgress();
-    char        overlay[32];
-    if(mSession->IsBuildProgressDeterminate() && mSession->IsBuilding())
-    {
-        std::snprintf(overlay, sizeof(overlay), "%.0f%%", progress * 100.0f);
-        ImGui::ProgressBar(progress, ImVec2(-1.0f, 0.0f), overlay);
-    }
-    else if(building)
-    {
-        ImGui::ProgressBar(progress, ImVec2(-1.0f, 0.0f), "");
-    }
-    else if(phase == PluginBuildPhase::Succeeded)
-    {
-        ImGui::ProgressBar(1.0f, ImVec2(-1.0f, 0.0f), "Done");
-    }
-    else if(phase == PluginBuildPhase::Failed)
-    {
-        ImGui::ProgressBar(1.0f, ImVec2(-1.0f, 0.0f), "Failed");
-    }
-
-    const auto logTail = mSession->GetBuildLogTail();
-    if(!logTail.empty())
-    {
-        ImGui::Spacing();
-        ImGui::BeginChild("##BuildLog", ImVec2(0.0f, 160.0f), ImGuiChildFlags_Borders);
-        ImGui::TextUnformatted(logTail.c_str());
-        if(building)
-        {
-            ImGui::SetScrollHereY(1.0f);
-        }
-        ImGui::EndChild();
-    }
-
-    if(phase == PluginBuildPhase::Failed)
-    {
-        const auto err = mSession->GetLastError();
-        if(!err.empty())
-        {
-            ImGui::TextColored(ImVec4(0.95f, 0.35f, 0.35f, 1.0f), "%s", err.c_str());
-        }
-    }
-
-    ImGui::Spacing();
-    if(!logTail.empty())
-    {
-        if(ImGui::Button("Copy log", ImVec2(120.0f, 0.0f)))
-        {
-            ImGui::SetClipboardText(logTail.c_str());
-        }
-        ImGui::SameLine();
-    }
-    ImGui::BeginDisabled(building);
-    if(ImGui::Button("Close", ImVec2(120.0f, 0.0f)) ||
-       (!building && ImGui::IsKeyPressed(ImGuiKey_Escape, false)))
-    {
-        mShowBuildOverlay = false;
-        mSession->DismissBuildUi();
-        ImGui::CloseCurrentPopup();
-    }
-    ImGui::EndDisabled();
-
-    ImGui::EndPopup();
 }
 
 float MainLayer::drawTitleBar()
@@ -535,12 +433,9 @@ void MainLayer::drawMenuBar()
             {
                 mSession->OpenInCodeEditor();
             }
-            if(ImGui::MenuItem("Build Gameplay Plugin"))
+            if(ImGui::MenuItem("Build Gameplay Plugin", "Ctrl+B"))
             {
-                if(mSession->BuildPlugin())
-                {
-                    mShowBuildOverlay = true;
-                }
+                mSession->BuildPlugin();
             }
             if(ImGui::MenuItem("Migrate Project Files"))
             {

@@ -2,7 +2,7 @@
 
 Personal C++ game engine and ImGui editor built on [Freyr](https://github.com/gilmar-sales/Freyr) (ECS), [Freya](https://github.com/gilmar-sales/Freya) (Vulkan renderer / windowing), and [Jolt Physics](https://github.com/jrouwe/JoltPhysics).
 
-**Status:** early prototype (v0.2.0). The Gameplay workflow is usable: author scenes of primitives, lights, and cameras; save/load JSON; run a play/edit physics simulation. Animation, Audio, Shading, and Scripting workflows are dock-layout placeholders.
+**Status:** early prototype (v0.2.0). The Gameplay workflow is usable: author scenes of primitives, lights, and cameras; save/load JSON; run a play/edit physics simulation. Animation, Audio, and Shading workflows are dock-layout placeholders. Gameplay code is edited in VS Code (Ctrl+Shift+E) and debugged by attaching GDB to the running Editor.
 
 ## Features
 
@@ -102,6 +102,7 @@ cd build-release && ./Editor
 | Open scene | Ctrl+O |
 | Save | Ctrl+S |
 | Save as | Ctrl+Shift+S |
+| Build gameplay plugin | Ctrl+B |
 | Reload gameplay plugin | Ctrl+R |
 | Open project in code editor | Ctrl+Shift+E |
 | Play / pause / resume | Ctrl+P |
@@ -111,7 +112,16 @@ cd build-release && ./Editor
 | Gizmo translate / rotate / scale | W / E / R (editor viewport focused) |
 | Frame selection | F (editor viewport) |
 
-The Editor starts on a **home screen**: create a 2D/3D project (scaffolds CMake + Freyr gameplay plugin stubs + scene), open an existing `frigga.project`, or pick a recent project. Opening a project auto-migrates older `frigga.project` formats (rewrites managed `CMakeLists.txt` / plugin header; never overwrites `src/Gameplay*`). Use **File → Migrate Project Files** to force-refresh managed files, then **Build Gameplay Plugin** and **Reload** (Ctrl+R); play mode runs the loaded `.so` / `.dll` through a Freyr bridge system.
+The Editor starts on a **home screen**: create a 2D/3D project (scaffolds CMake + Freyr gameplay plugin stubs + scene), open an existing `frigga.project`, or pick a recent project. Opening a project auto-migrates older `frigga.project` formats (rewrites managed `CMakeLists.txt` / plugin header; never overwrites `src/Gameplay*`). Use **File → Migrate Project Files** to force-refresh managed files, then **Build Gameplay Plugin** (Ctrl+B) and **Reload** (Ctrl+R); play mode runs the loaded `.so` / `.dll` through a Freyr bridge system.
+
+### Debug gameplay (VS Code + GDB)
+
+1. Install the Frigga VS Code extension from `tools/vscode-frigga` (and the Microsoft C/C++ extension).
+2. Open the gameplay project in the Frigga Editor (writes `.frigga/editor-session.json` with Editor PID / binary path).
+3. Open the same project folder in VS Code (**File → Open in Code Editor** / Ctrl+Shift+E).
+4. Run **Frigga: Attach Debugger to Editor**, set breakpoints in gameplay sources, and press Play in the Editor.
+
+Build progress and other background work appear in the Editor bottom status bar (click the mini progress indicator to expand the task list).
 
 Workflows other than **Gameplay** / **ECS** are placeholders. Preferences live in `preferences.json` next to the binary; some graphics options need a restart.
 

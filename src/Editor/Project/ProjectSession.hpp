@@ -16,6 +16,7 @@
 #include <optional>
 #include <string>
 #include <thread>
+#include <vector>
 
 enum class EditorSessionMode : std::uint8_t
 {
@@ -31,6 +32,24 @@ enum class PluginBuildPhase : std::uint8_t
     Reloading,
     Succeeded,
     Failed,
+};
+
+enum class EditorBackgroundTaskState : std::uint8_t
+{
+    Running = 0,
+    Succeeded,
+    Failed,
+};
+
+struct EditorBackgroundTask
+{
+    std::string id;
+    std::string title;
+    std::string detail;
+    EditorBackgroundTaskState state = EditorBackgroundTaskState::Running;
+    float progress                  = 0.0f;
+    bool determinate                = false;
+    std::string logTail;
 };
 
 /**
@@ -86,9 +105,14 @@ class ProjectSession
     [[nodiscard]] bool IsBuildProgressDeterminate() const;
     [[nodiscard]] std::string GetBuildLogTail() const;
 
+    /// Background jobs for the Rider-style status / notifications strip (currently: plugin build).
+    [[nodiscard]] std::vector<EditorBackgroundTask> GetBackgroundTasks() const;
+    [[nodiscard]] bool HasRunningBackgroundTasks() const;
+
     /// Absolute paths to the Frigga source tree and its build dir (for scaffolds).
     [[nodiscard]] static std::filesystem::path DiscoverFriggaRoot();
     [[nodiscard]] static std::filesystem::path DiscoverFriggaBuild();
+    [[nodiscard]] static std::filesystem::path ExecutablePath();
 
     bool CreateProject(const std::filesystem::path &parentDir, std::string name,
                        fg::SceneTemplate sceneTemplate);
@@ -116,6 +140,8 @@ class ProjectSession
     void touchRecent();
     void joinBuildThread();
     void runBuildJob(std::filesystem::path root, std::filesystem::path buildDir);
+    void writeEditorSessionMarker();
+    void clearEditorSessionMarker();
     [[nodiscard]] std::filesystem::path pluginLibraryAbsolute() const;
     [[nodiscard]] static std::filesystem::path projectRootFromPath(
         const std::filesystem::path &projectFileOrRoot);

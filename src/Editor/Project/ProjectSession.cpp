@@ -11,8 +11,10 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <ctime>
 #include <fstream>
 #include <functional>
+#include <sstream>
 #include <string_view>
 
 #if defined(_WIN32)
@@ -32,35 +34,56 @@ namespace
 {
     std::filesystem::path ExecutableDirectory()
     {
-#if defined(_WIN32)
-        char buffer[MAX_PATH];
-        const DWORD len = GetModuleFileNameA(nullptr, buffer, MAX_PATH);
-        if(len > 0 && len < MAX_PATH)
+        const auto path = ProjectSession::ExecutablePath();
+        return path.empty() ? std::filesystem::current_path() : path.parent_path();
+    }
+
+    std::string EscapeJson(std::string_view value)
+    {
+        std::string out;
+        out.reserve(value.size() + 8);
+        for(const char ch : value)
         {
-            return std::filesystem::path(buffer).parent_path();
-        }
-#elif defined(__linux__)
-        std::error_code ec;
-        const auto self = std::filesystem::read_symlink("/proc/self/exe", ec);
-        if(!ec)
-        {
-            return self.parent_path();
-        }
-#elif defined(__APPLE__)
-        char buffer[4096];
-        uint32_t size = sizeof(buffer);
-        if(_NSGetExecutablePath(buffer, &size) == 0)
-        {
-            std::error_code ec;
-            const auto canonical = std::filesystem::weakly_canonical(buffer, ec);
-            if(!ec)
+            switch(ch)
             {
-                return canonical.parent_path();
+            case '"':
+                out += "\\\"";
+                break;
+            case '\\':
+                out += "\\\\";
+                break;
+            case '\n':
+                out += "\\n";
+                break;
+            case '\r':
+                out += "\\r";
+                break;
+            case '\t':
+                out += "\\t";
+                break;
+            default:
+                out.push_back(ch);
+                break;
             }
-            return std::filesystem::path(buffer).parent_path();
         }
+        return out;
+    }
+
+    std::string FormatUtcTimestamp()
+    {
+        using clock = std::chrono::system_clock;
+        const auto now = clock::now();
+        const auto tt  = clock::to_time_t(now);
+        std::tm tm {};
+#if defined(_WIN32)
+        gmtime_s(&tm, &tt);
+#else
+        gmtime_r(&tt, &tm);
 #endif
-        return std::filesystem::current_path();
+        char buffer[32];
+        std::snprintf(buffer, sizeof(buffer), "%04d-%02d-%02dT%02d:%02d:%02dZ", tm.tm_year + 1900,
+                      tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+        return buffer;
     }
 
     bool LooksLikeFriggaSdk(const std::filesystem::path &path)
@@ -194,7 +217,41 @@ ProjectSession::ProjectSession(skr::Arc<fg::Scene> scene,
 
 ProjectSession::~ProjectSession()
 {
+    clearEditorSessionMarker();
     joinBuildThread();
+}
+
+std::filesystem::path ProjectSession::ExecutablePath()
+{
+#if defined(_WIN32)
+    char buffer[MAX_PATH];
+    const DWORD len = GetModuleFileNameA(nullptr, buffer, MAX_PATH);
+    if(len > 0 && len < MAX_PATH)
+    {
+        return std::filesystem::path(buffer);
+    }
+#elif defined(__linux__)
+    std::error_code ec;
+    const auto self = std::filesystem::read_symlink("/proc/self/exe", ec);
+    if(!ec)
+    {
+        return self;
+    }
+#elif defined(__APPLE__)
+    char buffer[4096];
+    uint32_t size = sizeof(buffer);
+    if(_NSGetExecutablePath(buffer, &size) == 0)
+    {
+        std::error_code ec;
+        const auto canonical = std::filesystem::weakly_canonical(buffer, ec);
+        if(!ec)
+        {
+            return canonical;
+        }
+        return std::filesystem::path(buffer);
+    }
+#endif
+    return {};
 }
 
 void ProjectSession::joinBuildThread()
@@ -248,6 +305,125 @@ std::string ProjectSession::GetBuildLogTail() const
 {
     std::lock_guard lock(mMutex);
     return mBuildLogTail;
+}
+
+std::vector<EditorBackgroundTask> ProjectSession::GetBackgroundTasks() const
+{
+    const auto phase = GetBuildPhase();
+    if(phase == PluginBuildPhase::Idle)
+    {
+        return {};
+    }
+
+    EditorBackgroundTask task;
+    task.id = "gameplay-plugin-build";
+
+    switch(phase)
+    {
+    case PluginBuildPhase::Configuring:
+        task.title  = "Build gameplay plugin";
+        task.detail = "Configuring (CMake)…";
+        task.state   = EditorBackgroundTaskState::Running;
+        break;
+    case PluginBuildPhase::Building:
+        task.title  = "Build gameplay plugin";
+        task.detail = "Compiling…";
+        task.state   = EditorBackgroundTaskState::Running;
+        break;
+    case PluginBuildPhase::Reloading:
+        task.title  = "Build gameplay plugin";
+        task.detail = "Reloading plugin…";
+        task.state   = EditorBackgroundTaskState::Running;
+        break;
+    case PluginBuildPhase::Succeeded:
+        task.title  = "Build gameplay plugin";
+        task.detail = "Succeeded";
+        task.state   = EditorBackgroundTaskState::Succeeded;
+        break;
+    case PluginBuildPhase::Failed:
+        task.title  = "Build gameplay plugin";
+        task.detail = GetLastError().empty() ? "Failed" : GetLastError();
+        task.state   = EditorBackgroundTaskState::Failed;
+        break;
+    default:
+        return {};
+    }
+
+    task.progress    = GetBuildProgress();
+    task.determinate = IsBuildProgressDeterminate() ||
+                       phase == PluginBuildPhase::Succeeded || phase == PluginBuildPhase::Failed;
+    if(phase == PluginBuildPhase::Succeeded || phase == PluginBuildPhase::Failed)
+    {
+        task.progress = 1.0f;
+    }
+    task.logTail = GetBuildLogTail();
+    return {std::move(task)};
+}
+
+bool ProjectSession::HasRunningBackgroundTasks() const
+{
+    const auto phase = GetBuildPhase();
+    return IsBuilding() || phase == PluginBuildPhase::Reloading;
+}
+
+void ProjectSession::writeEditorSessionMarker()
+{
+    if(!mProjectFile)
+    {
+        return;
+    }
+
+    const auto projectRoot = mProjectFile->parent_path();
+    const auto markerDir   = projectRoot / ".frigga";
+    const auto markerPath  = markerDir / "editor-session.json";
+
+    std::error_code ec;
+    std::filesystem::create_directories(markerDir, ec);
+    if(ec)
+    {
+        mLogger->LogWarning("Failed to create {}: {}", markerDir.string(), ec.message());
+        return;
+    }
+
+    const auto editorPath = ExecutablePath();
+    const auto soSearch   = (projectRoot / "build").lexically_normal();
+    const auto pluginLib  = pluginLibraryAbsolute().lexically_normal();
+
+#if defined(_WIN32)
+    const auto pid = static_cast<unsigned long long>(GetCurrentProcessId());
+#else
+    const auto pid = static_cast<unsigned long long>(::getpid());
+#endif
+
+    std::ostringstream json;
+    json << "{\n";
+    json << "  \"pid\": " << pid << ",\n";
+    json << "  \"editorPath\": \"" << EscapeJson(editorPath.generic_string()) << "\",\n";
+    json << "  \"soSearchPath\": \"" << EscapeJson(soSearch.generic_string()) << "\",\n";
+    json << "  \"pluginLibrary\": \"" << EscapeJson(pluginLib.generic_string()) << "\",\n";
+    json << "  \"projectRoot\": \"" << EscapeJson(projectRoot.generic_string()) << "\",\n";
+    json << "  \"updatedAt\": \"" << FormatUtcTimestamp() << "\"\n";
+    json << "}\n";
+
+    std::ofstream file(markerPath, std::ios::binary | std::ios::trunc);
+    if(!file)
+    {
+        mLogger->LogWarning("Failed to write editor session marker {}", markerPath.string());
+        return;
+    }
+    file << json.str();
+}
+
+void ProjectSession::clearEditorSessionMarker()
+{
+    if(!mProjectFile)
+    {
+        return;
+    }
+
+    const auto markerPath = mProjectFile->parent_path() / ".frigga" / "editor-session.json";
+    std::error_code ec;
+    std::filesystem::remove(markerPath, ec);
 }
 
 void ProjectSession::Poll()
@@ -486,6 +662,7 @@ void ProjectSession::CloseToHome()
         mSimulation->Stop();
     }
     UnloadPlugin();
+    clearEditorSessionMarker();
     mProjectFile.reset();
     mDescriptor = {};
     mMode       = EditorSessionMode::Home;
@@ -627,19 +804,22 @@ bool ProjectSession::ReloadPlugin()
         return false;
     }
 
-    std::lock_guard lock(mMutex);
-    const auto typeIds = mPluginHost->GetRegisteredTypeIds();
-    std::string listed;
-    for(const auto &id : typeIds)
     {
-        if(!listed.empty())
+        std::lock_guard lock(mMutex);
+        const auto typeIds = mPluginHost->GetRegisteredTypeIds();
+        std::string listed;
+        for(const auto &id : typeIds)
         {
-            listed += ", ";
+            if(!listed.empty())
+            {
+                listed += ", ";
+            }
+            listed += id;
         }
-        listed += id;
+        mStatusMessage = "Loaded plugin " + lib.filename().string() + " | components: " +
+                         (listed.empty() ? "(none)" : listed);
     }
-    mStatusMessage = "Loaded plugin " + lib.filename().string() + " | components: " +
-                     (listed.empty() ? "(none)" : listed);
+    writeEditorSessionMarker();
     return true;
 }
 
@@ -703,6 +883,7 @@ bool ProjectSession::enterEditor(const std::filesystem::path &projectFile, Proje
         }
     }
 
+    writeEditorSessionMarker();
     mLogger->LogInformation("Opened project {}", projectFile.string());
     return true;
 }

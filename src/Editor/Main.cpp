@@ -14,7 +14,6 @@
 #include "Workflows/AudioWorkflow.hpp"
 #include "Workflows/EcsWorkflow.hpp"
 #include "Workflows/GamePlayWorkflow.hpp"
-#include "Workflows/ScriptingWorkflow.hpp"
 #include "Workflows/ShadingWorkflow.hpp"
 
 #include <Frigga/Frigga.hpp>
@@ -147,7 +146,6 @@ int main(int argc, char *argv[])
         .AddTransient<AnimationWorkflow>()
         .AddTransient<AudioWorkflow>()
         .AddTransient<ShadingWorkflow>()
-        .AddTransient<ScriptingWorkflow>()
         .AddTransient<EcsWorkflow>();
 
     auto app = appBuilder.Build<EditorApplication>();

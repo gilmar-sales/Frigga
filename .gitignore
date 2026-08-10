@@ -15,3 +15,4 @@ out
 .idea
 build
 cmake-build-*
+.pnpm-store/
