@@ -17,6 +17,8 @@
 #include "ECS/Systems/RenderSystem.hpp"
 #include "Physics/IPhysicsWorld.hpp"
 #include "Physics/JoltPhysicsWorld.hpp"
+#include "Plugin/GameplayPluginBridge.hpp"
+#include "Plugin/GameplayPluginHost.hpp"
 #include "Scene/Scene.hpp"
 #include "Scene/SceneSimulationState.hpp"
 
@@ -38,6 +40,7 @@ namespace FRIGGA_NAMESPACE
                         pipeline.WithName("Main")
                             .WithSystem<PhysicsSystem>()
                             .WithSystem<AnimationSystem>()
+                            .WithSystem<GameplayPluginBridge>()
                             .WithSystem<RenderSystem>();
                     });
             })
@@ -60,6 +63,7 @@ namespace FRIGGA_NAMESPACE
         services.AddSingleton<fg::IPhysicsWorld, fg::JoltPhysicsWorld>();
         services.AddSingleton<fg::Scene>();
         services.AddSingleton<fg::SceneSimulationState>();
+        services.AddSingleton<fg::GameplayPluginHost>();
         services.AddScoped<fg::LayerStack>();
         services.AddSingleton<fg::GuiLayer>();
     }

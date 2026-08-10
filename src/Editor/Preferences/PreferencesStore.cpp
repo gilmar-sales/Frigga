@@ -1,5 +1,7 @@
 #include "PreferencesStore.hpp"
 
+#include <algorithm>
+#include <chrono>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -73,6 +75,160 @@ namespace
         };
         graphics.gameplayViewport = graphics.editorViewport;
     }
+
+    std::string UnescapeJsonString(std::string_view value)
+    {
+        std::string out;
+        out.reserve(value.size());
+        for(std::size_t i = 0; i < value.size(); ++i)
+        {
+            if(value[i] == '\\' && i + 1 < value.size())
+            {
+                switch(value[i + 1])
+                {
+                case '"':
+                    out.push_back('"');
+                    ++i;
+                    break;
+                case '\\':
+                    out.push_back('\\');
+                    ++i;
+                    break;
+                case 'n':
+                    out.push_back('\n');
+                    ++i;
+                    break;
+                case 'r':
+                    out.push_back('\r');
+                    ++i;
+                    break;
+                case 't':
+                    out.push_back('\t');
+                    ++i;
+                    break;
+                default:
+                    out.push_back(value[i]);
+                    break;
+                }
+            }
+            else
+            {
+                out.push_back(value[i]);
+            }
+        }
+        return out;
+    }
+
+    bool ExtractJsonStringField(std::string_view object, std::string_view key, std::string &out)
+    {
+        const std::string needle = "\"" + std::string(key) + "\"";
+        const auto keyPos        = object.find(needle);
+        if(keyPos == std::string_view::npos)
+        {
+            return false;
+        }
+        const auto colon = object.find(':', keyPos + needle.size());
+        if(colon == std::string_view::npos)
+        {
+            return false;
+        }
+        const auto quoteOpen = object.find('"', colon + 1);
+        if(quoteOpen == std::string_view::npos)
+        {
+            return false;
+        }
+        std::size_t i = quoteOpen + 1;
+        std::string raw;
+        while(i < object.size())
+        {
+            if(object[i] == '\\' && i + 1 < object.size())
+            {
+                raw.push_back(object[i]);
+                raw.push_back(object[i + 1]);
+                i += 2;
+                continue;
+            }
+            if(object[i] == '"')
+            {
+                out = UnescapeJsonString(raw);
+                return true;
+            }
+            raw.push_back(object[i]);
+            ++i;
+        }
+        return false;
+    }
+
+    void LoadRecentProjects(EditorPreferences &preferences, const std::filesystem::path &path)
+    {
+        preferences.recentProjects.clear();
+        if(!std::filesystem::exists(path))
+        {
+            return;
+        }
+
+        std::ifstream file(path);
+        std::ostringstream buffer;
+        buffer << file.rdbuf();
+        const std::string text = buffer.str();
+
+        const auto arrayKey = text.find("\"recentProjects\"");
+        if(arrayKey == std::string::npos)
+        {
+            return;
+        }
+        const auto bracket = text.find('[', arrayKey);
+        if(bracket == std::string::npos)
+        {
+            return;
+        }
+        const auto endBracket = text.find(']', bracket);
+        if(endBracket == std::string::npos)
+        {
+            return;
+        }
+
+        std::size_t cursor = bracket + 1;
+        while(cursor < endBracket)
+        {
+            const auto objStart = text.find('{', cursor);
+            if(objStart == std::string::npos || objStart >= endBracket)
+            {
+                break;
+            }
+            const auto objEnd = text.find('}', objStart);
+            if(objEnd == std::string::npos || objEnd > endBracket)
+            {
+                break;
+            }
+
+            const std::string_view object(text.data() + objStart, objEnd - objStart + 1);
+            RecentProjectEntry entry;
+            if(ExtractJsonStringField(object, "path", entry.path) &&
+               ExtractJsonStringField(object, "name", entry.name))
+            {
+                ExtractJsonStringField(object, "openedAt", entry.openedAt);
+                preferences.recentProjects.push_back(std::move(entry));
+            }
+            cursor = objEnd + 1;
+        }
+    }
+
+    std::string NowIso8601()
+    {
+        using clock = std::chrono::system_clock;
+        const auto now = clock::now();
+        const auto tt  = clock::to_time_t(now);
+        std::tm tm {};
+#if defined(_WIN32)
+        gmtime_s(&tm, &tt);
+#else
+        gmtime_r(&tt, &tm);
+#endif
+        char buf[32];
+        std::strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%SZ", &tm);
+        return buf;
+    }
 } // namespace
 
 void PreferencesStore::Configure(skr::ConfigurationBuilder &configurationBuilder,
@@ -87,7 +243,37 @@ void PreferencesStore::Configure(skr::ConfigurationBuilder &configurationBuilder
 skr::Arc<EditorPreferences> PreferencesStore::Load(const std::filesystem::path &path)
 {
     auto configurationBuilder = skr::ConfigurationBuilder();
-    Configure(configurationBuilder, path);
+    if(std::filesystem::exists(path))
+    {
+        std::ifstream file(path);
+        std::ostringstream buffer;
+        buffer << file.rdbuf();
+        std::string text = buffer.str();
+        // Strip recentProjects so Skirnir Bind (no vector support) stays happy.
+        const auto recentKey = text.find("\"recentProjects\"");
+        if(recentKey != std::string::npos)
+        {
+            const auto bracket = text.find('[', recentKey);
+            const auto endBracket =
+                bracket == std::string::npos ? std::string::npos : text.find(']', bracket);
+            if(bracket != std::string::npos && endBracket != std::string::npos)
+            {
+                auto eraseBegin = recentKey;
+                while(eraseBegin > 0 && (text[eraseBegin - 1] == ' ' || text[eraseBegin - 1] == '\n' ||
+                                         text[eraseBegin - 1] == ','))
+                {
+                    --eraseBegin;
+                }
+                auto eraseEnd = endBracket + 1;
+                if(eraseEnd < text.size() && text[eraseEnd] == ',')
+                {
+                    ++eraseEnd;
+                }
+                text.erase(eraseBegin, eraseEnd - eraseBegin);
+            }
+        }
+        configurationBuilder.AddJsonString(text);
+    }
     auto preferences = configurationBuilder.Build()->Bind<EditorPreferences>();
     MigrateLegacyViewportQualities(preferences->graphics, path);
     // Keep flat aliases mirrored to gameplay for any leftover readers.
@@ -95,7 +281,44 @@ skr::Arc<EditorPreferences> PreferencesStore::Load(const std::filesystem::path &
     preferences->graphics.ssaoQuality   = preferences->graphics.gameplayViewport.ssaoQuality;
     preferences->graphics.taaQuality    = preferences->graphics.gameplayViewport.taaQuality;
     preferences->graphics.bloomQuality  = preferences->graphics.gameplayViewport.bloomQuality;
+    LoadRecentProjects(*preferences, path);
     return preferences;
+}
+
+void PreferencesStore::TouchRecentProject(EditorPreferences &preferences,
+                                          const std::filesystem::path &projectFile,
+                                          const std::string &name)
+{
+    std::string canonical = projectFile.string();
+    std::error_code ec;
+    const auto weakly = std::filesystem::weakly_canonical(projectFile, ec);
+    if(!ec)
+    {
+        canonical = weakly.string();
+    }
+
+    preferences.recentProjects.erase(
+        std::remove_if(preferences.recentProjects.begin(), preferences.recentProjects.end(),
+                       [&](const RecentProjectEntry &entry) {
+                           std::error_code entryEc;
+                           const auto entryPath =
+                               std::filesystem::weakly_canonical(entry.path, entryEc);
+                           if(!entryEc)
+                           {
+                               return entryPath.string() == canonical;
+                           }
+                           return entry.path == canonical || entry.path == projectFile.string();
+                       }),
+        preferences.recentProjects.end());
+
+    preferences.recentProjects.insert(
+        preferences.recentProjects.begin(),
+        RecentProjectEntry {.path = canonical, .name = name, .openedAt = NowIso8601()});
+
+    if(preferences.recentProjects.size() > MaxRecentProjects)
+    {
+        preferences.recentProjects.resize(MaxRecentProjects);
+    }
 }
 
 void PreferencesStore::Save(const EditorPreferences &preferences,
@@ -152,7 +375,23 @@ void PreferencesStore::Save(const EditorPreferences &preferences,
     json << "    \"maxEntities\": " << e.maxEntities << ",\n";
     json << "    \"archetypeChunkCapacity\": " << e.archetypeChunkCapacity << ",\n";
     json << "    \"threadCount\": " << e.threadCount << "\n";
-    json << "  }\n";
+    json << "  },\n";
+    json << "  \"recentProjects\": [\n";
+    for(std::size_t i = 0; i < preferences.recentProjects.size(); ++i)
+    {
+        const auto &entry = preferences.recentProjects[i];
+        json << "    {\n";
+        json << "      \"path\": \"" << EscapeJson(entry.path) << "\",\n";
+        json << "      \"name\": \"" << EscapeJson(entry.name) << "\",\n";
+        json << "      \"openedAt\": \"" << EscapeJson(entry.openedAt) << "\"\n";
+        json << "    }";
+        if(i + 1 < preferences.recentProjects.size())
+        {
+            json << ",";
+        }
+        json << "\n";
+    }
+    json << "  ]\n";
     json << "}\n";
 
     std::ofstream file(path, std::ios::binary | std::ios::trunc);

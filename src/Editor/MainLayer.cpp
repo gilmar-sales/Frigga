@@ -40,11 +40,13 @@ namespace
 } // namespace
 
 MainLayer::MainLayer(skr::Arc<fg::Scene> scene, skr::Arc<fg::LayerStack> layerStack,
-                     skr::Arc<fra::Window> window, skr::Arc<skr::ServiceProvider> serviceProvider)
+                     skr::Arc<fra::Window> window, skr::Arc<skr::ServiceProvider> serviceProvider,
+                     skr::Arc<ProjectSession> session)
     : fg::Layer("Dock Layer"), mScene(std::move(scene)), mLayerStack(std::move(layerStack)),
       mWindow(std::move(window)), mHierarchy(serviceProvider->GetService<HierarchyLayer>()),
       mSelection(serviceProvider->GetService<SelectionContext>()),
-      mSimulation(serviceProvider->GetService<fg::SceneSimulationState>())
+      mSimulation(serviceProvider->GetService<fg::SceneSimulationState>()),
+      mSession(std::move(session))
 {
     m_tabIds = {
         {"Gameplay",  serviceProvider->GetService<GamePlayWorkflow>() },
@@ -61,6 +63,11 @@ MainLayer::MainLayer(skr::Arc<fg::Scene> scene, skr::Arc<fg::LayerStack> layerSt
 
 void MainLayer::onUpdate()
 {
+    if(!mSession->IsInEditor())
+    {
+        return;
+    }
+
     processPendingSceneActions();
     handleShortcuts();
 
@@ -75,6 +82,12 @@ void MainLayer::handleShortcuts()
     const ImGuiIO &io = ImGui::GetIO();
     if(io.WantTextInput)
     {
+        return;
+    }
+
+    if(io.KeyCtrl && !io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_R, false))
+    {
+        mSession->ReloadPlugin();
         return;
     }
 
@@ -262,6 +275,11 @@ void MainLayer::saveSceneDialog()
 
 void MainLayer::onGui()
 {
+    if(!mSession->IsInEditor())
+    {
+        return;
+    }
+
     auto ctx = ImGui::GetCurrentContext();
     static ImGuiWindowFlags window_flags =
         ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoTitleBar |
@@ -344,6 +362,11 @@ void MainLayer::drawMenuBar()
     {
         if(ImGui::BeginMenu("File"))
         {
+            if(ImGui::MenuItem(ICON_BTSP_FOLDER " Back to Home"))
+            {
+                mSession->CloseToHome();
+            }
+            ImGui::Separator();
             ImGui::BeginDisabled(mSimulation->IsPlaying());
             if(ImGui::MenuItem(ICON_BTSP_FOLDERPLUS " New Scene", "Ctrl+N"))
             {
@@ -364,6 +387,21 @@ void MainLayer::drawMenuBar()
                 requestSaveSceneAs();
             }
             ImGui::EndDisabled();
+            ImGui::Separator();
+            ImGui::BeginDisabled(!mSession->HasProject() || mSimulation->IsPlaying());
+            if(ImGui::MenuItem("Build Gameplay Plugin"))
+            {
+                mSession->BuildPlugin();
+            }
+            if(ImGui::MenuItem("Reload Gameplay Plugin", "Ctrl+R"))
+            {
+                mSession->ReloadPlugin();
+            }
+            ImGui::EndDisabled();
+            if(!mSession->GetStatusMessage().empty())
+            {
+                ImGui::TextDisabled("%s", mSession->GetStatusMessage().c_str());
+            }
             ImGui::Separator();
             if(ImGui::MenuItem(ICON_BTSP_SHUTDOWN " Close Phantom", "Alt+F4"))
             {

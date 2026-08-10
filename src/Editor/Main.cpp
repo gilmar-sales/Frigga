@@ -1,4 +1,5 @@
 #include "EditorApplication.hpp"
+#include "HomeLayer.hpp"
 #include "Panels/ArchetypesLayer.hpp"
 #include "Panels/EditorLayer.hpp"
 #include "Panels/GameplayLayer.hpp"
@@ -7,6 +8,7 @@
 #include "Panels/ResourcesLayer.hpp"
 #include "Preferences/EditorPreferences.hpp"
 #include "Preferences/PreferencesStore.hpp"
+#include "Project/ProjectSession.hpp"
 #include "SelectionContext.hpp"
 #include "Workflows/AnimationWorkflow.hpp"
 #include "Workflows/AudioWorkflow.hpp"
@@ -130,11 +132,10 @@ int main(int argc, char *argv[])
 
     appBuilder.GetServiceCollection()
         ->AddSingleton<EditorPreferences>(
-            [](skr::ServiceProvider &serviceProvider) {
-                return serviceProvider.GetService<skr::ConfigurationOptions>()
-                    ->Bind<EditorPreferences>();
-            })
+            [startupPreferences](skr::ServiceProvider &) { return startupPreferences; })
         .AddSingleton<SelectionContext>()
+        .AddSingleton<ProjectSession>()
+        .AddTransient<HomeLayer>()
         .AddTransient<MainLayer>()
         .AddTransient<GameplayLayer>()
         .AddTransient<EditorLayer>()

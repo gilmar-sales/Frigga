@@ -88,6 +88,7 @@ target_link_libraries(frigga PUBLIC
         freyr::freyr
         imgui::imgui
         Jolt
+        ${CMAKE_DL_LIBS}
 )
 
 file(GLOB_RECURSE EDITOR_SRC src/Editor/*.cpp src/Editor/*.hpp)
@@ -103,6 +104,14 @@ target_link_libraries(Editor PUBLIC
         frigga::frigga
         imguizmo::imguizmo
 )
+
+# Expose Freyr/Frigga symbols to dlopened gameplay plugins.
+if (UNIX AND NOT APPLE)
+    target_link_options(Editor PRIVATE -Wl,--export-dynamic)
+elseif (APPLE)
+    target_link_options(Editor PRIVATE -Wl,-export_dynamic)
+endif ()
+
 file(COPY src/Editor/Resources DESTINATION ${CMAKE_BINARY_DIR})
 
 # --- Tests -----------------------------------------------------------------

@@ -102,12 +102,15 @@ cd build-release && ./Editor
 | Open scene | Ctrl+O |
 | Save | Ctrl+S |
 | Save as | Ctrl+Shift+S |
+| Reload gameplay plugin | Ctrl+R |
 | Play / pause / resume | Ctrl+P |
 | Step one physics tick | Ctrl+. |
 | Stop play (restore edit scene) | Ctrl+Shift+P |
 | Toggle collider overlays | Ctrl+Shift+C |
 | Gizmo translate / rotate / scale | W / E / R (editor viewport focused) |
 | Frame selection | F (editor viewport) |
+
+The Editor starts on a **home screen**: create a 2D/3D project (scaffolds CMake + Freyr gameplay plugin stubs + scene), open an existing `frigga.project`, or pick a recent project. Use **File → Build Gameplay Plugin** then **Reload** (Ctrl+R); play mode runs the loaded `.so` / `.dll` through a Freyr bridge system.
 
 Workflows other than **Gameplay** / **ECS** are placeholders. Preferences live in `preferences.json` next to the binary; some graphics options need a restart.
 
@@ -117,13 +120,13 @@ Default environment map path in preferences may point at a missing HDR under `Re
 
 ```
 src/
-  Frigga/          Engine library (ECS, scene I/O, physics, GUI, render systems)
-  Editor/          Editor app (workflows, panels, preferences)
+  Frigga/          Engine library (ECS, scene I/O, physics, plugins, GUI, render systems)
+  Editor/          Editor app (home, projects, workflows, panels, preferences)
     Resources/     Fonts and default textures (copied into the build dir)
 CMakeLists.txt
 ```
 
-Pinned FetchContent tags (see root `CMakeLists.txt`): Freyr `v0.29.0`, Freya `v0.37.0`, Jolt `v5.3.0`, ImGui `docking` fork.
+Pinned FetchContent tags (see root `CMakeLists.txt`): Freyr `v0.29.0`, Freya `v0.38.0`, Jolt `v5.3.0`, ImGui `docking` fork.
 
 ## License
 

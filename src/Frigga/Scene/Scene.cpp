@@ -66,6 +66,11 @@ namespace FRIGGA_NAMESPACE
 
     void Scene::CreateDefaultEntities()
     {
+        CreateDefaultEntities3D();
+    }
+
+    void Scene::CreateDefaultEntities3D()
+    {
         mEcsRegistry->CreateEntity(
             NameComponent {.name = "Cube"}, TransformComponent {},
             MeshComponent {.meshId = mPrimitives->GetMesh(PrimitiveType::Cube)},
@@ -106,14 +111,81 @@ namespace FRIGGA_NAMESPACE
         FlushEcs();
     }
 
+    void Scene::CreateDefaultEntities2D()
+    {
+        // Top-down gameplay plane (XZ). Perspective camera; treat XZ as the 2D plane.
+        mEcsRegistry->CreateEntity(
+            NameComponent {.name = "Ground"},
+            TransformComponent {.position = {0.0f, 0.0f, 0.0f},
+                                .scale    = {8.0f, 1.0f, 8.0f},
+                                .rotation = {1.0f, 0.0f, 0.0f, 0.0f}},
+            MeshComponent {.meshId = mPrimitives->GetMesh(PrimitiveType::Plane)},
+            MaterialComponent {.materialId = mPrimitives->GetDefaultMaterial()});
+
+        mEcsRegistry->CreateEntity(
+            NameComponent {.name = "Player"},
+            TransformComponent {.position = {0.0f, 0.05f, 0.0f},
+                                .scale    = {0.75f, 0.75f, 0.75f},
+                                .rotation = {1.0f, 0.0f, 0.0f, 0.0f}},
+            MeshComponent {.meshId = mPrimitives->GetMesh(PrimitiveType::Quad)},
+            MaterialComponent {.materialId = mPrimitives->GetDefaultMaterial()});
+
+        constexpr glm::vec3 lookTarget {0.0f, 0.0f, 0.0f};
+        constexpr glm::vec3 cameraPosition {0.0f, 12.0f, 0.01f};
+        const auto          lookAt = makeLookAtTransform(cameraPosition, lookTarget);
+
+        mEditorCamera = EditorCamera {
+            .transform   = lookAt,
+            .fovDegrees  = 40.0f,
+            .nearPlane   = 0.1f,
+            .farPlane    = 1000.0f,
+        };
+
+        mMainCameraEntity = mEcsRegistry->CreateEntity(
+            NameComponent {.name = "Main Camera"}, lookAt,
+            CameraComponent {.fovDegrees = 40.0f,
+                             .nearPlane  = 0.1f,
+                             .farPlane   = 1000.0f,
+                             .primary    = true,
+                             .locked     = true});
+
+        mEcsRegistry->CreateEntity(
+            NameComponent {.name = "Sun"},
+            TransformComponent {.position = {0.0f, 8.0f, 0.0f},
+                                .scale    = {1.0f, 1.0f, 1.0f},
+                                .rotation = glm::quatLookAt(glm::vec3 {0.0f, -1.0f, 0.0f},
+                                                            glm::vec3 {0.0f, 0.0f, 1.0f})},
+            LightComponent {.type      = fra::LightType::Directional,
+                            .color     = {1.0f, 1.0f, 1.0f},
+                            .radius    = 0.0f,
+                            .intensity = 3.0f});
+
+        FlushEcs();
+    }
+
     void Scene::NewScene()
     {
+        NewSceneFromTemplate(SceneTemplate::D3);
+    }
+
+    void Scene::NewSceneFromTemplate(SceneTemplate sceneTemplate)
+    {
         ClearEntities();
-        CreateDefaultEntities();
+        switch(sceneTemplate)
+        {
+        case SceneTemplate::D2:
+            CreateDefaultEntities2D();
+            break;
+        case SceneTemplate::D3:
+        default:
+            CreateDefaultEntities3D();
+            break;
+        }
         mPath.clear();
         PreferEditorCamera();
         ClearRenderIsolation();
-        mLogger->LogInformation("Created new scene");
+        mLogger->LogInformation("Created new scene (template {})",
+                                sceneTemplate == SceneTemplate::D2 ? "2d" : "3d");
     }
 
     bool Scene::SaveScene(const std::filesystem::path &path)

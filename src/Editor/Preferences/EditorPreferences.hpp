@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 /**
  * @brief Serializable editor preferences (Skirnir Configuration::Bind compatible).
@@ -89,9 +90,18 @@ struct EcsPreferences
     std::uint64_t threadCount            = 4;
 };
 
+struct RecentProjectEntry
+{
+    std::string path;
+    std::string name;
+    std::string openedAt;
+};
+
 struct EditorPreferences
 {
     AppearancePreferences appearance;
     GraphicsPreferences   graphics;
     EcsPreferences        ecs;
+    /// Loaded/saved manually (Skirnir Bind does not cover this list).
+    std::vector<RecentProjectEntry> recentProjects;
 };

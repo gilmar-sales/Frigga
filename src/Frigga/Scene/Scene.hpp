@@ -19,6 +19,12 @@ namespace FRIGGA_NAMESPACE
 
     class SceneSerializer;
 
+    enum class SceneTemplate : std::uint8_t
+    {
+        D3 = 0,
+        D2 = 1,
+    };
+
     class Scene
     {
       public:
@@ -32,6 +38,7 @@ namespace FRIGGA_NAMESPACE
         void OnEditorRender(float ts);
 
         void NewScene();
+        void NewSceneFromTemplate(SceneTemplate sceneTemplate);
         bool SaveScene(const std::filesystem::path &path);
         bool SaveScene();
         bool LoadScene(const std::filesystem::path &path);
@@ -147,6 +154,8 @@ namespace FRIGGA_NAMESPACE
 
         void ClearEntities();
         void CreateDefaultEntities();
+        void CreateDefaultEntities3D();
+        void CreateDefaultEntities2D();
         void FlushEcs();
 
         skr::Arc<fr::Registry> mEcsRegistry;

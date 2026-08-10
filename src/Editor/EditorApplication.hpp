@@ -4,6 +4,7 @@
 
 #include <Frigga/Frigga.hpp>
 
+#include "HomeLayer.hpp"
 #include "MainLayer.hpp"
 #include "Panels/HierarchyLayer.hpp"
 #include "Panels/PreferencesLayer.hpp"
@@ -15,6 +16,7 @@ class EditorApplication final: public fg::AbstractApplication
     EditorApplication(const skr::Arc<skr::ServiceProvider> &serviceProvider)
         : AbstractApplication(serviceProvider), mRegistry(serviceProvider->GetService<fr::Registry>())
     {
+        PushLayer(mScope->GetServiceProvider()->GetService<HomeLayer>());
         PushLayer(mScope->GetServiceProvider()->GetService<MainLayer>());
         PushLayer(mScope->GetServiceProvider()->GetService<PreferencesLayer>());
 

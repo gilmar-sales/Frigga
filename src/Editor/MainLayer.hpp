@@ -4,6 +4,8 @@
 #include <Frigga/Scene/Scene.hpp>
 #include <Frigga/Scene/SceneSimulationState.hpp>
 
+#include "Project/ProjectSession.hpp"
+
 #include <filesystem>
 #include <mutex>
 #include <optional>
@@ -17,7 +19,8 @@ class MainLayer: public fg::Layer
 {
   public:
     MainLayer(skr::Arc<fg::Scene> scene, skr::Arc<fg::LayerStack> layerStack,
-              skr::Arc<fra::Window> window, skr::Arc<skr::ServiceProvider> serviceProvider);
+              skr::Arc<fra::Window> window, skr::Arc<skr::ServiceProvider> serviceProvider,
+              skr::Arc<ProjectSession> session);
     ~MainLayer() = default;
 
     void onUpdate() override;
@@ -59,6 +62,7 @@ class MainLayer: public fg::Layer
     skr::Arc<HierarchyLayer> mHierarchy;
     skr::Arc<SelectionContext> mSelection;
     skr::Arc<fg::SceneSimulationState> mSimulation;
+    skr::Arc<ProjectSession> mSession;
 
     std::mutex mDialogMutex;
     PendingSceneAction mPendingAction = PendingSceneAction::None;
