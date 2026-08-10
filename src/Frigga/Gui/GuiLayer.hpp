@@ -14,8 +14,6 @@ namespace FRIGGA_NAMESPACE
         GuiLayer(skr::Arc<skr::ServiceProvider> serviceProvider)
             : fg::Layer("GuiLayer"), mServiceProvider(serviceProvider)
         {
-            mServiceProvider->GetService<fra::Window>()->AddEventPollCallback(
-                [](SDL_Event event) { ImGui_ImplSDL3_ProcessEvent(&event); });
         }
 
         ~GuiLayer() = default;
@@ -39,8 +37,9 @@ namespace FRIGGA_NAMESPACE
       private:
         void configureStyle();
 
-        bool m_blockEvents = true;
-        float m_time       = 0.9f;
+        bool m_blockEvents             = true;
+        bool mEventCallbackRegistered  = false;
+        float m_time                   = 0.9f;
         skr::Arc<skr::ServiceProvider> mServiceProvider;
     };
 

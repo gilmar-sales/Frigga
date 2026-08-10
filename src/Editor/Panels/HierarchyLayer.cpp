@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <cstring>
 #include <format>
 #include <imgui.h>
 #include <sstream>
@@ -677,20 +678,44 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
         mSelection->Select(entity);
     }
 
+    if(!mSimulation->IsPlaying() && ImGui::IsItemHovered() &&
+       ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+    {
+        nodeToRename = entity;
+    }
+
     if(nodeToRename == entity)
     {
         ImGui::SameLine();
 
-        static std::string buffer = std::string("", 64);
-        if(ImGui::IsMouseDown(1))
+        static char buffer[65] {};
+        static fr::Entity bufferEntity = SelectionContext::Invalid;
+        if(bufferEntity != entity)
+        {
+            bufferEntity = entity;
+            buffer[0]    = '\0';
+            mRegistry->TryGetComponents<fg::NameComponent>(
+                entity, [](fg::NameComponent &name) {
+                    std::strncpy(buffer, name.name.c_str(), sizeof(buffer) - 1);
+                    buffer[sizeof(buffer) - 1] = '\0';
+                });
+            ImGui::SetKeyboardFocusHere();
+        }
 
-            ImGui::InputText(renameId.data(), buffer.data(), 65, ImGuiInputTextFlags_AutoSelectAll);
-
-        if(ImGui::IsKeyReleased(ImGuiKey_Enter))
+        const bool committed = ImGui::InputText(
+            renameId.data(), buffer, sizeof(buffer),
+            ImGuiInputTextFlags_AutoSelectAll | ImGuiInputTextFlags_EnterReturnsTrue);
+        if(committed)
         {
             mRegistry->TryGetComponents<fg::NameComponent>(
-                mSelection->Get(), [](fg::NameComponent &name) { name.name = buffer; });
+                entity, [](fg::NameComponent &name) { name.name = buffer; });
             nodeToRename = SelectionContext::Invalid;
+            bufferEntity = SelectionContext::Invalid;
+        }
+        else if(ImGui::IsKeyPressed(ImGuiKey_Escape, false))
+        {
+            nodeToRename = SelectionContext::Invalid;
+            bufferEntity = SelectionContext::Invalid;
         }
     }
 

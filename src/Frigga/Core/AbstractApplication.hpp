@@ -37,10 +37,12 @@ namespace FRIGGA_NAMESPACE
         {
             mScope = mRootServiceProvider->CreateServiceScope();
 
-            PushLayer(mScope->GetServiceProvider()->GetService<GuiLayer>());
+            mGuiLayer = mScope->GetServiceProvider()->GetService<GuiLayer>();
+            PushLayer(mGuiLayer);
         }
 
         skr::Arc<skr::ServiceScope> mScope;
+        skr::Arc<GuiLayer>          mGuiLayer;
     };
 
 } // namespace FRIGGA_NAMESPACE

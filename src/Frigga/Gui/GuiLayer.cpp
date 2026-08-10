@@ -23,7 +23,15 @@ namespace FRIGGA_NAMESPACE
 
         StylePhantomDark();
 
-        auto native_window = mServiceProvider->GetService<fra::Window>()->Get();
+        auto window        = mServiceProvider->GetService<fra::Window>();
+        auto native_window = window->Get();
+
+        if(!mEventCallbackRegistered)
+        {
+            window->AddEventPollCallback(
+                [](SDL_Event event) { ImGui_ImplSDL3_ProcessEvent(&event); });
+            mEventCallbackRegistered = true;
+        }
 
         auto imguiSdl3VulkanInitInfo     = ImGui_ImplVulkan_InitInfo{};
         imguiSdl3VulkanInitInfo.Instance = mServiceProvider->GetService<fra::Instance>()->Get();

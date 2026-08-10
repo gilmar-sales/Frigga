@@ -61,6 +61,6 @@ namespace FRIGGA_NAMESPACE
         services.AddSingleton<fg::Scene>();
         services.AddSingleton<fg::SceneSimulationState>();
         services.AddScoped<fg::LayerStack>();
-        services.AddTransient<fg::GuiLayer>();
+        services.AddSingleton<fg::GuiLayer>();
     }
 } // namespace FRIGGA_NAMESPACE

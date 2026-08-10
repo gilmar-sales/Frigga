@@ -44,7 +44,11 @@ namespace FRIGGA_NAMESPACE
         // open when an offscreen target is bound so ImGui can record into it.
         mRenderer->EndScene();
 
-        auto guiLayer = mScope->GetServiceProvider()->GetService<GuiLayer>();
+        auto guiLayer = mGuiLayer;
+        if(guiLayer == nullptr)
+        {
+            guiLayer = mScope->GetServiceProvider()->GetService<GuiLayer>();
+        }
         guiLayer->begin();
         for(const auto &layer : *layerStack)
         {
