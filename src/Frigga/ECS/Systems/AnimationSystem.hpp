@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Frigga/Animation/AnimationController.hpp"
 #include "Frigga/Asset/AssetRegistry.hpp"
 #include "Frigga/Scene/SceneSimulationState.hpp"
 
@@ -23,7 +24,8 @@ namespace FRIGGA_NAMESPACE
                         const skr::Arc<fra::Renderer> &renderer,
                         const skr::Arc<AssetRegistry> &assets,
                         const skr::Arc<SceneSimulationState> &simulation,
-                        const skr::Arc<fra::FreyaOptions> &options);
+                        const skr::Arc<fra::FreyaOptions> &options,
+                        const skr::Arc<AnimationController> &controller);
 
         ~AnimationSystem() override = default;
 
@@ -60,6 +62,7 @@ namespace FRIGGA_NAMESPACE
         skr::Arc<AssetRegistry> mAssets;
         skr::Arc<SceneSimulationState> mSimulation;
         skr::Arc<fra::FreyaOptions> mOptions;
+        skr::Arc<AnimationController> mController;
 
         std::vector<glm::mat4> mBonePalette;
         std::vector<fra::GpuAnimInstance> mGpuInstances;

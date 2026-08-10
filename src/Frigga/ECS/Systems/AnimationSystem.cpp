@@ -50,9 +50,10 @@ namespace FRIGGA_NAMESPACE
                                      const skr::Arc<fra::Renderer> &renderer,
                                      const skr::Arc<AssetRegistry> &assets,
                                      const skr::Arc<SceneSimulationState> &simulation,
-                                     const skr::Arc<fra::FreyaOptions> &options)
+                                     const skr::Arc<fra::FreyaOptions> &options,
+                                     const skr::Arc<AnimationController> &controller)
         : System(registry), mRenderer(renderer), mAssets(assets), mSimulation(simulation),
-          mOptions(options)
+          mOptions(options), mController(controller)
     {
     }
 
@@ -169,7 +170,7 @@ namespace FRIGGA_NAMESPACE
         }
 
         mRegistry->CreateMutation()->Each<TransformComponent, MeshComponent, AnimatorComponent>(
-            [&](auto, TransformComponent &transform, MeshComponent &,
+            [&](auto entity, TransformComponent &transform, MeshComponent &,
                 AnimatorComponent &animator) {
                 if(animator.modelSource.empty())
                 {
@@ -193,11 +194,31 @@ namespace FRIGGA_NAMESPACE
                     return;
                 }
 
+                auto *runtime = mController ? mController->TryGetRuntime(entity) : nullptr;
+                const bool crossFading = runtime != nullptr && runtime->crossFading;
+
                 const bool allowPreview = editMode && animator.previewInEdit;
-                if(animator.playing && (allowPreview || mSimulation->IsRunning()))
+                const bool ticking =
+                    animator.playing && (allowPreview || mSimulation->IsRunning());
+
+                if(ticking)
                 {
                     AdvanceClipTime(animator.timeSec, clip->duration, deltaTime * animator.speed,
                                     animator.loop);
+                    if(crossFading)
+                    {
+                        const auto *fromClip = resolveClip(*model, runtime->fromClip);
+                        if(fromClip != nullptr)
+                        {
+                            AdvanceClipTime(runtime->fromTimeSec, fromClip->duration,
+                                            deltaTime * animator.speed, animator.loop);
+                        }
+                        runtime->crossFadeElapsed += deltaTime;
+                        if(runtime->crossFadeElapsed >= runtime->crossFadeDuration)
+                        {
+                            runtime->crossFading = false;
+                        }
+                    }
                 }
 
                 const auto jointCount = model->skeleton.JointCount();
@@ -207,8 +228,9 @@ namespace FRIGGA_NAMESPACE
                 animator.boneOffset = boneOffset;
                 animator.boneCount  = jointCount;
 
+                // Cross-fade requires CPU local poses; skip GPU for this actor while blending.
                 const bool useGpuThisActor =
-                    animator.useGpu && gpuModel != nullptr &&
+                    !crossFading && animator.useGpu && gpuModel != nullptr &&
                     model->relativePath == gpuModel->relativePath && gpuPass != nullptr &&
                     jointCount <= fra::GpuAnimPass::kMaxJoints &&
                     mGpuInstances.size() < fra::GpuAnimPass::kMaxInstances;
@@ -233,8 +255,32 @@ namespace FRIGGA_NAMESPACE
                     }
                 }
 
-                const auto skin =
-                    fra::EvaluateSkeletonPose(model->skeleton, *clip, animator.timeSec);
+                std::vector<glm::mat4> skin;
+                if(crossFading)
+                {
+                    const auto *fromClip = resolveClip(*model, runtime->fromClip);
+                    if(fromClip != nullptr && runtime->crossFadeDuration > 0.0f)
+                    {
+                        const float t = std::clamp(
+                            runtime->crossFadeElapsed / runtime->crossFadeDuration, 0.0f, 1.0f);
+                        const auto fromPose =
+                            fra::SampleClip(model->skeleton, *fromClip, runtime->fromTimeSec);
+                        const auto toPose =
+                            fra::SampleClip(model->skeleton, *clip, animator.timeSec);
+                        const auto blended = fra::BlendLocalPoses(fromPose, toPose, t);
+                        skin = fra::PoseToSkinMatrices(model->skeleton, blended);
+                    }
+                    else
+                    {
+                        skin = fra::EvaluateSkeletonPose(model->skeleton, *clip, animator.timeSec);
+                        runtime->crossFading = false;
+                    }
+                }
+                else
+                {
+                    skin = fra::EvaluateSkeletonPose(model->skeleton, *clip, animator.timeSec);
+                }
+
                 std::copy(skin.begin(), skin.end(),
                           mBonePalette.begin() + static_cast<std::ptrdiff_t>(boneOffset));
             });

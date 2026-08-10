@@ -4,6 +4,7 @@
 #include <Freyr/Freyr.hpp>
 #include <Skirnir/Skirnir.hpp>
 
+#include "Frigga/Animation/AnimationController.hpp"
 #include "Frigga/Core/AbstractApplication.hpp"
 
 namespace FRIGGA_NAMESPACE

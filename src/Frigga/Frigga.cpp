@@ -1,5 +1,6 @@
 #include "Frigga.hpp"
 
+#include "Animation/AnimationController.hpp"
 #include "Asset/AssetRegistry.hpp"
 #include "Asset/PrimitiveMeshFactory.hpp"
 #include "Core/LayerStack.hpp"
@@ -55,6 +56,7 @@ namespace FRIGGA_NAMESPACE
     {
         services.AddSingleton<fg::PrimitiveMeshFactory>();
         services.AddSingleton<fg::AssetRegistry>();
+        services.AddSingleton<fg::AnimationController>();
         services.AddSingleton<fg::IPhysicsWorld, fg::JoltPhysicsWorld>();
         services.AddSingleton<fg::Scene>();
         services.AddSingleton<fg::SceneSimulationState>();
