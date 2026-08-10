@@ -387,13 +387,17 @@ void HierarchyLayer::drawGameplayAddComponentMenu(fr::Entity entity)
 
     for(const auto &ops : types)
     {
+        ImGui::PushID(ops.typeId.c_str());
         const bool alreadyHas = ops.has && ops.has(*mRegistry, entity);
         ImGui::BeginDisabled(alreadyHas);
-        if(ImGui::MenuItem(ops.displayName.c_str()))
+        const auto label =
+            ops.fields.empty() ? std::format("{} (tag)", ops.displayName) : ops.displayName;
+        if(ImGui::MenuItem(label.c_str()))
         {
             addUserComponentToEntity(entity, ops.typeId);
         }
         ImGui::EndDisabled();
+        ImGui::PopID();
     }
     ImGui::EndMenu();
 }

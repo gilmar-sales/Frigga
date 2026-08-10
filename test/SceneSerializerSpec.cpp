@@ -446,3 +446,28 @@ TEST_F(SceneSerializerSpec, RoundTrip_UserComponents)
     EXPECT_TRUE(found);
 }
 
+struct SpecEmptyTag: fr::Component
+{
+};
+
+TEST_F(SceneSerializerSpec, Register_EmptyTagComponentAppearsInCatalog)
+{
+    fg::FriRegisterUserComponent<SpecHealth>(*mRegistry, *mUserComponents, "Health");
+    fg::FriRegisterUserComponent<SpecEmptyTag>(*mRegistry, *mUserComponents, "Player");
+
+    const auto types = mUserComponents->GetTypes();
+    ASSERT_EQ(types.size(), 2u);
+    EXPECT_EQ(types[0].typeId, "Health");
+    EXPECT_EQ(types[1].typeId, "Player");
+    EXPECT_TRUE(types[1].fields.empty());
+    EXPECT_TRUE(static_cast<bool>(types[1].addDefault));
+    EXPECT_TRUE(static_cast<bool>(types[1].has));
+
+    const auto entity = mRegistry->CreateEntity(fg::NameComponent {.name = "Tagged"});
+    mRegistry->ExecuteTasks();
+    ASSERT_FALSE(types[1].has(*mRegistry, entity));
+    types[1].addDefault(*mRegistry, entity);
+    mRegistry->ExecuteTasks();
+    EXPECT_TRUE(types[1].has(*mRegistry, entity));
+}
+

@@ -578,7 +578,18 @@ bool ProjectSession::ReloadPlugin()
     }
 
     std::lock_guard lock(mMutex);
-    mStatusMessage = "Loaded plugin " + lib.filename().string();
+    const auto typeIds = mPluginHost->GetRegisteredTypeIds();
+    std::string listed;
+    for(const auto &id : typeIds)
+    {
+        if(!listed.empty())
+        {
+            listed += ", ";
+        }
+        listed += id;
+    }
+    mStatusMessage = "Loaded plugin " + lib.filename().string() + " | components: " +
+                     (listed.empty() ? "(none)" : listed);
     return true;
 }
 

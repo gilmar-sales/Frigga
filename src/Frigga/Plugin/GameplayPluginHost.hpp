@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <mutex>
 #include <string>
+#include <vector>
 
 namespace FRIGGA_NAMESPACE
 {
@@ -37,6 +38,8 @@ namespace FRIGGA_NAMESPACE
         {
             return mLastError;
         }
+        /// TypeIds registered by the last successful attach (e.g. "Health, Player").
+        [[nodiscard]] std::vector<std::string> GetRegisteredTypeIds() const;
 
         /// Unload any previous plugin, then load @p libraryPath.
         bool Load(const std::filesystem::path &libraryPath);

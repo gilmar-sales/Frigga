@@ -81,6 +81,20 @@ namespace FRIGGA_NAMESPACE
         return mPlugin != nullptr && mApi != nullptr;
     }
 
+    std::vector<std::string> GameplayPluginHost::GetRegisteredTypeIds() const
+    {
+        std::vector<std::string> ids;
+        if(!mUserComponents)
+        {
+            return ids;
+        }
+        for(const auto &ops : mUserComponents->GetTypes())
+        {
+            ids.push_back(ops.typeId);
+        }
+        return ids;
+    }
+
     bool GameplayPluginHost::Load(const std::filesystem::path &libraryPath)
     {
         std::lock_guard lock(mMutex);
@@ -203,6 +217,20 @@ namespace FRIGGA_NAMESPACE
                       .user_components  = mUserComponents.get()};
         mApi->on_attach(mPlugin, &host);
         mAttached = true;
+
+        const auto types = mUserComponents->GetTypes();
+        std::string registered;
+        for(const auto &ops : types)
+        {
+            if(!registered.empty())
+            {
+                registered += ", ";
+            }
+            registered += ops.typeId;
+        }
+        mLogger->LogInformation("Gameplay plugin registered {} user component(s): {}",
+                                types.size(),
+                                registered.empty() ? "(none)" : registered);
     }
 
     void GameplayPluginHost::detachUnlocked()
