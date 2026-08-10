@@ -246,8 +246,7 @@ void ProjectSession::Poll()
         {
             mBuildPhase.store(PluginBuildPhase::Succeeded, std::memory_order_release);
             mBuildProgress.store(1.0f, std::memory_order_release);
-            std::lock_guard lock(mMutex);
-            mStatusMessage = "Plugin build succeeded";
+            // ReloadPlugin already set mStatusMessage with the registered type list.
         }
         else
         {

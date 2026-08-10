@@ -6,6 +6,7 @@
 #include <Freyr/Freyr.hpp>
 #include <Skirnir/Skirnir.hpp>
 
+#include <cstdint>
 #include <filesystem>
 #include <mutex>
 #include <string>
@@ -62,10 +63,13 @@ namespace FRIGGA_NAMESPACE
 
         mutable std::mutex mMutex;
         std::filesystem::path mLibraryPath;
-        void *mHandle              = nullptr;
-        const FriPluginApi *mApi   = nullptr;
-        FriPlugin *mPlugin         = nullptr;
-        bool mAttached             = false;
+        /// Unique copy actually passed to dlopen (avoids stale-inode hot-reload).
+        std::filesystem::path mStagedLibraryPath;
+        void *mHandle            = nullptr;
+        const FriPluginApi *mApi = nullptr;
+        FriPlugin *mPlugin       = nullptr;
+        bool mAttached           = false;
+        std::uint64_t mLoadGeneration = 0;
         std::string mLastError;
         UserComponentWorldSnapshot mPendingRestore {};
     };

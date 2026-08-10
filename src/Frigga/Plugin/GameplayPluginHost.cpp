@@ -1,5 +1,8 @@
 #include "GameplayPluginHost.hpp"
 
+#include <chrono>
+#include <system_error>
+
 #ifdef _WIN32
 #    define WIN32_LEAN_AND_MEAN
 #    include <windows.h>
@@ -38,7 +41,11 @@ namespace FRIGGA_NAMESPACE
 #else
         void *OpenLibrary(const char *path)
         {
-        return dlopen(path, RTLD_NOW | RTLD_GLOBAL);
+            // RTLD_LOCAL: keep plugin symbols out of the global namespace so subsequent
+            // plugins (and Freyr unique symbols) do not pin one another forever.
+            // Unique path staging (below) is still required because STB_GNU_UNIQUE
+            // symbols inside a single .so routinely prevent true dlclose unload.
+            return dlopen(path, RTLD_NOW | RTLD_LOCAL);
         }
 
         void CloseLibrary(void *handle)
@@ -60,6 +67,58 @@ namespace FRIGGA_NAMESPACE
             return err ? err : "dlopen/dlsym failed";
         }
 #endif
+
+        [[nodiscard]] std::filesystem::path
+        MakeStagedLibraryPath(const std::filesystem::path &source, std::uint64_t generation)
+        {
+            const auto stamp =
+                std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    std::chrono::steady_clock::now().time_since_epoch())
+                    .count();
+            auto staged = source;
+            staged += ".reload-" + std::to_string(generation) + "-" + std::to_string(stamp);
+            return staged;
+        }
+
+        void RemoveFileQuietly(const std::filesystem::path &path)
+        {
+            if(path.empty())
+            {
+                return;
+            }
+            std::error_code ec;
+            std::filesystem::remove(path, ec);
+        }
+
+        /// Best-effort GC of previous staged copies that failed to delete while unique-pinned.
+        void CleanupStaleStagedCopies(const std::filesystem::path &source,
+                                      const std::filesystem::path &keep)
+        {
+            const auto parent = source.parent_path();
+            const auto prefix = source.filename().string() + ".reload-";
+            std::error_code ec;
+            if(!std::filesystem::exists(parent, ec))
+            {
+                return;
+            }
+            for(const auto &entry : std::filesystem::directory_iterator(parent, ec))
+            {
+                if(ec || !entry.is_regular_file(ec))
+                {
+                    continue;
+                }
+                const auto name = entry.path().filename().string();
+                if(!name.starts_with(prefix))
+                {
+                    continue;
+                }
+                if(!keep.empty() && entry.path() == keep)
+                {
+                    continue;
+                }
+                RemoveFileQuietly(entry.path());
+            }
+        }
     } // namespace
 
     GameplayPluginHost::GameplayPluginHost(
@@ -142,11 +201,29 @@ namespace FRIGGA_NAMESPACE
         }
 
         const auto absolute = std::filesystem::weakly_canonical(libraryPath);
-        mHandle             = OpenLibrary(absolute.string().c_str());
+
+        // Always dlopen a unique copy. Linux often keeps the previous DSO mapped
+        // (STB_GNU_UNIQUE Freyr component ids), so reopening the same path keeps
+        // running stale OnAttach / systems after a rebuild.
+        const auto staged = MakeStagedLibraryPath(absolute, ++mLoadGeneration);
+        {
+            std::error_code ec;
+            std::filesystem::copy_file(absolute, staged,
+                                       std::filesystem::copy_options::overwrite_existing, ec);
+            if(ec)
+            {
+                mLastError = "Failed to stage plugin for reload: " + ec.message();
+                mLogger->LogError("{} ({})", mLastError, staged.string());
+                return false;
+            }
+        }
+
+        mHandle = OpenLibrary(staged.string().c_str());
         if(!mHandle)
         {
             mLastError = LastDlError();
-            mLogger->LogError("Failed to load plugin {}: {}", absolute.string(), mLastError);
+            mLogger->LogError("Failed to load plugin {}: {}", staged.string(), mLastError);
+            RemoveFileQuietly(staged);
             return false;
         }
 
@@ -158,6 +235,7 @@ namespace FRIGGA_NAMESPACE
             mLogger->LogError("{}", mLastError);
             CloseLibrary(mHandle);
             mHandle = nullptr;
+            RemoveFileQuietly(staged);
             return false;
         }
 
@@ -170,6 +248,7 @@ namespace FRIGGA_NAMESPACE
             CloseLibrary(mHandle);
             mHandle = nullptr;
             mApi    = nullptr;
+            RemoveFileQuietly(staged);
             return false;
         }
 
@@ -181,12 +260,16 @@ namespace FRIGGA_NAMESPACE
             CloseLibrary(mHandle);
             mHandle = nullptr;
             mApi    = nullptr;
+            RemoveFileQuietly(staged);
             return false;
         }
 
-        mLibraryPath = absolute;
+        mLibraryPath       = absolute;
+        mStagedLibraryPath = staged;
+        CleanupStaleStagedCopies(absolute, staged);
         attachUnlocked();
-        mLogger->LogInformation("Loaded gameplay plugin {}", absolute.string());
+        mLogger->LogInformation("Loaded gameplay plugin {} (staged {})", absolute.string(),
+                                staged.filename().string());
         return true;
     }
 
@@ -204,6 +287,11 @@ namespace FRIGGA_NAMESPACE
             CloseLibrary(mHandle);
             mHandle = nullptr;
         }
+
+        // Best-effort: often fails while STB_GNU_UNIQUE keeps the inode mapped.
+        RemoveFileQuietly(mStagedLibraryPath);
+        mStagedLibraryPath.clear();
+
         if(!preserveUserComponents)
         {
             mPendingRestore = {};
@@ -217,8 +305,8 @@ namespace FRIGGA_NAMESPACE
             return;
         }
 
-        FriHost host {.registry         = mRegistry.get(),
-                      .user_components  = mUserComponents.get()};
+        FriHost host {.registry        = mRegistry.get(),
+                      .user_components = mUserComponents.get()};
         mApi->on_attach(mPlugin, &host);
         mAttached = true;
 
@@ -238,8 +326,7 @@ namespace FRIGGA_NAMESPACE
 
         if(!mPendingRestore.entries.empty())
         {
-            const auto restored =
-                mUserComponents->RestoreAll(*mRegistry, mPendingRestore);
+            const auto restored = mUserComponents->RestoreAll(*mRegistry, mPendingRestore);
             mLogger->LogInformation(
                 "Restored {} gameplay component instance(s) after plugin load", restored);
             mPendingRestore = {};
