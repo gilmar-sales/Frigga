@@ -5,6 +5,7 @@
 #include <Frigga/ECS/Components/RigidBodyComponent.hpp>
 #include <Frigga/ECS/Components/TransformComponent.hpp>
 #include <Frigga/Physics/IPhysicsWorld.hpp>
+#include <Frigga/Physics/JoltPhysicsWorld.hpp>
 #include <Frigga/Physics/Physics.hpp>
 
 #include <Freyr/Freyr.hpp>
@@ -328,4 +329,34 @@ TEST(PhysicsFacade, MoveCharacterForwardsVelocity)
     EXPECT_FLOAT_EQ(velocity.x, 2.0f);
     EXPECT_FLOAT_EQ(velocity.y, 0.0f);
     EXPECT_FLOAT_EQ(velocity.z, -1.0f);
+}
+
+TEST(JoltCharacter, StepAppliesGravityToCharacterVelocity)
+{
+    auto world = skr::MakeArc<fg::JoltPhysicsWorld>();
+    // Static floor under the character origin.
+    fg::PhysicsBodyDesc floor {};
+    floor.motion          = fg::BodyMotionType::Static;
+    floor.shape           = fg::ColliderShape::Box;
+    floor.position        = {0.0f, -0.5f, 0.0f};
+    floor.halfExtents     = {10.0f, 0.5f, 10.0f};
+    floor.collisionLayer  = 0;
+    ASSERT_TRUE(world->CreateBody(floor).IsValid());
+
+    fg::PhysicsCharacterDesc desc {};
+    desc.position         = {0.0f, 2.0f, 0.0f};
+    desc.collisionLayer   = 1;
+    const auto character  = world->CreateCharacter(desc);
+    ASSERT_TRUE(character.IsValid());
+
+    world->SetCharacterVelocity(character, {0.0f, 0.0f, 0.0f});
+    world->StepFixed(10);
+
+    const auto velocity = world->GetCharacterVelocity(character);
+    EXPECT_LT(velocity.y, -0.5f) << "character should be falling under gravity";
+
+    glm::vec3 position {};
+    glm::quat rotation {};
+    world->GetCharacterTransform(character, position, rotation);
+    EXPECT_LT(position.y, 2.0f) << "character should move downward";
 }
