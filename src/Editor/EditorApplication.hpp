@@ -10,6 +10,7 @@
 #include "HomeLayer.hpp"
 #include "MainLayer.hpp"
 #include "Panels/HierarchyLayer.hpp"
+#include "Panels/InputMapLayer.hpp"
 #include "Panels/PreferencesLayer.hpp"
 #include "Panels/ResourcesLayer.hpp"
 
@@ -26,6 +27,7 @@ class EditorApplication final: public fg::AbstractApplication
         PushLayer(mScope->GetServiceProvider()->GetService<HomeLayer>());
         PushLayer(mScope->GetServiceProvider()->GetService<MainLayer>());
         PushLayer(mScope->GetServiceProvider()->GetService<PreferencesLayer>());
+        PushLayer(mScope->GetServiceProvider()->GetService<InputMapLayer>());
 
         EditorUiScale::Sync(mWindow->GetScale());
 

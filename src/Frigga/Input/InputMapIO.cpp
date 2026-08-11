@@ -219,6 +219,47 @@ namespace FRIGGA_NAMESPACE
         return ReverseLookup(GamepadAxisTable(), axis);
     }
 
+    std::span<const std::string_view> KnownKeyNames()
+    {
+        static constexpr std::string_view names[] = {
+            "A",         "B",         "C",         "D",         "E",         "F",
+            "G",         "H",         "I",         "J",         "K",         "L",
+            "M",         "N",         "O",         "P",         "Q",         "R",
+            "S",         "T",         "U",         "V",         "W",         "X",
+            "Y",         "Z",         "Space",     "Return",    "Escape",    "Tab",
+            "Backspace", "Left",      "Right",     "Up",        "Down",      "LShift",
+            "RShift",    "LCtrl",     "RCtrl",     "LAlt",      "RAlt",
+        };
+        return names;
+    }
+
+    std::span<const std::string_view> KnownMouseButtonNames()
+    {
+        static constexpr std::string_view names[] = {
+            "Left", "Middle", "Right", "Button4", "Button5",
+        };
+        return names;
+    }
+
+    std::span<const std::string_view> KnownGamepadButtonNames()
+    {
+        static constexpr std::string_view names[] = {
+            "South",         "East",          "West",           "North",
+            "Back",          "Guide",         "Start",          "LeftStick",
+            "RightStick",    "LeftShoulder",  "RightShoulder",  "DpadUp",
+            "DpadDown",      "DpadLeft",      "DpadRight",
+        };
+        return names;
+    }
+
+    std::span<const std::string_view> KnownGamepadAxisNames()
+    {
+        static constexpr std::string_view names[] = {
+            "LeftX", "LeftY", "RightX", "RightY", "LeftTrigger", "RightTrigger",
+        };
+        return names;
+    }
+
     std::string SerializeInputMap(const InputMap &map)
     {
         std::ostringstream out;

@@ -3,6 +3,7 @@
 #include "BoostrapIconsFont.hpp"
 #include "DockLayout.hpp"
 #include "Panels/HierarchyLayer.hpp"
+#include "Panels/InputMapLayer.hpp"
 #include "Panels/PreferencesLayer.hpp"
 #include "SelectionContext.hpp"
 #include "Workflows/AnimationWorkflow.hpp"
@@ -458,6 +459,17 @@ void MainLayer::drawMenuBar()
             {
                 mWindow->Close();
             }
+            ImGui::EndMenu();
+        }
+
+        if(ImGui::BeginMenu("Project"))
+        {
+            ImGui::BeginDisabled(!mSession->HasProject());
+            if(ImGui::MenuItem(ICON_BTSP_CONTROLLER " Input Map..."))
+            {
+                InputMapLayer::IsOpen = true;
+            }
+            ImGui::EndDisabled();
             ImGui::EndMenu();
         }
 

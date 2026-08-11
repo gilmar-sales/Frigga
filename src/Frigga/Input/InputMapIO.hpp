@@ -4,6 +4,7 @@
 
 #include <filesystem>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 
@@ -19,6 +20,12 @@ namespace FRIGGA_NAMESPACE
     [[nodiscard]] std::string_view MouseButtonName(fra::MouseButton button);
     [[nodiscard]] std::string_view GamepadButtonName(fra::GamepadButton button);
     [[nodiscard]] std::string_view GamepadAxisName(fra::GamepadAxis axis);
+
+    /// Ordered labels for editor combos (same tokens as JSON).
+    [[nodiscard]] std::span<const std::string_view> KnownKeyNames();
+    [[nodiscard]] std::span<const std::string_view> KnownMouseButtonNames();
+    [[nodiscard]] std::span<const std::string_view> KnownGamepadButtonNames();
+    [[nodiscard]] std::span<const std::string_view> KnownGamepadAxisNames();
 
     [[nodiscard]] std::string SerializeInputMap(const InputMap &map);
     [[nodiscard]] bool ParseInputMap(std::string_view json, InputMap &out, std::string *error = nullptr);
