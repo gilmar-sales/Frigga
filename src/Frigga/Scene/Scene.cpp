@@ -6,6 +6,7 @@
 #include "Frigga/ECS/Components/MaterialComponent.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/NameComponent.hpp"
+#include "Frigga/ECS/Components/RigidBodyComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/Scene/SceneSerializer.hpp"
 
@@ -79,9 +80,23 @@ namespace FRIGGA_NAMESPACE
     void Scene::CreateDefaultEntities3D()
     {
         mEcsRegistry->CreateEntity(
-            NameComponent {.name = "Cube"}, TransformComponent {},
+            NameComponent {.name = "Ground"},
+            TransformComponent {.position = {0.0f, -0.1f, 0.0f},
+                                .scale    = {20.0f, 0.2f, 20.0f},
+                                .rotation = {1.0f, 0.0f, 0.0f, 0.0f}},
             MeshComponent {.meshId = mPrimitives->GetMesh(PrimitiveType::Cube)},
-            MaterialComponent {.materialId = mPrimitives->GetDefaultMaterial()});
+            MaterialComponent {.materialId = mPrimitives->GetDefaultMaterial()},
+            RigidBodyComponent {.motion         = BodyMotionType::Static,
+                                .shape          = ColliderShape::Box,
+                                .halfExtents    = {0.5f, 0.5f, 0.5f},
+                                .collisionLayer = 0});
+
+        mEcsRegistry->CreateEntity(
+            NameComponent {.name = "Cube"},
+            TransformComponent {.position = {0.0f, 0.5f, 0.0f}},
+            MeshComponent {.meshId = mPrimitives->GetMesh(PrimitiveType::Cube)},
+            MaterialComponent {.materialId = mPrimitives->GetDefaultMaterial()},
+            RigidBodyComponent {.motion = BodyMotionType::Dynamic, .collisionLayer = 1});
 
         mEcsRegistry->CreateEntity(
             NameComponent {.name = "Player"},
@@ -132,15 +147,19 @@ namespace FRIGGA_NAMESPACE
         // Top-down gameplay plane (XZ). Perspective camera; treat XZ as the 2D plane.
         mEcsRegistry->CreateEntity(
             NameComponent {.name = "Ground"},
-            TransformComponent {.position = {0.0f, 0.0f, 0.0f},
-                                .scale    = {8.0f, 1.0f, 8.0f},
+            TransformComponent {.position = {0.0f, -0.05f, 0.0f},
+                                .scale    = {8.0f, 0.1f, 8.0f},
                                 .rotation = {1.0f, 0.0f, 0.0f, 0.0f}},
-            MeshComponent {.meshId = mPrimitives->GetMesh(PrimitiveType::Plane)},
-            MaterialComponent {.materialId = mPrimitives->GetDefaultMaterial()});
+            MeshComponent {.meshId = mPrimitives->GetMesh(PrimitiveType::Cube)},
+            MaterialComponent {.materialId = mPrimitives->GetDefaultMaterial()},
+            RigidBodyComponent {.motion         = BodyMotionType::Static,
+                                .shape          = ColliderShape::Box,
+                                .halfExtents    = {0.5f, 0.5f, 0.5f},
+                                .collisionLayer = 0});
 
         mEcsRegistry->CreateEntity(
             NameComponent {.name = "Player"},
-            TransformComponent {.position = {0.0f, 0.05f, 0.0f},
+            TransformComponent {.position = {0.0f, 0.0f, 0.0f},
                                 .scale    = {0.75f, 0.75f, 0.75f},
                                 .rotation = {1.0f, 0.0f, 0.0f, 0.0f}},
             MeshComponent {.meshId = mPrimitives->GetMesh(PrimitiveType::Quad)},

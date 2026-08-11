@@ -189,12 +189,14 @@ void GameplaySystem::Update(float deltaTime)
             }
 
             glm::vec3 desired {horizontal * speed, 0.0f, -vertical * speed};
-            if(jump && mPhysics->IsCharacterGrounded(entity))
+            const bool grounded = mPhysics->IsCharacterGrounded(entity);
+            if(jump && grounded)
             {
                 desired.y = jumpSpeed;
             }
-            else
+            else if(!grounded)
             {
+                // Preserve vertical; world step integrates gravity each tick.
                 desired.y = mPhysics->GetCharacterVelocity(entity).y;
             }
             mPhysics->MoveCharacter(entity, desired);

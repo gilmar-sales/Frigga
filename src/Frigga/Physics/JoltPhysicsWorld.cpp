@@ -273,6 +273,8 @@ namespace FRIGGA_NAMESPACE
     {
         using namespace JPH;
 
+        const Vec3 worldGravity = mImpl->physicsSystem.GetGravity();
+
         for(auto &[id, entry] : mImpl->characters)
         {
             if(entry.character == nullptr)
@@ -280,11 +282,15 @@ namespace FRIGGA_NAMESPACE
                 continue;
             }
 
+            // CharacterVirtual does not integrate freefall gravity; callers must.
+            // inGravity on ExtendedUpdate only pushes down onto supporting bodies.
+            Vec3 velocity = entry.character->GetLinearVelocity();
+            velocity += worldGravity * kFixedDeltaTime;
+            entry.character->SetLinearVelocity(velocity);
+
             CharacterVirtual::ExtendedUpdateSettings updateSettings;
-            const Vec3 gravity =
-                -entry.character->GetUp() * mImpl->physicsSystem.GetGravity().Length();
             entry.character->ExtendedUpdate(
-                kFixedDeltaTime, gravity, updateSettings,
+                kFixedDeltaTime, worldGravity, updateSettings,
                 mImpl->physicsSystem.GetDefaultBroadPhaseLayerFilter(entry.layer),
                 mImpl->physicsSystem.GetDefaultLayerFilter(entry.layer), {}, {},
                 mImpl->tempAllocator);
