@@ -6,6 +6,7 @@ import {
   readTextFile,
   writeTextFile,
 } from "./project";
+import { insertFluentCall, pathExistsUri } from "./pluginModuleEdit";
 
 function componentHeader(name: string, emptyTag: boolean): string {
   if (emptyTag) {
@@ -46,52 +47,15 @@ function ensureInclude(source: string, includeLine: string): string {
     return source.slice(0, insertAt) + includeLine + "\n" + source.slice(insertAt);
   }
 
-  const userComponents = '#include <frigga_user_components.hpp>';
-  const idx = source.indexOf(userComponents);
+  const moduleInclude = "#include <Frigga/Plugin/FriPluginModule.hpp>";
+  const idx = source.indexOf(moduleInclude);
   if (idx >= 0) {
-    const insertAt = idx + userComponents.length;
     return (
-      source.slice(0, insertAt) +
-      "\n\n" +
-      includeLine +
-      source.slice(insertAt)
+      source.slice(0, idx) + includeLine + "\n" + source.slice(idx)
     );
   }
 
   return includeLine + "\n" + source;
-}
-
-function ensureRegistration(source: string, typeName: string): string {
-  const call = `FriRegisterUserComponent<${typeName}>(*registry, *userComponents, "${typeName}");`;
-  if (source.includes(`FriRegisterUserComponent<${typeName}>`)) {
-    return source;
-  }
-
-  const registerRe = /FriRegisterUserComponent<[^>]+>\(\*registry,\s*\*userComponents,\s*"[^"]*"\);/g;
-  let lastMatch: RegExpExecArray | null = null;
-  let match: RegExpExecArray | null;
-  while ((match = registerRe.exec(source)) !== null) {
-    lastMatch = match;
-  }
-  if (lastMatch) {
-    const insertAt = lastMatch.index + lastMatch[0].length;
-    return source.slice(0, insertAt) + "\n        " + call + source.slice(insertAt);
-  }
-
-  const systemCreate = /plugin->system\s*=\s*std::make_unique<GameplaySystem>\(registry\);/;
-  const createMatch = systemCreate.exec(source);
-  if (createMatch) {
-    return (
-      source.slice(0, createMatch.index) +
-      call +
-      "\n        " +
-      source.slice(createMatch.index)
-    );
-  }
-
-  throw new Error(
-    "Could not find FriRegisterUserComponent / GameplaySystem creation in GameplayPlugin.cpp"
-  );
 }
 
 export async function createGameplayComponent(
@@ -149,21 +113,18 @@ export async function createGameplayComponent(
   await writeTextFile(headerUri, componentHeader(typeName, kind.empty));
 
   let plugin = await readTextFile(pluginUri);
-  plugin = ensureInclude(plugin, `#include "Components/${typeName}.hpp"`);
-  plugin = ensureRegistration(plugin, typeName);
+  try {
+    plugin = ensureInclude(plugin, `#include "Components/${typeName}.hpp"`);
+    plugin = insertFluentCall(plugin, `.Component<${typeName}>()`, "Component");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    vscode.window.showErrorMessage(message);
+    return;
+  }
   await writeTextFile(pluginUri, plugin);
 
   await openDocument(headerUri);
   vscode.window.showInformationMessage(
-    `Created ${typeName}. Registered in GameplayPlugin.cpp — rebuild & reload the plugin.`
+    `Created ${typeName}. Registered in FRI_PLUGIN_MODULE — rebuild & reload the plugin.`
   );
-}
-
-async function pathExistsUri(uri: vscode.Uri): Promise<boolean> {
-  try {
-    await vscode.workspace.fs.stat(uri);
-    return true;
-  } catch {
-    return false;
-  }
 }

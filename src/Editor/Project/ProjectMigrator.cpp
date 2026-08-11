@@ -84,6 +84,7 @@ ProjectMigrationResult ProjectMigrator::Migrate(const std::filesystem::path &pro
     // v3 → v4: Health : fr::Component + FriRegister(registry, catalog) + Freyr Mutatons
     // v4 → v5: GameplaySystem : fr::System + late host DI registration
     // v5 → v6: register GameplaySystem on Simulation pipeline (Play-only)
+    // v6 → v7: FRI_PLUGIN_MODULE fluent Component/System/Singleton/Scoped/Transient
     std::string stepError;
     if(!ApplyManagedLayout(projectFile.parent_path(), desc, stepError))
     {
@@ -107,7 +108,7 @@ ProjectMigrationResult ProjectMigrator::Migrate(const std::filesystem::path &pro
     else
     {
         msg << "Migrated project format v" << result.fromVersion << " → v" << result.toVersion
-            << " (Freyr gameplay systems via host DI, CMake C++26, plugin header)";
+            << " (FRI_PLUGIN_MODULE, Freyr Simulation pipeline, CMake C++26)";
     }
     msg << ". Rebuild the gameplay plugin.";
     result.message = msg.str();

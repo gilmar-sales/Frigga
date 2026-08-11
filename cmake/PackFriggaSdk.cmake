@@ -35,8 +35,11 @@ file(MAKE_DIRECTORY "${FRIGGA_SDK_DIR}/_deps/glm-src")
 
 file(COPY "${CMAKE_SOURCE_DIR}/src/Frigga/Macro.hpp"
      DESTINATION "${FRIGGA_SDK_DIR}/src/Frigga")
-file(COPY "${CMAKE_SOURCE_DIR}/src/Frigga/Plugin/frigga_plugin.h"
-     DESTINATION "${FRIGGA_SDK_DIR}/src/Frigga/Plugin")
+file(COPY "${CMAKE_SOURCE_DIR}/src/Frigga/Plugin"
+     DESTINATION "${FRIGGA_SDK_DIR}/src/Frigga"
+     FILES_MATCHING
+        PATTERN "*.hpp"
+        PATTERN "*.h")
 file(COPY "${CMAKE_SOURCE_DIR}/src/Frigga/ECS"
      DESTINATION "${FRIGGA_SDK_DIR}/src/Frigga"
      FILES_MATCHING

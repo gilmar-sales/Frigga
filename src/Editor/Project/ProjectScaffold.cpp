@@ -164,99 +164,12 @@ void GameplaySystem::Update(float deltaTime)
 #include "GameplaySystem.hpp"
 #include "Components/Health.hpp"
 
-#include <frigga_plugin.h>
-#include <frigga_user_components.hpp>
+#include <Frigga/Plugin/FriPluginModule.hpp>
 
-#include <Freyr/Core/SystemManager.hpp>
-#include <Freyr/Freyr.hpp>
-#include <Skirnir/Skirnir.hpp>
-
-struct FriPlugin
+FRI_PLUGIN_MODULE(plugin)
 {
-    fr::SystemManager *systemManager     = nullptr;
-    skr::ServiceProvider *services       = nullptr;
-    bool gameplaySystemRegistered        = false;
-};
-
-namespace
-{
-    FriPlugin *CreatePlugin()
-    {
-        return new FriPlugin();
-    }
-
-    void DestroyPlugin(FriPlugin *plugin)
-    {
-        delete plugin;
-    }
-
-    void OnAttach(FriPlugin *plugin, const FriHost *host)
-    {
-        if(!plugin || !host || !host->registry || !host->user_components ||
-           !host->system_manager || !host->services)
-        {
-            return;
-        }
-
-        auto *registry = static_cast<fr::Registry *>(host->registry);
-        auto *userComponents =
-            static_cast<fg::UserComponentRegistry *>(host->user_components);
-        plugin->systemManager = static_cast<fr::SystemManager *>(host->system_manager);
-        plugin->services      = static_cast<skr::ServiceProvider *>(host->services);
-
-        FriRegisterUserComponent<Health>(*registry, *userComponents, "Health");
-
-        plugin->services->AddSingleton<GameplaySystem>();
-        const auto pipelineId = plugin->systemManager->FindPipelineId("Simulation");
-        if(!pipelineId)
-        {
-            plugin->services->Remove<GameplaySystem>();
-            plugin->systemManager = nullptr;
-            plugin->services      = nullptr;
-            return;
-        }
-
-        plugin->systemManager->RegisterSystem<GameplaySystem>(*pipelineId);
-        plugin->gameplaySystemRegistered = true;
-    }
-
-    void OnDetach(FriPlugin *plugin)
-    {
-        if(!plugin)
-        {
-            return;
-        }
-
-        if(plugin->gameplaySystemRegistered && plugin->systemManager)
-        {
-            (void)plugin->systemManager->UnregisterSystem<GameplaySystem>();
-            plugin->gameplaySystemRegistered = false;
-        }
-        if(plugin->services)
-        {
-            (void)plugin->services->Remove<GameplaySystem>();
-        }
-        plugin->systemManager = nullptr;
-        plugin->services      = nullptr;
-    }
-
-    void OnUpdate(FriPlugin *, float)
-    {
-        // Gameplay logic runs through Freyr SystemManager (GameplaySystem::Update).
-    }
-
-    const FriPluginApi kApi {
-        .create     = CreatePlugin,
-        .destroy    = DestroyPlugin,
-        .on_attach  = OnAttach,
-        .on_detach  = OnDetach,
-        .on_update  = OnUpdate,
-    };
-} // namespace
-
-extern "C" FRI_PLUGIN_API const FriPluginApi *fri_plugin_api(void)
-{
-    return &kApi;
+    plugin.Component<Health>()
+          .System<GameplaySystem>();
 }
 )cpp";
     }
@@ -267,12 +180,11 @@ extern "C" FRI_PLUGIN_API const FriPluginApi *fri_plugin_api(void)
 
 /**
  * Convenience aliases for project Freyr gameplay components.
- * Types must inherit fr::Component and be registered with FriRegisterUserComponent.
+ * Register types with FRI_PLUGIN_MODULE: plugin.Component<T>().
  */
 
 #include <Frigga/ECS/UserComponentReflection.hpp>
 
-using fg::FriRegisterUserComponent;
 using fg::FriSet;
 using fg::FriTryGet;
 )cpp";
@@ -301,25 +213,24 @@ struct Health: fr::Component
         out << "## Layout\n\n";
         out << "- `frigga.project` — project metadata\n";
         out << "- `scenes/main.json` — default scene\n";
-        out << "- `src/GameplaySystem.*` — Freyr system (registered on the host via DI)\n";
-        out << "- `src/GameplayPlugin.cpp` — C ABI entry for the Editor\n";
+        out << "- `src/GameplaySystem.*` — Freyr system (registered via FRI_PLUGIN_MODULE)\n";
+        out << "- `src/GameplayPlugin.cpp` — FRI_PLUGIN_MODULE entry for the Editor\n";
         out << "- `src/Components/` — project POD components (example: Health)\n";
-        out << "- `include/frigga_user_components.hpp` — FriRegister / FriTryGet / FriSet\n\n";
+        out << "- `include/frigga_user_components.hpp` — FriSet / FriTryGet helpers\n\n";
         out << "## Project components\n\n";
         out << "1. Declare `struct Foo : fr::Component { float x; };`\n";
-        out << "2. In `on_attach`: "
-               "`FriRegisterUserComponent<Foo>(*registry, *userComponents, \"Foo\");`\n";
+        out << "2. In `FRI_PLUGIN_MODULE`: `plugin.Component<Foo>()`\n";
         out << "3. Build + **Reload Gameplay Plugin**.\n";
         out << "4. In the Editor: Entity → Add Component → Gameplay → Foo.\n";
-        out << "5. In `GameplaySystem::Update`: `CreateMutation()->Each<Foo>(...)` "
-               "(runs in the Freyr **Simulation** pipeline — Play mode only).\n\n";
+        out << "5. In a Freyr `System::Update`: `CreateMutation()->Each<Foo>(...)` "
+               "(Simulation pipeline — Play mode only).\n\n";
         out << "## Gameplay systems\n\n";
-        out << "`GameplaySystem` inherits `fr::System` and is registered in `on_attach` with:\n";
-        out << "`services->AddSingleton<GameplaySystem>()` then "
-               "`systemManager->RegisterSystem<GameplaySystem>(...)` on **Simulation**.\n";
-        out << "Detach must `UnregisterSystem` + `Remove` before the plugin unloads.\n";
-        out << "The Editor disables the Simulation pipeline while editing "
-               "(Physics + gameplay); Animation/Render keep running on **Main**.\n\n";
+        out << "Inherit `fr::System` and register with `plugin.System<MySystem>()` "
+               "(defaults to the **Simulation** pipeline).\n";
+        out << "Optional DI: `plugin.Singleton<T>()`, `.Scoped<T>()`, `.Transient<T>()`.\n";
+        out << "Detach unregisters automatically when the plugin unloads.\n";
+        out << "Edit mode disables Simulation (physics + gameplay); Animation/Render stay on "
+               "**Main**.\n\n";
         out << "## Build the plugin\n\n";
         out << "Requires a **C++26** compiler with reflection (GCC 16+ or Clang 22+), "
                "same as Frigga.\n\n";

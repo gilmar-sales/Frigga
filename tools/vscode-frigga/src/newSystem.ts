@@ -6,6 +6,7 @@ import {
   readTextFile,
   writeTextFile,
 } from "./project";
+import { insertFluentCall, pathExistsUri } from "./pluginModuleEdit";
 
 function systemBaseName(raw: string): string {
   const trimmed = raw.trim();
@@ -23,15 +24,18 @@ function systemHeader(className: string): string {
   return `#pragma once
 
 #include <Freyr/Freyr.hpp>
+#include <Skirnir/Skirnir.hpp>
 
 /**
- * Gameplay system living in the plugin .so.
- * Called from GameplaySystem::Update while play mode is running.
+ * Freyr system registered on the host via FRI_PLUGIN_MODULE (.System<${className}>()).
+ * Runs on the Simulation pipeline (Play mode).
  */
-class ${className}
+class ${className}: public fr::System
 {
   public:
-    static void Update(fr::Registry *registry, float deltaTime);
+    explicit ${className}(const skr::Arc<fr::Registry> &registry);
+
+    void Update(float deltaTime) override;
 };
 `;
 }
@@ -39,16 +43,13 @@ class ${className}
 function systemSource(className: string, fileBase: string): string {
   return `#include "Systems/${fileBase}.hpp"
 
-void ${className}::Update(fr::Registry *registry, float deltaTime)
-{
-    if(!registry)
-    {
-        return;
-    }
+${className}::${className}(const skr::Arc<fr::Registry> &registry) : fr::System(registry) {}
 
+void ${className}::Update(float deltaTime)
+{
     (void)deltaTime;
     // Example:
-    // registry->CreateMutation()->Each<YourComponent>(
+    // mRegistry->CreateMutation()->Each<YourComponent>(
     //     [](fr::Entity, YourComponent &comp) { (void)comp; });
 }
 `;
@@ -70,6 +71,12 @@ function ensureInclude(source: string, includeLine: string): string {
     return source.slice(0, insertAt) + includeLine + "\n" + source.slice(insertAt);
   }
 
+  const moduleInclude = "#include <Frigga/Plugin/FriPluginModule.hpp>";
+  const idx = source.indexOf(moduleInclude);
+  if (idx >= 0) {
+    return source.slice(0, idx) + includeLine + "\n" + source.slice(idx);
+  }
+
   const firstInclude = source.indexOf('#include "');
   if (firstInclude >= 0) {
     const lineEnd = source.indexOf("\n", firstInclude);
@@ -78,41 +85,6 @@ function ensureInclude(source: string, includeLine: string): string {
   }
 
   return includeLine + "\n" + source;
-}
-
-function ensureSystemCall(source: string, className: string): string {
-  const call = `${className}::Update(mRegistry, deltaTime);`;
-  if (source.includes(`${className}::Update(`)) {
-    return source;
-  }
-
-  const updateFn =
-    /void\s+GameplaySystem::Update\s*\(\s*float\s+deltaTime\s*\)\s*\{/;
-  const match = updateFn.exec(source);
-  if (!match) {
-    throw new Error("Could not find GameplaySystem::Update in GameplaySystem.cpp");
-  }
-
-  // Insert before the closing brace of Update: find matching braces from match end.
-  let i = match.index + match[0].length;
-  let depth = 1;
-  while (i < source.length && depth > 0) {
-    const ch = source[i];
-    if (ch === "{") {
-      depth += 1;
-    } else if (ch === "}") {
-      depth -= 1;
-      if (depth === 0) {
-        break;
-      }
-    }
-    i += 1;
-  }
-  if (depth !== 0) {
-    throw new Error("Unbalanced braces in GameplaySystem::Update");
-  }
-
-  return source.slice(0, i) + "\n    " + call + "\n" + source.slice(i);
 }
 
 function ensureCmakeSource(cmake: string, relativeCpp: string): string {
@@ -132,15 +104,6 @@ function ensureCmakeSource(cmake: string, relativeCpp: string): string {
   const bodyEnd = bodyStart + match[1].length;
   const insertion = `  ${normalized}\n`;
   return cmake.slice(0, bodyEnd) + insertion + cmake.slice(bodyEnd);
-}
-
-async function pathExistsUri(uri: vscode.Uri): Promise<boolean> {
-  try {
-    await vscode.workspace.fs.stat(uri);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 export async function createGameplaySystem(project: FriggaProject): Promise<void> {
@@ -178,19 +141,15 @@ export async function createGameplaySystem(project: FriggaProject): Promise<void
     `${fileBase}.cpp`
   );
 
-  if (await pathExistsUri(headerUri) || await pathExistsUri(sourceUri)) {
+  if ((await pathExistsUri(headerUri)) || (await pathExistsUri(sourceUri))) {
     vscode.window.showErrorMessage(`${fileBase} already exists under src/Systems`);
     return;
   }
 
-  const gameplaySystemUri = vscode.Uri.joinPath(
-    project.root,
-    "src",
-    "GameplaySystem.cpp"
-  );
+  const pluginUri = vscode.Uri.joinPath(project.root, "src", "GameplayPlugin.cpp");
   const cmakeUri = vscode.Uri.joinPath(project.root, "CMakeLists.txt");
-  if (!(await pathExistsUri(gameplaySystemUri))) {
-    vscode.window.showErrorMessage("src/GameplaySystem.cpp not found");
+  if (!(await pathExistsUri(pluginUri))) {
+    vscode.window.showErrorMessage("src/GameplayPlugin.cpp not found");
     return;
   }
   if (!(await pathExistsUri(cmakeUri))) {
@@ -201,20 +160,29 @@ export async function createGameplaySystem(project: FriggaProject): Promise<void
   await writeTextFile(headerUri, systemHeader(className));
   await writeTextFile(sourceUri, systemSource(className, fileBase));
 
-  let gameplaySystem = await readTextFile(gameplaySystemUri);
-  gameplaySystem = ensureInclude(
-    gameplaySystem,
-    `#include "Systems/${fileBase}.hpp"`
-  );
-  gameplaySystem = ensureSystemCall(gameplaySystem, className);
-  await writeTextFile(gameplaySystemUri, gameplaySystem);
+  let plugin = await readTextFile(pluginUri);
+  try {
+    plugin = ensureInclude(plugin, `#include "Systems/${fileBase}.hpp"`);
+    plugin = insertFluentCall(plugin, `.System<${className}>()`, "System");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    vscode.window.showErrorMessage(message);
+    return;
+  }
+  await writeTextFile(pluginUri, plugin);
 
   let cmake = await readTextFile(cmakeUri);
-  cmake = ensureCmakeSource(cmake, `src/Systems/${fileBase}.cpp`);
+  try {
+    cmake = ensureCmakeSource(cmake, `src/Systems/${fileBase}.cpp`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    vscode.window.showErrorMessage(message);
+    return;
+  }
   await writeTextFile(cmakeUri, cmake);
 
   await openDocument(sourceUri);
   vscode.window.showInformationMessage(
-    `Created ${className}. Wired into GameplaySystem + CMakeLists — rebuild & reload the plugin.`
+    `Created ${className}. Registered in FRI_PLUGIN_MODULE + CMakeLists — rebuild & reload the plugin.`
   );
 }
