@@ -1,5 +1,6 @@
 #include "ColliderDebugDraw.hpp"
 
+#include "Frigga/ECS/Components/CharacterControllerComponent.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/RigidBodyComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
@@ -29,34 +30,40 @@ namespace FRIGGA_NAMESPACE
             return model;
         }
 
-        bool Project(const glm::vec3 &world, const glm::mat4 &viewProj, const ImVec2 &imageMin,
-                     const ImVec2 &imageSize, ImVec2 &out)
-        {
-            const glm::vec4 clip = viewProj * glm::vec4(world, 1.0f);
-            if(clip.w <= 1e-4f)
-            {
-                return false;
-            }
-
-            const float invW = 1.0f / clip.w;
-            const float ndcX = clip.x * invW;
-            const float ndcY = clip.y * invW;
-            out.x            = imageMin.x + (ndcX * 0.5f + 0.5f) * imageSize.x;
-            out.y            = imageMin.y + (1.0f - (ndcY * 0.5f + 0.5f)) * imageSize.y;
-            return true;
-        }
-
+        /// Project a segment, clipping against the near plane when one endpoint is behind.
         void DrawSegment(ImDrawList *drawList, const glm::mat4 &viewProj, const ImVec2 &imageMin,
                          const ImVec2 &imageSize, const glm::vec3 &a, const glm::vec3 &b,
                          ImU32 color, float thickness)
         {
-            ImVec2 sa {};
-            ImVec2 sb {};
-            if(!Project(a, viewProj, imageMin, imageSize, sa) ||
-               !Project(b, viewProj, imageMin, imageSize, sb))
+            glm::vec4 ca = viewProj * glm::vec4(a, 1.0f);
+            glm::vec4 cb = viewProj * glm::vec4(b, 1.0f);
+            constexpr float kNearW = 1e-4f;
+
+            if(ca.w <= kNearW && cb.w <= kNearW)
             {
                 return;
             }
+
+            if(ca.w <= kNearW || cb.w <= kNearW)
+            {
+                const float t = (kNearW - ca.w) / (cb.w - ca.w);
+                const glm::vec4 clipped = ca + t * (cb - ca);
+                if(ca.w <= kNearW)
+                {
+                    ca = clipped;
+                }
+                else
+                {
+                    cb = clipped;
+                }
+            }
+
+            const float invWa = 1.0f / ca.w;
+            const float invWb = 1.0f / cb.w;
+            const ImVec2 sa {imageMin.x + (ca.x * invWa * 0.5f + 0.5f) * imageSize.x,
+                             imageMin.y + (1.0f - (ca.y * invWa * 0.5f + 0.5f)) * imageSize.y};
+            const ImVec2 sb {imageMin.x + (cb.x * invWb * 0.5f + 0.5f) * imageSize.x,
+                             imageMin.y + (1.0f - (cb.y * invWb * 0.5f + 0.5f)) * imageSize.y};
             drawList->AddLine(sa, sb, color, thickness);
         }
 
@@ -271,8 +278,10 @@ namespace FRIGGA_NAMESPACE
         registry->CreateMutation()->Each<TransformComponent, RigidBodyComponent>(
             [&](auto entity, TransformComponent &transform, RigidBodyComponent &rigidBody) {
                 const bool selected = entity == selectedEntity;
-                bool inactive       = false;
-                if(dimInactiveBodies && physicsWorld && rigidBody.body.IsValid())
+                // Static/Kinematic are never "active" in Jolt — only dim sleeping Dynamics.
+                bool inactive = false;
+                if(dimInactiveBodies && physicsWorld && rigidBody.body.IsValid() &&
+                   rigidBody.motion == BodyMotionType::Dynamic)
                 {
                     inactive = !physicsWorld->IsBodyActive(rigidBody.body);
                 }
@@ -313,6 +322,24 @@ namespace FRIGGA_NAMESPACE
                     break;
                 }
                 }
+            });
+
+        // Character capsules: Transform is feet; CapsuleCenterLocal includes centerOffset.
+        registry->CreateMutation()->Each<TransformComponent, CharacterControllerComponent>(
+            [&](auto entity, TransformComponent &transform,
+                CharacterControllerComponent &controller) {
+                const bool selected   = entity == selectedEntity;
+                const ImU32 color     = AdjustColor(IM_COL32(220, 120, 255, 220), selected, false);
+                const float thickness = selected ? 3.0f : 1.5f;
+
+                const float radius = std::max(controller.radius, 0.001f);
+                const glm::vec3 center =
+                    transform.position + transform.rotation * controller.CapsuleCenterLocal();
+
+                glm::mat4 model = glm::translate(glm::mat4(1.0f), center);
+                model           = model * glm::mat4_cast(transform.rotation);
+                DrawCapsule(drawList, model, viewProj, imageMin, imageSize, radius,
+                            controller.height, color, thickness);
             });
     }
 

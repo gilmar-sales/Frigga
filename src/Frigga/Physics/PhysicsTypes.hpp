@@ -59,6 +59,9 @@ namespace FRIGGA_NAMESPACE
         float maxSlopeDegrees = 45.0f;
         float mass            = 70.0f;
 
+        /// Local offset added on top of automatic feet lift (0, height/2+radius, 0).
+        glm::vec3 centerOffset {0.0f, 0.0f, 0.0f};
+
         std::uint8_t  collisionLayer    = 1;
         std::uint16_t collideWithLayers = 0xffff;
     };

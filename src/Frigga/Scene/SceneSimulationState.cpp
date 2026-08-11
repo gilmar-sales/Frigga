@@ -204,6 +204,7 @@ namespace FRIGGA_NAMESPACE
                 desc.height             = controller.height;
                 desc.maxSlopeDegrees    = controller.maxSlopeDegrees;
                 desc.mass               = controller.mass;
+                desc.centerOffset       = controller.centerOffset;
                 desc.collisionLayer     = controller.collisionLayer;
                 desc.collideWithLayers  = controller.collideWithLayers;
                 controller.character    = mPhysicsWorld->CreateCharacter(desc);

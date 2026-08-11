@@ -102,12 +102,13 @@ namespace FRIGGA_NAMESPACE
 
         struct SceneCharacterControllerDto
         {
-            float   radius           = 0.35f;
-            float   height           = 1.0f;
-            float   maxSlopeDegrees  = 45.0f;
-            float   mass             = 70.0f;
-            int64_t collisionLayer   = 1;
-            int64_t collideWithLayers = 0xffff;
+            float              radius            = 0.35f;
+            float              height            = 1.0f;
+            float              maxSlopeDegrees   = 45.0f;
+            float              mass              = 70.0f;
+            std::vector<float> centerOffset;
+            int64_t            collisionLayer    = 1;
+            int64_t            collideWithLayers = 0xffff;
         };
 
         struct SceneAnimatorDto
@@ -810,6 +811,8 @@ namespace FRIGGA_NAMESPACE
                         .height            = cc.height,
                         .maxSlopeDegrees   = cc.maxSlopeDegrees,
                         .mass              = cc.mass,
+                        .centerOffset      = {cc.centerOffset.x, cc.centerOffset.y,
+                                              cc.centerOffset.z},
                         .collisionLayer    = cc.collisionLayer,
                         .collideWithLayers = cc.collideWithLayers,
                     };
@@ -1143,6 +1146,12 @@ namespace FRIGGA_NAMESPACE
                 cc.height            = ccDto.height;
                 cc.maxSlopeDegrees   = ccDto.maxSlopeDegrees;
                 cc.mass              = ccDto.mass;
+                if(!ccDto.centerOffset.empty() && !ReadVec3(ccDto.centerOffset, cc.centerOffset))
+                {
+                    scene.mLogger->LogError("Invalid characterController.centerOffset on '{}'",
+                                            entityDto.name);
+                    return false;
+                }
                 cc.collisionLayer    = static_cast<std::uint8_t>(
                     std::clamp<int64_t>(ccDto.collisionLayer, 0, 15));
                 cc.collideWithLayers = static_cast<std::uint16_t>(

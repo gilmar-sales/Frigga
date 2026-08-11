@@ -1350,6 +1350,13 @@ void HierarchyLayer::drawComponents()
                 ImGui::BeginDisabled(mSimulation->IsPlaying());
                 ImGui::DragFloat("Radius", &controller.radius, 0.01f, 0.05f, 5.0f);
                 ImGui::DragFloat("Height", &controller.height, 0.01f, 0.05f, 5.0f);
+                ImGui::DragFloat3("Center Offset", &controller.centerOffset[0], 0.01f);
+                if(ImGui::IsItemHovered())
+                {
+                    ImGui::SetTooltip(
+                        "Local offset of the capsule center from Transform.\n"
+                        "Built-in feet lift (0, height/2+radius, 0) is always applied first.");
+                }
                 ImGui::DragFloat("Max Slope", &controller.maxSlopeDegrees, 0.5f, 1.0f, 89.0f);
                 ImGui::DragFloat("Mass", &controller.mass, 0.5f, 1.0f, 500.0f);
 

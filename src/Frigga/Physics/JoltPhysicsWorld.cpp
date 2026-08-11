@@ -525,8 +525,11 @@ namespace FRIGGA_NAMESPACE
         const float radius     = std::max(desc.radius, 0.001f);
         const float halfHeight = std::max(0.5f * desc.height, 0.001f);
         RefConst<Shape> capsule = new CapsuleShape(halfHeight, radius);
+        // Feet at CharacterVirtual position; centerOffset shifts the capsule center further.
         RefConst<Shape> standingShape = new RotatedTranslatedShape(
-            Vec3(0.0f, halfHeight + radius, 0.0f), Quat::sIdentity(), capsule);
+            Vec3(desc.centerOffset.x, halfHeight + radius + desc.centerOffset.y,
+                 desc.centerOffset.z),
+            Quat::sIdentity(), capsule);
 
         Ref<CharacterVirtualSettings> settings = new CharacterVirtualSettings();
         settings->mMass                        = std::max(desc.mass, 0.001f);
