@@ -28,6 +28,10 @@ void EditorApplication::RenderScene()
     // already running). Update() alone runs systems but does not StartTasks on
     // archetypes — so Name/Transform/Camera data would stay defaulted.
     syncSimulationPipeline();
+    if(mInput)
+    {
+        mInput->BeginFrame();
+    }
     mRegistry->ExecuteTasks();
     mRegistry->Update(mWindow->GetDeltaTime());
 }

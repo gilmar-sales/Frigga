@@ -4,6 +4,7 @@
 #include "UiScale.hpp"
 
 #include <Frigga/Frigga.hpp>
+#include <Frigga/Input/Input.hpp>
 #include <Frigga/Scene/SceneSimulationState.hpp>
 
 #include "HomeLayer.hpp"
@@ -19,7 +20,8 @@ class EditorApplication final: public fg::AbstractApplication
         : AbstractApplication(serviceProvider),
           mRegistry(serviceProvider->GetService<fr::Registry>()),
           mSystemManager(serviceProvider->GetService<fr::SystemManager>()),
-          mSimulation(serviceProvider->GetService<fg::SceneSimulationState>())
+          mSimulation(serviceProvider->GetService<fg::SceneSimulationState>()),
+          mInput(serviceProvider->GetService<fg::Input>())
     {
         PushLayer(mScope->GetServiceProvider()->GetService<HomeLayer>());
         PushLayer(mScope->GetServiceProvider()->GetService<MainLayer>());
@@ -57,4 +59,5 @@ class EditorApplication final: public fg::AbstractApplication
     skr::Arc<fr::Registry> mRegistry;
     skr::Arc<fr::SystemManager> mSystemManager;
     skr::Arc<fg::SceneSimulationState> mSimulation;
+    skr::Arc<fg::Input> mInput;
 };

@@ -2,6 +2,9 @@
 
 #include "ProjectFile.hpp"
 
+#include <Frigga/Input/InputMap.hpp>
+#include <Frigga/Input/InputMapIO.hpp>
+
 #include <fstream>
 #include <sstream>
 #include <string_view>
@@ -61,6 +64,7 @@ namespace
         out << "endif()\n\n";
         out << "set(FREYR_INCLUDE \"${FRIGGA_BUILD}/_deps/freyr-src/include\")\n";
         out << "set(SKIRNIR_INCLUDE \"${FRIGGA_BUILD}/_deps/skirnir-src/include\")\n";
+        out << "set(FREYA_INCLUDE \"${FRIGGA_BUILD}/_deps/freya-src/include\")\n";
         out << "set(GLM_INCLUDE \"${FRIGGA_BUILD}/_deps/glm-src\")\n";
         out << "set(FREYR_LIB_DIR \"${FRIGGA_BUILD}/_deps/freyr-build\")\n";
         out << "set(SKIRNIR_LIB_DIR \"${FRIGGA_BUILD}/_deps/skirnir-build\")\n\n";
@@ -84,6 +88,7 @@ namespace
         out << "  ${FRIGGA_ROOT}/src\n";
         out << "  ${FREYR_INCLUDE}\n";
         out << "  ${SKIRNIR_INCLUDE}\n";
+        out << "  ${FREYA_INCLUDE}\n";
         out << "  ${GLM_INCLUDE}\n";
         out << ")\n\n";
         out << "find_package(Threads REQUIRED)\n";
@@ -113,20 +118,24 @@ namespace
 #include <Frigga/Macro.hpp>
 #include <Frigga/ECS/Components/NameComponent.hpp>
 #include <Frigga/ECS/Components/TransformComponent.hpp>
+#include <Frigga/Input/Input.hpp>
 
 #include <Freyr/Freyr.hpp>
 #include <Skirnir/Skirnir.hpp>
 
 /**
- * Freyr system owned by the gameplay plugin and registered on the host with
- * late DI (ServiceProvider::AddSingleton + SystemManager::RegisterSystem).
+ * Freyr system owned by the gameplay plugin.
+ * Resolves host fg::Input via late DI (FRI_PLUGIN_MODULE .System).
  */
 class GameplaySystem: public fr::System
 {
   public:
-    explicit GameplaySystem(const skr::Arc<fr::Registry> &registry);
+    GameplaySystem(const skr::Arc<fr::Registry> &registry, const skr::Arc<fg::Input> &input);
 
     void Update(float deltaTime) override;
+
+  private:
+    skr::Arc<fg::Input> mInput;
 };
 )cpp";
     }
@@ -137,12 +146,15 @@ class GameplaySystem: public fr::System
 #include "GameplaySystem.hpp"
 #include "Components/Health.hpp"
 
-GameplaySystem::GameplaySystem(const skr::Arc<fr::Registry> &registry) : fr::System(registry) {}
+GameplaySystem::GameplaySystem(const skr::Arc<fr::Registry> &registry,
+                               const skr::Arc<fg::Input> &input)
+    : fr::System(registry), mInput(input)
+{
+}
 
 void GameplaySystem::Update(float deltaTime)
 {
-    (void)deltaTime;
-    // Example: Freyr Mutation over Name + Health (SoA component from the plugin).
+    // Clamp example Health values.
     mRegistry->CreateMutation()->Each<fg::NameComponent, Health>(
         [](fr::Entity, fg::NameComponent &name, Health &health) {
             if(name.name != "Player" && name.name != "Cube")
@@ -152,6 +164,30 @@ void GameplaySystem::Update(float deltaTime)
             if(health.current > health.max)
             {
                 health.current = health.max;
+            }
+        });
+
+    if(!mInput)
+    {
+        return;
+    }
+
+    const float horizontal = mInput->GetAxis("Horizontal");
+    const float vertical   = mInput->GetAxis("Vertical");
+    const bool jump        = mInput->WasPressed("Jump");
+    const float speed      = 4.0f;
+
+    mRegistry->CreateMutation()->Each<fg::NameComponent, fg::TransformComponent>(
+        [&](fr::Entity, fg::NameComponent &name, fg::TransformComponent &transform) {
+            if(name.name != "Player")
+            {
+                return;
+            }
+            transform.position.x += horizontal * speed * deltaTime;
+            transform.position.z -= vertical * speed * deltaTime;
+            if(jump)
+            {
+                transform.position.y += 1.5f;
             }
         });
 }
@@ -212,8 +248,9 @@ struct Health: fr::Component
         out << "Frigga gameplay project (" << desc.TemplateId() << " template).\n\n";
         out << "## Layout\n\n";
         out << "- `frigga.project` — project metadata\n";
+        out << "- `input.json` — named Actions / Axes bindings\n";
         out << "- `scenes/main.json` — default scene\n";
-        out << "- `src/GameplaySystem.*` — Freyr system (registered via FRI_PLUGIN_MODULE)\n";
+        out << "- `src/GameplaySystem.*` — Freyr system (registers via FRI_PLUGIN_MODULE, DI `fg::Input`)\n";
         out << "- `src/GameplayPlugin.cpp` — FRI_PLUGIN_MODULE entry for the Editor\n";
         out << "- `src/Components/` — project POD components (example: Health)\n";
         out << "- `include/frigga_user_components.hpp` — FriSet / FriTryGet helpers\n\n";
@@ -228,7 +265,8 @@ struct Health: fr::Component
         out << "Inherit `fr::System` and register with `plugin.System<MySystem>()` "
                "(defaults to the **Simulation** pipeline).\n";
         out << "Optional DI: `plugin.Singleton<T>()`, `.Scoped<T>()`, `.Transient<T>()`.\n";
-        out << "Detach unregisters automatically when the plugin unloads.\n";
+        out << "Host exposes `fg::Input` — inject `skr::Arc<fg::Input>` in system ctors and "
+               "query `IsDown` / `WasPressed` / `GetAxis`.\n";
         out << "Edit mode disables Simulation (physics + gameplay); Animation/Render stay on "
                "**Main**.\n\n";
         out << "## Build the plugin\n\n";
@@ -333,8 +371,34 @@ ProjectManagedWriteResult ProjectScaffold::WriteManagedFiles(
         return result;
     }
 
+    std::string inputError;
+    if(!EnsureDefaultInputJson(projectRoot, inputError))
+    {
+        result.error = inputError;
+        return result;
+    }
+
     result.ok = true;
     return result;
+}
+
+bool ProjectScaffold::EnsureDefaultInputJson(const std::filesystem::path &projectRoot,
+                                             std::string &error)
+{
+    const auto path = projectRoot / "input.json";
+    if(std::filesystem::exists(path))
+    {
+        return true;
+    }
+    if(!fg::SaveInputMapFile(path, fg::MakeDefaultInputMap(), &error))
+    {
+        if(error.empty())
+        {
+            error = "Failed to write input.json";
+        }
+        return false;
+    }
+    return true;
 }
 
 bool ProjectScaffold::WriteExampleUserComponents(const std::filesystem::path &projectRoot,

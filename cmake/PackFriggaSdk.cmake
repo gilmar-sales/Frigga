@@ -45,6 +45,33 @@ file(COPY "${CMAKE_SOURCE_DIR}/src/Frigga/ECS"
      FILES_MATCHING
         PATTERN "*.hpp"
         PATTERN "*.h")
+file(COPY "${CMAKE_SOURCE_DIR}/src/Frigga/Input"
+     DESTINATION "${FRIGGA_SDK_DIR}/src/Frigga"
+     FILES_MATCHING
+        PATTERN "*.hpp"
+        PATTERN "*.h")
+
+# RigidBodyComponent depends on these (no Jolt / world impl in the SDK).
+file(MAKE_DIRECTORY "${FRIGGA_SDK_DIR}/src/Frigga/Physics")
+file(COPY "${CMAKE_SOURCE_DIR}/src/Frigga/Physics/PhysicsBodyHandle.hpp"
+          "${CMAKE_SOURCE_DIR}/src/Frigga/Physics/PhysicsTypes.hpp"
+     DESTINATION "${FRIGGA_SDK_DIR}/src/Frigga/Physics")
+
+# Lightweight Freya event enums for InputMap / plugin includes (no Vulkan).
+set(_FRIGGA_SDK_FREYA "${CMAKE_BINARY_DIR}/_deps/freya-src")
+if(DEFINED freya_SOURCE_DIR)
+    set(_FRIGGA_SDK_FREYA "${freya_SOURCE_DIR}")
+elseif(DEFINED Freya_SOURCE_DIR)
+    set(_FRIGGA_SDK_FREYA "${Freya_SOURCE_DIR}")
+endif()
+file(MAKE_DIRECTORY "${FRIGGA_SDK_DIR}/_deps/freya-src/include/Freya/Events")
+file(WRITE "${FRIGGA_SDK_DIR}/_deps/freya-src/include/Freya/Pch.hpp"
+     "#pragma once\n#define FREYA_NAMESPACE fra\n#include <cstdint>\n")
+file(COPY "${_FRIGGA_SDK_FREYA}/include/Freya/Events"
+     DESTINATION "${FRIGGA_SDK_DIR}/_deps/freya-src/include/Freya"
+     FILES_MATCHING
+        PATTERN "*.hpp"
+        PATTERN "*.h")
 
 file(WRITE "${FRIGGA_SDK_DIR}/src/Frigga/Frigga.hpp" "#pragma once\n// Frigga gameplay plugin SDK\n")
 file(WRITE "${FRIGGA_SDK_DIR}/CMakeLists.txt" "# Frigga gameplay plugin SDK (packaged with Editor)\n")

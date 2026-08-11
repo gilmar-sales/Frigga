@@ -7,6 +7,7 @@
 
 #include <Frigga/Gui/Backends/imgui_impl_vulkan.h>
 #include <Frigga/Gui/GuiLayer.hpp>
+#include <Frigga/Input/Input.hpp>
 #include <Frigga/Physics/ColliderDebugDraw.hpp>
 
 #include <algorithm>
@@ -19,11 +20,13 @@ GameplayLayer::GameplayLayer(skr::Arc<fra::Renderer> renderer, skr::Arc<fr::Regi
                              skr::Arc<fg::SceneSimulationState> simulation,
                              skr::Arc<SelectionContext> selection,
                              skr::Arc<fg::IPhysicsWorld> physicsWorld,
-                             skr::Arc<EditorPreferences> preferences)
+                             skr::Arc<EditorPreferences> preferences,
+                             skr::Arc<fg::Input> input)
     : fg::Layer("Gameplay"), mRenderer(std::move(renderer)), mRegistry(std::move(registry)),
       mScene(std::move(scene)), mPrimitives(std::move(primitives)),
       mSimulation(std::move(simulation)), mSelection(std::move(selection)),
-      mPhysicsWorld(std::move(physicsWorld)), mPreferences(std::move(preferences))
+      mPhysicsWorld(std::move(physicsWorld)), mPreferences(std::move(preferences)),
+      mInput(std::move(input))
 {
 }
 
@@ -50,6 +53,10 @@ void GameplayLayer::onUpdate()
     if(!mSimulation->IsPlaying())
     {
         mClaimOutput = false;
+        if(mInput)
+        {
+            mInput->SetGameplayViewportHovered(false);
+        }
         return;
     }
 
@@ -161,6 +168,12 @@ void GameplayLayer::onGui()
     if(ImGui::Begin(title.c_str()))
     {
         mClaimOutput = true;
+
+        if(mInput)
+        {
+            mInput->SetGameplayViewportHovered(
+                ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup));
+        }
 
         drawToolbar();
 

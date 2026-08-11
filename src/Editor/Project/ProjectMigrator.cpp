@@ -22,6 +22,11 @@ namespace
             return false;
         }
 
+        if(!ProjectScaffold::EnsureDefaultInputJson(projectRoot, error))
+        {
+            return false;
+        }
+
         if(!ProjectScaffold::MaybeRewriteManagedPluginEntry(projectRoot, error))
         {
             return false;
@@ -85,6 +90,7 @@ ProjectMigrationResult ProjectMigrator::Migrate(const std::filesystem::path &pro
     // v4 → v5: GameplaySystem : fr::System + late host DI registration
     // v5 → v6: register GameplaySystem on Simulation pipeline (Play-only)
     // v6 → v7: FRI_PLUGIN_MODULE fluent Component/System/Singleton/Scoped/Transient
+    // v7 → v8: input.json + GameplaySystem DI fg::Input
     std::string stepError;
     if(!ApplyManagedLayout(projectFile.parent_path(), desc, stepError))
     {

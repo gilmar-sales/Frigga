@@ -3,6 +3,7 @@
 #include "ProjectDescriptor.hpp"
 #include "../Preferences/EditorPreferences.hpp"
 
+#include <Frigga/Input/Input.hpp>
 #include <Frigga/Plugin/GameplayPluginHost.hpp>
 #include <Frigga/Scene/Scene.hpp>
 #include <Frigga/Scene/SceneSimulationState.hpp>
@@ -62,6 +63,7 @@ class ProjectSession
     ProjectSession(skr::Arc<fg::Scene> scene,
                    skr::Arc<fg::GameplayPluginHost> pluginHost,
                    skr::Arc<fg::SceneSimulationState> simulation,
+                   skr::Arc<fg::Input> input,
                    skr::Arc<EditorPreferences> preferences,
                    skr::Arc<skr::Logger<ProjectSession>> logger);
     ~ProjectSession();
@@ -152,6 +154,7 @@ class ProjectSession
     bool migrateProjectFile(const std::filesystem::path &projectFile, ProjectDescriptor &desc,
                             bool force);
     void touchRecent();
+    void loadProjectInputBindings(const std::filesystem::path &projectRoot);
     void joinBuildThread();
     void runBuildJob(std::filesystem::path root, std::filesystem::path buildDir);
     void writeEditorSessionMarker();
@@ -163,6 +166,7 @@ class ProjectSession
     skr::Arc<fg::Scene> mScene;
     skr::Arc<fg::GameplayPluginHost> mPluginHost;
     skr::Arc<fg::SceneSimulationState> mSimulation;
+    skr::Arc<fg::Input> mInput;
     skr::Arc<EditorPreferences> mPreferences;
     skr::Arc<skr::Logger<ProjectSession>> mLogger;
 

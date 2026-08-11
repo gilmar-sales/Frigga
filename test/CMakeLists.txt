@@ -21,6 +21,7 @@ include(GoogleTest)
 add_executable(frigga_tests
         EmptyApp.hpp
         FriPluginModuleSpec.cpp
+        InputSpec.cpp
         LateSystemRegistrationSpec.cpp
         SceneSerializerSpec.cpp
 )

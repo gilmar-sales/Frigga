@@ -43,6 +43,10 @@ class ProjectScaffold
     static bool WriteExampleUserComponents(const std::filesystem::path &projectRoot,
                                            std::string &error);
 
+    /// Writes default input.json when missing (never overwrites).
+    static bool EnsureDefaultInputJson(const std::filesystem::path &projectRoot,
+                                       std::string &error);
+
     /// Rewrites GameplayPlugin.cpp only if missing or still marked managed.
     static bool MaybeRewriteManagedPluginEntry(const std::filesystem::path &projectRoot,
                                                std::string &error);

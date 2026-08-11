@@ -5,6 +5,8 @@
 #include "ProjectMigrator.hpp"
 #include "ProjectScaffold.hpp"
 
+#include <Frigga/Input/InputMapIO.hpp>
+
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -208,11 +210,12 @@ namespace
 ProjectSession::ProjectSession(skr::Arc<fg::Scene> scene,
                                skr::Arc<fg::GameplayPluginHost> pluginHost,
                                skr::Arc<fg::SceneSimulationState> simulation,
+                               skr::Arc<fg::Input> input,
                                skr::Arc<EditorPreferences> preferences,
                                skr::Arc<skr::Logger<ProjectSession>> logger)
     : mScene(std::move(scene)), mPluginHost(std::move(pluginHost)),
-      mSimulation(std::move(simulation)), mPreferences(std::move(preferences)),
-      mLogger(std::move(logger))
+      mSimulation(std::move(simulation)), mInput(std::move(input)),
+      mPreferences(std::move(preferences)), mLogger(std::move(logger))
 {
 }
 
@@ -617,6 +620,33 @@ bool ProjectSession::OpenProject(const std::filesystem::path &projectFile)
     }
 
     return enterEditor(projectFile, std::move(*loaded), /*loadPlugin=*/false);
+}
+
+void ProjectSession::loadProjectInputBindings(const std::filesystem::path &projectRoot)
+{
+    if(!mInput)
+    {
+        return;
+    }
+
+    const auto path = projectRoot / "input.json";
+    if(!std::filesystem::exists(path))
+    {
+        mInput->ResetToDefaults();
+        return;
+    }
+
+    fg::InputMap map;
+    std::string error;
+    if(!fg::LoadInputMapFile(path, map, &error))
+    {
+        mLogger->LogWarning("Failed to load input.json ({}): {}", path.string(), error);
+        mInput->ResetToDefaults();
+        return;
+    }
+
+    mInput->LoadBindings(map);
+    mLogger->LogInformation("Loaded input bindings from {}", path.string());
 }
 
 bool ProjectSession::migrateProjectFile(const std::filesystem::path &projectFile,
@@ -1134,6 +1164,7 @@ bool ProjectSession::enterEditor(const std::filesystem::path &projectFile, Proje
     mDescriptor  = std::move(desc);
     mMode        = EditorSessionMode::Editor;
     touchRecent();
+    loadProjectInputBindings(projectFile.parent_path());
 
     std::string opened;
     if(loadPlugin)

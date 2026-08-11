@@ -16,6 +16,7 @@
 #include "ECS/Systems/PhysicsSystem.hpp"
 #include "ECS/Systems/RenderSystem.hpp"
 #include "ECS/UserComponentRegistry.hpp"
+#include "Input/Input.hpp"
 #include "Physics/IPhysicsWorld.hpp"
 #include "Physics/JoltPhysicsWorld.hpp"
 #include "Plugin/GameplayPluginBridge.hpp"
@@ -69,6 +70,7 @@ namespace FRIGGA_NAMESPACE
         services.AddSingleton<fg::IPhysicsWorld, fg::JoltPhysicsWorld>();
         services.AddSingleton<fg::Scene>();
         services.AddSingleton<fg::SceneSimulationState>();
+        services.AddSingleton<fg::Input>();
         services.AddSingleton<fg::UserComponentRegistry>();
         services.AddSingleton<fg::GameplayPluginHost>();
         services.AddScoped<fg::LayerStack>();
