@@ -38,11 +38,16 @@ namespace FRIGGA_NAMESPACE
                     .WithComponent<RigidBodyComponent>()
                     .WithComponent<AnimatorComponent>()
                     .WithPipeline([](fr::PipelineBuilder &pipeline) {
+                        // Always runs: editor viewport / presentation.
                         pipeline.WithName("Main")
-                            .WithSystem<PhysicsSystem>()
                             .WithSystem<AnimationSystem>()
-                            .WithSystem<GameplayPluginBridge>()
                             .WithSystem<RenderSystem>();
+                    })
+                    .WithPipeline([](fr::PipelineBuilder &pipeline) {
+                        // Play mode only (Editor disables this pipeline while editing).
+                        pipeline.WithName("Simulation")
+                            .WithSystem<PhysicsSystem>()
+                            .WithSystem<GameplayPluginBridge>();
                     });
             })
             .WithExtension<fra::FreyaExtension>([](fra::FreyaExtension &freya) {

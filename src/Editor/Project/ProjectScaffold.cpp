@@ -207,7 +207,7 @@ namespace
         FriRegisterUserComponent<Health>(*registry, *userComponents, "Health");
 
         plugin->services->AddSingleton<GameplaySystem>();
-        const auto pipelineId = plugin->systemManager->FindPipelineId("Main");
+        const auto pipelineId = plugin->systemManager->FindPipelineId("Simulation");
         if(!pipelineId)
         {
             plugin->services->Remove<GameplaySystem>();
@@ -312,12 +312,14 @@ struct Health: fr::Component
         out << "3. Build + **Reload Gameplay Plugin**.\n";
         out << "4. In the Editor: Entity → Add Component → Gameplay → Foo.\n";
         out << "5. In `GameplaySystem::Update`: `CreateMutation()->Each<Foo>(...)` "
-               "(runs in the Freyr Main pipeline).\n\n";
+               "(runs in the Freyr **Simulation** pipeline — Play mode only).\n\n";
         out << "## Gameplay systems\n\n";
         out << "`GameplaySystem` inherits `fr::System` and is registered in `on_attach` with:\n";
         out << "`services->AddSingleton<GameplaySystem>()` then "
-               "`systemManager->RegisterSystem<GameplaySystem>(...)`.\n";
-        out << "Detach must `UnregisterSystem` + `Remove` before the plugin unloads.\n\n";
+               "`systemManager->RegisterSystem<GameplaySystem>(...)` on **Simulation**.\n";
+        out << "Detach must `UnregisterSystem` + `Remove` before the plugin unloads.\n";
+        out << "The Editor disables the Simulation pipeline while editing "
+               "(Physics + gameplay); Animation/Render keep running on **Main**.\n\n";
         out << "## Build the plugin\n\n";
         out << "Requires a **C++26** compiler with reflection (GCC 16+ or Clang 22+), "
                "same as Frigga.\n\n";

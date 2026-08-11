@@ -4,6 +4,7 @@
 #include "UiScale.hpp"
 
 #include <Frigga/Frigga.hpp>
+#include <Frigga/Scene/SceneSimulationState.hpp>
 
 #include "HomeLayer.hpp"
 #include "MainLayer.hpp"
@@ -15,7 +16,10 @@ class EditorApplication final: public fg::AbstractApplication
 {
   public:
     EditorApplication(const skr::Arc<skr::ServiceProvider> &serviceProvider)
-        : AbstractApplication(serviceProvider), mRegistry(serviceProvider->GetService<fr::Registry>())
+        : AbstractApplication(serviceProvider),
+          mRegistry(serviceProvider->GetService<fr::Registry>()),
+          mSystemManager(serviceProvider->GetService<fr::SystemManager>()),
+          mSimulation(serviceProvider->GetService<fg::SceneSimulationState>())
     {
         PushLayer(mScope->GetServiceProvider()->GetService<HomeLayer>());
         PushLayer(mScope->GetServiceProvider()->GetService<MainLayer>());
@@ -38,6 +42,9 @@ class EditorApplication final: public fg::AbstractApplication
         icons_config.PixelSnapH = true;
         io.Fonts->AddFontFromFileTTF("Resources/BootstrapIconsFont.ttf", 16, &icons_config,
                                      icons_ranges);
+
+        // Edit mode at startup: do not tick physics / gameplay until Play.
+        syncSimulationPipeline();
     }
 
   protected:
@@ -45,5 +52,9 @@ class EditorApplication final: public fg::AbstractApplication
     void Update() override;
 
   private:
+    void syncSimulationPipeline();
+
     skr::Arc<fr::Registry> mRegistry;
+    skr::Arc<fr::SystemManager> mSystemManager;
+    skr::Arc<fg::SceneSimulationState> mSimulation;
 };

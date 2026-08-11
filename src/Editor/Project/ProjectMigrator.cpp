@@ -83,6 +83,7 @@ ProjectMigrationResult ProjectMigrator::Migrate(const std::filesystem::path &pro
     // v2 → v3: user-component helpers, Health example, managed plugin registration
     // v3 → v4: Health : fr::Component + FriRegister(registry, catalog) + Freyr Mutatons
     // v4 → v5: GameplaySystem : fr::System + late host DI registration
+    // v5 → v6: register GameplaySystem on Simulation pipeline (Play-only)
     std::string stepError;
     if(!ApplyManagedLayout(projectFile.parent_path(), desc, stepError))
     {
