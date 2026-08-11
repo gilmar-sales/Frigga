@@ -28,8 +28,15 @@ class HomeLayer: public fg::Layer
         BrowseParent,
     };
 
+    struct PendingDelete
+    {
+        std::filesystem::path projectFile;
+        std::string name;
+    };
+
     void drawNewProjectPanel();
     void drawRecentProjects();
+    void drawDeleteConfirmPopup();
     void requestOpenProjectDialog();
     void requestBrowseParentDialog();
     void processPendingDialogs();
@@ -50,4 +57,7 @@ class HomeLayer: public fg::Layer
     std::optional<std::filesystem::path> mPendingPath;
     std::string mDialogDefaultLocation;
     std::string mUiError;
+
+    std::optional<PendingDelete> mPendingDelete;
+    bool mOpenDeleteConfirm = false;
 };

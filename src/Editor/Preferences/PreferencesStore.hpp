@@ -29,4 +29,8 @@ class PreferencesStore
     static void TouchRecentProject(EditorPreferences &preferences,
                                    const std::filesystem::path &projectFile,
                                    const std::string &name);
+
+    /// Removes a project from recentProjects (path match via weakly_canonical).
+    static void RemoveRecentProject(EditorPreferences &preferences,
+                                    const std::filesystem::path &projectFile);
 };

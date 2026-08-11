@@ -363,6 +363,32 @@ void PreferencesStore::TouchRecentProject(EditorPreferences &preferences,
     }
 }
 
+void PreferencesStore::RemoveRecentProject(EditorPreferences &preferences,
+                                           const std::filesystem::path &projectFile)
+{
+    std::string canonical = projectFile.string();
+    std::error_code ec;
+    const auto weakly = std::filesystem::weakly_canonical(projectFile, ec);
+    if(!ec)
+    {
+        canonical = weakly.string();
+    }
+
+    preferences.recentProjects.erase(
+        std::remove_if(preferences.recentProjects.begin(), preferences.recentProjects.end(),
+                       [&](const RecentProjectEntry &entry) {
+                           std::error_code entryEc;
+                           const auto entryPath =
+                               std::filesystem::weakly_canonical(entry.path, entryEc);
+                           if(!entryEc)
+                           {
+                               return entryPath.string() == canonical;
+                           }
+                           return entry.path == canonical || entry.path == projectFile.string();
+                       }),
+        preferences.recentProjects.end());
+}
+
 void PreferencesStore::Save(const EditorPreferences &preferences,
                             const std::filesystem::path &path)
 {

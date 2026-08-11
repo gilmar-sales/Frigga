@@ -112,7 +112,7 @@ cd build-release && ./Editor
 | Gizmo translate / rotate / scale | W / E / R (editor viewport focused) |
 | Frame selection | F (editor viewport) |
 
-The Editor starts on a **home screen**: create a 2D/3D project (scaffolds CMake + Freyr gameplay plugin stubs + scene), open an existing `frigga.project`, or pick a recent project. Opening a project auto-migrates older `frigga.project` formats (rewrites managed `CMakeLists.txt` / plugin header; never overwrites `src/Gameplay*`). Use **File → Migrate Project Files** to force-refresh managed files, then **Build Gameplay Plugin** (Ctrl+B) and **Reload** (Ctrl+R); play mode runs the loaded `.so` / `.dll` through a Freyr bridge system.
+The Editor starts on a **home screen**: create a 2D/3D project (scaffolds CMake + Freyr gameplay plugin stubs + scene), open an existing `frigga.project`, or pick a recent project. Opening a project auto-migrates older `frigga.project` formats (rewrites managed `CMakeLists.txt` / plugin header / scaffold `GameplaySystem` when still marked managed). Use **File → Migrate Project Files** to force-refresh managed files, then **Build Gameplay Plugin** (Ctrl+B) and **Reload** (Ctrl+R). Play mode ticks the plugin `GameplaySystem` through the Freyr **Main** pipeline (late DI registration on attach).
 
 ### Debug gameplay (VS Code + GDB)
 

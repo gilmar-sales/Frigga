@@ -107,58 +107,40 @@ namespace
 
     std::string MakeGameplaySystemHpp()
     {
-        return R"cpp(#pragma once
-
-#include <glm/glm.hpp>
-#include <glm/gtc/quaternion.hpp>
+        return R"cpp(// FRIGGA_MANAGED_GAMEPLAY_SYSTEM
+#pragma once
 
 #include <Frigga/Macro.hpp>
 #include <Frigga/ECS/Components/NameComponent.hpp>
 #include <Frigga/ECS/Components/TransformComponent.hpp>
 
 #include <Freyr/Freyr.hpp>
+#include <Skirnir/Skirnir.hpp>
 
 /**
- * Gameplay logic runs inside the loaded shared library.
- * This type mirrors fr::System but is NOT registered with Freyr — the Editor
- * bridge calls Update() through the C plugin API while play mode is running.
- *
- * Use engine components and project Freyr components (Health : fr::Component)
- * registered in on_attach via FriRegisterUserComponent.
+ * Freyr system owned by the gameplay plugin and registered on the host with
+ * late DI (ServiceProvider::AddSingleton + SystemManager::RegisterSystem).
  */
-class GameplaySystem
+class GameplaySystem: public fr::System
 {
   public:
-    explicit GameplaySystem(fr::Registry *registry);
+    explicit GameplaySystem(const skr::Arc<fr::Registry> &registry);
 
-    void OnAttach();
-    void OnDetach();
-    void Update(float deltaTime);
-
-  private:
-    fr::Registry *mRegistry = nullptr;
+    void Update(float deltaTime) override;
 };
 )cpp";
     }
 
     std::string MakeGameplaySystemCpp()
     {
-        return R"cpp(#include "GameplaySystem.hpp"
+        return R"cpp(// FRIGGA_MANAGED_GAMEPLAY_SYSTEM
+#include "GameplaySystem.hpp"
 #include "Components/Health.hpp"
 
-GameplaySystem::GameplaySystem(fr::Registry *registry) : mRegistry(registry) {}
-
-void GameplaySystem::OnAttach() {}
-
-void GameplaySystem::OnDetach() {}
+GameplaySystem::GameplaySystem(const skr::Arc<fr::Registry> &registry) : fr::System(registry) {}
 
 void GameplaySystem::Update(float deltaTime)
 {
-    if(!mRegistry)
-    {
-        return;
-    }
-
     (void)deltaTime;
     // Example: Freyr Mutation over Name + Health (SoA component from the plugin).
     mRegistry->CreateMutation()->Each<fg::NameComponent, Health>(
@@ -185,13 +167,15 @@ void GameplaySystem::Update(float deltaTime)
 #include <frigga_plugin.h>
 #include <frigga_user_components.hpp>
 
+#include <Freyr/Core/SystemManager.hpp>
 #include <Freyr/Freyr.hpp>
-
-#include <memory>
+#include <Skirnir/Skirnir.hpp>
 
 struct FriPlugin
 {
-    std::unique_ptr<GameplaySystem> system;
+    fr::SystemManager *systemManager     = nullptr;
+    skr::ServiceProvider *services       = nullptr;
+    bool gameplaySystemRegistered        = false;
 };
 
 namespace
@@ -208,34 +192,57 @@ namespace
 
     void OnAttach(FriPlugin *plugin, const FriHost *host)
     {
-        if(!plugin || !host || !host->registry || !host->user_components)
+        if(!plugin || !host || !host->registry || !host->user_components ||
+           !host->system_manager || !host->services)
         {
             return;
         }
+
         auto *registry = static_cast<fr::Registry *>(host->registry);
         auto *userComponents =
             static_cast<fg::UserComponentRegistry *>(host->user_components);
+        plugin->systemManager = static_cast<fr::SystemManager *>(host->system_manager);
+        plugin->services      = static_cast<skr::ServiceProvider *>(host->services);
+
         FriRegisterUserComponent<Health>(*registry, *userComponents, "Health");
-        plugin->system = std::make_unique<GameplaySystem>(registry);
-        plugin->system->OnAttach();
+
+        plugin->services->AddSingleton<GameplaySystem>();
+        const auto pipelineId = plugin->systemManager->FindPipelineId("Main");
+        if(!pipelineId)
+        {
+            plugin->services->Remove<GameplaySystem>();
+            plugin->systemManager = nullptr;
+            plugin->services      = nullptr;
+            return;
+        }
+
+        plugin->systemManager->RegisterSystem<GameplaySystem>(*pipelineId);
+        plugin->gameplaySystemRegistered = true;
     }
 
     void OnDetach(FriPlugin *plugin)
     {
-        if(!plugin || !plugin->system)
+        if(!plugin)
         {
             return;
         }
-        plugin->system->OnDetach();
-        plugin->system.reset();
+
+        if(plugin->gameplaySystemRegistered && plugin->systemManager)
+        {
+            (void)plugin->systemManager->UnregisterSystem<GameplaySystem>();
+            plugin->gameplaySystemRegistered = false;
+        }
+        if(plugin->services)
+        {
+            (void)plugin->services->Remove<GameplaySystem>();
+        }
+        plugin->systemManager = nullptr;
+        plugin->services      = nullptr;
     }
 
-    void OnUpdate(FriPlugin *plugin, float deltaTime)
+    void OnUpdate(FriPlugin *, float)
     {
-        if(plugin && plugin->system)
-        {
-            plugin->system->Update(deltaTime);
-        }
+        // Gameplay logic runs through Freyr SystemManager (GameplaySystem::Update).
     }
 
     const FriPluginApi kApi {
@@ -294,7 +301,7 @@ struct Health: fr::Component
         out << "## Layout\n\n";
         out << "- `frigga.project` — project metadata\n";
         out << "- `scenes/main.json` — default scene\n";
-        out << "- `src/GameplaySystem.*` — Freyr-style gameplay logic\n";
+        out << "- `src/GameplaySystem.*` — Freyr system (registered on the host via DI)\n";
         out << "- `src/GameplayPlugin.cpp` — C ABI entry for the Editor\n";
         out << "- `src/Components/` — project POD components (example: Health)\n";
         out << "- `include/frigga_user_components.hpp` — FriRegister / FriTryGet / FriSet\n\n";
@@ -304,8 +311,13 @@ struct Health: fr::Component
                "`FriRegisterUserComponent<Foo>(*registry, *userComponents, \"Foo\");`\n";
         out << "3. Build + **Reload Gameplay Plugin**.\n";
         out << "4. In the Editor: Entity → Add Component → Gameplay → Foo.\n";
-        out << "5. In systems: `CreateMutation()->Each<Foo>(...)` "
-               "(real Freyr Queries/Mutations).\n\n";
+        out << "5. In `GameplaySystem::Update`: `CreateMutation()->Each<Foo>(...)` "
+               "(runs in the Freyr Main pipeline).\n\n";
+        out << "## Gameplay systems\n\n";
+        out << "`GameplaySystem` inherits `fr::System` and is registered in `on_attach` with:\n";
+        out << "`services->AddSingleton<GameplaySystem>()` then "
+               "`systemManager->RegisterSystem<GameplaySystem>(...)`.\n";
+        out << "Detach must `UnregisterSystem` + `Remove` before the plugin unloads.\n\n";
         out << "## Build the plugin\n\n";
         out << "Requires a **C++26** compiler with reflection (GCC 16+ or Clang 22+), "
                "same as Frigga.\n\n";
@@ -436,6 +448,36 @@ bool ProjectScaffold::MaybeRewriteManagedPluginEntry(const std::filesystem::path
     if(!WriteTextFile(pluginPath, MakeGameplayPluginCpp()))
     {
         error = "Failed to write src/GameplayPlugin.cpp";
+        return false;
+    }
+    return true;
+}
+
+bool ProjectScaffold::MaybeRewriteManagedGameplaySystem(const std::filesystem::path &projectRoot,
+                                                        std::string &error)
+{
+    const auto hppPath = projectRoot / "src/GameplaySystem.hpp";
+    const auto cppPath = projectRoot / "src/GameplaySystem.cpp";
+    const bool hppExists = std::filesystem::exists(hppPath);
+    const bool cppExists = std::filesystem::exists(cppPath);
+
+    const bool managedHpp =
+        !hppExists || FileContains(hppPath, ManagedGameplaySystemMarker) ||
+        FileContains(hppPath, "GameplaySystem(fr::Registry *registry)");
+    const bool managedCpp =
+        !cppExists || FileContains(cppPath, ManagedGameplaySystemMarker) ||
+        FileContains(cppPath, "GameplaySystem::GameplaySystem(fr::Registry *registry)");
+
+    if(hppExists && cppExists && !(managedHpp && managedCpp))
+    {
+        // Customized by the user — leave alone.
+        return true;
+    }
+
+    if(!WriteTextFile(hppPath, MakeGameplaySystemHpp()) ||
+       !WriteTextFile(cppPath, MakeGameplaySystemCpp()))
+    {
+        error = "Failed to write src/GameplaySystem.*";
         return false;
     }
     return true;

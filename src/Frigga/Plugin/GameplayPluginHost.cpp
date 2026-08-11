@@ -1,4 +1,6 @@
-#include "GameplayPluginHost.hpp"
+#include "Frigga/Plugin/GameplayPluginHost.hpp"
+
+#include <Freyr/Core/SystemManager.hpp>
 
 #include <chrono>
 #include <system_error>
@@ -124,8 +126,11 @@ namespace FRIGGA_NAMESPACE
     GameplayPluginHost::GameplayPluginHost(
         const skr::Arc<fr::Registry> &registry,
         const skr::Arc<UserComponentRegistry> &userComponents,
+        const skr::Arc<fr::SystemManager> &systemManager,
+        const skr::Arc<skr::ServiceProvider> &services,
         const skr::Arc<skr::Logger<GameplayPluginHost>> &logger)
-        : mRegistry(registry), mUserComponents(userComponents), mLogger(logger)
+        : mRegistry(registry), mUserComponents(userComponents), mSystemManager(systemManager),
+          mServices(services), mLogger(logger)
     {
     }
 
@@ -305,8 +310,10 @@ namespace FRIGGA_NAMESPACE
             return;
         }
 
-        FriHost host {.registry        = mRegistry.get(),
-                      .user_components = mUserComponents.get()};
+        FriHost host {.registry         = mRegistry.get(),
+                      .user_components  = mUserComponents.get(),
+                      .system_manager   = mSystemManager.get(),
+                      .services         = mServices.get()};
         mApi->on_attach(mPlugin, &host);
         mAttached = true;
 

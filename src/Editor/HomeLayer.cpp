@@ -87,6 +87,8 @@ void HomeLayer::onGui()
                                mSession->GetLastError().c_str());
         }
 
+        drawDeleteConfirmPopup();
+
         ImGui::End();
     }
     else
@@ -187,6 +189,12 @@ void HomeLayer::drawRecentProjects()
                 mUiError = mSession->GetLastError();
             }
         }
+        ImGui::SameLine();
+        if(ImGui::Button(ICON_BTSP_TRASH " Delete"))
+        {
+            mPendingDelete = PendingDelete {.projectFile = entry.path, .name = entry.name};
+            mOpenDeleteConfirm = true;
+        }
 
         if(clicked && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
         {
@@ -207,6 +215,65 @@ void HomeLayer::drawRecentProjects()
         ImGui::Separator();
         ImGui::PopID();
     }
+}
+
+void HomeLayer::drawDeleteConfirmPopup()
+{
+    if(mOpenDeleteConfirm)
+    {
+        ImGui::OpenPopup("##DeleteProjectConfirm");
+        mOpenDeleteConfirm = false;
+    }
+
+    ImGui::SetNextWindowSize(EditorUiScale::V(420.0f, 0.0f), ImGuiCond_Appearing);
+    if(!ImGui::BeginPopupModal("##DeleteProjectConfirm", nullptr,
+                               ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        return;
+    }
+
+    const std::string name =
+        mPendingDelete ? mPendingDelete->name : std::string("this project");
+    const std::string path =
+        mPendingDelete ? mPendingDelete->projectFile.string() : std::string();
+
+    ImGui::TextUnformatted("Delete project?");
+    ImGui::Dummy(EditorUiScale::V(0.0f, 6.0f));
+    ImGui::TextWrapped("\"%s\" will be permanently deleted from disk. This cannot be undone.",
+                       name.c_str());
+    if(!path.empty())
+    {
+        ImGui::Dummy(EditorUiScale::V(0.0f, 4.0f));
+        ImGui::TextDisabled("%s", path.c_str());
+    }
+
+    ImGui::Dummy(EditorUiScale::V(0.0f, 14.0f));
+    const float buttonWidth = EditorUiScale::S(120.0f);
+    if(ImGui::Button("Cancel", ImVec2(buttonWidth, 0.0f)))
+    {
+        mPendingDelete.reset();
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.72f, 0.22f, 0.24f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.86f, 0.28f, 0.30f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.62f, 0.16f, 0.18f, 1.0f));
+    if(ImGui::Button(ICON_BTSP_TRASH " Delete", ImVec2(buttonWidth, 0.0f)))
+    {
+        if(mPendingDelete)
+        {
+            mUiError.clear();
+            if(!mSession->DeleteProject(mPendingDelete->projectFile))
+            {
+                mUiError = mSession->GetLastError();
+            }
+        }
+        mPendingDelete.reset();
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::PopStyleColor(3);
+
+    ImGui::EndPopup();
 }
 
 void HomeLayer::requestOpenProjectDialog()

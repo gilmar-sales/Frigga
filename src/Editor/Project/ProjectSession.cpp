@@ -691,6 +691,74 @@ void ProjectSession::CloseToHome()
     mScene->NewScene();
 }
 
+bool ProjectSession::DeleteProject(const std::filesystem::path &projectFileOrRoot)
+{
+    {
+        std::lock_guard lock(mMutex);
+        mLastError.clear();
+    }
+
+    const auto root = projectRootFromPath(projectFileOrRoot);
+    const auto projectFile =
+        (projectFileOrRoot.filename() == ProjectFile::FileName ||
+         projectFileOrRoot.extension() == ".project")
+            ? projectFileOrRoot
+            : root / ProjectFile::FileName;
+
+    if(root.empty() || root == root.root_path())
+    {
+        std::lock_guard lock(mMutex);
+        mLastError = "Refusing to delete an invalid project path";
+        return false;
+    }
+
+    if(mProjectFile)
+    {
+        std::error_code openEc;
+        std::error_code targetEc;
+        const auto openRoot =
+            std::filesystem::weakly_canonical(mProjectFile->parent_path(), openEc);
+        const auto targetRoot = std::filesystem::weakly_canonical(root, targetEc);
+        if(!openEc && !targetEc && openRoot == targetRoot)
+        {
+            std::lock_guard lock(mMutex);
+            mLastError = "Close the project before deleting it";
+            return false;
+        }
+    }
+
+    if(!std::filesystem::exists(projectFile) && !std::filesystem::exists(root))
+    {
+        PreferencesStore::RemoveRecentProject(*mPreferences, projectFile);
+        PreferencesStore::RemoveRecentProject(*mPreferences, projectFileOrRoot);
+        PreferencesStore::Save(*mPreferences);
+        return true;
+    }
+
+    if(!std::filesystem::exists(projectFile))
+    {
+        std::lock_guard lock(mMutex);
+        mLastError = "Not a Frigga project (missing frigga.project): " + root.string();
+        return false;
+    }
+
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+    if(ec)
+    {
+        std::lock_guard lock(mMutex);
+        mLastError = "Failed to delete project: " + ec.message();
+        mLogger->LogError("DeleteProject {}: {}", root.string(), mLastError);
+        return false;
+    }
+
+    PreferencesStore::RemoveRecentProject(*mPreferences, projectFile);
+    PreferencesStore::RemoveRecentProject(*mPreferences, projectFileOrRoot);
+    PreferencesStore::Save(*mPreferences);
+    mLogger->LogInformation("Deleted project {}", root.string());
+    return true;
+}
+
 std::optional<std::filesystem::path> ProjectSession::GetProjectRoot() const
 {
     if(!mProjectFile)

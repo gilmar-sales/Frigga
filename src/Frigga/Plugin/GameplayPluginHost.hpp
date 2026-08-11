@@ -3,6 +3,7 @@
 #include "Frigga/ECS/UserComponentRegistry.hpp"
 #include "Frigga/Plugin/frigga_plugin.h"
 
+#include <Freyr/Core/SystemManager.hpp>
 #include <Freyr/Freyr.hpp>
 #include <Skirnir/Skirnir.hpp>
 
@@ -24,6 +25,8 @@ namespace FRIGGA_NAMESPACE
       public:
         GameplayPluginHost(const skr::Arc<fr::Registry> &registry,
                            const skr::Arc<UserComponentRegistry> &userComponents,
+                           const skr::Arc<fr::SystemManager> &systemManager,
+                           const skr::Arc<skr::ServiceProvider> &services,
                            const skr::Arc<skr::Logger<GameplayPluginHost>> &logger);
         ~GameplayPluginHost();
 
@@ -59,6 +62,8 @@ namespace FRIGGA_NAMESPACE
 
         skr::Arc<fr::Registry> mRegistry;
         skr::Arc<UserComponentRegistry> mUserComponents;
+        skr::Arc<fr::SystemManager> mSystemManager;
+        skr::Arc<skr::ServiceProvider> mServices;
         skr::Arc<skr::Logger<GameplayPluginHost>> mLogger;
 
         mutable std::mutex mMutex;

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Frigga/Macro.hpp"
 #include "Frigga/Physics/PhysicsBodyHandle.hpp"
 #include "Frigga/Physics/PhysicsTypes.hpp"
 

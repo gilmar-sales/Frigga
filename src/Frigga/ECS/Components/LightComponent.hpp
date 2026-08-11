@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Frigga/Macro.hpp>
+
 #include <Freya/Core/UniformBuffer.hpp>
 #include <Freyr/Freyr.hpp>
 

@@ -32,6 +32,10 @@ typedef struct FriHost
     void *registry;
     /** Opaque pointer to fg::UserComponentRegistry in the Editor process. */
     void *user_components;
+    /** Opaque pointer to fr::SystemManager in the Editor process. */
+    void *system_manager;
+    /** Opaque pointer to skr::ServiceProvider (host) for late AddSingleton / Remove. */
+    void *services;
 } FriHost;
 
 typedef struct FriPlugin FriPlugin;

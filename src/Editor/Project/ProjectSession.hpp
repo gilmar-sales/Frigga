@@ -117,6 +117,9 @@ class ProjectSession
     bool CreateProject(const std::filesystem::path &parentDir, std::string name,
                        fg::SceneTemplate sceneTemplate);
     bool OpenProject(const std::filesystem::path &projectFile);
+    /// Deletes the project folder on disk and removes it from recent projects.
+    /// Requires a valid frigga.project under the target root. Refuses if that project is open.
+    bool DeleteProject(const std::filesystem::path &projectFileOrRoot);
     void CloseToHome();
 
     [[nodiscard]] std::optional<std::filesystem::path> GetProjectRoot() const;

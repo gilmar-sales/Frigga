@@ -27,6 +27,11 @@ namespace
             return false;
         }
 
+        if(!ProjectScaffold::MaybeRewriteManagedGameplaySystem(projectRoot, error))
+        {
+            return false;
+        }
+
         desc.formatVersion = ProjectDescriptor::CurrentFormatVersion;
         return true;
     }
@@ -77,6 +82,7 @@ ProjectMigrationResult ProjectMigrator::Migrate(const std::filesystem::path &pro
     // v1 → v2: C++26 CMake + plugin header / README
     // v2 → v3: user-component helpers, Health example, managed plugin registration
     // v3 → v4: Health : fr::Component + FriRegister(registry, catalog) + Freyr Mutatons
+    // v4 → v5: GameplaySystem : fr::System + late host DI registration
     std::string stepError;
     if(!ApplyManagedLayout(projectFile.parent_path(), desc, stepError))
     {
@@ -100,7 +106,7 @@ ProjectMigrationResult ProjectMigrator::Migrate(const std::filesystem::path &pro
     else
     {
         msg << "Migrated project format v" << result.fromVersion << " → v" << result.toVersion
-            << " (Freyr gameplay components, CMake C++26, plugin header)";
+            << " (Freyr gameplay systems via host DI, CMake C++26, plugin header)";
     }
     msg << ". Rebuild the gameplay plugin.";
     result.message = msg.str();

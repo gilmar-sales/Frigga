@@ -25,6 +25,8 @@ class ProjectScaffold
 {
   public:
     static constexpr std::string_view ManagedPluginMarker = "// FRIGGA_MANAGED_PLUGIN_ENTRY";
+    static constexpr std::string_view ManagedGameplaySystemMarker =
+        "// FRIGGA_MANAGED_GAMEPLAY_SYSTEM";
 
     /// Creates project directory under parentDir/name and writes all scaffold files.
     /// Uses @p scene to seed and serialize the template scene JSON.
@@ -33,7 +35,7 @@ class ProjectScaffold
                                         fg::Scene &scene);
 
     /// Rewrites Editor-managed files (CMakeLists, frigga_plugin.h, README,
-    /// frigga_user_components.hpp) without touching user gameplay sources under src/.
+    /// frigga_user_components.hpp) without touching custom gameplay sources under src/.
     static ProjectManagedWriteResult WriteManagedFiles(const std::filesystem::path &projectRoot,
                                                        const ProjectDescriptor &desc);
 
@@ -44,4 +46,8 @@ class ProjectScaffold
     /// Rewrites GameplayPlugin.cpp only if missing or still marked managed.
     static bool MaybeRewriteManagedPluginEntry(const std::filesystem::path &projectRoot,
                                                std::string &error);
+
+    /// Rewrites GameplaySystem.* only if missing or still marked managed.
+    static bool MaybeRewriteManagedGameplaySystem(const std::filesystem::path &projectRoot,
+                                                  std::string &error);
 };

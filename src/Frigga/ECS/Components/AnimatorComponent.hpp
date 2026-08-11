@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Frigga/Macro.hpp>
+
 #include <Freya/Asset/InstanceTransform.hpp>
 #include <Freyr/Freyr.hpp>
 
