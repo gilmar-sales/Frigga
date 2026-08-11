@@ -3,6 +3,7 @@
 #include "Editor/BoostrapIconsFont.hpp"
 #include "Editor/DockLayout.hpp"
 #include "Frigga/ECS/Components/CameraComponent.hpp"
+#include "Frigga/ECS/Components/CharacterControllerComponent.hpp"
 #include "Frigga/ECS/Components/LightComponent.hpp"
 #include "Frigga/ECS/Components/MaterialComponent.hpp"
 #include "Frigga/ECS/Components/AnimatorComponent.hpp"
@@ -319,9 +320,37 @@ void HierarchyLayer::addRigidBodyToSelection()
     {
         mRegistry->AddComponents(entity, fg::TransformComponent {});
     }
+    if(mRegistry->HasComponent<fg::CharacterControllerComponent>(entity))
+    {
+        mRegistry->RemoveComponent<fg::CharacterControllerComponent>(entity);
+        mRegistry->ExecuteTasks();
+    }
     if(!mRegistry->HasComponent<fg::RigidBodyComponent>(entity))
     {
         mRegistry->AddComponents(entity, makeDefaultRigidBody(entity));
+    }
+}
+
+void HierarchyLayer::addCharacterControllerToSelection()
+{
+    if(!mSelection->HasSelection() || mSimulation->IsPlaying())
+    {
+        return;
+    }
+
+    const auto entity = mSelection->Get();
+    if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
+    {
+        mRegistry->AddComponents(entity, fg::TransformComponent {});
+    }
+    if(mRegistry->HasComponent<fg::RigidBodyComponent>(entity))
+    {
+        mRegistry->RemoveComponent<fg::RigidBodyComponent>(entity);
+        mRegistry->ExecuteTasks();
+    }
+    if(!mRegistry->HasComponent<fg::CharacterControllerComponent>(entity))
+    {
+        mRegistry->AddComponents(entity, fg::CharacterControllerComponent {});
     }
 }
 
@@ -783,9 +812,31 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
             {
                 mRegistry->AddComponents(entity, fg::TransformComponent {});
             }
+            if(mRegistry->HasComponent<fg::CharacterControllerComponent>(entity))
+            {
+                mRegistry->RemoveComponent<fg::CharacterControllerComponent>(entity);
+                mRegistry->ExecuteTasks();
+            }
             if(!mRegistry->HasComponent<fg::RigidBodyComponent>(entity))
             {
                 mRegistry->AddComponents(entity, makeDefaultRigidBody(entity));
+            }
+        }
+
+        if(ImGui::MenuItem("Add character controller"))
+        {
+            if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
+            {
+                mRegistry->AddComponents(entity, fg::TransformComponent {});
+            }
+            if(mRegistry->HasComponent<fg::RigidBodyComponent>(entity))
+            {
+                mRegistry->RemoveComponent<fg::RigidBodyComponent>(entity);
+                mRegistry->ExecuteTasks();
+            }
+            if(!mRegistry->HasComponent<fg::CharacterControllerComponent>(entity))
+            {
+                mRegistry->AddComponents(entity, fg::CharacterControllerComponent {});
             }
         }
 
@@ -1288,6 +1339,41 @@ void HierarchyLayer::drawComponents()
                 {
                     ImGui::TextDisabled("Collider edits apply after Stop");
                 }
+            }
+        });
+
+    mRegistry->TryGetComponents<fg::CharacterControllerComponent>(
+        selection, [this, selection](fg::CharacterControllerComponent &controller) {
+            bool open = true;
+            if(ImGui::CollapsingHeader("Character Controller", &open, ImGuiWindowFlags_ChildWindow))
+            {
+                ImGui::BeginDisabled(mSimulation->IsPlaying());
+                ImGui::DragFloat("Radius", &controller.radius, 0.01f, 0.05f, 5.0f);
+                ImGui::DragFloat("Height", &controller.height, 0.01f, 0.05f, 5.0f);
+                ImGui::DragFloat("Max Slope", &controller.maxSlopeDegrees, 0.5f, 1.0f, 89.0f);
+                ImGui::DragFloat("Mass", &controller.mass, 0.5f, 1.0f, 500.0f);
+
+                int layer = controller.collisionLayer;
+                if(ImGui::SliderInt("Collision Layer", &layer, 0, 15))
+                {
+                    controller.collisionLayer = static_cast<std::uint8_t>(layer);
+                }
+                ImGui::TextDisabled("Mask: 0x%04X", controller.collideWithLayers);
+                ImGui::EndDisabled();
+
+                if(controller.character.IsValid())
+                {
+                    ImGui::TextDisabled("Character ID: %u", controller.character.id);
+                }
+                else if(mSimulation->IsPlaying())
+                {
+                    ImGui::TextDisabled("Controller edits apply after Stop");
+                }
+            }
+
+            if(!open && !mSimulation->IsPlaying())
+            {
+                mRegistry->RemoveComponent<fg::CharacterControllerComponent>(selection);
             }
         });
 

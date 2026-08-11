@@ -2,6 +2,7 @@
 
 #include "Frigga/ECS/Components/AnimatorComponent.hpp"
 #include "Frigga/ECS/Components/CameraComponent.hpp"
+#include "Frigga/ECS/Components/CharacterControllerComponent.hpp"
 #include "Frigga/ECS/Components/LightComponent.hpp"
 #include "Frigga/ECS/Components/MaterialComponent.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"
@@ -99,6 +100,16 @@ namespace FRIGGA_NAMESPACE
             int64_t            collideWithLayers = 0xffff;
         };
 
+        struct SceneCharacterControllerDto
+        {
+            float   radius           = 0.35f;
+            float   height           = 1.0f;
+            float   maxSlopeDegrees  = 45.0f;
+            float   mass             = 70.0f;
+            int64_t collisionLayer   = 1;
+            int64_t collideWithLayers = 0xffff;
+        };
+
         struct SceneAnimatorDto
         {
             std::string          modelSource;
@@ -137,6 +148,7 @@ namespace FRIGGA_NAMESPACE
             std::optional<SceneCameraDto>      camera;
             std::optional<SceneLightDto>       light;
             std::optional<SceneRigidBodyDto>   rigidBody;
+            std::optional<SceneCharacterControllerDto> characterController;
             std::optional<SceneAnimatorDto>    animator;
             std::optional<std::vector<SceneUserComponentDto>> userComponents;
         };
@@ -791,6 +803,18 @@ namespace FRIGGA_NAMESPACE
                 };
             });
 
+            registry->TryGetComponents<CharacterControllerComponent>(
+                entity, [&](CharacterControllerComponent &cc) {
+                    dto.characterController = SceneCharacterControllerDto {
+                        .radius            = cc.radius,
+                        .height            = cc.height,
+                        .maxSlopeDegrees   = cc.maxSlopeDegrees,
+                        .mass              = cc.mass,
+                        .collisionLayer    = cc.collisionLayer,
+                        .collideWithLayers = cc.collideWithLayers,
+                    };
+                });
+
             registry->TryGetComponents<AnimatorComponent>(entity, [&](AnimatorComponent &animator) {
                 dto.animator = SceneAnimatorDto {
                     .modelSource   = animator.modelSource,
@@ -1110,6 +1134,22 @@ namespace FRIGGA_NAMESPACE
                 rigidBody = rb;
             }
 
+            std::optional<CharacterControllerComponent> characterController;
+            if(entityDto.characterController)
+            {
+                const auto &ccDto = *entityDto.characterController;
+                CharacterControllerComponent cc {};
+                cc.radius            = ccDto.radius;
+                cc.height            = ccDto.height;
+                cc.maxSlopeDegrees   = ccDto.maxSlopeDegrees;
+                cc.mass              = ccDto.mass;
+                cc.collisionLayer    = static_cast<std::uint8_t>(
+                    std::clamp<int64_t>(ccDto.collisionLayer, 0, 15));
+                cc.collideWithLayers = static_cast<std::uint16_t>(
+                    std::clamp<int64_t>(ccDto.collideWithLayers, 0, 0xffff));
+                characterController = cc;
+            }
+
             std::optional<AnimatorComponent> animator;
             if(entityDto.animator)
             {
@@ -1144,38 +1184,44 @@ namespace FRIGGA_NAMESPACE
             const bool hasC  = camera.has_value();
             const bool hasL  = light.has_value();
             const bool hasR  = rigidBody.has_value();
+            const bool hasCc = characterController.has_value();
             const bool hasA  = animator.has_value();
 
-            if(hasT && hasM && hasMat && !hasC && !hasL && hasR && hasA)
+            if(hasT && hasM && hasMat && !hasC && !hasL && hasR && hasA && !hasCc)
             {
                 entity = registry->CreateEntity(name, *transform, *mesh, *material, *rigidBody,
                                                 *animator);
             }
-            else if(hasT && hasM && hasMat && !hasC && !hasL && !hasR && hasA)
+            else if(hasT && hasM && hasMat && !hasC && !hasL && !hasR && hasA && !hasCc)
             {
                 entity = registry->CreateEntity(name, *transform, *mesh, *material, *animator);
             }
-            else if(hasT && hasM && hasMat && !hasC && !hasL && hasR && !hasA)
+            else if(hasT && hasM && hasMat && !hasC && !hasL && hasR && !hasA && !hasCc)
             {
                 entity = registry->CreateEntity(name, *transform, *mesh, *material, *rigidBody);
             }
-            else if(hasT && hasM && hasMat && !hasC && !hasL && !hasR && !hasA)
+            else if(hasT && hasM && hasMat && !hasC && !hasL && !hasR && !hasA && hasCc)
+            {
+                entity = registry->CreateEntity(name, *transform, *mesh, *material,
+                                                *characterController);
+            }
+            else if(hasT && hasM && hasMat && !hasC && !hasL && !hasR && !hasA && !hasCc)
             {
                 entity = registry->CreateEntity(name, *transform, *mesh, *material);
             }
-            else if(hasT && !hasM && !hasMat && hasC && !hasL && !hasR && !hasA)
+            else if(hasT && !hasM && !hasMat && hasC && !hasL && !hasR && !hasA && !hasCc)
             {
                 entity = registry->CreateEntity(name, *transform, *camera);
             }
-            else if(hasT && !hasM && !hasMat && !hasC && hasL && !hasR && !hasA)
+            else if(hasT && !hasM && !hasMat && !hasC && hasL && !hasR && !hasA && !hasCc)
             {
                 entity = registry->CreateEntity(name, *transform, *light);
             }
-            else if(hasT && !hasM && !hasMat && !hasC && !hasL && !hasR && !hasA)
+            else if(hasT && !hasM && !hasMat && !hasC && !hasL && !hasR && !hasA && !hasCc)
             {
                 entity = registry->CreateEntity(name, *transform);
             }
-            else if(!hasT && !hasM && !hasMat && !hasC && !hasL && !hasR && !hasA)
+            else if(!hasT && !hasM && !hasMat && !hasC && !hasL && !hasR && !hasA && !hasCc)
             {
                 entity = registry->CreateEntity(name);
             }
@@ -1218,6 +1264,10 @@ namespace FRIGGA_NAMESPACE
                 if(hasR)
                 {
                     attach(*rigidBody);
+                }
+                if(hasCc)
+                {
+                    attach(*characterController);
                 }
                 if(hasA)
                 {

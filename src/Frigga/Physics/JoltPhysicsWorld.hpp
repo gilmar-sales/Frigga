@@ -5,6 +5,7 @@
 
 #include <array>
 #include <memory>
+#include <unordered_map>
 
 namespace FRIGGA_NAMESPACE
 {
@@ -32,12 +33,29 @@ namespace FRIGGA_NAMESPACE
         void GetTransform(PhysicsBodyHandle handle, glm::vec3 &position,
                           glm::quat &rotation) const override;
 
+        void SetLinearVelocity(PhysicsBodyHandle handle, const glm::vec3 &velocity) override;
+        [[nodiscard]] glm::vec3 GetLinearVelocity(PhysicsBodyHandle handle) const override;
+        void AddImpulse(PhysicsBodyHandle handle, const glm::vec3 &impulse) override;
+        void AddForce(PhysicsBodyHandle handle, const glm::vec3 &force) override;
+
+        PhysicsCharacterHandle CreateCharacter(const PhysicsCharacterDesc &desc) override;
+        void DestroyCharacter(PhysicsCharacterHandle handle) override;
+        void SetCharacterVelocity(PhysicsCharacterHandle handle,
+                                  const glm::vec3 &velocity) override;
+        [[nodiscard]] glm::vec3 GetCharacterVelocity(PhysicsCharacterHandle handle) const override;
+        void GetCharacterTransform(PhysicsCharacterHandle handle, glm::vec3 &position,
+                                   glm::quat &rotation) const override;
+        [[nodiscard]] bool IsCharacterGrounded(PhysicsCharacterHandle handle) const override;
+
         void SetGravity(const glm::vec3 &gravity) override;
         [[nodiscard]] glm::vec3 GetGravity() const override;
 
         [[nodiscard]] bool IsBodyActive(PhysicsBodyHandle handle) const override;
 
       private:
+        void stepFixedInternal(int steps);
+        void updateCharactersFixed();
+
         struct Impl;
         std::unique_ptr<Impl> mImpl;
     };

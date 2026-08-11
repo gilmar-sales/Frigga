@@ -554,6 +554,10 @@ void MainLayer::drawMenuBar()
                 {
                     mHierarchy->addRigidBodyToSelection();
                 }
+                if(ImGui::MenuItem("Character Controller"))
+                {
+                    mHierarchy->addCharacterControllerToSelection();
+                }
                 if(ImGui::BeginMenu(ICON_BTSP_LIGHT " Light"))
                 {
                     for(auto type:

@@ -7,7 +7,7 @@
 namespace FRIGGA_NAMESPACE
 {
 
-    struct PhysicsBodyHandle
+    struct PhysicsCharacterHandle
     {
         static constexpr std::uint32_t InvalidId = 0xffffffffu;
 

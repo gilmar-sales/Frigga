@@ -27,7 +27,7 @@ namespace FRIGGA_NAMESPACE
         /// Bitmask of layers this body collides with.
         std::uint16_t collideWithLayers = 0xffff;
 
-        /// Runtime Jolt body id — not serialized.
+        /// Runtime body id — not serialized.
         PhysicsBodyHandle body {};
     };
 

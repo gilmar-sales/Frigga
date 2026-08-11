@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Frigga/Macro.hpp"
+
 #include <cstdint>
 #include <vector>
 
@@ -41,10 +43,24 @@ namespace FRIGGA_NAMESPACE
         float friction    = 0.5f;
         float restitution = 0.0f;
 
-        std::uint8_t  collisionLayer = 0;      // 0..15
+        std::uint8_t  collisionLayer = 0; // 0..15
         std::uint16_t collideWithLayers = 0xffff;
 
         std::vector<glm::vec3> meshPoints; // Used when shape == Mesh
+    };
+
+    struct PhysicsCharacterDesc
+    {
+        glm::vec3 position {0.0f};
+        glm::quat rotation {1.0f, 0.0f, 0.0f, 0.0f};
+
+        float radius          = 0.35f;
+        float height          = 1.0f; // Capsule cylinder height (excluding hemispheres)
+        float maxSlopeDegrees = 45.0f;
+        float mass            = 70.0f;
+
+        std::uint8_t  collisionLayer    = 1;
+        std::uint16_t collideWithLayers = 0xffff;
     };
 
 } // namespace FRIGGA_NAMESPACE

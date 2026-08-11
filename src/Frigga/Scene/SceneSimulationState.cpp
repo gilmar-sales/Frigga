@@ -177,6 +177,12 @@ namespace FRIGGA_NAMESPACE
 
         mRegistry->CreateMutation()->Each<TransformComponent, RigidBodyComponent>(
             [&](auto entity, TransformComponent &transform, RigidBodyComponent &rigidBody) {
+                if(mRegistry->HasComponent<CharacterControllerComponent>(entity))
+                {
+                    // Character owns locomotion; skip rigid-body creation.
+                    rigidBody.body.Reset();
+                    return;
+                }
                 const auto desc = makeBodyDesc(transform, rigidBody, entity);
                 rigidBody.body  = mPhysicsWorld->CreateBody(desc);
                 if(!rigidBody.body.IsValid())
@@ -188,12 +194,42 @@ namespace FRIGGA_NAMESPACE
                 }
             });
 
+        mRegistry->CreateMutation()->Each<TransformComponent, CharacterControllerComponent>(
+            [&](auto entity, TransformComponent &transform,
+                CharacterControllerComponent &controller) {
+                PhysicsCharacterDesc desc {};
+                desc.position           = transform.position;
+                desc.rotation           = transform.rotation;
+                desc.radius             = controller.radius;
+                desc.height             = controller.height;
+                desc.maxSlopeDegrees    = controller.maxSlopeDegrees;
+                desc.mass               = controller.mass;
+                desc.collisionLayer     = controller.collisionLayer;
+                desc.collideWithLayers  = controller.collideWithLayers;
+                controller.character    = mPhysicsWorld->CreateCharacter(desc);
+                if(!controller.character.IsValid())
+                {
+                    std::string name = "entity";
+                    mRegistry->TryGetComponents<NameComponent>(
+                        entity, [&](NameComponent &n) { name = n.name; });
+                    mLogger->LogWarning("Failed to create character controller for '{}'", name);
+                }
+            });
+
         mPhysicsWorld->OptimizeBroadPhase();
         mRegistry->ExecuteTasks();
     }
 
     void SceneSimulationState::teardownPhysicsWorld()
     {
+        mRegistry->CreateMutation()->Each<CharacterControllerComponent>(
+            [&](auto, CharacterControllerComponent &controller) {
+                if(controller.character.IsValid())
+                {
+                    mPhysicsWorld->DestroyCharacter(controller.character);
+                    controller.character.Reset();
+                }
+            });
         mRegistry->CreateMutation()->Each<RigidBodyComponent>(
             [&](auto, RigidBodyComponent &rigidBody) {
                 if(rigidBody.body.IsValid())

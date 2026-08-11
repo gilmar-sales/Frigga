@@ -51,10 +51,12 @@ file(COPY "${CMAKE_SOURCE_DIR}/src/Frigga/Input"
         PATTERN "*.hpp"
         PATTERN "*.h")
 
-# RigidBodyComponent depends on these (no Jolt / world impl in the SDK).
+# RigidBody / Character / fg::Physics facade (no Jolt / IPhysicsWorld in the SDK).
 file(MAKE_DIRECTORY "${FRIGGA_SDK_DIR}/src/Frigga/Physics")
 file(COPY "${CMAKE_SOURCE_DIR}/src/Frigga/Physics/PhysicsBodyHandle.hpp"
+          "${CMAKE_SOURCE_DIR}/src/Frigga/Physics/PhysicsCharacterHandle.hpp"
           "${CMAKE_SOURCE_DIR}/src/Frigga/Physics/PhysicsTypes.hpp"
+          "${CMAKE_SOURCE_DIR}/src/Frigga/Physics/Physics.hpp"
      DESTINATION "${FRIGGA_SDK_DIR}/src/Frigga/Physics")
 
 # Lightweight Freya event enums for InputMap / plugin includes (no Vulkan).

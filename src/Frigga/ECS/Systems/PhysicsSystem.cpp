@@ -1,5 +1,6 @@
 #include "PhysicsSystem.hpp"
 
+#include "Frigga/ECS/Components/CharacterControllerComponent.hpp"
 #include "Frigga/ECS/Components/RigidBodyComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 
@@ -26,7 +27,7 @@ namespace FRIGGA_NAMESPACE
             return;
         }
 
-        // Push kinematic transforms authored in the editor into the world.
+        // Push kinematic transforms authored by gameplay / editor into the world.
         mRegistry->CreateMutation()->Each<TransformComponent, RigidBodyComponent>(
             [&](auto, TransformComponent &transform, RigidBodyComponent &rigidBody) {
                 if(!rigidBody.body.IsValid())
@@ -49,14 +50,29 @@ namespace FRIGGA_NAMESPACE
             mPhysicsWorld->Step(deltaTime);
         }
 
-        // Write dynamic/static simulation poses back to ECS transforms.
+        // Write dynamic simulation poses back to ECS transforms.
         mRegistry->CreateMutation()->Each<TransformComponent, RigidBodyComponent>(
-            [&](auto, TransformComponent &transform, RigidBodyComponent &rigidBody) {
+            [&](auto entity, TransformComponent &transform, RigidBodyComponent &rigidBody) {
+                if(mRegistry->HasComponent<CharacterControllerComponent>(entity))
+                {
+                    return;
+                }
                 if(!rigidBody.body.IsValid() || rigidBody.motion == BodyMotionType::Kinematic)
                 {
                     return;
                 }
                 mPhysicsWorld->GetTransform(rigidBody.body, transform.position, transform.rotation);
+            });
+
+        // CharacterVirtual owns pose for entities with a character controller.
+        mRegistry->CreateMutation()->Each<TransformComponent, CharacterControllerComponent>(
+            [&](auto, TransformComponent &transform, CharacterControllerComponent &character) {
+                if(!character.character.IsValid())
+                {
+                    return;
+                }
+                mPhysicsWorld->GetCharacterTransform(character.character, transform.position,
+                                                     transform.rotation);
             });
     }
 

@@ -91,6 +91,7 @@ ProjectMigrationResult ProjectMigrator::Migrate(const std::filesystem::path &pro
     // v5 → v6: register GameplaySystem on Simulation pipeline (Play-only)
     // v6 → v7: FRI_PLUGIN_MODULE fluent Component/System/Singleton/Scoped/Transient
     // v7 → v8: input.json + GameplaySystem DI fg::Input
+    // v8 → v9: GameplaySystem DI fg::Physics + CharacterController movement
     std::string stepError;
     if(!ApplyManagedLayout(projectFile.parent_path(), desc, stepError))
     {

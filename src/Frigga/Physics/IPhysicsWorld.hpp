@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Frigga/Physics/PhysicsBodyHandle.hpp"
+#include "Frigga/Physics/PhysicsCharacterHandle.hpp"
 #include "Frigga/Physics/PhysicsTypes.hpp"
 
 #include <glm/glm.hpp>
@@ -28,6 +29,21 @@ namespace FRIGGA_NAMESPACE
                                   const glm::quat &rotation) = 0;
         virtual void GetTransform(PhysicsBodyHandle handle, glm::vec3 &position,
                                   glm::quat &rotation) const = 0;
+
+        virtual void SetLinearVelocity(PhysicsBodyHandle handle, const glm::vec3 &velocity) = 0;
+        [[nodiscard]] virtual glm::vec3 GetLinearVelocity(PhysicsBodyHandle handle) const = 0;
+        virtual void AddImpulse(PhysicsBodyHandle handle, const glm::vec3 &impulse) = 0;
+        virtual void AddForce(PhysicsBodyHandle handle, const glm::vec3 &force) = 0;
+
+        virtual PhysicsCharacterHandle CreateCharacter(const PhysicsCharacterDesc &desc) = 0;
+        virtual void DestroyCharacter(PhysicsCharacterHandle handle) = 0;
+        virtual void SetCharacterVelocity(PhysicsCharacterHandle handle,
+                                          const glm::vec3 &velocity) = 0;
+        [[nodiscard]] virtual glm::vec3 GetCharacterVelocity(
+            PhysicsCharacterHandle handle) const = 0;
+        virtual void GetCharacterTransform(PhysicsCharacterHandle handle, glm::vec3 &position,
+                                           glm::quat &rotation) const = 0;
+        [[nodiscard]] virtual bool IsCharacterGrounded(PhysicsCharacterHandle handle) const = 0;
 
         virtual void SetGravity(const glm::vec3 &gravity) = 0;
         [[nodiscard]] virtual glm::vec3 GetGravity() const = 0;

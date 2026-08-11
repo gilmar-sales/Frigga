@@ -117,25 +117,27 @@ namespace
 
 #include <Frigga/Macro.hpp>
 #include <Frigga/ECS/Components/NameComponent.hpp>
-#include <Frigga/ECS/Components/TransformComponent.hpp>
 #include <Frigga/Input/Input.hpp>
+#include <Frigga/Physics/Physics.hpp>
 
 #include <Freyr/Freyr.hpp>
 #include <Skirnir/Skirnir.hpp>
 
 /**
  * Freyr system owned by the gameplay plugin.
- * Resolves host fg::Input via late DI (FRI_PLUGIN_MODULE .System).
+ * Resolves host fg::Input / fg::Physics via late DI (FRI_PLUGIN_MODULE .System).
  */
 class GameplaySystem: public fr::System
 {
   public:
-    GameplaySystem(const skr::Arc<fr::Registry> &registry, const skr::Arc<fg::Input> &input);
+    GameplaySystem(const skr::Arc<fr::Registry> &registry, const skr::Arc<fg::Input> &input,
+                   const skr::Arc<fg::Physics> &physics);
 
     void Update(float deltaTime) override;
 
   private:
     skr::Arc<fg::Input> mInput;
+    skr::Arc<fg::Physics> mPhysics;
 };
 )cpp";
     }
@@ -147,8 +149,9 @@ class GameplaySystem: public fr::System
 #include "Components/Health.hpp"
 
 GameplaySystem::GameplaySystem(const skr::Arc<fr::Registry> &registry,
-                               const skr::Arc<fg::Input> &input)
-    : fr::System(registry), mInput(input)
+                               const skr::Arc<fg::Input> &input,
+                               const skr::Arc<fg::Physics> &physics)
+    : fr::System(registry), mInput(input), mPhysics(physics)
 {
 }
 
@@ -167,7 +170,7 @@ void GameplaySystem::Update(float deltaTime)
             }
         });
 
-    if(!mInput)
+    if(!mInput || !mPhysics)
     {
         return;
     }
@@ -176,19 +179,25 @@ void GameplaySystem::Update(float deltaTime)
     const float vertical   = mInput->GetAxis("Vertical");
     const bool jump        = mInput->WasPressed("Jump");
     const float speed      = 4.0f;
+    const float jumpSpeed  = 5.0f;
 
-    mRegistry->CreateMutation()->Each<fg::NameComponent, fg::TransformComponent>(
-        [&](fr::Entity, fg::NameComponent &name, fg::TransformComponent &transform) {
+    mRegistry->CreateMutation()->Each<fg::NameComponent>(
+        [&](fr::Entity entity, fg::NameComponent &name) {
             if(name.name != "Player")
             {
                 return;
             }
-            transform.position.x += horizontal * speed * deltaTime;
-            transform.position.z -= vertical * speed * deltaTime;
-            if(jump)
+
+            glm::vec3 desired {horizontal * speed, 0.0f, -vertical * speed};
+            if(jump && mPhysics->IsCharacterGrounded(entity))
             {
-                transform.position.y += 1.5f;
+                desired.y = jumpSpeed;
             }
+            else
+            {
+                desired.y = mPhysics->GetCharacterVelocity(entity).y;
+            }
+            mPhysics->MoveCharacter(entity, desired);
         });
 }
 )cpp";
@@ -250,7 +259,8 @@ struct Health: fr::Component
         out << "- `frigga.project` — project metadata\n";
         out << "- `input.json` — named Actions / Axes bindings\n";
         out << "- `scenes/main.json` — default scene\n";
-        out << "- `src/GameplaySystem.*` — Freyr system (registers via FRI_PLUGIN_MODULE, DI `fg::Input`)\n";
+        out << "- `src/GameplaySystem.*` — Freyr system (registers via FRI_PLUGIN_MODULE, DI "
+               "`fg::Input` + `fg::Physics`)\n";
         out << "- `src/GameplayPlugin.cpp` — FRI_PLUGIN_MODULE entry for the Editor\n";
         out << "- `src/Components/` — project POD components (example: Health)\n";
         out << "- `include/frigga_user_components.hpp` — FriSet / FriTryGet helpers\n\n";
@@ -265,8 +275,8 @@ struct Health: fr::Component
         out << "Inherit `fr::System` and register with `plugin.System<MySystem>()` "
                "(defaults to the **Simulation** pipeline).\n";
         out << "Optional DI: `plugin.Singleton<T>()`, `.Scoped<T>()`, `.Transient<T>()`.\n";
-        out << "Host exposes `fg::Input` — inject `skr::Arc<fg::Input>` in system ctors and "
-               "query `IsDown` / `WasPressed` / `GetAxis`.\n";
+        out << "Host exposes `fg::Input` and `fg::Physics` — inject them in system ctors "
+               "(`IsDown`/`WasPressed`/`GetAxis`, `MoveCharacter`/`SetLinearVelocity`).\n";
         out << "Edit mode disables Simulation (physics + gameplay); Animation/Render stay on "
                "**Main**.\n\n";
         out << "## Build the plugin\n\n";

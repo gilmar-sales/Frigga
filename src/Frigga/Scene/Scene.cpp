@@ -1,6 +1,7 @@
 #include "Scene.hpp"
 
 #include "Frigga/ECS/Components/CameraComponent.hpp"
+#include "Frigga/ECS/Components/CharacterControllerComponent.hpp"
 #include "Frigga/ECS/Components/LightComponent.hpp"
 #include "Frigga/ECS/Components/MaterialComponent.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"
@@ -82,6 +83,15 @@ namespace FRIGGA_NAMESPACE
             MeshComponent {.meshId = mPrimitives->GetMesh(PrimitiveType::Cube)},
             MaterialComponent {.materialId = mPrimitives->GetDefaultMaterial()});
 
+        mEcsRegistry->CreateEntity(
+            NameComponent {.name = "Player"},
+            TransformComponent {.position = {0.0f, 0.0f, 2.0f},
+                                .scale    = {1.0f, 1.0f, 1.0f},
+                                .rotation = {1.0f, 0.0f, 0.0f, 0.0f}},
+            MeshComponent {.meshId = mPrimitives->GetMesh(PrimitiveType::Capsule)},
+            MaterialComponent {.materialId = mPrimitives->GetDefaultMaterial()},
+            CharacterControllerComponent {});
+
         // Blender-like default framing: elevated 3/4 view looking at the unit cube.
         constexpr glm::vec3 cubeCenter {0.0f, 0.0f, 0.0f};
         constexpr glm::vec3 cameraPosition {4.0f, 3.0f, 4.0f};
@@ -134,7 +144,8 @@ namespace FRIGGA_NAMESPACE
                                 .scale    = {0.75f, 0.75f, 0.75f},
                                 .rotation = {1.0f, 0.0f, 0.0f, 0.0f}},
             MeshComponent {.meshId = mPrimitives->GetMesh(PrimitiveType::Quad)},
-            MaterialComponent {.materialId = mPrimitives->GetDefaultMaterial()});
+            MaterialComponent {.materialId = mPrimitives->GetDefaultMaterial()},
+            CharacterControllerComponent {.radius = 0.3f, .height = 0.4f});
 
         constexpr glm::vec3 lookTarget {0.0f, 0.0f, 0.0f};
         constexpr glm::vec3 cameraPosition {0.0f, 12.0f, 0.01f};

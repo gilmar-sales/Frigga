@@ -6,6 +6,7 @@
 #include "Core/LayerStack.hpp"
 #include "ECS/Components/AnimatorComponent.hpp"
 #include "ECS/Components/CameraComponent.hpp"
+#include "ECS/Components/CharacterControllerComponent.hpp"
 #include "ECS/Components/LightComponent.hpp"
 #include "ECS/Components/MaterialComponent.hpp"
 #include "ECS/Components/MeshComponent.hpp"
@@ -19,6 +20,7 @@
 #include "Input/Input.hpp"
 #include "Physics/IPhysicsWorld.hpp"
 #include "Physics/JoltPhysicsWorld.hpp"
+#include "Physics/Physics.hpp"
 #include "Plugin/GameplayPluginBridge.hpp"
 #include "Plugin/GameplayPluginHost.hpp"
 #include "Scene/Scene.hpp"
@@ -37,6 +39,7 @@ namespace FRIGGA_NAMESPACE
                     .WithComponent<CameraComponent>()
                     .WithComponent<LightComponent>()
                     .WithComponent<RigidBodyComponent>()
+                    .WithComponent<CharacterControllerComponent>()
                     .WithComponent<AnimatorComponent>()
                     .WithPipeline([](fr::PipelineBuilder &pipeline) {
                         // Always runs: editor viewport / presentation.
@@ -46,9 +49,10 @@ namespace FRIGGA_NAMESPACE
                     })
                     .WithPipeline([](fr::PipelineBuilder &pipeline) {
                         // Play mode only (Editor disables this pipeline while editing).
+                        // Gameplay runs first so fg::Physics intents apply before the step.
                         pipeline.WithName("Simulation")
-                            .WithSystem<PhysicsSystem>()
-                            .WithSystem<GameplayPluginBridge>();
+                            .WithSystem<GameplayPluginBridge>()
+                            .WithSystem<PhysicsSystem>();
                     });
             })
             .WithExtension<fra::FreyaExtension>([](fra::FreyaExtension &freya) {
@@ -68,6 +72,7 @@ namespace FRIGGA_NAMESPACE
         services.AddSingleton<fg::AssetRegistry>();
         services.AddSingleton<fg::AnimationController>();
         services.AddSingleton<fg::IPhysicsWorld, fg::JoltPhysicsWorld>();
+        services.AddSingleton<fg::Physics>();
         services.AddSingleton<fg::Scene>();
         services.AddSingleton<fg::SceneSimulationState>();
         services.AddSingleton<fg::Input>();

@@ -6,9 +6,11 @@
 #include <Jolt/Core/JobSystemThreadPool.h>
 #include <Jolt/Core/TempAllocator.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
+#include <Jolt/Physics/Character/CharacterVirtual.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
 #include <Jolt/Physics/Collision/Shape/ConvexHullShape.h>
+#include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <Jolt/Physics/PhysicsSystem.h>
 #include <Jolt/RegisterTypes.h>
@@ -19,6 +21,7 @@
 #include <iostream>
 #include <mutex>
 #include <thread>
+#include <unordered_map>
 
 JPH_SUPPRESS_WARNINGS
 
@@ -110,8 +113,7 @@ namespace FRIGGA_NAMESPACE
             [[nodiscard]] bool ShouldCollide(JPH::ObjectLayer layer,
                                              JPH::BroadPhaseLayer broadPhase) const override
             {
-                const bool moving =
-                    layer < kLayerCount ? mLayerIsMoving[layer] : true;
+                const bool moving = layer < kLayerCount ? mLayerIsMoving[layer] : true;
                 if(moving)
                 {
                     return true;
@@ -170,6 +172,12 @@ namespace FRIGGA_NAMESPACE
                 JPH::RegisterTypes();
             });
         }
+
+        struct CharacterEntry
+        {
+            JPH::Ref<JPH::CharacterVirtual> character;
+            JPH::ObjectLayer                layer = 0;
+        };
     } // namespace
 
     struct JoltPhysicsWorld::Impl
@@ -190,6 +198,22 @@ namespace FRIGGA_NAMESPACE
             physicsSystem.SetGravity(JPH::Vec3(0.0f, -9.81f, 0.0f));
         }
 
+        void NoteLayer(std::uint8_t collisionLayer, std::uint16_t collideWithLayers, bool moving)
+        {
+            const auto layer = static_cast<JPH::ObjectLayer>(
+                std::min<std::uint8_t>(collisionLayer, kLayerCount - 1));
+            if(layerBodyCount[layer] == 0)
+            {
+                layerMasks[layer] = collideWithLayers;
+            }
+            else
+            {
+                layerMasks[layer] |= collideWithLayers;
+            }
+            ++layerBodyCount[layer];
+            layerIsMoving[layer] = layerIsMoving[layer] || moving;
+        }
+
         JPH::TempAllocatorImpl tempAllocator;
         JPH::JobSystemThreadPool jobSystem;
         std::array<bool, kLayerCount> layerIsMoving {};
@@ -200,6 +224,8 @@ namespace FRIGGA_NAMESPACE
         ObjectLayerPairFilterImpl objectVsObject;
         JPH::PhysicsSystem physicsSystem;
         float accumulator = 0.0f;
+        std::unordered_map<std::uint32_t, CharacterEntry> characters;
+        std::uint32_t nextCharacterId = 1;
     };
 
     JoltPhysicsWorld::JoltPhysicsWorld()
@@ -216,6 +242,8 @@ namespace FRIGGA_NAMESPACE
 
     void JoltPhysicsWorld::Clear()
     {
+        mImpl->characters.clear();
+
         auto &bodyInterface = mImpl->physicsSystem.GetBodyInterface();
         JPH::BodyIDVector bodies;
         mImpl->physicsSystem.GetBodies(bodies);
@@ -227,7 +255,8 @@ namespace FRIGGA_NAMESPACE
         mImpl->layerMasks.fill(0);
         mImpl->layerIsMoving.fill(false);
         mImpl->layerBodyCount.fill(0);
-        mImpl->accumulator = 0.0f;
+        mImpl->accumulator     = 0.0f;
+        mImpl->nextCharacterId = 1;
     }
 
     void JoltPhysicsWorld::OptimizeBroadPhase()
@@ -240,17 +269,47 @@ namespace FRIGGA_NAMESPACE
         return kFixedDeltaTime;
     }
 
+    void JoltPhysicsWorld::updateCharactersFixed()
+    {
+        using namespace JPH;
+
+        for(auto &[id, entry] : mImpl->characters)
+        {
+            if(entry.character == nullptr)
+            {
+                continue;
+            }
+
+            CharacterVirtual::ExtendedUpdateSettings updateSettings;
+            const Vec3 gravity =
+                -entry.character->GetUp() * mImpl->physicsSystem.GetGravity().Length();
+            entry.character->ExtendedUpdate(
+                kFixedDeltaTime, gravity, updateSettings,
+                mImpl->physicsSystem.GetDefaultBroadPhaseLayerFilter(entry.layer),
+                mImpl->physicsSystem.GetDefaultLayerFilter(entry.layer), {}, {},
+                mImpl->tempAllocator);
+        }
+    }
+
+    void JoltPhysicsWorld::stepFixedInternal(int steps)
+    {
+        const int count = std::max(steps, 0);
+        for(int i = 0; i < count; ++i)
+        {
+            mImpl->physicsSystem.Update(kFixedDeltaTime, 1, &mImpl->tempAllocator,
+                                        &mImpl->jobSystem);
+            updateCharactersFixed();
+        }
+    }
+
     void JoltPhysicsWorld::Step(float deltaTime)
     {
         mImpl->accumulator += deltaTime;
-        // Avoid spiral of death after stalls.
         mImpl->accumulator = std::min(mImpl->accumulator, kFixedDeltaTime * 5.0f);
 
         while(mImpl->accumulator >= kFixedDeltaTime)
         {
-            const int collisionSteps = 1;
-            mImpl->physicsSystem.Update(kFixedDeltaTime, collisionSteps, &mImpl->tempAllocator,
-                                        &mImpl->jobSystem);
+            stepFixedInternal(1);
             mImpl->accumulator -= kFixedDeltaTime;
         }
     }
@@ -258,12 +317,7 @@ namespace FRIGGA_NAMESPACE
     void JoltPhysicsWorld::StepFixed(int steps)
     {
         mImpl->accumulator = 0.0f;
-        const int count    = std::max(steps, 0);
-        for(int i = 0; i < count; ++i)
-        {
-            mImpl->physicsSystem.Update(kFixedDeltaTime, 1, &mImpl->tempAllocator,
-                                        &mImpl->jobSystem);
-        }
+        stepFixedInternal(steps);
     }
 
     PhysicsBodyHandle JoltPhysicsWorld::CreateBody(const PhysicsBodyDesc &desc)
@@ -272,19 +326,9 @@ namespace FRIGGA_NAMESPACE
 
         const auto layer =
             static_cast<ObjectLayer>(std::min<std::uint8_t>(desc.collisionLayer, kLayerCount - 1));
-        // Union masks for bodies that share an ObjectLayer — last-writer-wins dropped filters.
-        if(mImpl->layerBodyCount[layer] == 0)
-        {
-            mImpl->layerMasks[layer] = desc.collideWithLayers;
-        }
-        else
-        {
-            mImpl->layerMasks[layer] |= desc.collideWithLayers;
-        }
-        ++mImpl->layerBodyCount[layer];
-        mImpl->layerIsMoving[layer] =
-            mImpl->layerIsMoving[layer] ||
-            (desc.motion == BodyMotionType::Dynamic || desc.motion == BodyMotionType::Kinematic);
+        mImpl->NoteLayer(desc.collisionLayer, desc.collideWithLayers,
+                         desc.motion == BodyMotionType::Dynamic ||
+                             desc.motion == BodyMotionType::Kinematic);
 
         RefConst<Shape> shape;
         switch(desc.shape)
@@ -322,7 +366,6 @@ namespace FRIGGA_NAMESPACE
             }
             if(points.size() < 3)
             {
-                // Fallback unit box if hull cannot be built.
                 shape = new BoxShape(Vec3(0.5f, 0.5f, 0.5f));
             }
             else
@@ -414,6 +457,158 @@ namespace FRIGGA_NAMESPACE
         bodyInterface.GetPositionAndRotation(id, pos, rot);
         position = {pos.GetX(), pos.GetY(), pos.GetZ()};
         rotation = {rot.GetW(), rot.GetX(), rot.GetY(), rot.GetZ()};
+    }
+
+    void JoltPhysicsWorld::SetLinearVelocity(PhysicsBodyHandle handle, const glm::vec3 &velocity)
+    {
+        if(!handle.IsValid())
+        {
+            return;
+        }
+
+        const JPH::BodyID id(handle.id);
+        auto &bodyInterface = mImpl->physicsSystem.GetBodyInterface();
+        bodyInterface.SetLinearVelocity(id, JPH::Vec3(velocity.x, velocity.y, velocity.z));
+    }
+
+    glm::vec3 JoltPhysicsWorld::GetLinearVelocity(PhysicsBodyHandle handle) const
+    {
+        if(!handle.IsValid())
+        {
+            return {};
+        }
+
+        const JPH::BodyID id(handle.id);
+        auto &bodyInterface = mImpl->physicsSystem.GetBodyInterface();
+        const auto v        = bodyInterface.GetLinearVelocity(id);
+        return {v.GetX(), v.GetY(), v.GetZ()};
+    }
+
+    void JoltPhysicsWorld::AddImpulse(PhysicsBodyHandle handle, const glm::vec3 &impulse)
+    {
+        if(!handle.IsValid())
+        {
+            return;
+        }
+
+        const JPH::BodyID id(handle.id);
+        auto &bodyInterface = mImpl->physicsSystem.GetBodyInterface();
+        bodyInterface.AddImpulse(id, JPH::Vec3(impulse.x, impulse.y, impulse.z));
+    }
+
+    void JoltPhysicsWorld::AddForce(PhysicsBodyHandle handle, const glm::vec3 &force)
+    {
+        if(!handle.IsValid())
+        {
+            return;
+        }
+
+        const JPH::BodyID id(handle.id);
+        auto &bodyInterface = mImpl->physicsSystem.GetBodyInterface();
+        bodyInterface.AddForce(id, JPH::Vec3(force.x, force.y, force.z));
+    }
+
+    PhysicsCharacterHandle JoltPhysicsWorld::CreateCharacter(const PhysicsCharacterDesc &desc)
+    {
+        using namespace JPH;
+
+        const auto layer =
+            static_cast<ObjectLayer>(std::min<std::uint8_t>(desc.collisionLayer, kLayerCount - 1));
+        mImpl->NoteLayer(desc.collisionLayer, desc.collideWithLayers, true);
+
+        const float radius     = std::max(desc.radius, 0.001f);
+        const float halfHeight = std::max(0.5f * desc.height, 0.001f);
+        RefConst<Shape> capsule = new CapsuleShape(halfHeight, radius);
+        RefConst<Shape> standingShape = new RotatedTranslatedShape(
+            Vec3(0.0f, halfHeight + radius, 0.0f), Quat::sIdentity(), capsule);
+
+        Ref<CharacterVirtualSettings> settings = new CharacterVirtualSettings();
+        settings->mMass                        = std::max(desc.mass, 0.001f);
+        settings->mMaxSlopeAngle =
+            JPH::DegreesToRadians(std::clamp(desc.maxSlopeDegrees, 1.0f, 89.0f));
+        settings->mShape = standingShape;
+        settings->mSupportingVolume = Plane(Vec3::sAxisY(), -radius);
+
+        const RVec3 position(desc.position.x, desc.position.y, desc.position.z);
+        const Quat rotation(desc.rotation.x, desc.rotation.y, desc.rotation.z, desc.rotation.w);
+
+        Ref<CharacterVirtual> character =
+            new CharacterVirtual(settings, position, rotation, 0, &mImpl->physicsSystem);
+
+        const std::uint32_t id = mImpl->nextCharacterId++;
+        mImpl->characters.emplace(id, CharacterEntry {.character = character, .layer = layer});
+        return PhysicsCharacterHandle {.id = id};
+    }
+
+    void JoltPhysicsWorld::DestroyCharacter(PhysicsCharacterHandle handle)
+    {
+        if(!handle.IsValid())
+        {
+            return;
+        }
+        mImpl->characters.erase(handle.id);
+    }
+
+    void JoltPhysicsWorld::SetCharacterVelocity(PhysicsCharacterHandle handle,
+                                                const glm::vec3 &velocity)
+    {
+        if(!handle.IsValid())
+        {
+            return;
+        }
+        const auto it = mImpl->characters.find(handle.id);
+        if(it == mImpl->characters.end() || it->second.character == nullptr)
+        {
+            return;
+        }
+        it->second.character->SetLinearVelocity(JPH::Vec3(velocity.x, velocity.y, velocity.z));
+    }
+
+    glm::vec3 JoltPhysicsWorld::GetCharacterVelocity(PhysicsCharacterHandle handle) const
+    {
+        if(!handle.IsValid())
+        {
+            return {};
+        }
+        const auto it = mImpl->characters.find(handle.id);
+        if(it == mImpl->characters.end() || it->second.character == nullptr)
+        {
+            return {};
+        }
+        const auto v = it->second.character->GetLinearVelocity();
+        return {v.GetX(), v.GetY(), v.GetZ()};
+    }
+
+    void JoltPhysicsWorld::GetCharacterTransform(PhysicsCharacterHandle handle, glm::vec3 &position,
+                                                 glm::quat &rotation) const
+    {
+        if(!handle.IsValid())
+        {
+            return;
+        }
+        const auto it = mImpl->characters.find(handle.id);
+        if(it == mImpl->characters.end() || it->second.character == nullptr)
+        {
+            return;
+        }
+        const auto pos = it->second.character->GetPosition();
+        const auto rot = it->second.character->GetRotation();
+        position       = {pos.GetX(), pos.GetY(), pos.GetZ()};
+        rotation       = {rot.GetW(), rot.GetX(), rot.GetY(), rot.GetZ()};
+    }
+
+    bool JoltPhysicsWorld::IsCharacterGrounded(PhysicsCharacterHandle handle) const
+    {
+        if(!handle.IsValid())
+        {
+            return false;
+        }
+        const auto it = mImpl->characters.find(handle.id);
+        if(it == mImpl->characters.end() || it->second.character == nullptr)
+        {
+            return false;
+        }
+        return it->second.character->IsSupported();
     }
 
     void JoltPhysicsWorld::SetGravity(const glm::vec3 &gravity)

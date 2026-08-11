@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Frigga/Asset/PrimitiveMeshFactory.hpp"
+#include "Frigga/ECS/Components/CharacterControllerComponent.hpp"
 #include "Frigga/ECS/Components/RigidBodyComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/Physics/IPhysicsWorld.hpp"
