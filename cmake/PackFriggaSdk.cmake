@@ -8,6 +8,7 @@ set(FRIGGA_SDK_DIR "${CMAKE_BINARY_DIR}/Sdk")
 set(_FRIGGA_SDK_FREYR "${CMAKE_BINARY_DIR}/_deps/freyr-src")
 set(_FRIGGA_SDK_SKIRNIR "${CMAKE_BINARY_DIR}/_deps/skirnir-src")
 set(_FRIGGA_SDK_GLM "${CMAKE_BINARY_DIR}/_deps/glm-src")
+set(_FRIGGA_SDK_SIMDJSON "${CMAKE_BINARY_DIR}/_deps/simdjson-src")
 if(DEFINED freyr_SOURCE_DIR)
     set(_FRIGGA_SDK_FREYR "${freyr_SOURCE_DIR}")
 endif()
@@ -19,9 +20,12 @@ endif()
 if(DEFINED glm_SOURCE_DIR)
     set(_FRIGGA_SDK_GLM "${glm_SOURCE_DIR}")
 endif()
+if(DEFINED simdjson_SOURCE_DIR)
+    set(_FRIGGA_SDK_SIMDJSON "${simdjson_SOURCE_DIR}")
+endif()
 
 foreach(_dep IN ITEMS "${_FRIGGA_SDK_FREYR}/include/Freyr" "${_FRIGGA_SDK_SKIRNIR}/include/Skirnir"
-                      "${_FRIGGA_SDK_GLM}/glm")
+                      "${_FRIGGA_SDK_GLM}/glm" "${_FRIGGA_SDK_SIMDJSON}/include/simdjson.h")
     if(NOT EXISTS "${_dep}")
         message(FATAL_ERROR "PackFriggaSdk: missing dependency tree at ${_dep}")
     endif()
@@ -32,6 +36,7 @@ file(MAKE_DIRECTORY "${FRIGGA_SDK_DIR}/src/Frigga/Plugin")
 file(MAKE_DIRECTORY "${FRIGGA_SDK_DIR}/_deps/freyr-src/include")
 file(MAKE_DIRECTORY "${FRIGGA_SDK_DIR}/_deps/skirnir-src/include")
 file(MAKE_DIRECTORY "${FRIGGA_SDK_DIR}/_deps/glm-src")
+file(MAKE_DIRECTORY "${FRIGGA_SDK_DIR}/_deps/simdjson-src/include")
 
 file(COPY "${CMAKE_SOURCE_DIR}/src/Frigga/Macro.hpp"
      DESTINATION "${FRIGGA_SDK_DIR}/src/Frigga")
@@ -84,5 +89,18 @@ file(COPY "${_FRIGGA_SDK_SKIRNIR}/include/Skirnir"
      DESTINATION "${FRIGGA_SDK_DIR}/_deps/skirnir-src/include")
 file(COPY "${_FRIGGA_SDK_GLM}/glm"
      DESTINATION "${FRIGGA_SDK_DIR}/_deps/glm-src")
+# Skirnir public headers include <simdjson.h>; plugins compile against the SDK
+# without linking simdjson, so the headers must ship with the pack.
+file(COPY "${_FRIGGA_SDK_SIMDJSON}/include/simdjson.h"
+          "${_FRIGGA_SDK_SIMDJSON}/include/simdjson"
+     DESTINATION "${FRIGGA_SDK_DIR}/_deps/simdjson-src/include")
+
+# Editor POST_BUILD copies the import lib here; a later configure would
+# otherwise wipe it with REMOVE_RECURSE above. Restore from the build tree.
+foreach(_implib IN ITEMS libEditor.dll.a Editor.lib libEditor.lib)
+    if(EXISTS "${CMAKE_BINARY_DIR}/${_implib}")
+        file(COPY "${CMAKE_BINARY_DIR}/${_implib}" DESTINATION "${FRIGGA_SDK_DIR}")
+    endif()
+endforeach()
 
 message(STATUS "Frigga gameplay SDK: ${FRIGGA_SDK_DIR}")

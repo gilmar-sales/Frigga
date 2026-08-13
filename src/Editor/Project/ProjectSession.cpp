@@ -1237,7 +1237,50 @@ std::filesystem::path ProjectSession::pluginLibraryAbsolute() const
     {
         return {};
     }
-    return mProjectFile->parent_path() / mDescriptor.pluginLibraryRelative;
+
+    const auto root       = mProjectFile->parent_path();
+    const auto configured = root / mDescriptor.pluginLibraryRelative;
+    std::error_code ec;
+    if(std::filesystem::is_regular_file(configured, ec))
+    {
+        return configured;
+    }
+
+    // MinGW/CMake emits lib<target>.dll; MSVC and our project file use <target>.dll.
+    // Also probe single-config vs multi-config output dirs.
+    const auto target =
+        mDescriptor.pluginTarget.empty() ? std::string("gameplay") : mDescriptor.pluginTarget;
+#ifdef _WIN32
+    const std::string names[] = {target + ".dll", "lib" + target + ".dll"};
+#elif defined(__APPLE__)
+    const std::string names[] = {"lib" + target + ".dylib", target + ".dylib"};
+#else
+    const std::string names[] = {"lib" + target + ".so", target + ".so"};
+#endif
+    const std::filesystem::path dirs[] = {
+        configured.parent_path(),
+        root / "build",
+        root / "build" / "Debug",
+        root / "build" / "Release",
+        root / "build" / "RelWithDebInfo",
+        root / "build" / "MinSizeRel",
+    };
+    for(const auto &dir : dirs)
+    {
+        if(dir.empty())
+        {
+            continue;
+        }
+        for(const auto &name : names)
+        {
+            const auto candidate = dir / name;
+            if(std::filesystem::is_regular_file(candidate, ec))
+            {
+                return candidate;
+            }
+        }
+    }
+    return configured;
 }
 
 std::filesystem::path ProjectSession::projectRootFromPath(

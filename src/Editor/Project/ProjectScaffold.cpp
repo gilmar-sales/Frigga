@@ -44,7 +44,9 @@ namespace
         out << "set(CMAKE_CXX_STANDARD 26)\n";
         out << "set(CMAKE_CXX_STANDARD_REQUIRED ON)\n";
         out << "set(CMAKE_CXX_EXTENSIONS ON)\n";
-        out << "set(CMAKE_POSITION_INDEPENDENT_CODE ON)\n\n";
+        out << "set(CMAKE_POSITION_INDEPENDENT_CODE ON)\n";
+        out << "# Header reflection only — do not inject -fmodules-ts (CMP0155).\n";
+        out << "set(CMAKE_CXX_SCAN_FOR_MODULES 0)\n\n";
         out << "if(CMAKE_CXX_COMPILER_ID STREQUAL \"GNU\")\n";
         out << "  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 16)\n";
         out << "    message(FATAL_ERROR \"Gameplay plugins need GCC 16+ (C++26 reflection). "
@@ -66,6 +68,7 @@ namespace
         out << "set(SKIRNIR_INCLUDE \"${FRIGGA_BUILD}/_deps/skirnir-src/include\")\n";
         out << "set(FREYA_INCLUDE \"${FRIGGA_BUILD}/_deps/freya-src/include\")\n";
         out << "set(GLM_INCLUDE \"${FRIGGA_BUILD}/_deps/glm-src\")\n";
+        out << "set(SIMDJSON_INCLUDE \"${FRIGGA_BUILD}/_deps/simdjson-src/include\")\n";
         out << "set(FREYR_LIB_DIR \"${FRIGGA_BUILD}/_deps/freyr-build\")\n";
         out << "set(SKIRNIR_LIB_DIR \"${FRIGGA_BUILD}/_deps/skirnir-build\")\n\n";
         out << "add_library(" << desc.pluginTarget << " SHARED\n";
@@ -90,14 +93,32 @@ namespace
         out << "  ${SKIRNIR_INCLUDE}\n";
         out << "  ${FREYA_INCLUDE}\n";
         out << "  ${GLM_INCLUDE}\n";
+        out << "  ${SIMDJSON_INCLUDE}\n";
         out << ")\n\n";
         out << "find_package(Threads REQUIRED)\n";
-        out << "# Freyr/Skirnir are linked into the Editor (static). The plugin resolves\n";
-        out << "# those symbols from the Editor process (requires --export-dynamic).\n";
-        out << "# Do not link libfreyr.a into this SHARED lib (TLS local-exec / not -fPIC-safe).\n";
+        out << "# Freyr/Skirnir/Frigga live in the Editor process. Do not link libfreyr.a\n";
+        out << "# into this SHARED lib (TLS local-exec / not -fPIC-safe).\n";
         out << "target_link_libraries(" << desc.pluginTarget << " PRIVATE Threads::Threads)\n";
         out << "if(UNIX AND NOT APPLE)\n";
         out << "  target_link_options(" << desc.pluginTarget << " PRIVATE -Wl,--allow-shlib-undefined)\n";
+        out << "elseif(WIN32)\n";
+        out << "  set(_FRIGGA_EDITOR_IMPLIB \"\")\n";
+        out << "  get_filename_component(_FRIGGA_BUILD_PARENT \"${FRIGGA_BUILD}\" DIRECTORY)\n";
+        out << "  foreach(_cand IN ITEMS\n";
+        out << "      \"${FRIGGA_BUILD}/libEditor.dll.a\"\n";
+        out << "      \"${FRIGGA_BUILD}/Editor.lib\"\n";
+        out << "      \"${FRIGGA_BUILD}/libEditor.lib\"\n";
+        out << "      \"${_FRIGGA_BUILD_PARENT}/libEditor.dll.a\"\n";
+        out << "      \"${_FRIGGA_BUILD_PARENT}/Editor.lib\")\n";
+        out << "    if(EXISTS \"${_cand}\")\n";
+        out << "      set(_FRIGGA_EDITOR_IMPLIB \"${_cand}\")\n";
+        out << "      break()\n";
+        out << "    endif()\n";
+        out << "  endforeach()\n";
+        out << "  if(NOT _FRIGGA_EDITOR_IMPLIB)\n";
+        out << "    message(FATAL_ERROR \"Editor import library not found under ${FRIGGA_BUILD} (or parent). Rebuild the Editor.\")\n";
+        out << "  endif()\n";
+        out << "  target_link_libraries(" << desc.pluginTarget << " PRIVATE \"${_FRIGGA_EDITOR_IMPLIB}\")\n";
         out << "endif()\n";
         out << "set_target_properties(" << desc.pluginTarget << " PROPERTIES\n";
         out << "  CXX_STANDARD 26\n";
@@ -107,6 +128,11 @@ namespace
         out << "  RUNTIME_OUTPUT_DIRECTORY \"${CMAKE_CURRENT_SOURCE_DIR}/build\"\n";
         out << "  ARCHIVE_OUTPUT_DIRECTORY \"${CMAKE_CURRENT_SOURCE_DIR}/build\"\n";
         out << ")\n";
+        out << "if(WIN32)\n";
+        out << "  # MinGW prefixes shared libs with lib; plugin.library is build/<target>.dll.\n";
+        out << "  set_target_properties(" << desc.pluginTarget
+           << " PROPERTIES PREFIX \"\" IMPORT_PREFIX \"\")\n";
+        out << "endif()\n";
         return out.str();
     }
 
