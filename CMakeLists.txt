@@ -6,10 +6,15 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(FRIGGA_VERSION "0.2.0" CACHE STRING "Frigga package version")
 project(Frigga LANGUAGES CXX VERSION ${FRIGGA_VERSION})
 
+if (NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
+    message(FATAL_ERROR "Frigga requires a 64-bit build; CMAKE_SIZEOF_VOID_P is ${CMAKE_SIZEOF_VOID_P}.")
+endif ()
+
 set(CMAKE_CXX_STANDARD 26)
 
-# libstdc++ std::format AVs in the Editor on MinGW; Skirnir logging uses fmt.
-set(SKIRNIR_USE_FMT ON CACHE BOOL "Use fmt for Skirnir logging")
+if (NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
+    set(CMAKE_GENERATOR_PLATFORM "x64" CACHE STRING "Target platform" FORCE)
+endif ()
 
 include(FetchContent)
 
@@ -24,7 +29,7 @@ FetchContent_MakeAvailable(freyr)
 FetchContent_Declare(
         freya
         GIT_REPOSITORY "https://github.com/gilmar-sales/Freya.git"
-        GIT_TAG "v0.38.2"
+        GIT_TAG "v0.38.5"
         GIT_SHALLOW TRUE
 )
 FetchContent_MakeAvailable(freya)
@@ -54,6 +59,9 @@ set(ENABLE_ALL_WARNINGS OFF CACHE BOOL "" FORCE)
 set(INTERPROCEDURAL_OPTIMIZATION OFF CACHE BOOL "" FORCE)
 set(ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
 set(USE_STATIC_MSVC_RUNTIME_LIBRARY OFF CACHE BOOL "" FORCE)
+set(USE_AVX OFF CACHE BOOL "" FORCE)
+set(USE_AVX2 OFF CACHE BOOL "" FORCE)
+set(USE_AVX512 OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
         JoltPhysics
         GIT_REPOSITORY "https://github.com/jrouwe/JoltPhysics.git"
@@ -68,8 +76,7 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/PackFriggaSdk.cmake")
 
 file(GLOB_RECURSE FRIGGA_SRC src/Frigga/*.cpp src/Frigga/*.hpp)
 
-add_library(frigga ${FRIGGA_SRC}
-        src/Frigga/Core/AbstractApplication.cpp)
+add_library(frigga ${FRIGGA_SRC})
 add_library(frigga::frigga ALIAS frigga)
 
 target_compile_features(frigga PUBLIC cxx_std_26)
@@ -93,14 +100,11 @@ target_link_libraries(frigga PUBLIC
         Freya::Freya
         freyr::freyr
         imgui::imgui
+        skirnir::skirnir
         Jolt
         ${CMAKE_DL_LIBS}
 )
 
-# Skirnir propagates -freflection (needed for UserComponentReflection / plugins).
-# GCC ≤16 with -freflection eagerly instantiates JPH::StaticArray<Vec3,...> while
-# Vec3 is still incomplete (https://gcc.gnu.org/bugzilla/show_bug.cgi?id=125280).
-# This TU only wraps Jolt and does not use reflection — strip the flag here.
 set_source_files_properties(
         src/Frigga/Physics/JoltPhysicsWorld.cpp
         PROPERTIES
