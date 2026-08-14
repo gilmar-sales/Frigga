@@ -5,6 +5,7 @@
 #include "Panels/GameplayLayer.hpp"
 #include "Panels/HierarchyLayer.hpp"
 #include "Panels/InputMapLayer.hpp"
+#include "Panels/LogsLayer.hpp"
 #include "Panels/PreferencesLayer.hpp"
 #include "Panels/ResourcesLayer.hpp"
 #include "Panels/ScenesLayer.hpp"
@@ -142,6 +143,7 @@ int main(int argc, char *argv[])
         .AddTransient<EditorLayer>()
         .AddTransient<ResourcesLayer>()
         .AddTransient<ScenesLayer>()
+        .AddTransient<LogsLayer>()
         .AddTransient<ArchetypesLayer>()
         .AddScoped<HierarchyLayer>()
         .AddTransient<PreferencesLayer>()

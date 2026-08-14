@@ -21,6 +21,7 @@ void GamePlayWorkflow::buildDefaultDockLayout(ImGuiID dockspaceId)
     const auto gameplay   = EditorDock::WindowId("Gameplay");
     const auto resources  = EditorDock::WindowId("Resources");
     const auto scenes     = EditorDock::WindowId("Scenes");
+    const auto logs       = EditorDock::WindowId("Logs");
 
     ImGui::DockBuilderDockWindow(hierarchy.c_str(), leftId);
     ImGui::DockBuilderDockWindow(components.c_str(), rightId);
@@ -28,6 +29,7 @@ void GamePlayWorkflow::buildDefaultDockLayout(ImGuiID dockspaceId)
     ImGui::DockBuilderDockWindow(gameplay.c_str(), mainId);
     ImGui::DockBuilderDockWindow(resources.c_str(), bottomId);
     ImGui::DockBuilderDockWindow(scenes.c_str(), bottomId);
+    ImGui::DockBuilderDockWindow(logs.c_str(), bottomId);
 
     ImGui::DockBuilderFinish(dockspaceId);
 }
