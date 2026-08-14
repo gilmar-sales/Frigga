@@ -114,11 +114,6 @@ void LogsLayer::drawToolbar()
     ImGui::Checkbox("Auto-scroll", &mAutoScroll);
     ImGui::SameLine();
     ImGui::Checkbox("Timestamp", &mShowTimestamp);
-
-    ImGui::SameLine();
-    ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
-
-    ImGui::TextUnformatted("Levels:");
     ImGui::SameLine();
     ImGui::Checkbox("Error", &mFilterError);
     ImGui::SameLine();
@@ -129,9 +124,7 @@ void LogsLayer::drawToolbar()
     ImGui::Checkbox("Debug", &mFilterDebug);
     ImGui::SameLine();
     ImGui::Checkbox("Trace", &mFilterTrace);
-
     ImGui::SameLine();
-    ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
     ImGui::SetNextItemWidth(EditorUiScale::S(120.0f));
     const int previous = mLevelIndex;
     if(ImGui::Combo("##LevelPreset", &mLevelIndex,
@@ -155,8 +148,6 @@ void LogsLayer::drawToolbar()
             }
         }
     }
-    ImGui::SameLine();
-    ImGui::TextUnformatted("Filter");
 }
 
 void LogsLayer::drawList()
