@@ -20,7 +20,16 @@ StatusBar::StatusBar(skr::Arc<ProjectSession> session, skr::Arc<fg::Scene> scene
 
 float StatusBar::Height()
 {
-    return EditorUiScale::S(24.0f);
+    // Empty window (no context yet) falls back to the legacy fixed size.
+    if(ImGui::GetCurrentContext() == nullptr)
+    {
+        return EditorUiScale::S(24.0f);
+    }
+
+    // Strip height must fit the tallest control (small buttons / text / progress bar)
+    // plus the window's vertical padding, otherwise the content clips mid-height.
+    const float vPadding = EditorUiScale::S(4.0f) * 2.0f;
+    return ImGui::GetFrameHeight() + vPadding;
 }
 
 void StatusBar::Draw(const ImGuiViewport *viewport)
