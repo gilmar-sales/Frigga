@@ -1,5 +1,6 @@
 #include "ProjectMigrator.hpp"
 
+#include "ProjectEnginePaths.hpp"
 #include "ProjectFile.hpp"
 #include "ProjectScaffold.hpp"
 
@@ -73,11 +74,20 @@ ProjectMigrationResult ProjectMigrator::Migrate(const std::filesystem::path &pro
     if(!friggaRoot.empty())
     {
         desc.friggaRoot = friggaRoot;
+        if(LooksLikeFriggaSdk(friggaRoot) || desc.friggaSdk.empty())
+        {
+            desc.friggaSdk = friggaRoot;
+        }
     }
     if(!friggaBuild.empty())
     {
         desc.friggaBuild = friggaBuild;
+        if(LooksLikeFriggaSdk(friggaBuild))
+        {
+            desc.friggaSdk = friggaBuild;
+        }
     }
+    FillMissingEnginePaths(desc);
     if(desc.friggaRoot.empty() || desc.friggaBuild.empty())
     {
         result.error = "Engine paths missing; cannot migrate project scaffold";
@@ -92,6 +102,7 @@ ProjectMigrationResult ProjectMigrator::Migrate(const std::filesystem::path &pro
     // v6 → v7: FRI_PLUGIN_MODULE fluent Component/System/Singleton/Scoped/Transient
     // v7 → v8: input.json + GameplaySystem DI fg::Input
     // v8 → v9: GameplaySystem DI fg::Physics + CharacterController movement
+    // v9 → v10: portable CMake (FRIGGA_SDK / env / CMakeUserPresets, no baked machine paths)
     std::string stepError;
     if(!ApplyManagedLayout(projectFile.parent_path(), desc, stepError))
     {
@@ -115,7 +126,7 @@ ProjectMigrationResult ProjectMigrator::Migrate(const std::filesystem::path &pro
     else
     {
         msg << "Migrated project format v" << result.fromVersion << " → v" << result.toVersion
-            << " (FRI_PLUGIN_MODULE, Freyr Simulation pipeline, CMake C++26)";
+            << " (portable FRIGGA_SDK CMake, FRI_PLUGIN_MODULE)";
     }
     msg << ". Rebuild the gameplay plugin.";
     result.message = msg.str();

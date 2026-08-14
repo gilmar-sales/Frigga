@@ -114,6 +114,8 @@ class ProjectSession
     /// Absolute paths to the Frigga source tree and its build dir (for scaffolds).
     [[nodiscard]] static std::filesystem::path DiscoverFriggaRoot();
     [[nodiscard]] static std::filesystem::path DiscoverFriggaBuild();
+    /// Packaged `Sdk/` next to the Editor when present; otherwise the engine source tree.
+    [[nodiscard]] static std::filesystem::path DiscoverFriggaSdk();
     [[nodiscard]] static std::filesystem::path ExecutablePath();
 
     bool CreateProject(const std::filesystem::path &parentDir, std::string name,

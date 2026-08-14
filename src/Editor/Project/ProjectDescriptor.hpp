@@ -12,7 +12,7 @@ struct ProjectDescriptor
     /// Persistent project format version written to frigga.project.
     /// Missing / 0 on disk is treated as LegacyFormatVersion (1).
     static constexpr int LegacyFormatVersion  = 1;
-    static constexpr int CurrentFormatVersion = 9;
+    static constexpr int CurrentFormatVersion = 10;
 
     int formatVersion = CurrentFormatVersion;
 
@@ -22,6 +22,9 @@ struct ProjectDescriptor
     std::string pluginTarget        = "gameplay";
     /// Relative to project root (after cmake --build).
     std::string pluginLibraryRelative = "build/libgameplay.so";
+    /// Packaged `Sdk/` next to the Editor, or the engine source tree. Last-used hint;
+    /// CMake resolves via `-DFRIGGA_SDK`, `FRIGGA_SDK` env, or `CMakeUserPresets.json`.
+    std::filesystem::path friggaSdk;
     std::filesystem::path friggaRoot;
     std::filesystem::path friggaBuild;
 

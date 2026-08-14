@@ -1,5 +1,5 @@
 # Populates ${CMAKE_BINARY_DIR}/Sdk for gameplay plugin scaffolding / CI publish.
-# Layout mirrors FRIGGA_ROOT + FRIGGA_BUILD paths used by generated CMakeLists.txt:
+# Layout used by gameplay plugin CMake via FRIGGA_SDK (same tree as FRIGGA_ROOT + _deps):
 #   Sdk/src/Frigga/...
 #   Sdk/_deps/{freyr,skirnir,glm}-src/...
 

@@ -35,9 +35,14 @@ class ProjectScaffold
                                         fg::Scene &scene);
 
     /// Rewrites Editor-managed files (CMakeLists, frigga_plugin.h, README,
-    /// frigga_user_components.hpp) without touching custom gameplay sources under src/.
+    /// frigga_user_components.hpp, local CMakeUserPresets) without touching custom
+    /// gameplay sources under src/.
     static ProjectManagedWriteResult WriteManagedFiles(const std::filesystem::path &projectRoot,
                                                        const ProjectDescriptor &desc);
+
+    /// Local, gitignored preset with this machine's FRIGGA_SDK / ROOT / BUILD.
+    static bool WriteCMakeUserPresets(const std::filesystem::path &projectRoot,
+                                      const ProjectDescriptor &desc);
 
     /// Writes example Health component when missing (migration / create).
     static bool WriteExampleUserComponents(const std::filesystem::path &projectRoot,

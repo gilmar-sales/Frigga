@@ -4,6 +4,7 @@
 #include "ProjectFile.hpp"
 #include "ProjectMigrator.hpp"
 #include "ProjectScaffold.hpp"
+#include "ProjectEnginePaths.hpp"
 
 #include <Frigga/Input/InputMapIO.hpp>
 
@@ -17,6 +18,7 @@
 #include <ctime>
 #include <fstream>
 #include <functional>
+#include <initializer_list>
 #include <sstream>
 #include <string_view>
 
@@ -89,20 +91,9 @@ namespace
         return buffer;
     }
 
-    bool LooksLikeFriggaSdk(const std::filesystem::path &path)
-    {
-        return std::filesystem::exists(path / "src/Frigga/Plugin/frigga_plugin.h") &&
-               std::filesystem::exists(path / "_deps/freyr-src/include/Freyr");
-    }
-
     bool LooksLikeFriggaRoot(const std::filesystem::path &path)
     {
-        if(LooksLikeFriggaSdk(path))
-        {
-            return true;
-        }
-        return std::filesystem::exists(path / "src/Frigga/Frigga.hpp") &&
-               std::filesystem::exists(path / "CMakeLists.txt");
+        return LooksLikeFriggaEngineRoot(path);
     }
 
     /// Parse Ninja-style "[12/74]" progress. Returns true when a fraction was found.
@@ -202,6 +193,24 @@ namespace
                 continue;
             }
             return line.substr(eq + 1);
+        }
+        return {};
+    }
+
+    std::filesystem::path FirstExistingCMakeCache(
+        std::initializer_list<std::filesystem::path> dirs)
+    {
+        for(const auto &dir : dirs)
+        {
+            if(dir.empty())
+            {
+                continue;
+            }
+            const auto cache = dir / "CMakeCache.txt";
+            if(std::filesystem::exists(cache))
+            {
+                return cache;
+            }
         }
         return {};
     }
@@ -526,6 +535,19 @@ std::filesystem::path ProjectSession::DiscoverFriggaRoot()
     return build.parent_path();
 }
 
+std::filesystem::path ProjectSession::DiscoverFriggaSdk()
+{
+    const auto exeDir = ExecutableDirectory();
+    const auto sdk    = exeDir / "Sdk";
+    if(LooksLikeFriggaSdk(sdk))
+    {
+        std::error_code ec;
+        const auto canonical = std::filesystem::weakly_canonical(sdk, ec);
+        return ec ? sdk : canonical;
+    }
+    return DiscoverFriggaRoot();
+}
+
 bool ProjectSession::CreateProject(const std::filesystem::path &parentDir, std::string name,
                                    fg::SceneTemplate sceneTemplate)
 {
@@ -545,6 +567,7 @@ bool ProjectSession::CreateProject(const std::filesystem::path &parentDir, std::
     desc.sceneTemplate = sceneTemplate;
     desc.friggaRoot    = DiscoverFriggaRoot();
     desc.friggaBuild   = DiscoverFriggaBuild();
+    desc.friggaSdk     = DiscoverFriggaSdk();
 #ifdef _WIN32
     desc.pluginLibraryRelative = "build/" + desc.pluginTarget + ".dll";
 #elif defined(__APPLE__)
@@ -1036,10 +1059,42 @@ void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::pa
         }
     };
 
-    const auto cachePath =
-        (!mDescriptor.friggaBuild.empty() ? mDescriptor.friggaBuild : DiscoverFriggaBuild()) /
-        "CMakeCache.txt";
+    ProjectDescriptor engine = mDescriptor;
+    if(engine.friggaSdk.empty())
+    {
+        engine.friggaSdk = DiscoverFriggaSdk();
+    }
+    if(engine.friggaRoot.empty())
+    {
+        engine.friggaRoot = DiscoverFriggaRoot();
+    }
+    if(engine.friggaBuild.empty())
+    {
+        engine.friggaBuild = DiscoverFriggaBuild();
+    }
+    FillMissingEnginePaths(engine);
+    ProjectScaffold::WriteCMakeUserPresets(root, engine);
+
+    const auto cachePath = FirstExistingCMakeCache({
+        engine.friggaBuild,
+        engine.friggaSdk,
+        engine.friggaBuild.parent_path(),
+        engine.friggaSdk.parent_path(),
+        ExecutableDirectory(),
+    });
     const auto cxxCompiler = ReadCMakeCacheValue(cachePath, "CMAKE_CXX_COMPILER");
+
+    auto appendCachePath = [](std::string &cmd, const char *name, const std::filesystem::path &path) {
+        if(path.empty())
+        {
+            return;
+        }
+        cmd += " -D";
+        cmd += name;
+        cmd += "=\"";
+        cmd += path.generic_string();
+        cmd += "\"";
+    };
 
     std::string configureCmd =
         "cmake -S \"" + root.string() + "\" -B \"" + buildDir.string() +
@@ -1047,6 +1102,9 @@ void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::pa
         " -DCMAKE_CXX_STANDARD=26"
         " -DCMAKE_CXX_STANDARD_REQUIRED=ON"
         " -DCMAKE_CXX_EXTENSIONS=ON";
+    appendCachePath(configureCmd, "FRIGGA_SDK", engine.friggaSdk);
+    appendCachePath(configureCmd, "FRIGGA_ROOT", engine.friggaRoot);
+    appendCachePath(configureCmd, "FRIGGA_BUILD", engine.friggaBuild);
     if(!cxxCompiler.empty())
     {
         configureCmd += " -DCMAKE_CXX_COMPILER=\"" + cxxCompiler + "\"";

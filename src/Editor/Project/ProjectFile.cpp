@@ -142,8 +142,9 @@ bool ProjectFile::Save(const std::filesystem::path &projectFile, const ProjectDe
     json << "    \"library\": \"" << EscapeJson(desc.pluginLibraryRelative) << "\"\n";
     json << "  },\n";
     json << "  \"engine\": {\n";
-    json << "    \"friggaRoot\": \"" << EscapeJson(desc.friggaRoot.string()) << "\",\n";
-    json << "    \"friggaBuild\": \"" << EscapeJson(desc.friggaBuild.string()) << "\"\n";
+    json << "    \"friggaSdk\": \"" << EscapeJson(desc.friggaSdk.generic_string()) << "\",\n";
+    json << "    \"friggaRoot\": \"" << EscapeJson(desc.friggaRoot.generic_string()) << "\",\n";
+    json << "    \"friggaBuild\": \"" << EscapeJson(desc.friggaBuild.generic_string()) << "\"\n";
     json << "  }\n";
     json << "}\n";
 
@@ -198,10 +199,13 @@ std::optional<ProjectDescriptor> ProjectFile::Load(const std::filesystem::path &
     ExtractJsonStringField(text, "target", desc.pluginTarget);
     ExtractJsonStringField(text, "library", desc.pluginLibraryRelative);
 
+    std::string sdk;
     std::string root;
     std::string build;
+    ExtractJsonStringField(text, "friggaSdk", sdk);
     ExtractJsonStringField(text, "friggaRoot", root);
     ExtractJsonStringField(text, "friggaBuild", build);
+    desc.friggaSdk   = sdk;
     desc.friggaRoot  = root;
     desc.friggaBuild = build;
 
