@@ -23,6 +23,7 @@ FetchContent_Declare(
         GIT_REPOSITORY "https://github.com/gilmar-sales/Skirnir.git"
         GIT_TAG "v0.23.2"
         GIT_SHALLOW TRUE
+        OVERRIDE_FIND_PACKAGE TRUE
 )
 FetchContent_MakeAvailable(skirnir)
 
