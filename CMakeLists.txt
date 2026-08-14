@@ -19,6 +19,14 @@ endif ()
 include(FetchContent)
 
 FetchContent_Declare(
+        skirnir
+        GIT_REPOSITORY "https://github.com/gilmar-sales/Skirnir.git"
+        GIT_TAG "v0.23.2"
+        GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(skirnir)
+
+FetchContent_Declare(
         freyr
         GIT_REPOSITORY "https://github.com/gilmar-sales/Freyr.git"
         GIT_TAG "v0.32.1"
@@ -29,7 +37,7 @@ FetchContent_MakeAvailable(freyr)
 FetchContent_Declare(
         freya
         GIT_REPOSITORY "https://github.com/gilmar-sales/Freya.git"
-        GIT_TAG "v0.38.5"
+        GIT_TAG "v0.38.6"
         GIT_SHALLOW TRUE
 )
 FetchContent_MakeAvailable(freya)
@@ -59,9 +67,6 @@ set(ENABLE_ALL_WARNINGS OFF CACHE BOOL "" FORCE)
 set(INTERPROCEDURAL_OPTIMIZATION OFF CACHE BOOL "" FORCE)
 set(ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
 set(USE_STATIC_MSVC_RUNTIME_LIBRARY OFF CACHE BOOL "" FORCE)
-set(USE_AVX OFF CACHE BOOL "" FORCE)
-set(USE_AVX2 OFF CACHE BOOL "" FORCE)
-set(USE_AVX512 OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
         JoltPhysics
         GIT_REPOSITORY "https://github.com/jrouwe/JoltPhysics.git"
