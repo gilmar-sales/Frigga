@@ -12,9 +12,46 @@
 
 #include <algorithm>
 #include <cmath>
+#include <vector>
 
 namespace FRIGGA_NAMESPACE
 {
+
+    namespace
+    {
+        fra::Light MakeGpuLight(const TransformComponent &transform, const LightComponent &light)
+        {
+            // Match Freya/OpenGL: entity local -Z is the aimed light direction / area normal.
+            const glm::vec3 direction =
+                glm::normalize(transform.rotation * glm::vec3(0.0f, 0.0f, -1.0f));
+            const glm::vec3 safeDirection =
+                glm::dot(direction, direction) > 1e-6f ? direction : glm::vec3(0.0f, -1.0f, 0.0f);
+
+            if(light.type == fra::LightType::Area)
+            {
+                const glm::vec3 tangent = transform.rotation * glm::vec3(1.0f, 0.0f, 0.0f);
+                fra::Light gpuLight     = fra::MakeAreaLight(
+                    transform.position, safeDirection, tangent, light.halfWidth, light.halfHeight,
+                    light.color, light.intensity);
+                gpuLight.castShadows = light.castShadows;
+                return gpuLight;
+            }
+
+            fra::Light gpuLight {};
+            gpuLight.position  = transform.position;
+            gpuLight.type      = static_cast<float>(light.type);
+            gpuLight.color     = light.color;
+            gpuLight.radius    = light.radius;
+            gpuLight.direction = safeDirection;
+            gpuLight.intensity = light.intensity;
+            gpuLight.innerCutoff =
+                std::cos(glm::radians(std::max(light.innerAngleDegrees, 0.0f)));
+            gpuLight.outerCutoff =
+                std::cos(glm::radians(std::max(light.outerAngleDegrees, 0.0f)));
+            gpuLight.castShadows = light.castShadows;
+            return gpuLight;
+        }
+    } // namespace
 
     RenderSystem::RenderSystem(const skr::Arc<fr::Registry> &registry,
                                const skr::Arc<fra::Renderer> &renderer,
@@ -28,8 +65,8 @@ namespace FRIGGA_NAMESPACE
 
     void RenderSystem::Update(float deltaTime)
     {
-        // LightService::Update (invoked by UpdateCamera) uploads the GPU UBO.
-        // Sync ECS lights first so ClearLights/AddLight populate CPU state before upload.
+        // LightService::Update (invoked by UpdateCamera) uploads the GPU UBO
+        // for the current frame only. Keep CPU lights in place first.
         syncLights();
         updateCamera();
         drawMeshes();
@@ -136,44 +173,40 @@ namespace FRIGGA_NAMESPACE
 
     void RenderSystem::syncLights()
     {
-        mLightService->ClearLights();
-
+        // Do not call ClearLights()/RemoveLight() every frame. Freya memcpy's an
+        // empty UBO into every in-flight ring slot, so the GPU lighting pass
+        // often samples zeros. Click/pick waitIdle then shows one correct frame.
+        std::vector<fra::Light> wanted;
         mRegistry->CreateMutation()->Each<TransformComponent, LightComponent>(
-            [this](auto, TransformComponent &transform, LightComponent &light) {
-                // Match Freya/OpenGL: entity local -Z is the aimed light direction / area normal.
-                const glm::vec3 direction =
-                    glm::normalize(transform.rotation * glm::vec3(0.0f, 0.0f, -1.0f));
-                const glm::vec3 safeDirection =
-                    glm::dot(direction, direction) > 1e-6f ? direction
-                                                           : glm::vec3(0.0f, -1.0f, 0.0f);
-
-                if(light.type == fra::LightType::Area)
-                {
-                    const glm::vec3 tangent =
-                        transform.rotation * glm::vec3(1.0f, 0.0f, 0.0f);
-                    fra::Light gpuLight = fra::MakeAreaLight(
-                        transform.position, safeDirection, tangent, light.halfWidth,
-                        light.halfHeight, light.color, light.intensity);
-                    gpuLight.castShadows = light.castShadows;
-                    mLightService->AddLight(gpuLight);
-                    return;
-                }
-
-                fra::Light gpuLight {};
-                gpuLight.position  = transform.position;
-                gpuLight.type      = static_cast<float>(light.type);
-                gpuLight.color     = light.color;
-                gpuLight.radius    = light.radius;
-                gpuLight.direction = safeDirection;
-                gpuLight.intensity = light.intensity;
-                gpuLight.innerCutoff =
-                    std::cos(glm::radians(std::max(light.innerAngleDegrees, 0.0f)));
-                gpuLight.outerCutoff =
-                    std::cos(glm::radians(std::max(light.outerAngleDegrees, 0.0f)));
-                gpuLight.castShadows = light.castShadows;
-
-                mLightService->AddLight(gpuLight);
+            [&](auto, TransformComponent &transform, LightComponent &light) {
+                wanted.push_back(MakeGpuLight(transform, light));
             });
+
+        const auto maxLights = mLightService->GetMaxLights();
+        if(wanted.size() > maxLights)
+        {
+            wanted.resize(maxLights);
+        }
+
+        auto current = mLightService->GetLightCount();
+        for(std::uint32_t i = 0; i < wanted.size(); ++i)
+        {
+            if(i < current)
+            {
+                mLightService->UpdateLight(i, wanted[i]);
+            }
+            else
+            {
+                mLightService->AddLight(wanted[i]);
+            }
+        }
+
+        fra::Light off {};
+        current = mLightService->GetLightCount();
+        for(std::uint32_t i = static_cast<std::uint32_t>(wanted.size()); i < current; ++i)
+        {
+            mLightService->UpdateLight(i, off);
+        }
     }
 
     void RenderSystem::drawMeshes()
