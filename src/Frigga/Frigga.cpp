@@ -11,6 +11,7 @@
 #include "ECS/Components/CharacterControllerComponent.hpp"
 #include "ECS/Components/FullscreenEffectComponent.hpp"
 #include "ECS/Components/HealthBarComponent.hpp"
+#include "ECS/Components/HierarchyComponent.hpp"
 #include "ECS/Components/LightComponent.hpp"
 #include "ECS/Components/MaterialComponent.hpp"
 #include "ECS/Components/MeshComponent.hpp"
@@ -40,6 +41,7 @@ namespace FRIGGA_NAMESPACE
         applicationBuilder
             .WithExtension<fr::FreyrExtension>([](fr::FreyrExtension &freyr) {
                 freyr.WithComponent<NameComponent>()
+                    .WithComponent<HierarchyComponent>()
                     .WithComponent<TransformComponent>()
                     .WithComponent<MeshComponent>()
                     .WithComponent<MaterialComponent>()

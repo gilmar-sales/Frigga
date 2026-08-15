@@ -2,6 +2,7 @@
 
 #include "Frigga/ECS/Components/CameraComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
+#include "Frigga/ECS/TransformUtil.hpp"
 
 #include <algorithm>
 #include <array>
@@ -135,6 +136,11 @@ namespace FRIGGA_NAMESPACE
         // Draw every scene camera so gizmos are visible and pickable; highlight selection.
         registry->CreateMutation()->Each<TransformComponent, CameraComponent>(
             [&](auto entity, TransformComponent &transform, CameraComponent &camera) {
+                const auto pose = TransformUtil::WorldPose(*registry, entity);
+                TransformComponent worldXf = transform;
+                worldXf.position           = pose.position;
+                worldXf.rotation           = pose.rotation;
+                worldXf.scale              = pose.scale;
                 const bool selected = entity == selectedEntity;
                 const bool isMain   = entity == mainCameraEntity;
                 ImU32 color         = IM_COL32(100, 140, 180, 110);
@@ -149,7 +155,7 @@ namespace FRIGGA_NAMESPACE
                     color     = IM_COL32(120, 160, 200, 160);
                     thickness = 1.35f;
                 }
-                DrawFrustum(drawList, viewProj, imageMin, imageSize, transform, camera, aspect,
+                DrawFrustum(drawList, viewProj, imageMin, imageSize, worldXf, camera, aspect,
                             color, thickness);
             });
     }
@@ -175,16 +181,20 @@ namespace FRIGGA_NAMESPACE
 
         registry->CreateMutation()->Each<TransformComponent, CameraComponent>(
             [&](auto entity, TransformComponent &transform, CameraComponent &camera) {
+                const auto pose = TransformUtil::WorldPose(*registry, entity);
+                TransformComponent worldXf = transform;
+                worldXf.position           = pose.position;
+                worldXf.rotation           = pose.rotation;
                 // Hit the eye and the near-plane center (both drawn as gizmos).
                 const float nearZ = std::max(camera.nearPlane, 1e-3f);
                 const glm::vec3 forward =
-                    glm::normalize(transform.rotation * glm::vec3 {0.0f, 0.0f, -1.0f});
+                    glm::normalize(worldXf.rotation * glm::vec3 {0.0f, 0.0f, -1.0f});
                 const glm::vec3 nearCenter =
                     glm::dot(forward, forward) > 1e-6f
-                        ? transform.position + forward * nearZ
-                        : transform.position;
+                        ? worldXf.position + forward * nearZ
+                        : worldXf.position;
 
-                const glm::vec3 candidates[] = {transform.position, nearCenter};
+                const glm::vec3 candidates[] = {worldXf.position, nearCenter};
                 for(const auto &world : candidates)
                 {
                     ImVec2 screen {};

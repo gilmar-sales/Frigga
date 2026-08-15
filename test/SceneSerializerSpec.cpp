@@ -8,6 +8,7 @@
 #include <Frigga/ECS/Components/CharacterControllerComponent.hpp>
 #include <Frigga/ECS/Components/FullscreenEffectComponent.hpp>
 #include <Frigga/ECS/Components/HealthBarComponent.hpp>
+#include <Frigga/ECS/Components/HierarchyComponent.hpp>
 #include <Frigga/ECS/Components/LightComponent.hpp>
 #include <Frigga/ECS/Components/MaterialComponent.hpp>
 #include <Frigga/ECS/Components/MeshComponent.hpp>
@@ -16,6 +17,7 @@
 #include <Frigga/ECS/Components/RigidBodyComponent.hpp>
 #include <Frigga/ECS/Components/ThirdPersonCameraComponent.hpp>
 #include <Frigga/ECS/Components/TransformComponent.hpp>
+#include <Frigga/ECS/TransformUtil.hpp>
 #include <Frigga/ECS/Components/UserDataComponent.hpp>
 #include <Frigga/ECS/UserComponentReflection.hpp>
 #include <Frigga/ECS/UserComponentRegistry.hpp>
@@ -212,6 +214,7 @@ class SceneSerializerSpec: public ::testing::Test
         mApp = skr::ApplicationBuilder()
                    .WithExtension<fr::FreyrExtension>([](fr::FreyrExtension &freyr) {
                        freyr.WithComponent<fg::NameComponent>()
+                           .WithComponent<fg::HierarchyComponent>()
                            .WithComponent<fg::TransformComponent>()
                            .WithComponent<fg::MeshComponent>()
                            .WithComponent<fg::MaterialComponent>()
@@ -695,5 +698,49 @@ TEST_F(SceneSerializerSpec, RoundTrip_BillboardParticlesAndCellEffect)
     EXPECT_TRUE(foundBillboard);
     EXPECT_TRUE(foundParticles);
     EXPECT_TRUE(foundEffect);
+}
+
+TEST_F(SceneSerializerSpec, RoundTrip_ParentChildPreservesLocalTransform)
+{
+    const auto parent = mRegistry->CreateEntity(
+        fg::NameComponent {.name = "Parent"},
+        fg::TransformComponent {.position = {10.0f, 0.0f, 0.0f}});
+    const auto child = mRegistry->CreateEntity(
+        fg::NameComponent {.name = "Child"},
+        fg::TransformComponent {.position = {1.0f, 2.0f, 3.0f}});
+    mRegistry->ExecuteTasks();
+    ASSERT_TRUE(fg::TransformUtil::SetParent(*mRegistry, child, parent, false));
+
+    std::string json;
+    ASSERT_TRUE(fg::SceneSerializer::Serialize(*mScene, json));
+    ASSERT_TRUE(mScene->RestoreSnapshot(json));
+
+    fr::Entity restoredParent = fg::kInvalidEntity;
+    fr::Entity restoredChild  = fg::kInvalidEntity;
+    mRegistry->CreateMutation()->Each<fg::NameComponent>(
+        [&](auto entity, fg::NameComponent &name) {
+            if(name.name == "Parent")
+            {
+                restoredParent = entity;
+            }
+            else if(name.name == "Child")
+            {
+                restoredChild = entity;
+            }
+        });
+    ASSERT_NE(restoredParent, fg::kInvalidEntity);
+    ASSERT_NE(restoredChild, fg::kInvalidEntity);
+    EXPECT_EQ(fg::TransformUtil::ParentOf(*mRegistry, restoredChild), restoredParent);
+
+    mRegistry->TryGetComponents<fg::TransformComponent>(
+        restoredChild, [](fg::TransformComponent &transform) {
+            EXPECT_NEAR(transform.position.x, 1.0f, kEpsilon);
+            EXPECT_NEAR(transform.position.y, 2.0f, kEpsilon);
+            EXPECT_NEAR(transform.position.z, 3.0f, kEpsilon);
+        });
+    const auto world = fg::TransformUtil::WorldPose(*mRegistry, restoredChild);
+    EXPECT_NEAR(world.position.x, 11.0f, kEpsilon);
+    EXPECT_NEAR(world.position.y, 2.0f, kEpsilon);
+    EXPECT_NEAR(world.position.z, 3.0f, kEpsilon);
 }
 

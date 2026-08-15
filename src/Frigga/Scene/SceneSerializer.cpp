@@ -7,6 +7,7 @@
 #include "Frigga/ECS/Components/CharacterControllerComponent.hpp"
 #include "Frigga/ECS/Components/FullscreenEffectComponent.hpp"
 #include "Frigga/ECS/Components/HealthBarComponent.hpp"
+#include "Frigga/ECS/Components/HierarchyComponent.hpp"
 #include "Frigga/ECS/Components/LightComponent.hpp"
 #include "Frigga/ECS/Components/MaterialComponent.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"
@@ -15,6 +16,7 @@
 #include "Frigga/ECS/Components/RigidBodyComponent.hpp"
 #include "Frigga/ECS/Components/ThirdPersonCameraComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
+#include "Frigga/ECS/TransformUtil.hpp"
 #include "Frigga/ECS/Components/UserDataComponent.hpp"
 #include "Frigga/ECS/UserComponentRegistry.hpp"
 
@@ -24,16 +26,17 @@
 #include <algorithm>
 #include <fstream>
 #include <optional>
-#include <ranges>
 #include <string>
 #include <string_view>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace FRIGGA_NAMESPACE
 {
     namespace
     {
-        constexpr int64_t kSceneVersion = 4;
+        constexpr int64_t kSceneVersion = 5;
 
         struct SceneTransformDto
         {
@@ -248,6 +251,7 @@ namespace FRIGGA_NAMESPACE
             std::optional<SceneBillboardTextDto> billboardText;
             std::optional<SceneFullscreenEffectDto> fullscreenEffect;
             std::optional<std::vector<SceneUserComponentDto>> userComponents;
+            std::optional<int64_t>                 parent;
         };
 
         struct SceneEditorCameraDto
@@ -880,6 +884,7 @@ namespace FRIGGA_NAMESPACE
         auto registry   = scene.mEcsRegistry;
         auto primitives = scene.mPrimitives;
 
+        std::vector<fr::Entity> serializedEntities;
         registry->CreateMutation()->Each<NameComponent>([&](auto entity, NameComponent &name) {
             SceneEntityDto dto {.name = name.name};
 
@@ -1137,7 +1142,28 @@ namespace FRIGGA_NAMESPACE
             }
 
             document.entities.push_back(std::move(dto));
+            serializedEntities.push_back(entity);
         });
+
+        std::unordered_map<fr::Entity, int64_t> indexByEntity;
+        indexByEntity.reserve(serializedEntities.size());
+        for(int64_t i = 0; i < static_cast<int64_t>(serializedEntities.size()); ++i)
+        {
+            indexByEntity[serializedEntities[static_cast<std::size_t>(i)]] = i;
+        }
+        for(int64_t i = 0; i < static_cast<int64_t>(serializedEntities.size()); ++i)
+        {
+            const auto parent =
+                TransformUtil::ParentOf(*registry, serializedEntities[static_cast<std::size_t>(i)]);
+            if(parent == kInvalidEntity)
+            {
+                continue;
+            }
+            if(const auto found = indexByEntity.find(parent); found != indexByEntity.end())
+            {
+                document.entities[static_cast<std::size_t>(i)].parent = found->second;
+            }
+        }
 
         outJson.clear();
         if(const auto error = simdjson::to_json(document, outJson); error)
@@ -1220,6 +1246,10 @@ namespace FRIGGA_NAMESPACE
         fr::Entity firstPrimaryCamera = {};
         bool foundLockedCamera        = false;
         bool foundPrimaryCamera       = false;
+        std::vector<fr::Entity> createdEntities;
+        std::vector<std::optional<int64_t>> parentIndices;
+        createdEntities.reserve(document.entities.size());
+        parentIndices.reserve(document.entities.size());
 
         for(const auto &entityDto : document.entities)
         {
@@ -1855,6 +1885,9 @@ namespace FRIGGA_NAMESPACE
                 }
             }
 
+            createdEntities.push_back(entity);
+            parentIndices.push_back(entityDto.parent);
+
             if(camera)
             {
                 if(camera->locked)
@@ -1873,6 +1906,31 @@ namespace FRIGGA_NAMESPACE
         if(!foundLockedCamera && foundPrimaryCamera)
         {
             scene.mMainCameraEntity = firstPrimaryCamera;
+        }
+
+        for(std::size_t i = 0; i < createdEntities.size(); ++i)
+        {
+            if(!parentIndices[i].has_value())
+            {
+                continue;
+            }
+            const auto parentIndex = *parentIndices[i];
+            if(parentIndex < 0 ||
+               static_cast<std::size_t>(parentIndex) >= createdEntities.size() ||
+               static_cast<std::size_t>(parentIndex) == i)
+            {
+                scene.mLogger->LogError("Invalid parent index on '{}'",
+                                        document.entities[i].name);
+                return false;
+            }
+            if(!TransformUtil::SetParent(*registry, createdEntities[i],
+                                         createdEntities[static_cast<std::size_t>(parentIndex)],
+                                         false))
+            {
+                scene.mLogger->LogError("Failed to parent '{}' (cycle or invalid parent)",
+                                        document.entities[i].name);
+                return false;
+            }
         }
 
         return true;

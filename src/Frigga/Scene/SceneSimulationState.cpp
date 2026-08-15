@@ -2,6 +2,7 @@
 
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/NameComponent.hpp"
+#include "Frigga/ECS/TransformUtil.hpp"
 
 namespace FRIGGA_NAMESPACE
 {
@@ -133,12 +134,14 @@ namespace FRIGGA_NAMESPACE
                                                        const RigidBodyComponent &rigidBody,
                                                        fr::Entity entity) const
     {
+        (void)transform;
+        const auto pose = TransformUtil::WorldPose(*mRegistry, entity);
         PhysicsBodyDesc desc {
             .motion            = rigidBody.motion,
             .shape             = rigidBody.shape,
-            .position          = transform.position,
-            .rotation          = transform.rotation,
-            .scale             = transform.scale,
+            .position          = pose.position,
+            .rotation          = pose.rotation,
+            .scale             = pose.scale,
             .halfExtents       = rigidBody.halfExtents,
             .radius            = rigidBody.radius,
             .height            = rigidBody.height,
@@ -197,9 +200,10 @@ namespace FRIGGA_NAMESPACE
         mRegistry->CreateMutation()->Each<TransformComponent, CharacterControllerComponent>(
             [&](auto entity, TransformComponent &transform,
                 CharacterControllerComponent &controller) {
+                const auto pose = TransformUtil::WorldPose(*mRegistry, entity);
                 PhysicsCharacterDesc desc {};
-                desc.position           = transform.position;
-                desc.rotation           = transform.rotation;
+                desc.position           = pose.position;
+                desc.rotation           = pose.rotation;
                 desc.radius             = controller.radius;
                 desc.height             = controller.height;
                 desc.maxSlopeDegrees    = controller.maxSlopeDegrees;

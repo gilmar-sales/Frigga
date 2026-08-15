@@ -5,6 +5,7 @@
 #include "Editor/ViewportDpi.hpp"
 #include "Editor/ViewportQuality.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
+#include "Frigga/ECS/TransformUtil.hpp"
 #include "Frigga/Gui/Backends/imgui_impl_vulkan.h"
 #include "Frigga/Gui/GuiLayer.hpp"
 #include "Frigga/Physics/ColliderDebugDraw.hpp"
@@ -572,15 +573,15 @@ void EditorLayer::drawGizmos(const ImVec2 &imageMin, const ImVec2 &imageSize, bo
     }
 
     mRegistry->TryGetComponents<fg::TransformComponent>(
-        selected, [this, &view, &proj](fg::TransformComponent &transform) {
-            glm::mat4 model = buildModelMatrix(transform);
+        selected, [this, &view, &proj, selected](fg::TransformComponent &) {
+            glm::mat4 model = fg::TransformUtil::WorldMatrix(*mRegistry, selected);
 
             ImGuizmo::Manipulate(glm::value_ptr(view), glm::value_ptr(proj), mOperation, mMode,
                                  glm::value_ptr(model));
 
             if(ImGuizmo::IsUsing())
             {
-                applyModelMatrix(transform, model);
+                fg::TransformUtil::SetWorldMatrix(*mRegistry, selected, model);
             }
         });
 }
@@ -590,27 +591,6 @@ glm::mat4 EditorLayer::gizmoProjection(const glm::mat4 &vulkanProjection)
     glm::mat4 projection = vulkanProjection;
     projection[1][1] *= -1.0f;
     return projection;
-}
-
-glm::mat4 EditorLayer::buildModelMatrix(const fg::TransformComponent &transform)
-{
-    glm::mat4 model = glm::translate(glm::mat4(1.0f), transform.position);
-    model           = model * glm::mat4_cast(transform.rotation);
-    model           = glm::scale(model, transform.scale);
-    return model;
-}
-
-void EditorLayer::applyModelMatrix(fg::TransformComponent &transform, const glm::mat4 &matrix)
-{
-    float translation[3];
-    float rotation[3];
-    float scale[3];
-    ImGuizmo::DecomposeMatrixToComponents(glm::value_ptr(matrix), translation, rotation, scale);
-
-    transform.position = {translation[0], translation[1], translation[2]};
-    transform.scale    = {scale[0], scale[1], scale[2]};
-    transform.rotation =
-        glm::quat(glm::radians(glm::vec3(rotation[0], rotation[1], rotation[2])));
 }
 
 void EditorLayer::ensureTarget(std::uint32_t width, std::uint32_t height)

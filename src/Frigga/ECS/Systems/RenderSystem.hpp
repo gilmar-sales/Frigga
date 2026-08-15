@@ -5,6 +5,8 @@
 #include <Freya/Vulkan.hpp>
 #include <Freya/Asset/FontAtlas.hpp>
 #include <Freyr/Freyr.hpp>
+#include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 #include <optional>
 #include <string>
@@ -41,7 +43,7 @@ namespace FRIGGA_NAMESPACE
         };
 
         void updateCamera();
-        void applyCameraPose(const TransformComponent &transform, float fovDegrees,
+        void applyCameraPose(const glm::vec3 &position, const glm::quat &rotation, float fovDegrees,
                              float nearPlane, float farPlane);
         void syncLights();
         void drawMeshes();

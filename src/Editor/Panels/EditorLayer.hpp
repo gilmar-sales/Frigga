@@ -52,8 +52,6 @@ class EditorLayer: public fg::Layer
     [[nodiscard]] static glm::vec3 cameraForward(const fg::TransformComponent &camera);
     [[nodiscard]] static glm::vec3 cameraRight(const fg::TransformComponent &camera);
     [[nodiscard]] static glm::vec3 cameraUp(const fg::TransformComponent &camera);
-    [[nodiscard]] static glm::mat4 buildModelMatrix(const fg::TransformComponent &transform);
-    static void applyModelMatrix(fg::TransformComponent &transform, const glm::mat4 &matrix);
 
     skr::Arc<fra::Renderer> mRenderer;
     skr::Arc<fr::Registry> mRegistry;

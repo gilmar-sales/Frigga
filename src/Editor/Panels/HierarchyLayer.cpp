@@ -11,12 +11,14 @@
 #include "Frigga/ECS/Components/BillboardTextComponent.hpp"
 #include "Frigga/ECS/Components/FullscreenEffectComponent.hpp"
 #include "Frigga/ECS/Components/HealthBarComponent.hpp"
+#include "Frigga/ECS/Components/HierarchyComponent.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/NameComponent.hpp"
 #include "Frigga/ECS/Components/ParticleEmitterComponent.hpp"
 #include "Frigga/ECS/Components/RigidBodyComponent.hpp"
 #include "Frigga/ECS/Components/ThirdPersonCameraComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
+#include "Frigga/ECS/TransformUtil.hpp"
 #include "Frigga/ECS/Components/UserDataComponent.hpp"
 
 #include <SDL3/SDL_dialog.h>
@@ -27,6 +29,8 @@
 #include <format>
 #include <imgui.h>
 #include <sstream>
+#include <unordered_set>
+#include <vector>
 
 namespace
 {
@@ -273,6 +277,21 @@ const char *HierarchyLayer::resolveEntityIcon(fr::Entity entity) const
     return "";
 }
 
+void HierarchyLayer::parentNewEntity(fr::Entity entity)
+{
+    if(!mSelection->HasSelection())
+    {
+        return;
+    }
+    const auto parent = mSelection->Get();
+    if(parent == entity)
+    {
+        return;
+    }
+    mRegistry->ExecuteTasks();
+    fg::TransformUtil::SetParent(*mRegistry, entity, parent, false);
+}
+
 void HierarchyLayer::createEmptyEntity()
 {
     if(mSimulation->IsPlaying())
@@ -281,10 +300,11 @@ void HierarchyLayer::createEmptyEntity()
     }
 
     mRegistry->CreateEntity(
-        [](auto entity, fg::NameComponent &name) {
+        [this](auto entity, fg::NameComponent &name) {
             std::stringstream entity_name;
             entity_name << "Empty(" << entity << ")";
             name.name = entity_name.str();
+            parentNewEntity(entity);
         },
         fg::NameComponent {});
 }
@@ -300,9 +320,11 @@ void HierarchyLayer::createPrimitiveEntity(fg::PrimitiveType type)
     const auto meshId       = mPrimitives->GetMesh(type);
     const auto materialId   = mPrimitives->GetDefaultMaterial();
 
-    mRegistry->CreateEntity(fg::NameComponent {.name = displayName}, fg::TransformComponent {},
-                            fg::MeshComponent {.meshId = meshId},
-                            fg::MaterialComponent {.materialId = materialId});
+    const auto entity = mRegistry->CreateEntity(
+        fg::NameComponent {.name = displayName}, fg::TransformComponent {},
+        fg::MeshComponent {.meshId = meshId},
+        fg::MaterialComponent {.materialId = materialId});
+    parentNewEntity(entity);
 }
 
 void HierarchyLayer::createCameraEntity()
@@ -312,9 +334,10 @@ void HierarchyLayer::createCameraEntity()
         return;
     }
 
-    mRegistry->CreateEntity(fg::NameComponent {.name = "Camera"},
-                            fg::TransformComponent {.position = {0.0f, 1.5f, -5.0f}},
-                            fg::CameraComponent {});
+    const auto entity = mRegistry->CreateEntity(
+        fg::NameComponent {.name = "Camera"},
+        fg::TransformComponent {.position = {0.0f, 1.5f, -5.0f}}, fg::CameraComponent {});
+    parentNewEntity(entity);
 }
 
 void HierarchyLayer::createLightEntity(fra::LightType type)
@@ -324,8 +347,10 @@ void HierarchyLayer::createLightEntity(fra::LightType type)
         return;
     }
 
-    mRegistry->CreateEntity(fg::NameComponent {.name = getLightDisplayName(type)},
-                            makeDefaultLightTransform(type), makeDefaultLight(type));
+    const auto entity = mRegistry->CreateEntity(
+        fg::NameComponent {.name = getLightDisplayName(type)}, makeDefaultLightTransform(type),
+        makeDefaultLight(type));
+    parentNewEntity(entity);
 }
 
 void HierarchyLayer::createBillboardEntity()
@@ -334,9 +359,10 @@ void HierarchyLayer::createBillboardEntity()
     {
         return;
     }
-    mRegistry->CreateEntity(fg::NameComponent {.name = "Billboard"},
-                            fg::TransformComponent {.position = {0.0f, 1.0f, 0.0f}},
-                            fg::BillboardComponent {});
+    const auto entity = mRegistry->CreateEntity(
+        fg::NameComponent {.name = "Billboard"},
+        fg::TransformComponent {.position = {0.0f, 1.0f, 0.0f}}, fg::BillboardComponent {});
+    parentNewEntity(entity);
 }
 
 void HierarchyLayer::createParticleEntity()
@@ -345,9 +371,11 @@ void HierarchyLayer::createParticleEntity()
     {
         return;
     }
-    mRegistry->CreateEntity(fg::NameComponent {.name = "Particles"},
-                            fg::TransformComponent {.position = {0.0f, 0.5f, 0.0f}},
-                            fg::ParticleEmitterComponent {});
+    const auto entity = mRegistry->CreateEntity(
+        fg::NameComponent {.name = "Particles"},
+        fg::TransformComponent {.position = {0.0f, 0.5f, 0.0f}},
+        fg::ParticleEmitterComponent {});
+    parentNewEntity(entity);
 }
 
 void HierarchyLayer::createFullscreenEffectEntity()
@@ -356,8 +384,10 @@ void HierarchyLayer::createFullscreenEffectEntity()
     {
         return;
     }
-    mRegistry->CreateEntity(fg::NameComponent {.name = "Cell Effect"},
-                            fg::FullscreenEffectComponent {});
+    const auto entity =
+        mRegistry->CreateEntity(fg::NameComponent {.name = "Cell Effect"},
+                                fg::FullscreenEffectComponent {});
+    parentNewEntity(entity);
 }
 
 void HierarchyLayer::addRigidBodyToSelection()
@@ -865,8 +895,33 @@ void HierarchyLayer::onGui()
         ImGui::EndPopup();
     }
 
+    std::unordered_set<fr::Entity> nested;
     mRegistry->CreateMutation()->Each<fg::NameComponent>(
-        [this](auto entity, fg::NameComponent &name) { drawEntityNode(entity, name); });
+        [this, &nested](auto entity, fg::NameComponent &) {
+            if(fg::TransformUtil::ParentOf(*mRegistry, entity) != fg::kInvalidEntity)
+            {
+                nested.insert(entity);
+            }
+        });
+    mRegistry->CreateMutation()->Each<fg::NameComponent>(
+        [this, &nested](auto entity, fg::NameComponent &name) {
+            if(!nested.contains(entity))
+            {
+                drawEntityNode(entity, name);
+            }
+        });
+
+    ImGui::Dummy(ImVec2(ImGui::GetContentRegionAvail().x,
+                        std::max(24.0f, ImGui::GetContentRegionAvail().y)));
+    if(ImGui::BeginDragDropTarget())
+    {
+        if(const ImGuiPayload *payload = ImGui::AcceptDragDropPayload("FRIGGA_HIERARCHY_ENTITY"))
+        {
+            const auto child = *static_cast<const fr::Entity *>(payload->Data);
+            fg::TransformUtil::SetParent(*mRegistry, child, fg::kInvalidEntity, true);
+        }
+        ImGui::EndDragDropTarget();
+    }
 
     ImGui::End();
 
@@ -879,11 +934,24 @@ void HierarchyLayer::onGui()
 
 void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
 {
+    std::vector<fr::Entity> children;
+    mRegistry->TryGetComponents<fg::HierarchyComponent>(entity, [&](fg::HierarchyComponent &hierarchy) {
+        children = hierarchy.children;
+    });
+
     const bool renaming = nodeToRename == entity;
 
     ImGuiTreeNodeFlags flags =
         ((mSelection->Get() == entity) ? ImGuiTreeNodeFlags_Selected : 0) |
-        ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Leaf;
+        ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_OpenOnArrow;
+    if(children.empty())
+    {
+        flags |= ImGuiTreeNodeFlags_Leaf;
+    }
+    else
+    {
+        flags |= ImGuiTreeNodeFlags_DefaultOpen;
+    }
     if(renaming)
     {
         flags |= ImGuiTreeNodeFlags_AllowOverlap;
@@ -909,6 +977,22 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
                                         flags, "%s", name.name.c_str());
     }
 
+    if(ImGui::BeginDragDropSource())
+    {
+        ImGui::SetDragDropPayload("FRIGGA_HIERARCHY_ENTITY", &entity, sizeof(entity));
+        ImGui::TextUnformatted(name.name.c_str());
+        ImGui::EndDragDropSource();
+    }
+    if(ImGui::BeginDragDropTarget())
+    {
+        if(const ImGuiPayload *payload = ImGui::AcceptDragDropPayload("FRIGGA_HIERARCHY_ENTITY"))
+        {
+            const auto child = *static_cast<const fr::Entity *>(payload->Data);
+            fg::TransformUtil::SetParent(*mRegistry, child, entity, true);
+        }
+        ImGui::EndDragDropTarget();
+    }
+
     const ImVec2 rowMin       = ImGui::GetItemRectMin();
     const ImVec2 rowMax       = ImGui::GetItemRectMax();
     const ImVec2 backupCursor = ImGui::GetCursorScreenPos();
@@ -922,8 +1006,15 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
 
         if(ImGui::MenuItem("Delete", nullptr, false, !locked && !playLocked))
         {
-            mRegistry->DestroyEntity(entity);
-            if(mSelection->Get() == entity) mSelection->Clear();
+            const auto selected = mSelection->Get();
+            const bool clearSelection =
+                selected == entity ||
+                fg::TransformUtil::WouldCreateCycle(*mRegistry, entity, selected);
+            fg::TransformUtil::DestroySubtree(*mRegistry, entity);
+            if(clearSelection)
+            {
+                mSelection->Clear();
+            }
         }
         else if((locked || playLocked) && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
         {
@@ -932,6 +1023,13 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
         }
 
         if(ImGui::MenuItem("Rename...", nullptr, false, !playLocked)) nodeToRename = entity;
+
+        const auto parent = fg::TransformUtil::ParentOf(*mRegistry, entity);
+        if(ImGui::MenuItem("Unparent", nullptr, false,
+                           !playLocked && parent != fg::kInvalidEntity))
+        {
+            fg::TransformUtil::SetParent(*mRegistry, entity, fg::kInvalidEntity, true);
+        }
 
         ImGui::BeginDisabled(playLocked);
         if(ImGui::MenuItem("Add transform"))
@@ -1195,7 +1293,17 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
         }
     }
 
-    if(opened) ImGui::TreePop();
+    if(opened)
+    {
+        for(const auto child : children)
+        {
+            mRegistry->TryGetComponents<fg::NameComponent>(
+                child, [this, child](fg::NameComponent &childName) {
+                    drawEntityNode(child, childName);
+                });
+        }
+        ImGui::TreePop();
+    }
 }
 
 void HierarchyLayer::drawComponents()
@@ -1203,16 +1311,21 @@ void HierarchyLayer::drawComponents()
     const fr::Entity selection = mSelection->Get();
 
     mRegistry->TryGetComponents<fg::TransformComponent>(
-        selection, [](fg::TransformComponent &transform) {
+        selection, [this, selection](fg::TransformComponent &transform) {
             static glm::vec3 Rotation;
 
-            if(ImGui::CollapsingHeader("Transform Component", nullptr, ImGuiWindowFlags_ChildWindow))
+            const bool hasParent =
+                fg::TransformUtil::ParentOf(*mRegistry, selection) != fg::kInvalidEntity;
+            const char *header =
+                hasParent ? "Transform (Local)" : "Transform Component";
+
+            if(ImGui::CollapsingHeader(header, nullptr, ImGuiWindowFlags_ChildWindow))
             {
-                ImGui::DragFloat3("##Position", &transform.position[0], 0.1f);
+                ImGui::DragFloat3("Position", &transform.position[0], 0.1f);
 
                 Rotation = glm::degrees(glm::eulerAngles(glm::normalize(transform.rotation)));
 
-                if(ImGui::DragFloat3("##Rotation", &Rotation[0], 0.1f))
+                if(ImGui::DragFloat3("Rotation", &Rotation[0], 0.1f))
                 {
                     if(Rotation.y > 90.f)
                     {
@@ -1228,7 +1341,7 @@ void HierarchyLayer::drawComponents()
 
                     transform.rotation = glm::quat(radVec);
                 }
-                ImGui::DragFloat3("##Scale", &transform.scale[0], 0.1f);
+                ImGui::DragFloat3("Scale", &transform.scale[0], 0.1f);
             }
         });
 

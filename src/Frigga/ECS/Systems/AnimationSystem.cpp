@@ -3,6 +3,7 @@
 #include "Frigga/ECS/Components/AnimatorComponent.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
+#include "Frigga/ECS/TransformUtil.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -13,14 +14,6 @@ namespace FRIGGA_NAMESPACE
     namespace
     {
         constexpr std::uint32_t kInvalidGpuClipSlot = 0xffffffffu;
-
-        glm::mat4 BuildModelMatrix(const TransformComponent &transform)
-        {
-            glm::mat4 model = glm::translate(glm::mat4(1.0f), transform.position);
-            model           = model * glm::mat4_cast(transform.rotation);
-            model           = glm::scale(model, transform.scale);
-            return model;
-        }
 
         void AdvanceClipTime(float &timeSec, float duration, float delta, bool loop)
         {
@@ -170,7 +163,7 @@ namespace FRIGGA_NAMESPACE
         }
 
         mRegistry->CreateMutation()->Each<TransformComponent, MeshComponent, AnimatorComponent>(
-            [&](auto entity, TransformComponent &transform, MeshComponent &,
+            [&](auto entity, TransformComponent &, MeshComponent &,
                 AnimatorComponent &animator) {
                 if(animator.modelSource.empty())
                 {
@@ -249,7 +242,7 @@ namespace FRIGGA_NAMESPACE
                         instance.timeA      = animator.timeSec;
                         instance.wA         = 1.0f;
                         instance.flags = animator.loop ? fra::GpuAnimFlags::Loop : 0u;
-                        instance.modelWorld = BuildModelMatrix(transform);
+                        instance.modelWorld = TransformUtil::WorldMatrix(*mRegistry, entity);
                         mGpuInstances.push_back(instance);
                         return;
                     }

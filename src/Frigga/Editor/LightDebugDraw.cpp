@@ -2,6 +2,7 @@
 
 #include "Frigga/ECS/Components/LightComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
+#include "Frigga/ECS/TransformUtil.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -216,7 +217,12 @@ namespace FRIGGA_NAMESPACE
 
         registry->CreateMutation()->Each<TransformComponent, LightComponent>(
             [&](auto entity, TransformComponent &transform, LightComponent &light) {
-                DrawLightGizmo(drawList, viewProj, imageMin, imageSize, transform, light,
+                const auto pose = TransformUtil::WorldPose(*registry, entity);
+                TransformComponent worldXf = transform;
+                worldXf.position           = pose.position;
+                worldXf.rotation           = pose.rotation;
+                worldXf.scale              = pose.scale;
+                DrawLightGizmo(drawList, viewProj, imageMin, imageSize, worldXf, light,
                                entity == selectedEntity);
             });
     }
@@ -241,9 +247,10 @@ namespace FRIGGA_NAMESPACE
         bool found       = false;
 
         registry->CreateMutation()->Each<TransformComponent, LightComponent>(
-            [&](auto entity, TransformComponent &transform, LightComponent &) {
+            [&](auto entity, TransformComponent &, LightComponent &) {
                 ImVec2 screen {};
-                if(!Project(transform.position, viewProj, imageMin, imageSize, screen))
+                if(!Project(TransformUtil::WorldPose(*registry, entity).position, viewProj,
+                            imageMin, imageSize, screen))
                 {
                     return;
                 }

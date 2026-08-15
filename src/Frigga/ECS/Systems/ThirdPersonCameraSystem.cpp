@@ -3,6 +3,7 @@
 #include "Frigga/ECS/Components/NameComponent.hpp"
 #include "Frigga/ECS/Components/ThirdPersonCameraComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
+#include "Frigga/ECS/TransformUtil.hpp"
 
 #include <glm/gtc/quaternion.hpp>
 
@@ -34,12 +35,12 @@ namespace FRIGGA_NAMESPACE
 
         std::unordered_map<std::string, glm::vec3> namedPositions;
         mRegistry->CreateMutation()->Each<NameComponent, TransformComponent>(
-            [&](auto, NameComponent &name, TransformComponent &targetTransform) {
-                namedPositions[name.name] = targetTransform.position;
+            [&](auto entity, NameComponent &name, TransformComponent &) {
+                namedPositions[name.name] = TransformUtil::WorldPose(*mRegistry, entity).position;
             });
 
         mRegistry->CreateMutation()->Each<TransformComponent, ThirdPersonCameraComponent>(
-            [&](auto, TransformComponent &transform, ThirdPersonCameraComponent &orbit) {
+            [&](auto entity, TransformComponent &, ThirdPersonCameraComponent &orbit) {
                 orbit.yaw -= mInput->GetAxis(orbit.lookXAxis);
                 orbit.pitch += mInput->GetAxis(orbit.lookYAxis);
                 orbit.pitch =
@@ -49,7 +50,7 @@ namespace FRIGGA_NAMESPACE
                 orbit.distance =
                     std::clamp(orbit.distance, orbit.minDistance, orbit.maxDistance);
 
-                glm::vec3 targetPos = transform.position;
+                glm::vec3 targetPos = TransformUtil::WorldPose(*mRegistry, entity).position;
                 if(const auto found = namedPositions.find(orbit.targetName);
                    found != namedPositions.end())
                 {
@@ -65,13 +66,17 @@ namespace FRIGGA_NAMESPACE
                                         orbit.distance * std::sin(pitchRad),
                                         orbit.distance * cosPitch * std::cos(yawRad)};
 
-                transform.position = pivot + offset;
-                const glm::vec3 toPivot = pivot - transform.position;
+                const glm::vec3 worldPos = pivot + offset;
+                const glm::vec3 toPivot  = pivot - worldPos;
                 if(glm::dot(toPivot, toPivot) < 1e-8f)
                 {
+                    TransformUtil::SetWorldPose(*mRegistry, entity, worldPos,
+                                                glm::quat(1.0f, 0.0f, 0.0f, 0.0f));
                     return;
                 }
-                transform.rotation = glm::quatLookAt(glm::normalize(toPivot), {0.0f, 1.0f, 0.0f});
+                TransformUtil::SetWorldPose(*mRegistry, entity, worldPos,
+                                            glm::quatLookAt(glm::normalize(toPivot),
+                                                            {0.0f, 1.0f, 0.0f}));
             });
     }
 

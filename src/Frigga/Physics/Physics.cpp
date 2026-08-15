@@ -3,6 +3,7 @@
 #include "Frigga/ECS/Components/CharacterControllerComponent.hpp"
 #include "Frigga/ECS/Components/RigidBodyComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
+#include "Frigga/ECS/TransformUtil.hpp"
 #include "Frigga/Physics/IPhysicsWorld.hpp"
 
 namespace FRIGGA_NAMESPACE
@@ -52,10 +53,7 @@ namespace FRIGGA_NAMESPACE
             return;
         }
 
-        mRegistry->TryGetComponents<TransformComponent>(entity, [&](TransformComponent &transform) {
-            transform.position = position;
-            transform.rotation = rotation;
-        });
+        TransformUtil::SetWorldPose(*mRegistry, entity, position, rotation);
 
         const auto handle = BodyHandle(mRegistry, entity);
         if(handle.IsValid())

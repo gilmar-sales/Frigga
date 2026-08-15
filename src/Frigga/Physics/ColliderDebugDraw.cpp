@@ -4,6 +4,7 @@
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/RigidBodyComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
+#include "Frigga/ECS/TransformUtil.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -20,14 +21,6 @@ namespace FRIGGA_NAMESPACE
             glm::mat4 projection = vulkanProjection;
             projection[1][1] *= -1.0f;
             return projection;
-        }
-
-        glm::mat4 BuildModel(const TransformComponent &transform)
-        {
-            glm::mat4 model = glm::translate(glm::mat4(1.0f), transform.position);
-            model           = model * glm::mat4_cast(transform.rotation);
-            model           = glm::scale(model, transform.scale);
-            return model;
         }
 
         /// Project a segment, clipping against the near plane when one endpoint is behind.
@@ -276,7 +269,7 @@ namespace FRIGGA_NAMESPACE
         const glm::mat4 viewProj = proj * view;
 
         registry->CreateMutation()->Each<TransformComponent, RigidBodyComponent>(
-            [&](auto entity, TransformComponent &transform, RigidBodyComponent &rigidBody) {
+            [&](auto entity, TransformComponent &, RigidBodyComponent &rigidBody) {
                 const bool selected = entity == selectedEntity;
                 // Static/Kinematic are never "active" in Jolt — only dim sleeping Dynamics.
                 bool inactive = false;
@@ -289,7 +282,7 @@ namespace FRIGGA_NAMESPACE
                 const ImU32 color =
                     AdjustColor(ColorForMotion(rigidBody.motion), selected, inactive);
                 const float thickness = selected ? 3.0f : 1.5f;
-                const glm::mat4 model = BuildModel(transform);
+                const glm::mat4 model = TransformUtil::WorldMatrix(*registry, entity);
 
                 switch(rigidBody.shape)
                 {
@@ -326,18 +319,19 @@ namespace FRIGGA_NAMESPACE
 
         // Character capsules: Transform is feet; CapsuleCenterLocal includes centerOffset.
         registry->CreateMutation()->Each<TransformComponent, CharacterControllerComponent>(
-            [&](auto entity, TransformComponent &transform,
+            [&](auto entity, TransformComponent &,
                 CharacterControllerComponent &controller) {
                 const bool selected   = entity == selectedEntity;
                 const ImU32 color     = AdjustColor(IM_COL32(220, 120, 255, 220), selected, false);
                 const float thickness = selected ? 3.0f : 1.5f;
 
                 const float radius = std::max(controller.radius, 0.001f);
+                const auto pose    = TransformUtil::WorldPose(*registry, entity);
                 const glm::vec3 center =
-                    transform.position + transform.rotation * controller.CapsuleCenterLocal();
+                    pose.position + pose.rotation * controller.CapsuleCenterLocal();
 
                 glm::mat4 model = glm::translate(glm::mat4(1.0f), center);
-                model           = model * glm::mat4_cast(transform.rotation);
+                model           = model * glm::mat4_cast(pose.rotation);
                 DrawCapsule(drawList, model, viewProj, imageMin, imageSize, radius,
                             controller.height, color, thickness);
             });
