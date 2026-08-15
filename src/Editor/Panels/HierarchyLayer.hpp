@@ -35,9 +35,17 @@ class HierarchyLayer: public fg::Layer
     void createPrimitiveEntity(fg::PrimitiveType type);
     void createCameraEntity();
     void createLightEntity(fra::LightType type);
+    void createBillboardEntity();
+    void createParticleEntity();
+    void createFullscreenEffectEntity();
     void addRigidBodyToSelection();
     void addCharacterControllerToSelection();
     void addThirdPersonCameraToSelection();
+    void addBillboardToSelection();
+    void addParticleEmitterToSelection();
+    void addHealthBarToSelection();
+    void addBillboardTextToSelection();
+    void addFullscreenEffectToSelection();
     void addLightToSelection(fra::LightType type);
     void addLightToEntity(fr::Entity entity, fra::LightType type);
     void addUserComponentToSelection(std::string_view typeId);
@@ -62,6 +70,8 @@ class HierarchyLayer: public fg::Layer
         Roughness,
         Emissive,
         Metalness,
+        Billboard,
+        Particle,
     };
 
     [[nodiscard]] bool isEntityLocked(fr::Entity entity) const;

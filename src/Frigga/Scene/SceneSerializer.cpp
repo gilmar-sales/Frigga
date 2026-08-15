@@ -1,12 +1,17 @@
 #include "SceneSerializer.hpp"
 
 #include "Frigga/ECS/Components/AnimatorComponent.hpp"
+#include "Frigga/ECS/Components/BillboardComponent.hpp"
+#include "Frigga/ECS/Components/BillboardTextComponent.hpp"
 #include "Frigga/ECS/Components/CameraComponent.hpp"
 #include "Frigga/ECS/Components/CharacterControllerComponent.hpp"
+#include "Frigga/ECS/Components/FullscreenEffectComponent.hpp"
+#include "Frigga/ECS/Components/HealthBarComponent.hpp"
 #include "Frigga/ECS/Components/LightComponent.hpp"
 #include "Frigga/ECS/Components/MaterialComponent.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/NameComponent.hpp"
+#include "Frigga/ECS/Components/ParticleEmitterComponent.hpp"
 #include "Frigga/ECS/Components/RigidBodyComponent.hpp"
 #include "Frigga/ECS/Components/ThirdPersonCameraComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
@@ -128,6 +133,72 @@ namespace FRIGGA_NAMESPACE
             int64_t            collideWithLayers = 0xffff;
         };
 
+        struct SceneBillboardDto
+        {
+            std::vector<float> size;
+            std::vector<float> color;
+            std::vector<float> uvRect;
+            std::optional<std::string> texture;
+            std::string        align {"Screen"};
+            std::string        blend {"Alpha"};
+            std::string        layer {"Vfx"};
+            bool               depthTest = true;
+            bool               sdf       = false;
+            float              clipMax   = 1.0f;
+            std::vector<float> localOffset;
+        };
+
+        struct SceneParticleEmitterDto
+        {
+            std::vector<float> velocity;
+            std::vector<float> velocityJitter;
+            float              spawnRate = 24.0f;
+            float              lifetime  = 0.7f;
+            float              size0     = 0.12f;
+            float              size1     = 0.02f;
+            std::vector<float> color0;
+            std::vector<float> color1;
+            std::string        blend {"Additive"};
+            std::optional<std::string> texture;
+            int64_t            maxParticles = 256;
+            bool               playing      = true;
+        };
+
+        struct SceneHealthBarDto
+        {
+            float              fill   = 1.0f;
+            float              width  = 0.85f;
+            float              height = 0.08f;
+            std::vector<float> offset;
+            std::vector<float> background;
+            std::vector<float> foreground;
+        };
+
+        struct SceneBillboardTextDto
+        {
+            std::string        text;
+            std::string        fontSource {"Fonts/NotoSans-Regular.ttf"};
+            float              heightMeters = 0.16f;
+            std::vector<float> color;
+            std::vector<float> offset;
+            std::string        align {"Cylindrical"};
+            std::string        layer {"Ui"};
+        };
+
+        struct SceneFullscreenEffectDto
+        {
+            std::string        name {"Cell"};
+            std::string        fragment {"Cell/cell.frag.spv"};
+            bool               enabled = true;
+            float              bands           = 4.0f;
+            float              edgeDepthScale  = 80.0f;
+            float              edgeNormalScale = 2.0f;
+            float              strength        = 1.0f;
+            std::vector<float> edgeColor;
+            float              shadowLift = 0.22f;
+            float              edgeWidth  = 1.0f;
+        };
+
         struct SceneAnimatorDto
         {
             std::string          modelSource;
@@ -169,6 +240,11 @@ namespace FRIGGA_NAMESPACE
             std::optional<SceneRigidBodyDto>   rigidBody;
             std::optional<SceneCharacterControllerDto> characterController;
             std::optional<SceneAnimatorDto>    animator;
+            std::optional<SceneBillboardDto>   billboard;
+            std::optional<SceneParticleEmitterDto> particles;
+            std::optional<SceneHealthBarDto>   healthBar;
+            std::optional<SceneBillboardTextDto> billboardText;
+            std::optional<SceneFullscreenEffectDto> fullscreenEffect;
             std::optional<std::vector<SceneUserComponentDto>> userComponents;
         };
 
@@ -530,6 +606,66 @@ namespace FRIGGA_NAMESPACE
             return false;
         }
 
+        const char *BillboardAlignToString(fra::BillboardAlign align)
+        {
+            return align == fra::BillboardAlign::Cylindrical ? "Cylindrical" : "Screen";
+        }
+
+        bool TryParseBillboardAlign(std::string_view name, fra::BillboardAlign &out)
+        {
+            if(name == "Cylindrical")
+            {
+                out = fra::BillboardAlign::Cylindrical;
+                return true;
+            }
+            if(name == "Screen" || name.empty())
+            {
+                out = fra::BillboardAlign::Screen;
+                return true;
+            }
+            return false;
+        }
+
+        const char *BillboardBlendToString(fra::BillboardBlend blend)
+        {
+            return blend == fra::BillboardBlend::Additive ? "Additive" : "Alpha";
+        }
+
+        bool TryParseBillboardBlend(std::string_view name, fra::BillboardBlend &out)
+        {
+            if(name == "Additive")
+            {
+                out = fra::BillboardBlend::Additive;
+                return true;
+            }
+            if(name == "Alpha" || name.empty())
+            {
+                out = fra::BillboardBlend::Alpha;
+                return true;
+            }
+            return false;
+        }
+
+        const char *BillboardLayerToString(fra::BillboardLayer layer)
+        {
+            return layer == fra::BillboardLayer::Ui ? "Ui" : "Vfx";
+        }
+
+        bool TryParseBillboardLayer(std::string_view name, fra::BillboardLayer &out)
+        {
+            if(name == "Ui")
+            {
+                out = fra::BillboardLayer::Ui;
+                return true;
+            }
+            if(name == "Vfx" || name.empty())
+            {
+                out = fra::BillboardLayer::Vfx;
+                return true;
+            }
+            return false;
+        }
+
         const char *ShapeToString(ColliderShape shape)
         {
             switch(shape)
@@ -867,6 +1003,84 @@ namespace FRIGGA_NAMESPACE
                     .previewInEdit = animator.previewInEdit,
                 };
             });
+
+            registry->TryGetComponents<BillboardComponent>(entity, [&](BillboardComponent &bb) {
+                dto.billboard = SceneBillboardDto {
+                    .size        = {bb.size.x, bb.size.y},
+                    .color       = {bb.color.x, bb.color.y, bb.color.z, bb.color.w},
+                    .uvRect      = {bb.uvRect.x, bb.uvRect.y, bb.uvRect.z, bb.uvRect.w},
+                    .texture     = TexturePathOrNull(scene.mAssets, bb.textureId),
+                    .align       = BillboardAlignToString(bb.align),
+                    .blend       = BillboardBlendToString(bb.blend),
+                    .layer       = BillboardLayerToString(bb.layer),
+                    .depthTest   = bb.depthTest,
+                    .sdf         = bb.sdf,
+                    .clipMax     = bb.clipMax,
+                    .localOffset = {bb.localOffset.x, bb.localOffset.y},
+                };
+            });
+
+            registry->TryGetComponents<ParticleEmitterComponent>(
+                entity, [&](ParticleEmitterComponent &p) {
+                    dto.particles = SceneParticleEmitterDto {
+                        .velocity       = {p.velocity.x, p.velocity.y, p.velocity.z},
+                        .velocityJitter = {p.velocityJitter.x, p.velocityJitter.y,
+                                           p.velocityJitter.z},
+                        .spawnRate      = p.spawnRate,
+                        .lifetime       = p.lifetime,
+                        .size0          = p.size0,
+                        .size1          = p.size1,
+                        .color0         = {p.color0.x, p.color0.y, p.color0.z, p.color0.w},
+                        .color1         = {p.color1.x, p.color1.y, p.color1.z, p.color1.w},
+                        .blend          = BillboardBlendToString(p.blend),
+                        .texture        = TexturePathOrNull(scene.mAssets, p.textureId),
+                        .maxParticles   = p.maxParticles,
+                        .playing        = p.playing,
+                    };
+                });
+
+            registry->TryGetComponents<HealthBarComponent>(entity, [&](HealthBarComponent &bar) {
+                dto.healthBar = SceneHealthBarDto {
+                    .fill        = bar.fill,
+                    .width       = bar.width,
+                    .height      = bar.height,
+                    .offset      = {bar.offset.x, bar.offset.y, bar.offset.z},
+                    .background  = {bar.background.x, bar.background.y, bar.background.z,
+                                    bar.background.w},
+                    .foreground  = {bar.foreground.x, bar.foreground.y, bar.foreground.z,
+                                    bar.foreground.w},
+                };
+            });
+
+            registry->TryGetComponents<BillboardTextComponent>(
+                entity, [&](BillboardTextComponent &label) {
+                    dto.billboardText = SceneBillboardTextDto {
+                        .text         = label.text,
+                        .fontSource   = label.fontSource,
+                        .heightMeters = label.heightMeters,
+                        .color        = {label.color.x, label.color.y, label.color.z, label.color.w},
+                        .offset       = {label.offset.x, label.offset.y, label.offset.z},
+                        .align        = BillboardAlignToString(label.align),
+                        .layer        = BillboardLayerToString(label.layer),
+                    };
+                });
+
+            registry->TryGetComponents<FullscreenEffectComponent>(
+                entity, [&](FullscreenEffectComponent &fx) {
+                    dto.fullscreenEffect = SceneFullscreenEffectDto {
+                        .name            = fx.name,
+                        .fragment        = fx.fragment,
+                        .enabled         = fx.enabled,
+                        .bands           = fx.bands,
+                        .edgeDepthScale  = fx.edgeDepthScale,
+                        .edgeNormalScale = fx.edgeNormalScale,
+                        .strength        = fx.strength,
+                        .edgeColor       = {fx.edgeColor.x, fx.edgeColor.y, fx.edgeColor.z,
+                                            fx.edgeColor.w},
+                        .shadowLift      = fx.shadowLift,
+                        .edgeWidth       = fx.edgeWidth,
+                    };
+                });
 
             if(scene.mUserComponents)
             {
@@ -1256,6 +1470,192 @@ namespace FRIGGA_NAMESPACE
                 };
             }
 
+            auto loadOptionalTexture = [&](const std::optional<std::string> &path,
+                                           std::optional<std::uint32_t> &outId) {
+                if(!path || path->empty())
+                {
+                    return true;
+                }
+                std::uint32_t textureId = 0;
+                if(!scene.mAssets || !scene.mAssets->TryGetTextureId(*path, textureId))
+                {
+                    scene.mLogger->LogWarning("Failed to load texture '{}' on '{}'", *path,
+                                              entityDto.name);
+                    return true;
+                }
+                outId = textureId;
+                return true;
+            };
+
+            std::optional<BillboardComponent> billboard;
+            if(entityDto.billboard)
+            {
+                const auto &bbDto = *entityDto.billboard;
+                BillboardComponent bb {};
+                if(!bbDto.size.empty() && !ReadVec2(bbDto.size, bb.size))
+                {
+                    scene.mLogger->LogError("Invalid billboard.size on '{}'", entityDto.name);
+                    return false;
+                }
+                if(!bbDto.color.empty() && !ReadVec4(bbDto.color, bb.color))
+                {
+                    scene.mLogger->LogError("Invalid billboard.color on '{}'", entityDto.name);
+                    return false;
+                }
+                if(!bbDto.uvRect.empty() && !ReadVec4(bbDto.uvRect, bb.uvRect))
+                {
+                    scene.mLogger->LogError("Invalid billboard.uvRect on '{}'", entityDto.name);
+                    return false;
+                }
+                if(!TryParseBillboardAlign(bbDto.align, bb.align) ||
+                   !TryParseBillboardBlend(bbDto.blend, bb.blend) ||
+                   !TryParseBillboardLayer(bbDto.layer, bb.layer))
+                {
+                    scene.mLogger->LogError("Invalid billboard align/blend/layer on '{}'",
+                                            entityDto.name);
+                    return false;
+                }
+                loadOptionalTexture(bbDto.texture, bb.textureId);
+                bb.depthTest = bbDto.depthTest;
+                bb.sdf       = bbDto.sdf;
+                bb.clipMax   = bbDto.clipMax;
+                if(!bbDto.localOffset.empty() && !ReadVec2(bbDto.localOffset, bb.localOffset))
+                {
+                    scene.mLogger->LogError("Invalid billboard.localOffset on '{}'", entityDto.name);
+                    return false;
+                }
+                billboard = bb;
+            }
+
+            std::optional<ParticleEmitterComponent> particles;
+            if(entityDto.particles)
+            {
+                const auto &pDto = *entityDto.particles;
+                ParticleEmitterComponent p {};
+                if(!pDto.velocity.empty() && !ReadVec3(pDto.velocity, p.velocity))
+                {
+                    scene.mLogger->LogError("Invalid particles.velocity on '{}'", entityDto.name);
+                    return false;
+                }
+                if(!pDto.velocityJitter.empty() &&
+                   !ReadVec3(pDto.velocityJitter, p.velocityJitter))
+                {
+                    scene.mLogger->LogError("Invalid particles.velocityJitter on '{}'",
+                                            entityDto.name);
+                    return false;
+                }
+                p.spawnRate = pDto.spawnRate;
+                p.lifetime  = pDto.lifetime;
+                p.size0     = pDto.size0;
+                p.size1     = pDto.size1;
+                if(!pDto.color0.empty() && !ReadVec4(pDto.color0, p.color0))
+                {
+                    scene.mLogger->LogError("Invalid particles.color0 on '{}'", entityDto.name);
+                    return false;
+                }
+                if(!pDto.color1.empty() && !ReadVec4(pDto.color1, p.color1))
+                {
+                    scene.mLogger->LogError("Invalid particles.color1 on '{}'", entityDto.name);
+                    return false;
+                }
+                if(!TryParseBillboardBlend(pDto.blend, p.blend))
+                {
+                    scene.mLogger->LogError("Invalid particles.blend on '{}'", entityDto.name);
+                    return false;
+                }
+                loadOptionalTexture(pDto.texture, p.textureId);
+                p.maxParticles = static_cast<std::uint32_t>(
+                    std::max<int64_t>(pDto.maxParticles, 1));
+                p.playing = pDto.playing;
+                particles = p;
+            }
+
+            std::optional<HealthBarComponent> healthBar;
+            if(entityDto.healthBar)
+            {
+                const auto &barDto = *entityDto.healthBar;
+                HealthBarComponent bar {};
+                bar.fill   = barDto.fill;
+                bar.width  = barDto.width;
+                bar.height = barDto.height;
+                if(!barDto.offset.empty() && !ReadVec3(barDto.offset, bar.offset))
+                {
+                    scene.mLogger->LogError("Invalid healthBar.offset on '{}'", entityDto.name);
+                    return false;
+                }
+                if(!barDto.background.empty() && !ReadVec4(barDto.background, bar.background))
+                {
+                    scene.mLogger->LogError("Invalid healthBar.background on '{}'", entityDto.name);
+                    return false;
+                }
+                if(!barDto.foreground.empty() && !ReadVec4(barDto.foreground, bar.foreground))
+                {
+                    scene.mLogger->LogError("Invalid healthBar.foreground on '{}'", entityDto.name);
+                    return false;
+                }
+                healthBar = bar;
+            }
+
+            std::optional<BillboardTextComponent> billboardText;
+            if(entityDto.billboardText)
+            {
+                const auto &textDto = *entityDto.billboardText;
+                BillboardTextComponent label {};
+                label.text         = textDto.text;
+                if(!textDto.fontSource.empty())
+                {
+                    label.fontSource = textDto.fontSource;
+                }
+                label.heightMeters = textDto.heightMeters;
+                if(!textDto.color.empty() && !ReadVec4(textDto.color, label.color))
+                {
+                    scene.mLogger->LogError("Invalid billboardText.color on '{}'", entityDto.name);
+                    return false;
+                }
+                if(!textDto.offset.empty() && !ReadVec3(textDto.offset, label.offset))
+                {
+                    scene.mLogger->LogError("Invalid billboardText.offset on '{}'", entityDto.name);
+                    return false;
+                }
+                if(!TryParseBillboardAlign(textDto.align, label.align) ||
+                   !TryParseBillboardLayer(textDto.layer, label.layer))
+                {
+                    scene.mLogger->LogError("Invalid billboardText align/layer on '{}'",
+                                            entityDto.name);
+                    return false;
+                }
+                billboardText = label;
+            }
+
+            std::optional<FullscreenEffectComponent> fullscreenEffect;
+            if(entityDto.fullscreenEffect)
+            {
+                const auto &fxDto = *entityDto.fullscreenEffect;
+                FullscreenEffectComponent fx {};
+                if(!fxDto.name.empty())
+                {
+                    fx.name = fxDto.name;
+                }
+                if(!fxDto.fragment.empty())
+                {
+                    fx.fragment = fxDto.fragment;
+                }
+                fx.enabled         = fxDto.enabled;
+                fx.bands           = fxDto.bands;
+                fx.edgeDepthScale  = fxDto.edgeDepthScale;
+                fx.edgeNormalScale = fxDto.edgeNormalScale;
+                fx.strength        = fxDto.strength;
+                if(!fxDto.edgeColor.empty() && !ReadVec4(fxDto.edgeColor, fx.edgeColor))
+                {
+                    scene.mLogger->LogError("Invalid fullscreenEffect.edgeColor on '{}'",
+                                            entityDto.name);
+                    return false;
+                }
+                fx.shadowLift = fxDto.shadowLift;
+                fx.edgeWidth  = fxDto.edgeWidth;
+                fullscreenEffect = fx;
+            }
+
             // Prefer a single CreateEntity(Name, ...) so Freyr writes one archetype row.
             // Piecewise AddComponents without per-step flush corrupt deferred migrations.
             fr::Entity entity {};
@@ -1268,47 +1668,51 @@ namespace FRIGGA_NAMESPACE
             const bool hasR  = rigidBody.has_value();
             const bool hasCc = characterController.has_value();
             const bool hasA  = animator.has_value();
+            const bool hasFx = billboard.has_value() || particles.has_value() ||
+                               healthBar.has_value() || billboardText.has_value() ||
+                               fullscreenEffect.has_value();
 
-            if(hasT && hasM && hasMat && !hasC && !hasTpc && !hasL && hasR && hasA && !hasCc)
+            if(hasT && hasM && hasMat && !hasC && !hasTpc && !hasL && hasR && hasA && !hasCc && !hasFx)
             {
                 entity = registry->CreateEntity(name, *transform, *mesh, *material, *rigidBody,
                                                 *animator);
             }
-            else if(hasT && hasM && hasMat && !hasC && !hasTpc && !hasL && !hasR && hasA && !hasCc)
+            else if(hasT && hasM && hasMat && !hasC && !hasTpc && !hasL && !hasR && hasA && !hasCc && !hasFx)
             {
                 entity = registry->CreateEntity(name, *transform, *mesh, *material, *animator);
             }
-            else if(hasT && hasM && hasMat && !hasC && !hasTpc && !hasL && hasR && !hasA && !hasCc)
+            else if(hasT && hasM && hasMat && !hasC && !hasTpc && !hasL && hasR && !hasA && !hasCc && !hasFx)
             {
                 entity = registry->CreateEntity(name, *transform, *mesh, *material, *rigidBody);
             }
-            else if(hasT && hasM && hasMat && !hasC && !hasTpc && !hasL && !hasR && !hasA && hasCc)
+            else if(hasT && hasM && hasMat && !hasC && !hasTpc && !hasL && !hasR && !hasA && hasCc &&
+                    !hasFx)
             {
                 entity = registry->CreateEntity(name, *transform, *mesh, *material,
                                                 *characterController);
             }
-            else if(hasT && hasM && hasMat && !hasC && !hasTpc && !hasL && !hasR && !hasA && !hasCc)
+            else if(hasT && hasM && hasMat && !hasC && !hasTpc && !hasL && !hasR && !hasA && !hasCc && !hasFx)
             {
                 entity = registry->CreateEntity(name, *transform, *mesh, *material);
             }
-            else if(hasT && !hasM && !hasMat && hasC && hasTpc && !hasL && !hasR && !hasA && !hasCc)
+            else if(hasT && !hasM && !hasMat && hasC && hasTpc && !hasL && !hasR && !hasA && !hasCc && !hasFx)
             {
                 entity = registry->CreateEntity(name, *transform, *camera, *thirdPersonCamera);
             }
-            else if(hasT && !hasM && !hasMat && hasC && !hasTpc && !hasL && !hasR && !hasA && !hasCc)
+            else if(hasT && !hasM && !hasMat && hasC && !hasTpc && !hasL && !hasR && !hasA && !hasCc && !hasFx)
             {
                 entity = registry->CreateEntity(name, *transform, *camera);
             }
-            else if(hasT && !hasM && !hasMat && !hasC && !hasTpc && hasL && !hasR && !hasA && !hasCc)
+            else if(hasT && !hasM && !hasMat && !hasC && !hasTpc && hasL && !hasR && !hasA && !hasCc && !hasFx)
             {
                 entity = registry->CreateEntity(name, *transform, *light);
             }
-            else if(hasT && !hasM && !hasMat && !hasC && !hasTpc && !hasL && !hasR && !hasA && !hasCc)
+            else if(hasT && !hasM && !hasMat && !hasC && !hasTpc && !hasL && !hasR && !hasA && !hasCc && !hasFx)
             {
                 entity = registry->CreateEntity(name, *transform);
             }
             else if(!hasT && !hasM && !hasMat && !hasC && !hasTpc && !hasL && !hasR && !hasA &&
-                    !hasCc)
+                    !hasCc && !hasFx)
             {
                 entity = registry->CreateEntity(name);
             }
@@ -1363,6 +1767,26 @@ namespace FRIGGA_NAMESPACE
                 if(hasA)
                 {
                     attach(*animator);
+                }
+                if(billboard)
+                {
+                    attach(*billboard);
+                }
+                if(particles)
+                {
+                    attach(*particles);
+                }
+                if(healthBar)
+                {
+                    attach(*healthBar);
+                }
+                if(billboardText)
+                {
+                    attach(*billboardText);
+                }
+                if(fullscreenEffect)
+                {
+                    attach(*fullscreenEffect);
                 }
             }
 

@@ -2,12 +2,17 @@
 
 #include <Frigga/Asset/AssetRegistry.hpp>
 #include <Frigga/Asset/PrimitiveMeshFactory.hpp>
+#include <Frigga/ECS/Components/BillboardComponent.hpp>
+#include <Frigga/ECS/Components/BillboardTextComponent.hpp>
 #include <Frigga/ECS/Components/CameraComponent.hpp>
 #include <Frigga/ECS/Components/CharacterControllerComponent.hpp>
+#include <Frigga/ECS/Components/FullscreenEffectComponent.hpp>
+#include <Frigga/ECS/Components/HealthBarComponent.hpp>
 #include <Frigga/ECS/Components/LightComponent.hpp>
 #include <Frigga/ECS/Components/MaterialComponent.hpp>
 #include <Frigga/ECS/Components/MeshComponent.hpp>
 #include <Frigga/ECS/Components/NameComponent.hpp>
+#include <Frigga/ECS/Components/ParticleEmitterComponent.hpp>
 #include <Frigga/ECS/Components/RigidBodyComponent.hpp>
 #include <Frigga/ECS/Components/ThirdPersonCameraComponent.hpp>
 #include <Frigga/ECS/Components/TransformComponent.hpp>
@@ -214,7 +219,12 @@ class SceneSerializerSpec: public ::testing::Test
                            .WithComponent<fg::LightComponent>()
                            .WithComponent<fg::RigidBodyComponent>()
                            .WithComponent<fg::CharacterControllerComponent>()
-                           .WithComponent<fg::ThirdPersonCameraComponent>();
+                           .WithComponent<fg::ThirdPersonCameraComponent>()
+                           .WithComponent<fg::BillboardComponent>()
+                           .WithComponent<fg::BillboardTextComponent>()
+                           .WithComponent<fg::HealthBarComponent>()
+                           .WithComponent<fg::ParticleEmitterComponent>()
+                           .WithComponent<fg::FullscreenEffectComponent>();
                    })
                    .Build<EmptyApp>();
 
@@ -623,5 +633,67 @@ TEST_F(SceneSerializerSpec, RoundTrip_ThirdPersonCamera)
             ExpectVec3Near(orbit.pivotOffset, {0.1f, 1.6f, -0.2f});
         });
     EXPECT_TRUE(found);
+}
+
+TEST_F(SceneSerializerSpec, RoundTrip_BillboardParticlesAndCellEffect)
+{
+    mRegistry->CreateEntity(
+        fg::NameComponent {.name = "Vfx Quad"},
+        fg::TransformComponent {.position = {1.0f, 2.0f, 3.0f}},
+        fg::BillboardComponent {.size  = {0.5f, 0.75f},
+                                .color = {0.2f, 0.4f, 0.6f, 0.8f},
+                                .blend = fra::BillboardBlend::Additive,
+                                .layer = fra::BillboardLayer::Ui});
+    mRegistry->CreateEntity(
+        fg::NameComponent {.name = "Magic"},
+        fg::TransformComponent {.position = {-1.0f, 0.5f, 0.0f}},
+        fg::ParticleEmitterComponent {.spawnRate = 32.0f, .lifetime = 1.25f});
+    mRegistry->CreateEntity(fg::NameComponent {.name = "Toon"},
+                            fg::FullscreenEffectComponent {.bands = 6.0f, .edgeWidth = 2.0f});
+    mRegistry->ExecuteTasks();
+
+    std::string json;
+    ASSERT_TRUE(fg::SceneSerializer::Serialize(*mScene, json));
+    ASSERT_TRUE(mScene->RestoreSnapshot(json));
+
+    bool foundBillboard = false;
+    bool foundParticles = false;
+    bool foundEffect    = false;
+    mRegistry->CreateMutation()->Each<fg::NameComponent, fg::BillboardComponent>(
+        [&](auto, fg::NameComponent &name, fg::BillboardComponent &billboard) {
+            if(name.name != "Vfx Quad")
+            {
+                return;
+            }
+            foundBillboard = true;
+            EXPECT_NEAR(billboard.size.x, 0.5f, kEpsilon);
+            EXPECT_NEAR(billboard.size.y, 0.75f, kEpsilon);
+            EXPECT_EQ(billboard.blend, fra::BillboardBlend::Additive);
+            EXPECT_EQ(billboard.layer, fra::BillboardLayer::Ui);
+        });
+    mRegistry->CreateMutation()->Each<fg::NameComponent, fg::ParticleEmitterComponent>(
+        [&](auto, fg::NameComponent &name, fg::ParticleEmitterComponent &particles) {
+            if(name.name != "Magic")
+            {
+                return;
+            }
+            foundParticles = true;
+            EXPECT_NEAR(particles.spawnRate, 32.0f, kEpsilon);
+            EXPECT_NEAR(particles.lifetime, 1.25f, kEpsilon);
+        });
+    mRegistry->CreateMutation()->Each<fg::NameComponent, fg::FullscreenEffectComponent>(
+        [&](auto, fg::NameComponent &name, fg::FullscreenEffectComponent &fx) {
+            if(name.name != "Toon")
+            {
+                return;
+            }
+            foundEffect = true;
+            EXPECT_NEAR(fx.bands, 6.0f, kEpsilon);
+            EXPECT_NEAR(fx.edgeWidth, 2.0f, kEpsilon);
+            EXPECT_EQ(fx.fragment, "Cell/cell.frag.spv");
+        });
+    EXPECT_TRUE(foundBillboard);
+    EXPECT_TRUE(foundParticles);
+    EXPECT_TRUE(foundEffect);
 }
 

@@ -7,8 +7,13 @@
 #include "Frigga/ECS/Components/LightComponent.hpp"
 #include "Frigga/ECS/Components/MaterialComponent.hpp"
 #include "Frigga/ECS/Components/AnimatorComponent.hpp"
+#include "Frigga/ECS/Components/BillboardComponent.hpp"
+#include "Frigga/ECS/Components/BillboardTextComponent.hpp"
+#include "Frigga/ECS/Components/FullscreenEffectComponent.hpp"
+#include "Frigga/ECS/Components/HealthBarComponent.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/NameComponent.hpp"
+#include "Frigga/ECS/Components/ParticleEmitterComponent.hpp"
 #include "Frigga/ECS/Components/RigidBodyComponent.hpp"
 #include "Frigga/ECS/Components/ThirdPersonCameraComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
@@ -243,6 +248,20 @@ const char *HierarchyLayer::resolveEntityIcon(fr::Entity entity) const
     {
         return ICON_BTSP_CAMERAVIDEO;
     }
+    if(mRegistry->HasComponent<fg::FullscreenEffectComponent>(entity))
+    {
+        return ICON_BTSP_LAYERS;
+    }
+    if(mRegistry->HasComponent<fg::ParticleEmitterComponent>(entity))
+    {
+        return ICON_BTSP_STAR;
+    }
+    if(mRegistry->HasComponent<fg::BillboardComponent>(entity) ||
+       mRegistry->HasComponent<fg::BillboardTextComponent>(entity) ||
+       mRegistry->HasComponent<fg::HealthBarComponent>(entity))
+    {
+        return ICON_BTSP_IMAGE;
+    }
     if(mRegistry->HasComponent<fg::MeshComponent>(entity))
     {
         return ICON_BTSP_BOX;
@@ -307,6 +326,38 @@ void HierarchyLayer::createLightEntity(fra::LightType type)
 
     mRegistry->CreateEntity(fg::NameComponent {.name = getLightDisplayName(type)},
                             makeDefaultLightTransform(type), makeDefaultLight(type));
+}
+
+void HierarchyLayer::createBillboardEntity()
+{
+    if(mSimulation->IsPlaying())
+    {
+        return;
+    }
+    mRegistry->CreateEntity(fg::NameComponent {.name = "Billboard"},
+                            fg::TransformComponent {.position = {0.0f, 1.0f, 0.0f}},
+                            fg::BillboardComponent {});
+}
+
+void HierarchyLayer::createParticleEntity()
+{
+    if(mSimulation->IsPlaying())
+    {
+        return;
+    }
+    mRegistry->CreateEntity(fg::NameComponent {.name = "Particles"},
+                            fg::TransformComponent {.position = {0.0f, 0.5f, 0.0f}},
+                            fg::ParticleEmitterComponent {});
+}
+
+void HierarchyLayer::createFullscreenEffectEntity()
+{
+    if(mSimulation->IsPlaying())
+    {
+        return;
+    }
+    mRegistry->CreateEntity(fg::NameComponent {.name = "Cell Effect"},
+                            fg::FullscreenEffectComponent {});
 }
 
 void HierarchyLayer::addRigidBodyToSelection()
@@ -374,6 +425,87 @@ void HierarchyLayer::addThirdPersonCameraToSelection()
     if(!mRegistry->HasComponent<fg::ThirdPersonCameraComponent>(entity))
     {
         mRegistry->AddComponents(entity, fg::ThirdPersonCameraComponent {});
+    }
+}
+
+void HierarchyLayer::addBillboardToSelection()
+{
+    if(!mSelection->HasSelection() || mSimulation->IsPlaying())
+    {
+        return;
+    }
+    const auto entity = mSelection->Get();
+    if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
+    {
+        mRegistry->AddComponents(entity, fg::TransformComponent {});
+    }
+    if(!mRegistry->HasComponent<fg::BillboardComponent>(entity))
+    {
+        mRegistry->AddComponents(entity, fg::BillboardComponent {});
+    }
+}
+
+void HierarchyLayer::addParticleEmitterToSelection()
+{
+    if(!mSelection->HasSelection() || mSimulation->IsPlaying())
+    {
+        return;
+    }
+    const auto entity = mSelection->Get();
+    if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
+    {
+        mRegistry->AddComponents(entity, fg::TransformComponent {});
+    }
+    if(!mRegistry->HasComponent<fg::ParticleEmitterComponent>(entity))
+    {
+        mRegistry->AddComponents(entity, fg::ParticleEmitterComponent {});
+    }
+}
+
+void HierarchyLayer::addHealthBarToSelection()
+{
+    if(!mSelection->HasSelection() || mSimulation->IsPlaying())
+    {
+        return;
+    }
+    const auto entity = mSelection->Get();
+    if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
+    {
+        mRegistry->AddComponents(entity, fg::TransformComponent {});
+    }
+    if(!mRegistry->HasComponent<fg::HealthBarComponent>(entity))
+    {
+        mRegistry->AddComponents(entity, fg::HealthBarComponent {});
+    }
+}
+
+void HierarchyLayer::addBillboardTextToSelection()
+{
+    if(!mSelection->HasSelection() || mSimulation->IsPlaying())
+    {
+        return;
+    }
+    const auto entity = mSelection->Get();
+    if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
+    {
+        mRegistry->AddComponents(entity, fg::TransformComponent {});
+    }
+    if(!mRegistry->HasComponent<fg::BillboardTextComponent>(entity))
+    {
+        mRegistry->AddComponents(entity, fg::BillboardTextComponent {});
+    }
+}
+
+void HierarchyLayer::addFullscreenEffectToSelection()
+{
+    if(!mSelection->HasSelection() || mSimulation->IsPlaying())
+    {
+        return;
+    }
+    const auto entity = mSelection->Get();
+    if(!mRegistry->HasComponent<fg::FullscreenEffectComponent>(entity))
+    {
+        mRegistry->AddComponents(entity, fg::FullscreenEffectComponent {});
     }
 }
 
@@ -630,11 +762,28 @@ void HierarchyLayer::processPendingTextureImport()
         case PendingTextureSlot::Metalness:
             info.metalness = texture->textureId;
             break;
+        case PendingTextureSlot::Billboard:
+        case PendingTextureSlot::Particle:
         case PendingTextureSlot::None:
             break;
         }
         mPrimitives->UpdateMaterial(material.materialId, info);
     });
+
+    if(slot == PendingTextureSlot::Billboard)
+    {
+        mRegistry->TryGetComponents<fg::BillboardComponent>(
+            entity, [&](fg::BillboardComponent &billboard) {
+                billboard.textureId = texture->textureId;
+            });
+    }
+    if(slot == PendingTextureSlot::Particle)
+    {
+        mRegistry->TryGetComponents<fg::ParticleEmitterComponent>(
+            entity, [&](fg::ParticleEmitterComponent &particles) {
+                particles.textureId = texture->textureId;
+            });
+    }
 }
 
 void HierarchyLayer::onUpdate()
@@ -679,6 +828,18 @@ void HierarchyLayer::onGui()
         if(ImGui::MenuItem("Camera"))
         {
             createCameraEntity();
+        }
+        if(ImGui::MenuItem(ICON_BTSP_IMAGE " Billboard"))
+        {
+            createBillboardEntity();
+        }
+        if(ImGui::MenuItem(ICON_BTSP_STAR " Particles"))
+        {
+            createParticleEntity();
+        }
+        if(ImGui::MenuItem(ICON_BTSP_LAYERS " Cell Effect"))
+        {
+            createFullscreenEffectEntity();
         }
 
         if(ImGui::BeginMenu(ICON_BTSP_LIGHT " Light"))
@@ -827,6 +988,58 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
             if(!mRegistry->HasComponent<fg::ThirdPersonCameraComponent>(entity))
             {
                 mRegistry->AddComponents(entity, fg::ThirdPersonCameraComponent {});
+            }
+        }
+
+        if(ImGui::MenuItem("Add billboard"))
+        {
+            if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
+            {
+                mRegistry->AddComponents(entity, fg::TransformComponent {});
+            }
+            if(!mRegistry->HasComponent<fg::BillboardComponent>(entity))
+            {
+                mRegistry->AddComponents(entity, fg::BillboardComponent {});
+            }
+        }
+        if(ImGui::MenuItem("Add particle emitter"))
+        {
+            if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
+            {
+                mRegistry->AddComponents(entity, fg::TransformComponent {});
+            }
+            if(!mRegistry->HasComponent<fg::ParticleEmitterComponent>(entity))
+            {
+                mRegistry->AddComponents(entity, fg::ParticleEmitterComponent {});
+            }
+        }
+        if(ImGui::MenuItem("Add health bar"))
+        {
+            if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
+            {
+                mRegistry->AddComponents(entity, fg::TransformComponent {});
+            }
+            if(!mRegistry->HasComponent<fg::HealthBarComponent>(entity))
+            {
+                mRegistry->AddComponents(entity, fg::HealthBarComponent {});
+            }
+        }
+        if(ImGui::MenuItem("Add billboard text"))
+        {
+            if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
+            {
+                mRegistry->AddComponents(entity, fg::TransformComponent {});
+            }
+            if(!mRegistry->HasComponent<fg::BillboardTextComponent>(entity))
+            {
+                mRegistry->AddComponents(entity, fg::BillboardTextComponent {});
+            }
+        }
+        if(ImGui::MenuItem("Add fullscreen effect"))
+        {
+            if(!mRegistry->HasComponent<fg::FullscreenEffectComponent>(entity))
+            {
+                mRegistry->AddComponents(entity, fg::FullscreenEffectComponent {});
             }
         }
 
@@ -1094,6 +1307,168 @@ void HierarchyLayer::drawComponents()
             if(!open && !mSimulation->IsPlaying())
             {
                 mRegistry->RemoveComponent<fg::ThirdPersonCameraComponent>(selection);
+            }
+        });
+
+    mRegistry->TryGetComponents<fg::BillboardComponent>(
+        selection, [this, selection](fg::BillboardComponent &billboard) {
+            bool open = true;
+            if(ImGui::CollapsingHeader("Billboard", &open, ImGuiWindowFlags_ChildWindow))
+            {
+                ImGui::DragFloat2("Size", &billboard.size[0], 0.01f, 0.01f, 50.0f);
+                ImGui::ColorEdit4("Color", &billboard.color[0]);
+                ImGui::DragFloat4("UV Rect", &billboard.uvRect[0], 0.01f, 0.0f, 1.0f);
+                ImGui::DragFloat2("Local Offset", &billboard.localOffset[0], 0.01f);
+                int align = static_cast<int>(billboard.align);
+                if(ImGui::Combo("Align", &align, "Screen\0Cylindrical\0"))
+                {
+                    billboard.align = static_cast<fra::BillboardAlign>(align);
+                }
+                int blend = static_cast<int>(billboard.blend);
+                if(ImGui::Combo("Blend", &blend, "Alpha\0Additive\0"))
+                {
+                    billboard.blend = static_cast<fra::BillboardBlend>(blend);
+                }
+                int layer = static_cast<int>(billboard.layer);
+                if(ImGui::Combo("Layer", &layer, "Vfx\0Ui\0"))
+                {
+                    billboard.layer = static_cast<fra::BillboardLayer>(layer);
+                }
+                ImGui::Checkbox("Depth Test", &billboard.depthTest);
+                ImGui::Checkbox("SDF", &billboard.sdf);
+                ImGui::DragFloat("Clip Max", &billboard.clipMax, 0.01f, 0.0f, 1.0f);
+                bool texChanged = false;
+                drawTextureSlot("Texture", PendingTextureSlot::Billboard, billboard.textureId,
+                                texChanged);
+            }
+            if(!open && !mSimulation->IsPlaying())
+            {
+                mRegistry->RemoveComponent<fg::BillboardComponent>(selection);
+            }
+        });
+
+    mRegistry->TryGetComponents<fg::ParticleEmitterComponent>(
+        selection, [this, selection](fg::ParticleEmitterComponent &particles) {
+            bool open = true;
+            if(ImGui::CollapsingHeader("Particle Emitter", &open, ImGuiWindowFlags_ChildWindow))
+            {
+                ImGui::Checkbox("Playing", &particles.playing);
+                ImGui::DragFloat3("Velocity", &particles.velocity[0], 0.01f);
+                ImGui::DragFloat3("Jitter", &particles.velocityJitter[0], 0.01f);
+                ImGui::DragFloat("Spawn Rate", &particles.spawnRate, 0.1f, 0.0f, 500.0f);
+                ImGui::DragFloat("Lifetime", &particles.lifetime, 0.01f, 0.05f, 10.0f);
+                ImGui::DragFloat("Size Start", &particles.size0, 0.01f, 0.0f, 5.0f);
+                ImGui::DragFloat("Size End", &particles.size1, 0.01f, 0.0f, 5.0f);
+                ImGui::ColorEdit4("Color Start", &particles.color0[0]);
+                ImGui::ColorEdit4("Color End", &particles.color1[0]);
+                int blend = static_cast<int>(particles.blend);
+                if(ImGui::Combo("Blend", &blend, "Alpha\0Additive\0"))
+                {
+                    particles.blend = static_cast<fra::BillboardBlend>(blend);
+                }
+                int maxParticles = static_cast<int>(particles.maxParticles);
+                if(ImGui::DragInt("Max Particles", &maxParticles, 1.0f, 1, 4096))
+                {
+                    particles.maxParticles = static_cast<std::uint32_t>(maxParticles);
+                }
+                bool texChanged = false;
+                drawTextureSlot("Texture", PendingTextureSlot::Particle, particles.textureId,
+                                texChanged);
+            }
+            if(!open && !mSimulation->IsPlaying())
+            {
+                mRegistry->RemoveComponent<fg::ParticleEmitterComponent>(selection);
+            }
+        });
+
+    mRegistry->TryGetComponents<fg::HealthBarComponent>(
+        selection, [this, selection](fg::HealthBarComponent &bar) {
+            bool open = true;
+            if(ImGui::CollapsingHeader("Health Bar", &open, ImGuiWindowFlags_ChildWindow))
+            {
+                ImGui::SliderFloat("Fill", &bar.fill, 0.0f, 1.0f);
+                ImGui::DragFloat("Width", &bar.width, 0.01f, 0.05f, 10.0f);
+                ImGui::DragFloat("Height", &bar.height, 0.01f, 0.01f, 2.0f);
+                ImGui::DragFloat3("Offset", &bar.offset[0], 0.01f);
+                ImGui::ColorEdit4("Background", &bar.background[0]);
+                ImGui::ColorEdit4("Foreground", &bar.foreground[0]);
+            }
+            if(!open && !mSimulation->IsPlaying())
+            {
+                mRegistry->RemoveComponent<fg::HealthBarComponent>(selection);
+            }
+        });
+
+    mRegistry->TryGetComponents<fg::BillboardTextComponent>(
+        selection, [this, selection](fg::BillboardTextComponent &label) {
+            bool open = true;
+            if(ImGui::CollapsingHeader("Billboard Text", &open, ImGuiWindowFlags_ChildWindow))
+            {
+                char textBuf[256];
+                char fontBuf[256];
+                std::snprintf(textBuf, sizeof(textBuf), "%s", label.text.c_str());
+                std::snprintf(fontBuf, sizeof(fontBuf), "%s", label.fontSource.c_str());
+                if(ImGui::InputText("Text", textBuf, sizeof(textBuf)))
+                {
+                    label.text = textBuf;
+                }
+                if(ImGui::InputText("Font", fontBuf, sizeof(fontBuf)))
+                {
+                    label.fontSource = fontBuf;
+                }
+                ImGui::DragFloat("Height", &label.heightMeters, 0.01f, 0.02f, 5.0f);
+                ImGui::DragFloat3("Offset", &label.offset[0], 0.01f);
+                ImGui::ColorEdit4("Color", &label.color[0]);
+                int align = static_cast<int>(label.align);
+                if(ImGui::Combo("Align", &align, "Screen\0Cylindrical\0"))
+                {
+                    label.align = static_cast<fra::BillboardAlign>(align);
+                }
+                int layer = static_cast<int>(label.layer);
+                if(ImGui::Combo("Layer", &layer, "Vfx\0Ui\0"))
+                {
+                    label.layer = static_cast<fra::BillboardLayer>(layer);
+                }
+                ImGui::TextDisabled("Place a TTF under Resources/Fonts/");
+            }
+            if(!open && !mSimulation->IsPlaying())
+            {
+                mRegistry->RemoveComponent<fg::BillboardTextComponent>(selection);
+            }
+        });
+
+    mRegistry->TryGetComponents<fg::FullscreenEffectComponent>(
+        selection, [this, selection](fg::FullscreenEffectComponent &fx) {
+            bool open = true;
+            if(ImGui::CollapsingHeader("Fullscreen Effect", &open, ImGuiWindowFlags_ChildWindow))
+            {
+                char nameBuf[64];
+                char fragBuf[256];
+                std::snprintf(nameBuf, sizeof(nameBuf), "%s", fx.name.c_str());
+                std::snprintf(fragBuf, sizeof(fragBuf), "%s", fx.fragment.c_str());
+                if(ImGui::InputText("Name", nameBuf, sizeof(nameBuf)))
+                {
+                    fx.name = nameBuf;
+                }
+                if(ImGui::InputText("Fragment", fragBuf, sizeof(fragBuf)))
+                {
+                    fx.fragment = fragBuf;
+                }
+                ImGui::Checkbox("Enabled", &fx.enabled);
+                ImGui::Separator();
+                ImGui::TextDisabled("Cell shader parameters");
+                ImGui::DragFloat("Bands", &fx.bands, 0.1f, 1.0f, 16.0f);
+                ImGui::DragFloat("Edge Depth", &fx.edgeDepthScale, 0.5f, 0.0f, 400.0f);
+                ImGui::DragFloat("Edge Normal", &fx.edgeNormalScale, 0.05f, 0.0f, 20.0f);
+                ImGui::DragFloat("Strength", &fx.strength, 0.01f, 0.0f, 1.0f);
+                ImGui::ColorEdit4("Edge Color", &fx.edgeColor[0]);
+                ImGui::DragFloat("Shadow Lift", &fx.shadowLift, 0.01f, 0.0f, 1.0f);
+                ImGui::DragFloat("Edge Width", &fx.edgeWidth, 0.05f, 0.0f, 8.0f);
+                ImGui::TextDisabled("Inserted before Freya BillboardVfx");
+            }
+            if(!open && !mSimulation->IsPlaying())
+            {
+                mRegistry->RemoveComponent<fg::FullscreenEffectComponent>(selection);
             }
         });
 

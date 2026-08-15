@@ -525,6 +525,18 @@ void MainLayer::drawMenuBar()
             {
                 mHierarchy->createCameraEntity();
             }
+            if(ImGui::MenuItem(ICON_BTSP_IMAGE " Create Billboard"))
+            {
+                mHierarchy->createBillboardEntity();
+            }
+            if(ImGui::MenuItem(ICON_BTSP_STAR " Create Particles"))
+            {
+                mHierarchy->createParticleEntity();
+            }
+            if(ImGui::MenuItem(ICON_BTSP_LAYERS " Create Cell Effect"))
+            {
+                mHierarchy->createFullscreenEffectEntity();
+            }
             if(ImGui::BeginMenu(ICON_BTSP_LIGHT " Create Light"))
             {
                 for(auto type:
@@ -561,6 +573,26 @@ void MainLayer::drawMenuBar()
                 if(ImGui::MenuItem("Third Person Camera"))
                 {
                     mHierarchy->addThirdPersonCameraToSelection();
+                }
+                if(ImGui::MenuItem("Billboard"))
+                {
+                    mHierarchy->addBillboardToSelection();
+                }
+                if(ImGui::MenuItem("Particle Emitter"))
+                {
+                    mHierarchy->addParticleEmitterToSelection();
+                }
+                if(ImGui::MenuItem("Health Bar"))
+                {
+                    mHierarchy->addHealthBarToSelection();
+                }
+                if(ImGui::MenuItem("Billboard Text"))
+                {
+                    mHierarchy->addBillboardTextToSelection();
+                }
+                if(ImGui::MenuItem("Fullscreen Effect"))
+                {
+                    mHierarchy->addFullscreenEffectToSelection();
                 }
                 if(ImGui::BeginMenu(ICON_BTSP_LIGHT " Light"))
                 {

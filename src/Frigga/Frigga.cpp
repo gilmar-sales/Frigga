@@ -5,12 +5,17 @@
 #include "Asset/PrimitiveMeshFactory.hpp"
 #include "Core/LayerStack.hpp"
 #include "ECS/Components/AnimatorComponent.hpp"
+#include "ECS/Components/BillboardComponent.hpp"
+#include "ECS/Components/BillboardTextComponent.hpp"
 #include "ECS/Components/CameraComponent.hpp"
 #include "ECS/Components/CharacterControllerComponent.hpp"
+#include "ECS/Components/FullscreenEffectComponent.hpp"
+#include "ECS/Components/HealthBarComponent.hpp"
 #include "ECS/Components/LightComponent.hpp"
 #include "ECS/Components/MaterialComponent.hpp"
 #include "ECS/Components/MeshComponent.hpp"
 #include "ECS/Components/NameComponent.hpp"
+#include "ECS/Components/ParticleEmitterComponent.hpp"
 #include "ECS/Components/RigidBodyComponent.hpp"
 #include "ECS/Components/ThirdPersonCameraComponent.hpp"
 #include "ECS/Components/TransformComponent.hpp"
@@ -43,6 +48,11 @@ namespace FRIGGA_NAMESPACE
                     .WithComponent<RigidBodyComponent>()
                     .WithComponent<CharacterControllerComponent>()
                     .WithComponent<ThirdPersonCameraComponent>()
+                    .WithComponent<BillboardComponent>()
+                    .WithComponent<BillboardTextComponent>()
+                    .WithComponent<HealthBarComponent>()
+                    .WithComponent<ParticleEmitterComponent>()
+                    .WithComponent<FullscreenEffectComponent>()
                     .WithComponent<AnimatorComponent>()
                     .WithPipeline([](fr::PipelineBuilder &pipeline) {
                         // Always runs: editor viewport / presentation.

@@ -1,17 +1,27 @@
 #include "RenderSystem.hpp"
 
 #include "../Components/AnimatorComponent.hpp"
+#include "../Components/BillboardComponent.hpp"
+#include "../Components/BillboardTextComponent.hpp"
 #include "../Components/CameraComponent.hpp"
+#include "../Components/FullscreenEffectComponent.hpp"
+#include "../Components/HealthBarComponent.hpp"
 #include "../Components/LightComponent.hpp"
 #include "../Components/MaterialComponent.hpp"
 #include "../Components/MeshComponent.hpp"
+#include "../Components/ParticleEmitterComponent.hpp"
 #include "../Components/TransformComponent.hpp"
+#include "Frigga/Asset/AssetRegistry.hpp"
 #include "Frigga/Scene/Scene.hpp"
 
+#include <Freya/Asset/FontAtlas.hpp>
+#include <Freya/Asset/MaterialDescriptorResources.hpp>
 #include <Freya/Core/LightService.hpp>
 
 #include <algorithm>
 #include <cmath>
+#include <format>
+#include <unordered_set>
 #include <vector>
 
 namespace FRIGGA_NAMESPACE
@@ -57,9 +67,13 @@ namespace FRIGGA_NAMESPACE
                                const skr::Arc<fra::Renderer> &renderer,
                                const skr::Arc<fra::Window> &window,
                                const skr::Arc<fra::LightService> &lightService,
-                               const skr::Arc<Scene> &scene)
+                               const skr::Arc<Scene> &scene, const skr::Arc<AssetRegistry> &assets,
+                               const skr::Arc<fra::FreyaOptions> &freyaOptions,
+                               const skr::Arc<fra::TexturePool> &textures,
+                               const skr::Arc<fra::FullscreenEffectBuilder> &effectBuilder)
         : System(registry), mRenderer(renderer), mWindow(window), mLightService(lightService),
-          mScene(scene)
+          mScene(scene), mAssets(assets), mFreyaOptions(freyaOptions), mTextures(textures),
+          mEffectBuilder(effectBuilder)
     {
     }
 
@@ -70,6 +84,8 @@ namespace FRIGGA_NAMESPACE
         syncLights();
         updateCamera();
         drawMeshes();
+        drawBillboards(deltaTime);
+        syncFullscreenEffects();
     }
 
     void RenderSystem::applyCameraPose(const TransformComponent &transform, float fovDegrees,
@@ -260,6 +276,207 @@ namespace FRIGGA_NAMESPACE
                   });
 
         mRenderer->UploadSceneInstances(mSceneInstances);
+    }
+
+    std::uint32_t RenderSystem::textureHeapIndex(std::optional<std::uint32_t> textureId) const
+    {
+        if(!textureId || *textureId == 0)
+        {
+            return 0;
+        }
+        return fra::MaterialDescriptorResources::TextureHeapIndex(*textureId);
+    }
+
+    const fra::FontAtlas *RenderSystem::fontFor(const std::string &relativePath)
+    {
+        if(!mTextures || relativePath.empty())
+        {
+            return nullptr;
+        }
+
+        auto [it, inserted] = mFonts.try_emplace(relativePath);
+        if(inserted)
+        {
+            const auto absolute = AssetRegistry::ToAbsoluteResourcePath(relativePath);
+            it->second          = fra::FontAtlas::Create(*mTextures, absolute.string());
+        }
+        return it->second.Valid() ? &it->second : nullptr;
+    }
+
+    void RenderSystem::drawBillboards(float deltaTime)
+    {
+        if(!mRenderer)
+        {
+            return;
+        }
+
+        auto &draw = mRenderer->GetBillboardDraw();
+        const bool isolate = mScene->IsUsingPreviewCamera() && mScene->HasRenderIsolation();
+        const fr::Entity isolatedEntity = isolate ? mScene->GetRenderIsolation()
+                                                  : static_cast<fr::Entity>(-1);
+
+        const auto skip = [isolate, isolatedEntity](fr::Entity entity) {
+            return isolate && entity != isolatedEntity;
+        };
+
+        mRegistry->CreateMutation()->Each<TransformComponent, BillboardComponent>(
+            [&](auto entity, TransformComponent &transform, BillboardComponent &billboard) {
+                if(skip(entity))
+                {
+                    return;
+                }
+                fra::Billboard quad {};
+                quad.worldPos      = transform.position;
+                quad.size          = {billboard.size.x * std::abs(transform.scale.x),
+                                      billboard.size.y * std::abs(transform.scale.y)};
+                quad.color         = billboard.color;
+                quad.uvRect        = billboard.uvRect;
+                quad.textureIndex  = textureHeapIndex(billboard.textureId);
+                quad.align         = billboard.align;
+                quad.blend         = billboard.blend;
+                quad.layer         = billboard.layer;
+                quad.depthTest     = billboard.depthTest;
+                quad.sdf           = billboard.sdf;
+                quad.clipMax       = billboard.clipMax;
+                quad.localOffset   = billboard.localOffset;
+                draw.Quad(quad);
+            });
+
+        mRegistry->CreateMutation()->Each<TransformComponent, HealthBarComponent>(
+            [&](auto entity, TransformComponent &transform, HealthBarComponent &bar) {
+                if(skip(entity))
+                {
+                    return;
+                }
+                draw.HealthBar(transform.position + bar.offset, bar.width, bar.height,
+                               std::clamp(bar.fill, 0.0f, 1.0f), bar.background, bar.foreground);
+            });
+
+        mRegistry->CreateMutation()->Each<TransformComponent, BillboardTextComponent>(
+            [&](auto entity, TransformComponent &transform, BillboardTextComponent &label) {
+                if(skip(entity) || label.text.empty())
+                {
+                    return;
+                }
+                const auto *font = fontFor(label.fontSource);
+                if(font == nullptr)
+                {
+                    return;
+                }
+                draw.Text(transform.position + label.offset, label.text, *font, label.heightMeters,
+                          label.color, label.align, label.layer);
+            });
+
+        std::unordered_set<fr::Entity> liveEmitters;
+        mRegistry->CreateMutation()->Each<TransformComponent, ParticleEmitterComponent>(
+            [&](auto entity, TransformComponent &transform, ParticleEmitterComponent &source) {
+                if(skip(entity))
+                {
+                    return;
+                }
+                liveEmitters.insert(entity);
+                auto &emitter          = mEmitters[entity];
+                emitter.origin         = transform.position;
+                emitter.velocity       = source.velocity;
+                emitter.velocityJitter = source.velocityJitter;
+                emitter.spawnRate      = source.playing ? source.spawnRate : 0.0f;
+                emitter.lifetime       = source.lifetime;
+                emitter.size0          = source.size0;
+                emitter.size1          = source.size1;
+                emitter.color0         = source.color0;
+                emitter.color1         = source.color1;
+                emitter.blend          = source.blend;
+                emitter.textureIndex   = textureHeapIndex(source.textureId);
+                emitter.maxParticles   = source.maxParticles;
+                emitter.Tick(deltaTime, draw);
+            });
+        std::erase_if(mEmitters, [&](const auto &entry) {
+            return !liveEmitters.contains(entry.first);
+        });
+    }
+
+    void RenderSystem::syncFullscreenEffects()
+    {
+        if(!mRenderer || !mEffectBuilder)
+        {
+            return;
+        }
+
+        std::unordered_set<fr::Entity> live;
+        mRegistry->CreateMutation()->Each<FullscreenEffectComponent>(
+            [&](auto entity, FullscreenEffectComponent &comp) {
+                live.insert(entity);
+
+                const auto stageName =
+                    std::format("{}##{}", comp.name.empty() ? "Effect" : comp.name,
+                                static_cast<std::uint32_t>(entity));
+
+                auto &runtime = mEffects[entity];
+                const auto previousName = runtime.stageName;
+                const bool rebuild =
+                    !runtime.effect || runtime.fragment != comp.fragment ||
+                    previousName != stageName;
+                if(rebuild)
+                {
+                    const bool cell = comp.fragment.find("cell.frag") != std::string::npos;
+                    auto builder    = mEffectBuilder->SetName(stageName).SetFragment(comp.fragment);
+                    if(cell)
+                    {
+                        builder
+                            .SetInputs({fra::EffectInput::SceneColor, fra::EffectInput::Depth,
+                                        fra::EffectInput::Normal})
+                            .SetPushConstantSize(
+                                static_cast<std::uint32_t>(sizeof(fra::CellPushConstants)));
+                    }
+                    else
+                    {
+                        builder.SetInputs({fra::EffectInput::SceneColor}).SetPushConstantSize(0);
+                    }
+
+                    runtime.effect    = builder.Build();
+                    runtime.fragment  = comp.fragment;
+                    runtime.stageName = stageName;
+                    if(runtime.effect)
+                    {
+                        auto stage = runtime.effect->MakeStage();
+                        const bool replaced =
+                            !previousName.empty() &&
+                            mRenderer->ReplaceFrameStage(previousName.c_str(), stage);
+                        if(!replaced)
+                        {
+                            mRenderer->InsertFrameStage("BillboardVfx", std::move(stage));
+                        }
+                    }
+                }
+
+                if(!runtime.effect)
+                {
+                    return;
+                }
+
+                runtime.effect->SetEnabled(comp.enabled);
+                if(comp.fragment.find("cell.frag") != std::string::npos)
+                {
+                    fra::CellPushConstants cell {};
+                    cell.bands           = comp.bands;
+                    cell.edgeDepthScale  = comp.edgeDepthScale;
+                    cell.edgeNormalScale = comp.edgeNormalScale;
+                    cell.strength        = comp.strength;
+                    cell.edgeColor       = comp.edgeColor;
+                    cell.reverseZ        = (mFreyaOptions && mFreyaOptions->ReverseZ) ? 1.0f : 0.0f;
+                    cell.shadowLift      = comp.shadowLift;
+                    cell.edgeWidth       = comp.edgeWidth;
+                    runtime.effect->SetPushConstants(cell);
+                }
+            });
+
+        for(auto &[entity, runtime] : mEffects)
+        {
+            if(!live.contains(entity) && runtime.effect)
+            {
+                runtime.effect->SetEnabled(false);
+            }
+        }
     }
 
 } // namespace FRIGGA_NAMESPACE
