@@ -77,7 +77,16 @@ TEST(InputMap, SerializeRoundTripPreservesDefaults)
 
     EXPECT_FALSE(parsed.actions["Jump"].keys.empty());
     EXPECT_EQ(parsed.axes["Horizontal"].deadzone, 0.15f);
-    EXPECT_TRUE(parsed.axes["Vertical"].invertGamepad);
+    ASSERT_TRUE(parsed.axes.contains("LookX"));
+    ASSERT_TRUE(parsed.axes.contains("LookY"));
+    ASSERT_TRUE(parsed.axes.contains("Zoom"));
+    ASSERT_TRUE(parsed.axes["LookX"].mouseAxis.has_value());
+    EXPECT_EQ(*parsed.axes["LookX"].mouseAxis, fg::MouseMotionAxis::DeltaX);
+    ASSERT_TRUE(parsed.axes["LookY"].mouseAxis.has_value());
+    EXPECT_EQ(*parsed.axes["LookY"].mouseAxis, fg::MouseMotionAxis::DeltaY);
+    EXPECT_TRUE(parsed.axes["LookY"].invertMouse);
+    EXPECT_TRUE(parsed.axes["LookY"].invertGamepad);
+    EXPECT_NEAR(parsed.axes["LookX"].mouseScale, 0.15f, 0.0001f);
 }
 
 TEST(Input, EdgesAndAxes)
@@ -127,4 +136,24 @@ TEST(Input, EdgesAndAxes)
     input.InjectKey(fra::KeyCode::D, true);
     input.BeginFrame();
     EXPECT_FLOAT_EQ(input.GetAxis("Horizontal"), 0.0f);
+}
+
+TEST(Input, MouseLookAxes)
+{
+    auto harness = InputHarness::Create();
+    auto &input  = *harness.input;
+    input.SetGameplayViewportHovered(true);
+    harness.simulation->Play();
+
+    input.InjectMouseDelta(10.0f, 0.0f);
+    input.BeginFrame();
+    EXPECT_NEAR(input.GetAxis("LookX"), 1.5f, 0.001f);
+
+    input.InjectMouseDelta(0.0f, 10.0f);
+    input.BeginFrame();
+    EXPECT_NEAR(input.GetAxis("LookY"), -1.5f, 0.001f);
+
+    input.InjectMouseScroll(2.0f);
+    input.BeginFrame();
+    EXPECT_NEAR(input.GetAxis("Zoom"), 2.0f, 0.001f);
 }

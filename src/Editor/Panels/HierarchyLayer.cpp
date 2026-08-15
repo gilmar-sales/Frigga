@@ -10,6 +10,7 @@
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/NameComponent.hpp"
 #include "Frigga/ECS/Components/RigidBodyComponent.hpp"
+#include "Frigga/ECS/Components/ThirdPersonCameraComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/ECS/Components/UserDataComponent.hpp"
 
@@ -351,6 +352,28 @@ void HierarchyLayer::addCharacterControllerToSelection()
     if(!mRegistry->HasComponent<fg::CharacterControllerComponent>(entity))
     {
         mRegistry->AddComponents(entity, fg::CharacterControllerComponent {});
+    }
+}
+
+void HierarchyLayer::addThirdPersonCameraToSelection()
+{
+    if(!mSelection->HasSelection() || mSimulation->IsPlaying())
+    {
+        return;
+    }
+
+    const auto entity = mSelection->Get();
+    if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
+    {
+        mRegistry->AddComponents(entity, fg::TransformComponent {});
+    }
+    if(!mRegistry->HasComponent<fg::CameraComponent>(entity))
+    {
+        mRegistry->AddComponents(entity, fg::CameraComponent {});
+    }
+    if(!mRegistry->HasComponent<fg::ThirdPersonCameraComponent>(entity))
+    {
+        mRegistry->AddComponents(entity, fg::ThirdPersonCameraComponent {});
     }
 }
 
@@ -791,6 +814,22 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
             }
         }
 
+        if(ImGui::MenuItem("Add third person camera"))
+        {
+            if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
+            {
+                mRegistry->AddComponents(entity, fg::TransformComponent {});
+            }
+            if(!mRegistry->HasComponent<fg::CameraComponent>(entity))
+            {
+                mRegistry->AddComponents(entity, fg::CameraComponent {});
+            }
+            if(!mRegistry->HasComponent<fg::ThirdPersonCameraComponent>(entity))
+            {
+                mRegistry->AddComponents(entity, fg::ThirdPersonCameraComponent {});
+            }
+        }
+
         if(ImGui::BeginMenu(ICON_BTSP_LIGHT " Add light"))
         {
             for(auto type: {fra::LightType::Point, fra::LightType::Directional, fra::LightType::Spot,
@@ -1007,6 +1046,54 @@ void HierarchyLayer::drawComponents()
                 {
                     ImGui::TextDisabled("Locked (Main Camera)");
                 }
+            }
+        });
+
+    mRegistry->TryGetComponents<fg::ThirdPersonCameraComponent>(
+        selection, [this, selection](fg::ThirdPersonCameraComponent &orbit) {
+            bool open = true;
+            if(ImGui::CollapsingHeader("Third Person Camera", &open, ImGuiWindowFlags_ChildWindow))
+            {
+                char targetBuf[128];
+                std::snprintf(targetBuf, sizeof(targetBuf), "%s", orbit.targetName.c_str());
+                if(ImGui::InputText("Target", targetBuf, sizeof(targetBuf)))
+                {
+                    orbit.targetName = targetBuf;
+                }
+                ImGui::DragFloat3("Pivot Offset", &orbit.pivotOffset[0], 0.01f);
+                ImGui::DragFloat("Distance", &orbit.distance, 0.05f, orbit.minDistance,
+                                 orbit.maxDistance);
+                ImGui::DragFloat("Min Distance", &orbit.minDistance, 0.05f, 0.1f, 50.0f);
+                ImGui::DragFloat("Max Distance", &orbit.maxDistance, 0.05f, 0.1f, 50.0f);
+                ImGui::DragFloat("Yaw", &orbit.yaw, 0.5f);
+                ImGui::DragFloat("Pitch", &orbit.pitch, 0.5f, orbit.minPitch, orbit.maxPitch);
+                ImGui::DragFloat("Min Pitch", &orbit.minPitch, 0.5f, -89.0f, 89.0f);
+                ImGui::DragFloat("Max Pitch", &orbit.maxPitch, 0.5f, -89.0f, 89.0f);
+
+                char lookXBuf[64];
+                char lookYBuf[64];
+                char zoomBuf[64];
+                std::snprintf(lookXBuf, sizeof(lookXBuf), "%s", orbit.lookXAxis.c_str());
+                std::snprintf(lookYBuf, sizeof(lookYBuf), "%s", orbit.lookYAxis.c_str());
+                std::snprintf(zoomBuf, sizeof(zoomBuf), "%s", orbit.zoomAxis.c_str());
+                if(ImGui::InputText("Look X Axis", lookXBuf, sizeof(lookXBuf)))
+                {
+                    orbit.lookXAxis = lookXBuf;
+                }
+                if(ImGui::InputText("Look Y Axis", lookYBuf, sizeof(lookYBuf)))
+                {
+                    orbit.lookYAxis = lookYBuf;
+                }
+                if(ImGui::InputText("Zoom Axis", zoomBuf, sizeof(zoomBuf)))
+                {
+                    orbit.zoomAxis = zoomBuf;
+                }
+                ImGui::TextDisabled("Uses Input Map LookX / LookY / Zoom");
+            }
+
+            if(!open && !mSimulation->IsPlaying())
+            {
+                mRegistry->RemoveComponent<fg::ThirdPersonCameraComponent>(selection);
             }
         });
 

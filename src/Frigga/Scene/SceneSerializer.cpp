@@ -8,6 +8,7 @@
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/NameComponent.hpp"
 #include "Frigga/ECS/Components/RigidBodyComponent.hpp"
+#include "Frigga/ECS/Components/ThirdPersonCameraComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/ECS/Components/UserDataComponent.hpp"
 #include "Frigga/ECS/UserComponentRegistry.hpp"
@@ -70,6 +71,22 @@ namespace FRIGGA_NAMESPACE
             float farPlane   = 1000.0f;
             bool  primary    = false;
             bool  locked     = false;
+        };
+
+        struct SceneThirdPersonCameraDto
+        {
+            std::string        targetName = "Player";
+            std::vector<float> pivotOffset;
+            float              distance    = 6.0f;
+            float              minDistance = 1.5f;
+            float              maxDistance = 14.0f;
+            float              yaw         = 0.0f;
+            float              pitch       = 18.0f;
+            float              minPitch    = -35.0f;
+            float              maxPitch    = 70.0f;
+            std::string        lookXAxis   = "LookX";
+            std::string        lookYAxis   = "LookY";
+            std::string        zoomAxis    = "Zoom";
         };
 
         struct SceneLightDto
@@ -147,6 +164,7 @@ namespace FRIGGA_NAMESPACE
             std::optional<SceneMeshDto>        mesh;
             std::optional<SceneMaterialDto>    material;
             std::optional<SceneCameraDto>      camera;
+            std::optional<SceneThirdPersonCameraDto> thirdPersonCamera;
             std::optional<SceneLightDto>       light;
             std::optional<SceneRigidBodyDto>   rigidBody;
             std::optional<SceneCharacterControllerDto> characterController;
@@ -775,6 +793,25 @@ namespace FRIGGA_NAMESPACE
                 };
             });
 
+            registry->TryGetComponents<ThirdPersonCameraComponent>(
+                entity, [&](ThirdPersonCameraComponent &orbit) {
+                    dto.thirdPersonCamera = SceneThirdPersonCameraDto {
+                        .targetName  = orbit.targetName,
+                        .pivotOffset = {orbit.pivotOffset.x, orbit.pivotOffset.y,
+                                        orbit.pivotOffset.z},
+                        .distance    = orbit.distance,
+                        .minDistance = orbit.minDistance,
+                        .maxDistance = orbit.maxDistance,
+                        .yaw         = orbit.yaw,
+                        .pitch       = orbit.pitch,
+                        .minPitch    = orbit.minPitch,
+                        .maxPitch    = orbit.maxPitch,
+                        .lookXAxis   = orbit.lookXAxis,
+                        .lookYAxis   = orbit.lookYAxis,
+                        .zoomAxis    = orbit.zoomAxis,
+                    };
+                });
+
             registry->TryGetComponents<LightComponent>(entity, [&](LightComponent &light) {
                 dto.light = SceneLightDto {
                     .type              = LightTypeToString(light.type),
@@ -1067,6 +1104,41 @@ namespace FRIGGA_NAMESPACE
                 };
             }
 
+            std::optional<ThirdPersonCameraComponent> thirdPersonCamera;
+            if(entityDto.thirdPersonCamera)
+            {
+                const auto &orbitDto = *entityDto.thirdPersonCamera;
+                ThirdPersonCameraComponent orbit {};
+                orbit.targetName  = orbitDto.targetName.empty() ? "Player" : orbitDto.targetName;
+                if(!orbitDto.pivotOffset.empty() &&
+                   !ReadVec3(orbitDto.pivotOffset, orbit.pivotOffset))
+                {
+                    scene.mLogger->LogError("Invalid thirdPersonCamera.pivotOffset on '{}'",
+                                            entityDto.name);
+                    return false;
+                }
+                orbit.distance    = orbitDto.distance;
+                orbit.minDistance = orbitDto.minDistance;
+                orbit.maxDistance = orbitDto.maxDistance;
+                orbit.yaw         = orbitDto.yaw;
+                orbit.pitch       = orbitDto.pitch;
+                orbit.minPitch    = orbitDto.minPitch;
+                orbit.maxPitch    = orbitDto.maxPitch;
+                if(!orbitDto.lookXAxis.empty())
+                {
+                    orbit.lookXAxis = orbitDto.lookXAxis;
+                }
+                if(!orbitDto.lookYAxis.empty())
+                {
+                    orbit.lookYAxis = orbitDto.lookYAxis;
+                }
+                if(!orbitDto.zoomAxis.empty())
+                {
+                    orbit.zoomAxis = orbitDto.zoomAxis;
+                }
+                thirdPersonCamera = orbit;
+            }
+
             std::optional<LightComponent> light;
             if(entityDto.light)
             {
@@ -1191,46 +1263,52 @@ namespace FRIGGA_NAMESPACE
             const bool hasM  = mesh.has_value();
             const bool hasMat = material.has_value();
             const bool hasC  = camera.has_value();
+            const bool hasTpc = thirdPersonCamera.has_value();
             const bool hasL  = light.has_value();
             const bool hasR  = rigidBody.has_value();
             const bool hasCc = characterController.has_value();
             const bool hasA  = animator.has_value();
 
-            if(hasT && hasM && hasMat && !hasC && !hasL && hasR && hasA && !hasCc)
+            if(hasT && hasM && hasMat && !hasC && !hasTpc && !hasL && hasR && hasA && !hasCc)
             {
                 entity = registry->CreateEntity(name, *transform, *mesh, *material, *rigidBody,
                                                 *animator);
             }
-            else if(hasT && hasM && hasMat && !hasC && !hasL && !hasR && hasA && !hasCc)
+            else if(hasT && hasM && hasMat && !hasC && !hasTpc && !hasL && !hasR && hasA && !hasCc)
             {
                 entity = registry->CreateEntity(name, *transform, *mesh, *material, *animator);
             }
-            else if(hasT && hasM && hasMat && !hasC && !hasL && hasR && !hasA && !hasCc)
+            else if(hasT && hasM && hasMat && !hasC && !hasTpc && !hasL && hasR && !hasA && !hasCc)
             {
                 entity = registry->CreateEntity(name, *transform, *mesh, *material, *rigidBody);
             }
-            else if(hasT && hasM && hasMat && !hasC && !hasL && !hasR && !hasA && hasCc)
+            else if(hasT && hasM && hasMat && !hasC && !hasTpc && !hasL && !hasR && !hasA && hasCc)
             {
                 entity = registry->CreateEntity(name, *transform, *mesh, *material,
                                                 *characterController);
             }
-            else if(hasT && hasM && hasMat && !hasC && !hasL && !hasR && !hasA && !hasCc)
+            else if(hasT && hasM && hasMat && !hasC && !hasTpc && !hasL && !hasR && !hasA && !hasCc)
             {
                 entity = registry->CreateEntity(name, *transform, *mesh, *material);
             }
-            else if(hasT && !hasM && !hasMat && hasC && !hasL && !hasR && !hasA && !hasCc)
+            else if(hasT && !hasM && !hasMat && hasC && hasTpc && !hasL && !hasR && !hasA && !hasCc)
+            {
+                entity = registry->CreateEntity(name, *transform, *camera, *thirdPersonCamera);
+            }
+            else if(hasT && !hasM && !hasMat && hasC && !hasTpc && !hasL && !hasR && !hasA && !hasCc)
             {
                 entity = registry->CreateEntity(name, *transform, *camera);
             }
-            else if(hasT && !hasM && !hasMat && !hasC && hasL && !hasR && !hasA && !hasCc)
+            else if(hasT && !hasM && !hasMat && !hasC && !hasTpc && hasL && !hasR && !hasA && !hasCc)
             {
                 entity = registry->CreateEntity(name, *transform, *light);
             }
-            else if(hasT && !hasM && !hasMat && !hasC && !hasL && !hasR && !hasA && !hasCc)
+            else if(hasT && !hasM && !hasMat && !hasC && !hasTpc && !hasL && !hasR && !hasA && !hasCc)
             {
                 entity = registry->CreateEntity(name, *transform);
             }
-            else if(!hasT && !hasM && !hasMat && !hasC && !hasL && !hasR && !hasA && !hasCc)
+            else if(!hasT && !hasM && !hasMat && !hasC && !hasTpc && !hasL && !hasR && !hasA &&
+                    !hasCc)
             {
                 entity = registry->CreateEntity(name);
             }
@@ -1265,6 +1343,10 @@ namespace FRIGGA_NAMESPACE
                 if(hasC)
                 {
                     attach(*camera);
+                }
+                if(hasTpc)
+                {
+                    attach(*thirdPersonCamera);
                 }
                 if(hasL)
                 {

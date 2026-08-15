@@ -35,6 +35,34 @@ namespace FRIGGA_NAMESPACE
             .scale          = 1.0f,
             .invertGamepad  = true,
         };
+        map.axes["LookX"] = InputAxisBinding {
+            .negativeKeys   = {},
+            .positiveKeys   = {},
+            .gamepadAxis    = fra::GamepadAxis::GamepadAxisRightX,
+            .mouseAxis      = MouseMotionAxis::DeltaX,
+            .deadzone       = 0.15f,
+            .scale          = 180.0f,
+            .mouseScale     = 0.15f,
+            .invertGamepad  = false,
+            .invertMouse    = false,
+        };
+        map.axes["LookY"] = InputAxisBinding {
+            .negativeKeys   = {},
+            .positiveKeys   = {},
+            .gamepadAxis    = fra::GamepadAxis::GamepadAxisRightY,
+            .mouseAxis      = MouseMotionAxis::DeltaY,
+            .deadzone       = 0.15f,
+            .scale          = 180.0f,
+            .mouseScale     = 0.15f,
+            .invertGamepad  = true,
+            .invertMouse    = true,
+        };
+        map.axes["Zoom"] = InputAxisBinding {
+            .negativeKeys = {},
+            .positiveKeys = {},
+            .mouseAxis    = MouseMotionAxis::Scroll,
+            .mouseScale   = 1.0f,
+        };
 
         return map;
     }

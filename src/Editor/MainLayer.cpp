@@ -558,6 +558,10 @@ void MainLayer::drawMenuBar()
                 {
                     mHierarchy->addCharacterControllerToSelection();
                 }
+                if(ImGui::MenuItem("Third Person Camera"))
+                {
+                    mHierarchy->addThirdPersonCameraToSelection();
+                }
                 if(ImGui::BeginMenu(ICON_BTSP_LIGHT " Light"))
                 {
                     for(auto type:

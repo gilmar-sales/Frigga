@@ -777,6 +777,51 @@ void InputMapLayer::drawAxisEditor()
     {
         markDirty();
     }
+
+    ImGui::Spacing();
+    const auto mouseAxisNames = fg::KnownMouseAxisNames();
+    int mouseAxisIndex        = 0;
+    std::string currentMouse  = "(none)";
+    if(binding.mouseAxis)
+    {
+        const auto label = fg::MouseAxisName(*binding.mouseAxis);
+        if(!label.empty())
+        {
+            currentMouse   = std::string(label);
+            mouseAxisIndex = IndexOfName(mouseAxisNames, label);
+        }
+    }
+    ImGui::SetNextItemWidth(EditorUiScale::S(160.0f));
+    if(ImGui::BeginCombo("Mouse axis", currentMouse.c_str()))
+    {
+        if(ImGui::Selectable("(none)", !binding.mouseAxis.has_value()))
+        {
+            binding.mouseAxis.reset();
+            markDirty();
+        }
+        for(int i = 0; i < static_cast<int>(mouseAxisNames.size()); ++i)
+        {
+            const bool selected = binding.mouseAxis.has_value() && i == mouseAxisIndex;
+            if(ImGui::Selectable(mouseAxisNames[static_cast<std::size_t>(i)].data(), selected))
+            {
+                if(const auto parsed =
+                       fg::ParseMouseAxisName(mouseAxisNames[static_cast<std::size_t>(i)]))
+                {
+                    binding.mouseAxis = *parsed;
+                    markDirty();
+                }
+            }
+        }
+        ImGui::EndCombo();
+    }
+    if(ImGui::DragFloat("Mouse scale", &binding.mouseScale, 0.01f, -10.0f, 10.0f, "%.3f"))
+    {
+        markDirty();
+    }
+    if(ImGui::Checkbox("Invert mouse", &binding.invertMouse))
+    {
+        markDirty();
+    }
 }
 
 void InputMapLayer::drawLivePreview()

@@ -38,7 +38,7 @@ namespace FRIGGA_NAMESPACE
         [[nodiscard]] float GetAxis(std::string_view axis) const;
 
         /// Recompute action edges + axes for this frame (call before Freyr Update).
-        void BeginFrame();
+        void BeginFrame(float deltaTime = 1.0f / 60.0f);
 
         void LoadBindings(const InputMap &map);
         void ResetToDefaults();
@@ -53,6 +53,8 @@ namespace FRIGGA_NAMESPACE
         void InjectMouseButton(fra::MouseButton button, bool down);
         void InjectGamepadButton(fra::GamepadButton button, bool down);
         void InjectGamepadAxis(fra::GamepadAxis axis, float value);
+        void InjectMouseDelta(float deltaX, float deltaY);
+        void InjectMouseScroll(float scroll);
 
         [[nodiscard]] const InputMap &GetBindings() const
         {
@@ -79,11 +81,12 @@ namespace FRIGGA_NAMESPACE
         void subscribe();
         [[nodiscard]] bool keyboardMouseAllowed() const;
         [[nodiscard]] bool evaluateAction(const InputActionBinding &binding) const;
-        [[nodiscard]] float evaluateAxis(const InputAxisBinding &binding) const;
+        [[nodiscard]] float evaluateAxis(const InputAxisBinding &binding, float deltaTime) const;
         [[nodiscard]] bool isKeyDown(fra::KeyCode key) const;
         [[nodiscard]] bool isMouseDown(fra::MouseButton button) const;
         [[nodiscard]] bool isGamepadDown(fra::GamepadButton button) const;
         [[nodiscard]] float gamepadAxisValue(fra::GamepadAxis axis) const;
+        [[nodiscard]] float mouseAxisValue(MouseMotionAxis axis) const;
 
         skr::Arc<fra::EventManager> mEvents;
         skr::Arc<SceneSimulationState> mSimulation;
@@ -96,6 +99,10 @@ namespace FRIGGA_NAMESPACE
 
         std::unordered_map<std::string, ActionFrame> mActions;
         std::unordered_map<std::string, float> mAxes;
+
+        float mMouseDeltaX = 0.0f;
+        float mMouseDeltaY = 0.0f;
+        float mMouseScroll = 0.0f;
 
         bool mGameplayViewportHovered = false;
     };

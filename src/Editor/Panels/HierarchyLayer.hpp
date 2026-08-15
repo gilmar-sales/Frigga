@@ -7,6 +7,7 @@
 #include "Frigga/ECS/Components/LightComponent.hpp"
 #include "Frigga/ECS/Components/NameComponent.hpp"
 #include "Frigga/ECS/Components/RigidBodyComponent.hpp"
+#include "Frigga/ECS/Components/ThirdPersonCameraComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/ECS/UserComponentRegistry.hpp"
 #include "Frigga/Scene/Scene.hpp"
@@ -36,6 +37,7 @@ class HierarchyLayer: public fg::Layer
     void createLightEntity(fra::LightType type);
     void addRigidBodyToSelection();
     void addCharacterControllerToSelection();
+    void addThirdPersonCameraToSelection();
     void addLightToSelection(fra::LightType type);
     void addLightToEntity(fr::Entity entity, fra::LightType type);
     void addUserComponentToSelection(std::string_view typeId);

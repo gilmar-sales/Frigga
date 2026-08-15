@@ -238,6 +238,7 @@ namespace
 
 #include <Frigga/Macro.hpp>
 #include <Frigga/ECS/Components/NameComponent.hpp>
+#include <Frigga/ECS/Components/ThirdPersonCameraComponent.hpp>
 #include <Frigga/Input/Input.hpp>
 #include <Frigga/Physics/Physics.hpp>
 
@@ -268,6 +269,8 @@ class GameplaySystem: public fr::System
         return R"cpp(// FRIGGA_MANAGED_GAMEPLAY_SYSTEM
 #include "GameplaySystem.hpp"
 #include "Components/Health.hpp"
+
+#include <cmath>
 
 GameplaySystem::GameplaySystem(const skr::Arc<fr::Registry> &registry,
                                const skr::Arc<fg::Input> &input,
@@ -302,6 +305,14 @@ void GameplaySystem::Update(float deltaTime)
     const float speed      = 4.0f;
     const float jumpSpeed  = 5.0f;
 
+    float cameraYaw = 0.0f;
+    bool  hasOrbit  = false;
+    mRegistry->CreateMutation()->Each<fg::ThirdPersonCameraComponent>(
+        [&](fr::Entity, fg::ThirdPersonCameraComponent &orbit) {
+            cameraYaw = orbit.yaw;
+            hasOrbit  = true;
+        });
+
     mRegistry->CreateMutation()->Each<fg::NameComponent>(
         [&](fr::Entity entity, fg::NameComponent &name) {
             if(name.name != "Player")
@@ -309,7 +320,18 @@ void GameplaySystem::Update(float deltaTime)
                 return;
             }
 
-            glm::vec3 desired {horizontal * speed, 0.0f, -vertical * speed};
+            glm::vec3 desired;
+            if(hasOrbit)
+            {
+                const float yawRad = glm::radians(cameraYaw);
+                const glm::vec3 forward {-std::sin(yawRad), 0.0f, -std::cos(yawRad)};
+                const glm::vec3 right {std::cos(yawRad), 0.0f, -std::sin(yawRad)};
+                desired = (right * horizontal + forward * vertical) * speed;
+            }
+            else
+            {
+                desired = {horizontal * speed, 0.0f, -vertical * speed};
+            }
             const bool grounded = mPhysics->IsCharacterGrounded(entity);
             if(jump && grounded)
             {

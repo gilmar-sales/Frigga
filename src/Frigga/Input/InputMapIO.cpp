@@ -110,6 +110,16 @@ namespace FRIGGA_NAMESPACE
             return table;
         }
 
+        const EnumMap<MouseMotionAxis> &MouseAxisTable()
+        {
+            static const EnumMap<MouseMotionAxis> table = {
+                {"DeltaX", MouseMotionAxis::DeltaX},
+                {"DeltaY", MouseMotionAxis::DeltaY},
+                {"Scroll", MouseMotionAxis::Scroll},
+            };
+            return table;
+        }
+
         template <typename E>
         std::optional<E> Lookup(const EnumMap<E> &table, std::string_view name)
         {
@@ -199,6 +209,11 @@ namespace FRIGGA_NAMESPACE
         return Lookup(GamepadAxisTable(), name);
     }
 
+    std::optional<MouseMotionAxis> ParseMouseAxisName(std::string_view name)
+    {
+        return Lookup(MouseAxisTable(), name);
+    }
+
     std::string_view KeyName(fra::KeyCode key)
     {
         return ReverseLookup(KeyTable(), key);
@@ -217,6 +232,11 @@ namespace FRIGGA_NAMESPACE
     std::string_view GamepadAxisName(fra::GamepadAxis axis)
     {
         return ReverseLookup(GamepadAxisTable(), axis);
+    }
+
+    std::string_view MouseAxisName(MouseMotionAxis axis)
+    {
+        return ReverseLookup(MouseAxisTable(), axis);
     }
 
     std::span<const std::string_view> KnownKeyNames()
@@ -257,6 +277,12 @@ namespace FRIGGA_NAMESPACE
         static constexpr std::string_view names[] = {
             "LeftX", "LeftY", "RightX", "RightY", "LeftTrigger", "RightTrigger",
         };
+        return names;
+    }
+
+    std::span<const std::string_view> KnownMouseAxisNames()
+    {
+        static constexpr std::string_view names[] = {"DeltaX", "DeltaY", "Scroll"};
         return names;
     }
 
@@ -345,9 +371,15 @@ namespace FRIGGA_NAMESPACE
             {
                 out << "    \"gamepadAxis\": \"" << GamepadAxisName(*axis.gamepadAxis) << "\",\n";
             }
+            if(axis.mouseAxis)
+            {
+                out << "    \"mouseAxis\": \"" << MouseAxisName(*axis.mouseAxis) << "\",\n";
+            }
             out << "    \"deadzone\": " << axis.deadzone << ",\n";
             out << "    \"scale\": " << axis.scale << ",\n";
-            out << "    \"invertGamepad\": " << (axis.invertGamepad ? "true" : "false") << "\n";
+            out << "    \"mouseScale\": " << axis.mouseScale << ",\n";
+            out << "    \"invertGamepad\": " << (axis.invertGamepad ? "true" : "false") << ",\n";
+            out << "    \"invertMouse\": " << (axis.invertMouse ? "true" : "false") << "\n";
             out << "    }";
         }
         out << "\n  }\n";
@@ -535,6 +567,16 @@ namespace FRIGGA_NAMESPACE
                     }
                 }
 
+                auto mouseAxisField = axisObj["mouseAxis"];
+                if(!mouseAxisField.error())
+                {
+                    std::string_view axisLabel;
+                    if(!mouseAxisField.get_string().get(axisLabel))
+                    {
+                        binding.mouseAxis = ParseMouseAxisName(axisLabel);
+                    }
+                }
+
                 auto deadzoneField = axisObj["deadzone"];
                 if(!deadzoneField.error())
                 {
@@ -560,6 +602,24 @@ namespace FRIGGA_NAMESPACE
                     if(!invertField.get_bool().get(invert))
                     {
                         binding.invertGamepad = invert;
+                    }
+                }
+                auto mouseScaleField = axisObj["mouseScale"];
+                if(!mouseScaleField.error())
+                {
+                    double mouseScale = binding.mouseScale;
+                    if(!mouseScaleField.get_double().get(mouseScale))
+                    {
+                        binding.mouseScale = static_cast<float>(mouseScale);
+                    }
+                }
+                auto invertMouseField = axisObj["invertMouse"];
+                if(!invertMouseField.error())
+                {
+                    bool invert = binding.invertMouse;
+                    if(!invertMouseField.get_bool().get(invert))
+                    {
+                        binding.invertMouse = invert;
                     }
                 }
 

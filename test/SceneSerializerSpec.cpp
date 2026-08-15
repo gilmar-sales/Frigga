@@ -3,11 +3,13 @@
 #include <Frigga/Asset/AssetRegistry.hpp>
 #include <Frigga/Asset/PrimitiveMeshFactory.hpp>
 #include <Frigga/ECS/Components/CameraComponent.hpp>
+#include <Frigga/ECS/Components/CharacterControllerComponent.hpp>
 #include <Frigga/ECS/Components/LightComponent.hpp>
 #include <Frigga/ECS/Components/MaterialComponent.hpp>
 #include <Frigga/ECS/Components/MeshComponent.hpp>
 #include <Frigga/ECS/Components/NameComponent.hpp>
 #include <Frigga/ECS/Components/RigidBodyComponent.hpp>
+#include <Frigga/ECS/Components/ThirdPersonCameraComponent.hpp>
 #include <Frigga/ECS/Components/TransformComponent.hpp>
 #include <Frigga/ECS/Components/UserDataComponent.hpp>
 #include <Frigga/ECS/UserComponentReflection.hpp>
@@ -210,7 +212,9 @@ class SceneSerializerSpec: public ::testing::Test
                            .WithComponent<fg::MaterialComponent>()
                            .WithComponent<fg::CameraComponent>()
                            .WithComponent<fg::LightComponent>()
-                           .WithComponent<fg::RigidBodyComponent>();
+                           .WithComponent<fg::RigidBodyComponent>()
+                           .WithComponent<fg::CharacterControllerComponent>()
+                           .WithComponent<fg::ThirdPersonCameraComponent>();
                    })
                    .Build<EmptyApp>();
 
@@ -579,5 +583,45 @@ TEST_F(SceneSerializerSpec, ClearEntities_DropsDeferredUserComponents)
 
     mScene->NewScene();
     EXPECT_TRUE(mUserComponents->GetDeferred().empty());
+}
+
+TEST_F(SceneSerializerSpec, RoundTrip_ThirdPersonCamera)
+{
+    bool found = false;
+    mRegistry->CreateMutation()->Each<fg::NameComponent, fg::ThirdPersonCameraComponent>(
+        [&](auto, fg::NameComponent &name, fg::ThirdPersonCameraComponent &orbit) {
+            if(name.name != "Main Camera")
+            {
+                return;
+            }
+            found             = true;
+            orbit.targetName  = "Player";
+            orbit.distance    = 8.25f;
+            orbit.yaw         = 42.0f;
+            orbit.pitch       = 12.5f;
+            orbit.pivotOffset = {0.1f, 1.6f, -0.2f};
+        });
+    mRegistry->ExecuteTasks();
+    ASSERT_TRUE(found);
+
+    std::string json;
+    ASSERT_TRUE(fg::SceneSerializer::Serialize(*mScene, json));
+    ASSERT_TRUE(mScene->RestoreSnapshot(json));
+
+    found = false;
+    mRegistry->CreateMutation()->Each<fg::NameComponent, fg::ThirdPersonCameraComponent>(
+        [&](auto, fg::NameComponent &name, fg::ThirdPersonCameraComponent &orbit) {
+            if(name.name != "Main Camera")
+            {
+                return;
+            }
+            found = true;
+            EXPECT_EQ(orbit.targetName, "Player");
+            EXPECT_NEAR(orbit.distance, 8.25f, kEpsilon);
+            EXPECT_NEAR(orbit.yaw, 42.0f, kEpsilon);
+            EXPECT_NEAR(orbit.pitch, 12.5f, kEpsilon);
+            ExpectVec3Near(orbit.pivotOffset, {0.1f, 1.6f, -0.2f});
+        });
+    EXPECT_TRUE(found);
 }
 

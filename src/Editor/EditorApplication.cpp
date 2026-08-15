@@ -30,7 +30,7 @@ void EditorApplication::RenderScene()
     syncSimulationPipeline();
     if(mInput)
     {
-        mInput->BeginFrame();
+        mInput->BeginFrame(mWindow->GetDeltaTime());
     }
     mRegistry->ExecuteTasks();
     mRegistry->Update(mWindow->GetDeltaTime());

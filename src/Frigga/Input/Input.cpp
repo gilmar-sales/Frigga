@@ -54,6 +54,10 @@ namespace FRIGGA_NAMESPACE
             [this](const fra::GamepadAxisMotionEvent &event) {
                 mGamepadAxes[event.axis] = static_cast<float>(event.value);
             });
+        mEvents->Subscribe<fra::MouseMoveEvent>([this](const fra::MouseMoveEvent &event) {
+            mMouseDeltaX += event.deltaX;
+            mMouseDeltaY += event.deltaY;
+        });
     }
 
     bool Input::IsDown(std::string_view action) const
@@ -80,8 +84,14 @@ namespace FRIGGA_NAMESPACE
         return it != mAxes.end() ? it->second : 0.0f;
     }
 
-    void Input::BeginFrame()
+    void Input::BeginFrame(float deltaTime)
     {
+        if(keyboardMouseAllowed() && ImGui::GetCurrentContext() != nullptr)
+        {
+            mMouseScroll += ImGui::GetIO().MouseWheel;
+        }
+
+        const float dt = std::max(deltaTime, 0.0f);
         const bool playing = mSimulation && mSimulation->IsPlaying();
         const bool running = mSimulation && mSimulation->IsRunning();
 
@@ -93,17 +103,14 @@ namespace FRIGGA_NAMESPACE
                 state.released = state.down;
                 state.down     = false;
             }
-            for(auto &[name, value] : mAxes)
-            {
-                (void)name;
-                value = 0.0f;
-            }
-            // Ensure axes map has entries for all bindings when cleared.
             for(const auto &[name, binding] : mMap.axes)
             {
                 (void)binding;
                 mAxes[name] = 0.0f;
             }
+            mMouseDeltaX = 0.0f;
+            mMouseDeltaY = 0.0f;
+            mMouseScroll = 0.0f;
             return;
         }
 
@@ -118,13 +125,32 @@ namespace FRIGGA_NAMESPACE
 
         for(const auto &[name, binding] : mMap.axes)
         {
-            mAxes[name] = evaluateAxis(binding);
+            mAxes[name] = evaluateAxis(binding, dt);
         }
+
+        mMouseDeltaX = 0.0f;
+        mMouseDeltaY = 0.0f;
+        mMouseScroll = 0.0f;
     }
 
     void Input::LoadBindings(const InputMap &map)
     {
         mMap = map;
+        const auto defaults = MakeDefaultInputMap();
+        for(const auto &[name, binding] : defaults.actions)
+        {
+            if(!mMap.actions.contains(name))
+            {
+                mMap.actions.emplace(name, binding);
+            }
+        }
+        for(const auto &[name, binding] : defaults.axes)
+        {
+            if(!mMap.axes.contains(name))
+            {
+                mMap.axes.emplace(name, binding);
+            }
+        }
         mActions.clear();
         mAxes.clear();
         for(const auto &[name, binding] : mMap.actions)
@@ -183,6 +209,17 @@ namespace FRIGGA_NAMESPACE
     void Input::InjectGamepadAxis(fra::GamepadAxis axis, float value)
     {
         mGamepadAxes[axis] = value;
+    }
+
+    void Input::InjectMouseDelta(float deltaX, float deltaY)
+    {
+        mMouseDeltaX += deltaX;
+        mMouseDeltaY += deltaY;
+    }
+
+    void Input::InjectMouseScroll(float scroll)
+    {
+        mMouseScroll += scroll;
     }
 
     bool Input::keyboardMouseAllowed() const
@@ -257,9 +294,23 @@ namespace FRIGGA_NAMESPACE
         return false;
     }
 
-    float Input::evaluateAxis(const InputAxisBinding &binding) const
+    float Input::mouseAxisValue(MouseMotionAxis axis) const
     {
-        float value = 0.0f;
+        switch(axis)
+        {
+        case MouseMotionAxis::DeltaX:
+            return mMouseDeltaX;
+        case MouseMotionAxis::DeltaY:
+            return mMouseDeltaY;
+        case MouseMotionAxis::Scroll:
+            return mMouseScroll;
+        }
+        return 0.0f;
+    }
+
+    float Input::evaluateAxis(const InputAxisBinding &binding, float deltaTime) const
+    {
+        float analog = 0.0f;
         const bool allowKm = keyboardMouseAllowed();
         if(allowKm)
         {
@@ -275,11 +326,11 @@ namespace FRIGGA_NAMESPACE
             }
             if(pos)
             {
-                value += 1.0f;
+                analog += 1.0f;
             }
             if(neg)
             {
-                value -= 1.0f;
+                analog -= 1.0f;
             }
         }
 
@@ -294,15 +345,32 @@ namespace FRIGGA_NAMESPACE
             {
                 stick = 0.0f;
             }
-            // Prefer stick when it has magnitude; otherwise keep keyboard composite.
-            if(std::abs(stick) > std::abs(value))
+            if(std::abs(stick) > std::abs(analog))
             {
-                value = stick;
+                analog = stick;
             }
         }
 
-        value *= binding.scale;
-        return std::clamp(value, -1.0f, 1.0f);
+        analog = std::clamp(analog, -1.0f, 1.0f) * binding.scale;
+
+        float mouse = 0.0f;
+        if(binding.mouseAxis && allowKm)
+        {
+            mouse = mouseAxisValue(*binding.mouseAxis);
+            if(binding.invertMouse)
+            {
+                mouse = -mouse;
+            }
+            mouse *= binding.mouseScale;
+        }
+
+        if(binding.mouseAxis)
+        {
+            // Stick/keys are rates (units/sec); mouse is a per-frame delta.
+            return analog * deltaTime + mouse;
+        }
+
+        return std::clamp(analog, -1.0f, 1.0f);
     }
 
 } // namespace FRIGGA_NAMESPACE

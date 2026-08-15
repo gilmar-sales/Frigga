@@ -12,10 +12,12 @@
 #include "ECS/Components/MeshComponent.hpp"
 #include "ECS/Components/NameComponent.hpp"
 #include "ECS/Components/RigidBodyComponent.hpp"
+#include "ECS/Components/ThirdPersonCameraComponent.hpp"
 #include "ECS/Components/TransformComponent.hpp"
 #include "ECS/Systems/AnimationSystem.hpp"
 #include "ECS/Systems/PhysicsSystem.hpp"
 #include "ECS/Systems/RenderSystem.hpp"
+#include "ECS/Systems/ThirdPersonCameraSystem.hpp"
 #include "ECS/UserComponentRegistry.hpp"
 #include "Input/Input.hpp"
 #include "Physics/IPhysicsWorld.hpp"
@@ -40,6 +42,7 @@ namespace FRIGGA_NAMESPACE
                     .WithComponent<LightComponent>()
                     .WithComponent<RigidBodyComponent>()
                     .WithComponent<CharacterControllerComponent>()
+                    .WithComponent<ThirdPersonCameraComponent>()
                     .WithComponent<AnimatorComponent>()
                     .WithPipeline([](fr::PipelineBuilder &pipeline) {
                         // Always runs: editor viewport / presentation.
@@ -52,7 +55,8 @@ namespace FRIGGA_NAMESPACE
                         // Gameplay runs first so fg::Physics intents apply before the step.
                         pipeline.WithName("Simulation")
                             .WithSystem<GameplayPluginBridge>()
-                            .WithSystem<PhysicsSystem>();
+                            .WithSystem<PhysicsSystem>()
+                            .WithSystem<ThirdPersonCameraSystem>();
                     });
             })
             .WithExtension<fra::FreyaExtension>([](fra::FreyaExtension &freya) {

@@ -7,6 +7,7 @@
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/NameComponent.hpp"
 #include "Frigga/ECS/Components/RigidBodyComponent.hpp"
+#include "Frigga/ECS/Components/ThirdPersonCameraComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/Scene/SceneSerializer.hpp"
 
@@ -125,7 +126,8 @@ namespace FRIGGA_NAMESPACE
                              .nearPlane  = 0.1f,
                              .farPlane   = 1000.0f,
                              .primary    = true,
-                             .locked     = true});
+                             .locked     = true},
+            ThirdPersonCameraComponent {});
 
         // Default key light: elevated, aiming down at the cube (-Y along local -Z).
         mEcsRegistry->CreateEntity(
