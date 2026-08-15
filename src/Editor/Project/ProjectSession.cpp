@@ -6,6 +6,7 @@
 #include "ProjectScaffold.hpp"
 #include "ProjectEnginePaths.hpp"
 
+#include <Frigga/ECS/EcsLayout.hpp>
 #include <Frigga/Input/InputMapIO.hpp>
 
 #include <algorithm>
@@ -220,10 +221,11 @@ ProjectSession::ProjectSession(skr::Arc<fg::Scene> scene,
                                skr::Arc<fg::GameplayPluginHost> pluginHost,
                                skr::Arc<fg::SceneSimulationState> simulation,
                                skr::Arc<fg::Input> input,
+                               skr::Arc<fr::Registry> registry,
                                skr::Arc<EditorPreferences> preferences,
                                skr::Arc<skr::Logger<ProjectSession>> logger)
     : mScene(std::move(scene)), mPluginHost(std::move(pluginHost)),
-      mSimulation(std::move(simulation)), mInput(std::move(input)),
+      mSimulation(std::move(simulation)), mInput(std::move(input)), mRegistry(std::move(registry)),
       mPreferences(std::move(preferences)), mLogger(std::move(logger))
 {
 }
@@ -821,6 +823,48 @@ std::optional<std::filesystem::path> ProjectSession::GetProjectRoot() const
     return mProjectFile->parent_path();
 }
 
+bool ProjectSession::SaveEcsLayout()
+{
+    const auto root = GetProjectRoot();
+    if(!root || !mRegistry)
+    {
+        return true;
+    }
+
+    std::string error;
+    if(!fg::SaveEcsLayoutFile(*root / fg::kEcsLayoutFileName, fg::CaptureEcsLayout(*mRegistry),
+                              &error))
+    {
+        std::lock_guard lock(mMutex);
+        mLastError = error.empty() ? "Failed to write ecs.json" : error;
+        mLogger->LogWarning("Failed to save ecs.json: {}", mLastError);
+        return false;
+    }
+    return true;
+}
+
+void ProjectSession::SyncEcsLayout()
+{
+    const auto root = GetProjectRoot();
+    if(!root || !mRegistry)
+    {
+        return;
+    }
+
+    const auto path   = *root / fg::kEcsLayoutFileName;
+    const auto result = fg::SyncEcsLayoutFile(*mRegistry, path);
+    if(!result.ok)
+    {
+        mLogger->LogWarning("Failed to sync ecs.json ({}): {}", path.string(), result.error);
+        return;
+    }
+    if(result.addedPluginSystems)
+    {
+        mLogger->LogInformation("Appended new plugin system(s) to {} in {}",
+                                fg::kDefaultEcsPipelineName, path.string());
+    }
+}
+
 std::filesystem::path ProjectSession::GetScenesDirectory() const
 {
     const auto root = GetProjectRoot();
@@ -1189,6 +1233,7 @@ bool ProjectSession::ReloadPlugin()
         mStatusMessage = "Loaded plugin " + lib.filename().string() + " | components: " +
                          (listed.empty() ? "(none)" : listed);
     }
+    SyncEcsLayout();
     writeEditorSessionMarker();
     return true;
 }
@@ -1275,6 +1320,7 @@ bool ProjectSession::enterEditor(const std::filesystem::path &projectFile, Proje
     }
 
     writeEditorSessionMarker();
+    SyncEcsLayout();
     mLogger->LogInformation("Opened project {}", projectFile.string());
     return true;
 }

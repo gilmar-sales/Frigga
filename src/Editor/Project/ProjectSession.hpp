@@ -64,6 +64,7 @@ class ProjectSession
                    skr::Arc<fg::GameplayPluginHost> pluginHost,
                    skr::Arc<fg::SceneSimulationState> simulation,
                    skr::Arc<fg::Input> input,
+                   skr::Arc<fr::Registry> registry,
                    skr::Arc<EditorPreferences> preferences,
                    skr::Arc<skr::Logger<ProjectSession>> logger);
     ~ProjectSession();
@@ -142,6 +143,11 @@ class ProjectSession
     void UnloadPlugin();
     void DismissBuildUi();
 
+    /// Writes the live pipeline/system layout to `{project}/ecs.json`.
+    bool SaveEcsLayout();
+    /// Load/apply ecs.json after plugin attach (creates the file on first use).
+    void SyncEcsLayout();
+
     /// Migrates the open project to the current format (or force-rewrites managed files).
     bool MigrateOpenProject(bool force = false);
 
@@ -169,6 +175,7 @@ class ProjectSession
     skr::Arc<fg::GameplayPluginHost> mPluginHost;
     skr::Arc<fg::SceneSimulationState> mSimulation;
     skr::Arc<fg::Input> mInput;
+    skr::Arc<fr::Registry> mRegistry;
     skr::Arc<EditorPreferences> mPreferences;
     skr::Arc<skr::Logger<ProjectSession>> mLogger;
 

@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.29)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # CI release builds pass -DFRIGGA_VERSION=<tag without leading v>.
-set(FRIGGA_VERSION "0.2.0" CACHE STRING "Frigga package version")
+set(FRIGGA_VERSION "0.10.0" CACHE STRING "Frigga package version")
 project(Frigga LANGUAGES CXX VERSION ${FRIGGA_VERSION})
 
 if (NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
@@ -30,7 +30,7 @@ FetchContent_MakeAvailable(skirnir)
 FetchContent_Declare(
         freyr
         GIT_REPOSITORY "https://github.com/gilmar-sales/Freyr.git"
-        GIT_TAG "v0.32.1"
+        GIT_TAG "v0.34.0"
         GIT_SHALLOW TRUE
 )
 FetchContent_MakeAvailable(freyr)

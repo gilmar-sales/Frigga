@@ -18,11 +18,13 @@ void EcsWorkflow::buildDefaultDockLayout(ImGuiID dockspaceId)
     const auto hierarchy  = EditorDock::WindowId("Hierarchy");
     const auto components = EditorDock::WindowId("Components");
     const auto archetypes = EditorDock::WindowId("Archetypes");
+    const auto pipelines  = EditorDock::WindowId("Pipelines");
     const auto resources  = EditorDock::WindowId("Resources");
 
     ImGui::DockBuilderDockWindow(hierarchy.c_str(), leftId);
     ImGui::DockBuilderDockWindow(components.c_str(), rightId);
     ImGui::DockBuilderDockWindow(archetypes.c_str(), mainId);
+    ImGui::DockBuilderDockWindow(pipelines.c_str(), mainId);
     ImGui::DockBuilderDockWindow(resources.c_str(), bottomId);
 
     ImGui::DockBuilderFinish(dockspaceId);

@@ -403,6 +403,7 @@ struct Health: fr::Component
         out << "## Layout\n\n";
         out << "- `frigga.project` — project metadata\n";
         out << "- `input.json` — named Actions / Axes bindings\n";
+        out << "- `ecs.json` — ECS pipeline / system layout (created on first Editor open)\n";
         out << "- `scenes/main.json` — default scene\n";
         out << "- `src/GameplaySystem.*` — Freyr system (registers via FRI_PLUGIN_MODULE, DI "
                "`fg::Input` + `fg::Physics`)\n";
@@ -422,6 +423,8 @@ struct Health: fr::Component
         out << "Optional DI: `plugin.Singleton<T>()`, `.Scoped<T>()`, `.Transient<T>()`.\n";
         out << "Host exposes `fg::Input` and `fg::Physics` — inject them in system ctors "
                "(`IsDown`/`WasPressed`/`GetAxis`, `MoveCharacter`/`SetLinearVelocity`).\n";
+        out << "Host placement: new plugin systems append to **Simulation**; known labels are "
+               "restored from `ecs.json` after attach. Edit pipelines in the **ECS** workflow.\n";
         out << "Edit mode disables Simulation (physics + gameplay); Animation/Render stay on "
                "**Main**.\n\n";
         out << "## Build the plugin\n\n";

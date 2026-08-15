@@ -104,6 +104,7 @@ ProjectMigrationResult ProjectMigrator::Migrate(const std::filesystem::path &pro
     // v8 → v9: GameplaySystem DI fg::Physics + CharacterController movement
     // v9 → v10: portable CMake (FRIGGA_SDK / env / CMakeUserPresets, no baked machine paths)
     // v10 → v11: GameplaySystem camera-relative move (ThirdPersonCamera yaw)
+    // v11 → v12: ecs.json pipeline/system layout (created on first editor save / plugin apply)
     std::string stepError;
     if(!ApplyManagedLayout(projectFile.parent_path(), desc, stepError))
     {

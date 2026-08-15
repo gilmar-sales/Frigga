@@ -23,6 +23,7 @@ add_executable(frigga_tests
         FriPluginModuleSpec.cpp
         InputSpec.cpp
         LateSystemRegistrationSpec.cpp
+        EcsLayoutSpec.cpp
         PhysicsSpec.cpp
         SceneSerializerSpec.cpp
 )

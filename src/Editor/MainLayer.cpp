@@ -219,6 +219,7 @@ void MainLayer::processPendingSceneActions()
         if(path)
         {
             mScene->SaveScene(EnsureSceneExtension(*path));
+            mSession->SaveEcsLayout();
         }
         break;
     case PendingSceneAction::None:
@@ -243,6 +244,7 @@ void MainLayer::requestSaveScene()
     if(mScene->HasPath())
     {
         mScene->SaveScene();
+        mSession->SaveEcsLayout();
         return;
     }
     requestSaveSceneAs();
