@@ -1,10 +1,11 @@
 #pragma once
 
 #include "Frigga/Asset/PrimitiveMeshFactory.hpp"
-#include "Frigga/ECS/Components/CharacterControllerComponent.hpp"
 #include "Frigga/ECS/Components/RigidBodyComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
+#include "Frigga/ECS/UserComponentRegistry.hpp"
 #include "Frigga/Physics/IPhysicsWorld.hpp"
+#include "Frigga/Physics/PhysicsCharacterHandle.hpp"
 #include "Frigga/Scene/Scene.hpp"
 
 #include <Freyr/Freyr.hpp>
@@ -28,6 +29,7 @@ namespace FRIGGA_NAMESPACE
                              const skr::Arc<IPhysicsWorld> &physicsWorld,
                              const skr::Arc<Scene> &scene,
                              const skr::Arc<PrimitiveMeshFactory> &primitives,
+                             const skr::Arc<UserComponentRegistry> &userComponents,
                              const skr::Arc<skr::Logger<SceneSimulationState>> &logger);
 
         /// True while the play session is active (running or paused).
@@ -99,6 +101,8 @@ namespace FRIGGA_NAMESPACE
         void TogglePlayPause();
         void Step();
 
+        [[nodiscard]] PhysicsCharacterHandle CharacterHandleOf(fr::Entity entity) const;
+
       private:
         void snapshotScene();
         void restoreScene();
@@ -112,6 +116,7 @@ namespace FRIGGA_NAMESPACE
         skr::Arc<IPhysicsWorld> mPhysicsWorld;
         skr::Arc<Scene> mScene;
         skr::Arc<PrimitiveMeshFactory> mPrimitives;
+        skr::Arc<UserComponentRegistry> mUserComponents;
         skr::Arc<skr::Logger<SceneSimulationState>> mLogger;
         SimulationMode mMode = SimulationMode::Edit;
         bool mPaused                 = false;

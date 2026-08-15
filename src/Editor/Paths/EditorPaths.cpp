@@ -101,9 +101,24 @@ std::filesystem::path EditorPaths::UserHomeDir()
     return path.lexically_normal();
 }
 
+std::filesystem::path EditorPaths::FriggaHomeDir()
+{
+    return UserHomeDir() / FriggaHomeFolder;
+}
+
 std::filesystem::path EditorPaths::DefaultProjectsDir()
 {
-    return UserHomeDir() / ProjectsFolderName;
+    return FriggaHomeDir() / ProjectsFolderName;
+}
+
+std::filesystem::path EditorPaths::LegacyProjectsDir()
+{
+    return UserHomeDir() / LegacyProjectsFolderName;
+}
+
+std::filesystem::path EditorPaths::DefaultPluginsDir()
+{
+    return FriggaHomeDir() / PluginsFolderName;
 }
 
 std::filesystem::path EditorPaths::PreferencesFile()
@@ -120,5 +135,6 @@ void EditorPaths::EnsureDirectories()
         std::error_code ec;
         std::filesystem::create_directories(PreferredDir(), ec);
         std::filesystem::create_directories(DefaultProjectsDir(), ec);
+        std::filesystem::create_directories(DefaultPluginsDir(), ec);
     });
 }

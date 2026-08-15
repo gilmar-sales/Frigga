@@ -3,6 +3,9 @@
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/NameComponent.hpp"
 #include "Frigga/ECS/TransformUtil.hpp"
+#include "Frigga/Physics/CharacterPhysics.hpp"
+
+#include <cstdint>
 
 namespace FRIGGA_NAMESPACE
 {
@@ -10,9 +13,10 @@ namespace FRIGGA_NAMESPACE
     SceneSimulationState::SceneSimulationState(
         const skr::Arc<fr::Registry> &registry, const skr::Arc<IPhysicsWorld> &physicsWorld,
         const skr::Arc<Scene> &scene, const skr::Arc<PrimitiveMeshFactory> &primitives,
+        const skr::Arc<UserComponentRegistry> &userComponents,
         const skr::Arc<skr::Logger<SceneSimulationState>> &logger)
         : mRegistry(registry), mPhysicsWorld(physicsWorld), mScene(scene),
-          mPrimitives(primitives), mLogger(logger)
+          mPrimitives(primitives), mUserComponents(userComponents), mLogger(logger)
     {
     }
 
@@ -106,6 +110,15 @@ namespace FRIGGA_NAMESPACE
         mStepRequested = true;
     }
 
+    PhysicsCharacterHandle SceneSimulationState::CharacterHandleOf(fr::Entity entity) const
+    {
+        if(!mPhysicsWorld)
+        {
+            return {};
+        }
+        return mPhysicsWorld->FindCharacter(static_cast<std::uint64_t>(entity));
+    }
+
     void SceneSimulationState::snapshotScene()
     {
         mEditSceneSnapshot.clear();
@@ -180,7 +193,8 @@ namespace FRIGGA_NAMESPACE
 
         mRegistry->CreateMutation()->Each<TransformComponent, RigidBodyComponent>(
             [&](auto entity, TransformComponent &transform, RigidBodyComponent &rigidBody) {
-                if(mRegistry->HasComponent<CharacterControllerComponent>(entity))
+                if(mUserComponents &&
+                   EntityHasCharacterController(*mRegistry, *mUserComponents, entity))
                 {
                     // Character owns locomotion; skip rigid-body creation.
                     rigidBody.body.Reset();
@@ -197,29 +211,37 @@ namespace FRIGGA_NAMESPACE
                 }
             });
 
-        mRegistry->CreateMutation()->Each<TransformComponent, CharacterControllerComponent>(
-            [&](auto entity, TransformComponent &transform,
-                CharacterControllerComponent &controller) {
-                const auto pose = TransformUtil::WorldPose(*mRegistry, entity);
-                PhysicsCharacterDesc desc {};
-                desc.position           = pose.position;
-                desc.rotation           = pose.rotation;
-                desc.radius             = controller.radius;
-                desc.height             = controller.height;
-                desc.maxSlopeDegrees    = controller.maxSlopeDegrees;
-                desc.mass               = controller.mass;
-                desc.centerOffset       = controller.centerOffset;
-                desc.collisionLayer     = controller.collisionLayer;
-                desc.collideWithLayers  = controller.collideWithLayers;
-                controller.character    = mPhysicsWorld->CreateCharacter(desc);
-                if(!controller.character.IsValid())
-                {
-                    std::string name = "entity";
-                    mRegistry->TryGetComponents<NameComponent>(
-                        entity, [&](NameComponent &n) { name = n.name; });
-                    mLogger->LogWarning("Failed to create character controller for '{}'", name);
-                }
-            });
+        if(mUserComponents)
+        {
+            const auto ops = mUserComponents->Find(kCharacterControllerTypeId);
+            if(ops && ops->forEachEntity && ops->toInstance)
+            {
+                ops->forEachEntity(*mRegistry, [&](fr::Entity entity) {
+                    if(!mRegistry->HasComponent<TransformComponent>(entity))
+                    {
+                        return;
+                    }
+                    UserComponentInstance instance {};
+                    if(!ops->toInstance(*mRegistry, entity, instance))
+                    {
+                        return;
+                    }
+                    const auto pose = TransformUtil::WorldPose(*mRegistry, entity);
+                    auto desc       = CharacterDescFromInstance(instance);
+                    desc.position   = pose.position;
+                    desc.rotation   = pose.rotation;
+                    const auto handle = mPhysicsWorld->CreateCharacter(desc);
+                    mPhysicsWorld->BindCharacter(static_cast<std::uint64_t>(entity), handle);
+                    if(!handle.IsValid())
+                    {
+                        std::string name = "entity";
+                        mRegistry->TryGetComponents<NameComponent>(
+                            entity, [&](NameComponent &n) { name = n.name; });
+                        mLogger->LogWarning("Failed to create character controller for '{}'", name);
+                    }
+                });
+            }
+        }
 
         mPhysicsWorld->OptimizeBroadPhase();
         mRegistry->ExecuteTasks();
@@ -227,12 +249,11 @@ namespace FRIGGA_NAMESPACE
 
     void SceneSimulationState::teardownPhysicsWorld()
     {
-        mRegistry->CreateMutation()->Each<CharacterControllerComponent>(
-            [&](auto, CharacterControllerComponent &controller) {
-                if(controller.character.IsValid())
+        mPhysicsWorld->ForEachCharacter(
+            [&](std::uint64_t, PhysicsCharacterHandle handle) {
+                if(handle.IsValid())
                 {
-                    mPhysicsWorld->DestroyCharacter(controller.character);
-                    controller.character.Reset();
+                    mPhysicsWorld->DestroyCharacter(handle);
                 }
             });
         mRegistry->CreateMutation()->Each<RigidBodyComponent>(

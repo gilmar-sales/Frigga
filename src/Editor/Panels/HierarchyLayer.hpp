@@ -3,11 +3,9 @@
 #include "Editor/SelectionContext.hpp"
 #include "Frigga/Asset/AssetRegistry.hpp"
 #include "Frigga/Asset/PrimitiveMeshFactory.hpp"
-#include "Frigga/ECS/Components/CharacterControllerComponent.hpp"
 #include "Frigga/ECS/Components/LightComponent.hpp"
 #include "Frigga/ECS/Components/NameComponent.hpp"
 #include "Frigga/ECS/Components/RigidBodyComponent.hpp"
-#include "Frigga/ECS/Components/ThirdPersonCameraComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/ECS/TransformUtil.hpp"
 #include "Frigga/ECS/UserComponentRegistry.hpp"
@@ -51,6 +49,7 @@ class HierarchyLayer: public fg::Layer
     void addLightToEntity(fr::Entity entity, fra::LightType type);
     void addUserComponentToSelection(std::string_view typeId);
     void addUserComponentToEntity(fr::Entity entity, std::string_view typeId);
+    [[nodiscard]] bool hasUserComponentType(std::string_view typeId) const;
     void parentNewEntity(fr::Entity entity);
     void drawEntityNode(fr::Entity entity, fg::NameComponent &name);
 
@@ -88,6 +87,9 @@ class HierarchyLayer: public fg::Layer
     void requestTextureForSlot(PendingTextureSlot slot);
     void processPendingTextureImport();
     static void onTextureDialog(void *userdata, const char *const *filelist, int filter);
+
+    bool drawThirdPersonCameraInspector(fr::Entity entity, const fg::RuntimeComponentOps &ops);
+    bool drawCharacterControllerInspector(fr::Entity entity, const fg::RuntimeComponentOps &ops);
 
     skr::Arc<fr::Registry> mRegistry;
     skr::Arc<fg::Scene> mScene;

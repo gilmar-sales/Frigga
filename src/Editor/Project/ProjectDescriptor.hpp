@@ -6,13 +6,35 @@
 #include <filesystem>
 #include <string>
 #include <string_view>
+#include <vector>
+
+enum class PluginSource : std::uint8_t
+{
+    Project = 0,
+    User,
+};
+
+struct ProjectPluginEntry
+{
+    std::string id;
+    std::string target;
+    std::string libraryRelative;
+    bool enabled           = true;
+    PluginSource source    = PluginSource::Project;
+
+    [[nodiscard]] bool IsGameplay() const
+    {
+        return id == "gameplay" || target == "gameplay";
+    }
+};
 
 struct ProjectDescriptor
 {
     /// Persistent project format version written to frigga.project.
     /// Missing / 0 on disk is treated as LegacyFormatVersion (1).
     static constexpr int LegacyFormatVersion  = 1;
-    static constexpr int CurrentFormatVersion = 12;
+    static constexpr int CurrentFormatVersion = 1;
+    static constexpr std::string_view PluginsDirName = "plugins";
 
     int formatVersion = CurrentFormatVersion;
 
@@ -20,8 +42,9 @@ struct ProjectDescriptor
     fg::SceneTemplate sceneTemplate = fg::SceneTemplate::D3;
     std::string sceneRelativePath   = "scenes/main.json";
     std::string pluginTarget        = "gameplay";
-    /// Relative to project root (after cmake --build).
+    /// Relative to project root (after cmake --build). Gameplay convenience mirror.
     std::string pluginLibraryRelative = "build/libgameplay.so";
+    std::vector<ProjectPluginEntry> plugins;
     /// Packaged `Sdk/` next to the Editor, or the engine source tree. Last-used hint;
     /// CMake resolves via `-DFRIGGA_SDK`, `FRIGGA_SDK` env, or `CMakeUserPresets.json`.
     std::filesystem::path friggaSdk;
@@ -36,5 +59,78 @@ struct ProjectDescriptor
     static fg::SceneTemplate TemplateFromId(std::string_view id)
     {
         return id == "2d" ? fg::SceneTemplate::D2 : fg::SceneTemplate::D3;
+    }
+
+    [[nodiscard]] static std::string DefaultLibraryRelative(std::string_view target)
+    {
+#ifdef _WIN32
+        return "build/" + std::string(target) + ".dll";
+#elif defined(__APPLE__)
+        return "build/lib" + std::string(target) + ".dylib";
+#else
+        return "build/lib" + std::string(target) + ".so";
+#endif
+    }
+
+    void SyncGameplayMirror()
+    {
+        for(const auto &entry : plugins)
+        {
+            if(entry.IsGameplay())
+            {
+                pluginTarget           = entry.target.empty() ? "gameplay" : entry.target;
+                pluginLibraryRelative  = entry.libraryRelative;
+                return;
+            }
+        }
+        if(pluginTarget.empty())
+        {
+            pluginTarget = "gameplay";
+        }
+        if(pluginLibraryRelative.empty())
+        {
+            pluginLibraryRelative = DefaultLibraryRelative(pluginTarget);
+        }
+    }
+
+    void EnsureGameplayPlugin()
+    {
+        SyncGameplayMirror();
+        for(const auto &entry : plugins)
+        {
+            if(entry.IsGameplay())
+            {
+                return;
+            }
+        }
+        plugins.insert(plugins.begin(),
+                       ProjectPluginEntry {.id               = "gameplay",
+                                           .target           = pluginTarget,
+                                           .libraryRelative  = pluginLibraryRelative,
+                                           .enabled          = true,
+                                           .source           = PluginSource::Project});
+    }
+
+    [[nodiscard]] std::vector<ProjectPluginEntry> LoadOrder() const
+    {
+        std::vector<ProjectPluginEntry> extras;
+        std::vector<ProjectPluginEntry> gameplay;
+        for(const auto &entry : plugins)
+        {
+            if(!entry.enabled)
+            {
+                continue;
+            }
+            if(entry.IsGameplay())
+            {
+                gameplay.push_back(entry);
+            }
+            else
+            {
+                extras.push_back(entry);
+            }
+        }
+        extras.insert(extras.end(), gameplay.begin(), gameplay.end());
+        return extras;
     }
 };

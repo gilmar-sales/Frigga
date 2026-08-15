@@ -8,7 +8,6 @@
 #include "ECS/Components/BillboardComponent.hpp"
 #include "ECS/Components/BillboardTextComponent.hpp"
 #include "ECS/Components/CameraComponent.hpp"
-#include "ECS/Components/CharacterControllerComponent.hpp"
 #include "ECS/Components/FullscreenEffectComponent.hpp"
 #include "ECS/Components/HealthBarComponent.hpp"
 #include "ECS/Components/HierarchyComponent.hpp"
@@ -18,12 +17,10 @@
 #include "ECS/Components/NameComponent.hpp"
 #include "ECS/Components/ParticleEmitterComponent.hpp"
 #include "ECS/Components/RigidBodyComponent.hpp"
-#include "ECS/Components/ThirdPersonCameraComponent.hpp"
 #include "ECS/Components/TransformComponent.hpp"
 #include "ECS/Systems/AnimationSystem.hpp"
 #include "ECS/Systems/PhysicsSystem.hpp"
 #include "ECS/Systems/RenderSystem.hpp"
-#include "ECS/Systems/ThirdPersonCameraSystem.hpp"
 #include "ECS/UserComponentRegistry.hpp"
 #include "Input/Input.hpp"
 #include "Physics/IPhysicsWorld.hpp"
@@ -48,8 +45,6 @@ namespace FRIGGA_NAMESPACE
                     .WithComponent<CameraComponent>()
                     .WithComponent<LightComponent>()
                     .WithComponent<RigidBodyComponent>()
-                    .WithComponent<CharacterControllerComponent>()
-                    .WithComponent<ThirdPersonCameraComponent>()
                     .WithComponent<BillboardComponent>()
                     .WithComponent<BillboardTextComponent>()
                     .WithComponent<HealthBarComponent>()
@@ -65,10 +60,9 @@ namespace FRIGGA_NAMESPACE
                             .WithSystem<PhysicsSystem>();
                     })
                     .WithPipeline([](fr::PipelineBuilder &pipeline) {
-                        // Always runs: animation + camera at display rate.
+                        // Always runs: animation at display rate.
                         pipeline.WithName("Main")
-                            .WithSystem<AnimationSystem>()
-                            .WithSystem<ThirdPersonCameraSystem>();
+                            .WithSystem<AnimationSystem>();
                     })
                     .WithPipeline([](fr::PipelineBuilder &pipeline) {
                         // Always last: draw after simulation and presentation.

@@ -5,7 +5,6 @@
 #include "Frigga/ECS/Systems/AnimationSystem.hpp"
 #include "Frigga/ECS/Systems/PhysicsSystem.hpp"
 #include "Frigga/ECS/Systems/RenderSystem.hpp"
-#include "Frigga/ECS/Systems/ThirdPersonCameraSystem.hpp"
 #include "Frigga/Plugin/GameplayPluginBridge.hpp"
 
 #include <imgui.h>
@@ -52,8 +51,6 @@ namespace
     const EngineCatalogEntry kEngineCatalog[] = {
         {"AnimationSystem", "Main", &IsRegistered<fg::AnimationSystem>,
          &RegisterInto<fg::AnimationSystem>},
-        {"ThirdPersonCameraSystem", "Main", &IsRegistered<fg::ThirdPersonCameraSystem>,
-         &RegisterInto<fg::ThirdPersonCameraSystem>},
         {"RenderSystem", "Render", &IsRegistered<fg::RenderSystem>, &RegisterInto<fg::RenderSystem>},
         {"GameplayPluginBridge", "Simulation", &IsRegistered<fg::GameplayPluginBridge>,
          &RegisterInto<fg::GameplayPluginBridge>},

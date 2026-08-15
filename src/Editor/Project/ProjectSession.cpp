@@ -4,6 +4,7 @@
 #include "ProjectFile.hpp"
 #include "ProjectMigrator.hpp"
 #include "ProjectScaffold.hpp"
+#include "PluginCatalog.hpp"
 #include "ProjectEnginePaths.hpp"
 
 #include <Frigga/ECS/EcsLayout.hpp>
@@ -577,6 +578,7 @@ bool ProjectSession::CreateProject(const std::filesystem::path &parentDir, std::
 #else
     desc.pluginLibraryRelative = "build/lib" + desc.pluginTarget + ".so";
 #endif
+    desc.EnsureGameplayPlugin();
 
     const auto result = ProjectScaffold::Create(parentDir, desc, *mScene);
     if(!result.ok)
@@ -621,14 +623,11 @@ bool ProjectSession::OpenProject(const std::filesystem::path &projectFile)
     // If the .so is missing, deserialize stashes them until the first successful plugin load.
     mProjectFile = projectFile;
     mDescriptor  = *loaded;
-    const auto lib = pluginLibraryAbsolute();
-    if(std::filesystem::exists(lib))
+    mDescriptor.EnsureGameplayPlugin();
+    if(!loadEnabledPlugins())
     {
-        if(!mPluginHost->Load(lib))
-        {
-            mLogger->LogWarning("Plugin present but failed to load before scene: {}",
-                                mPluginHost->GetLastError());
-        }
+        mLogger->LogWarning("Plugins missing or failed to load before scene: {}",
+                            mPluginHost->GetLastError());
     }
 
     const auto root      = projectFile.parent_path();
@@ -1052,7 +1051,7 @@ bool ProjectSession::CreateScene(std::string name, fg::SceneTemplate sceneTempla
     return true;
 }
 
-bool ProjectSession::BuildPlugin()
+bool ProjectSession::BuildPlugin(std::string cmakeTarget)
 {
     if(IsBuilding())
     {
@@ -1083,15 +1082,21 @@ bool ProjectSession::BuildPlugin()
         std::lock_guard lock(mMutex);
         mLastError.clear();
         mBuildLogTail.clear();
-        mStatusMessage = "Building gameplay plugin…";
+        mStatusMessage = cmakeTarget.empty() ? "Building plugins…"
+                                             : "Building plugin " + cmakeTarget + "…";
     }
 
-    mLogger->LogInformation("Starting async plugin build for {}", root.string());
-    mBuildThread = std::thread([this, root, buildDir]() { runBuildJob(root, buildDir); });
+    mLogger->LogInformation("Starting async plugin build for {} target={}", root.string(),
+                            cmakeTarget.empty() ? "(all)" : cmakeTarget);
+    mBuildThread =
+        std::thread([this, root, buildDir, cmakeTarget = std::move(cmakeTarget)]() {
+            runBuildJob(root, buildDir, cmakeTarget);
+        });
     return true;
 }
 
-void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::path buildDir)
+void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::path buildDir,
+                                 std::string cmakeTarget)
 {
     const auto appendLog = [this](std::string_view line) {
         std::lock_guard lock(mMutex);
@@ -1169,7 +1174,11 @@ void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::pa
         return;
     }
 
-    const auto buildCmd = "cmake --build \"" + buildDir.string() + "\"";
+    auto buildCmd = "cmake --build \"" + buildDir.string() + "\"";
+    if(!cmakeTarget.empty())
+    {
+        buildCmd += " --target \"" + cmakeTarget + "\"";
+    }
     mBuildPhase.store(PluginBuildPhase::Building, std::memory_order_release);
     mBuildProgress.store(0.15f, std::memory_order_release);
     mBuildProgressDeterminate.store(false, std::memory_order_release);
@@ -1209,12 +1218,12 @@ bool ProjectSession::ReloadPlugin()
         return false;
     }
 
-    const auto lib = pluginLibraryAbsolute();
-    if(!mPluginHost->Load(lib))
+    if(!loadEnabledPlugins())
     {
         std::lock_guard lock(mMutex);
         mLastError     = mPluginHost->GetLastError();
-        mStatusMessage = mLastError;
+        mStatusMessage = mLastError.empty() ? "No plugin libraries found — build plugins first"
+                                            : mLastError;
         return false;
     }
 
@@ -1230,7 +1239,8 @@ bool ProjectSession::ReloadPlugin()
             }
             listed += id;
         }
-        mStatusMessage = "Loaded plugin " + lib.filename().string() + " | components: " +
+        mStatusMessage = "Loaded " + std::to_string(mPluginHost->LoadedCount()) +
+                         " plugin(s) | components: " +
                          (listed.empty() ? "(none)" : listed);
     }
     SyncEcsLayout();
@@ -1273,21 +1283,14 @@ bool ProjectSession::enterEditor(const std::filesystem::path &projectFile, Proje
     if(loadPlugin)
     {
         // Best-effort plugin load (may be missing until first build).
-        const auto lib = pluginLibraryAbsolute();
-        if(std::filesystem::exists(lib))
+        if(loadEnabledPlugins())
         {
-            if(mPluginHost->Load(lib))
-            {
-                opened = "Opened " + mDescriptor.name;
-            }
-            else
-            {
-                opened = "Opened " + mDescriptor.name + " (plugin not loaded)";
-            }
+            opened = "Opened " + mDescriptor.name;
         }
         else
         {
-            opened = "Opened " + mDescriptor.name + " — build the gameplay plugin to load code";
+            opened = "Opened " + mDescriptor.name +
+                     " — build plugins to load gameplay code";
         }
     }
     else if(mPluginHost->IsLoaded())
@@ -1337,23 +1340,35 @@ void ProjectSession::touchRecent()
 
 std::filesystem::path ProjectSession::pluginLibraryAbsolute() const
 {
+    ProjectPluginEntry gameplay;
+    gameplay.id              = "gameplay";
+    gameplay.target          = mDescriptor.pluginTarget.empty() ? "gameplay" : mDescriptor.pluginTarget;
+    gameplay.libraryRelative = mDescriptor.pluginLibraryRelative;
+    return pluginLibraryAbsolute(gameplay);
+}
+
+std::filesystem::path ProjectSession::pluginLibraryAbsolute(const ProjectPluginEntry &entry) const
+{
     if(!mProjectFile)
     {
         return {};
     }
 
-    const auto root       = mProjectFile->parent_path();
-    const auto configured = root / mDescriptor.pluginLibraryRelative;
+    const auto root = mProjectFile->parent_path();
+    const auto library =
+        entry.libraryRelative.empty() ? ProjectDescriptor::DefaultLibraryRelative(
+                                            entry.target.empty() ? entry.id : entry.target)
+                                      : entry.libraryRelative;
+    const auto configured = root / library;
     std::error_code ec;
     if(std::filesystem::is_regular_file(configured, ec))
     {
         return configured;
     }
 
-    // MinGW/CMake emits lib<target>.dll; MSVC and our project file use <target>.dll.
-    // Also probe single-config vs multi-config output dirs.
-    const auto target =
-        mDescriptor.pluginTarget.empty() ? std::string("gameplay") : mDescriptor.pluginTarget;
+    const auto target = entry.target.empty()
+                            ? (entry.id.empty() ? std::string("gameplay") : entry.id)
+                            : entry.target;
 #ifdef _WIN32
     const std::string names[] = {target + ".dll", "lib" + target + ".dll"};
 #elif defined(__APPLE__)
@@ -1385,6 +1400,155 @@ std::filesystem::path ProjectSession::pluginLibraryAbsolute() const
         }
     }
     return configured;
+}
+
+bool ProjectSession::loadEnabledPlugins()
+{
+    mDescriptor.EnsureGameplayPlugin();
+    std::vector<fg::PluginLoadRequest> requests;
+    for(const auto &entry : mDescriptor.LoadOrder())
+    {
+        const auto lib = pluginLibraryAbsolute(entry);
+        if(!std::filesystem::exists(lib))
+        {
+            continue;
+        }
+        requests.push_back(fg::PluginLoadRequest {.id = entry.id, .libraryPath = lib});
+    }
+    if(requests.empty())
+    {
+        mPluginHost->Unload();
+        return false;
+    }
+    return mPluginHost->LoadAll(requests);
+}
+
+bool ProjectSession::SaveDescriptor()
+{
+    if(!mProjectFile)
+    {
+        return false;
+    }
+    mDescriptor.EnsureGameplayPlugin();
+    return ProjectFile::Save(*mProjectFile, mDescriptor);
+}
+
+bool ProjectSession::CreatePlugin(std::string name)
+{
+    if(!mProjectFile)
+    {
+        std::lock_guard lock(mMutex);
+        mLastError = "No project open";
+        return false;
+    }
+    std::string error;
+    if(!ProjectScaffold::CreateExtraPlugin(mProjectFile->parent_path(), mDescriptor, std::move(name),
+                                           error))
+    {
+        std::lock_guard lock(mMutex);
+        mLastError = error;
+        return false;
+    }
+    if(!SaveDescriptor())
+    {
+        std::lock_guard lock(mMutex);
+        mLastError = "Failed to save frigga.project";
+        return false;
+    }
+    std::lock_guard lock(mMutex);
+    mStatusMessage = "Created plugin " + mDescriptor.plugins.back().id;
+    return true;
+}
+
+bool ProjectSession::InstallPluginFrom(const std::filesystem::path &sourceRoot)
+{
+    if(!mProjectFile)
+    {
+        std::lock_guard lock(mMutex);
+        mLastError = "No project open";
+        return false;
+    }
+    std::string error;
+    if(!ProjectScaffold::InstallPlugin(mProjectFile->parent_path(), mDescriptor, sourceRoot, error))
+    {
+        std::lock_guard lock(mMutex);
+        mLastError = error;
+        return false;
+    }
+    if(!SaveDescriptor())
+    {
+        std::lock_guard lock(mMutex);
+        mLastError = "Failed to save frigga.project";
+        return false;
+    }
+    std::lock_guard lock(mMutex);
+    mStatusMessage = "Installed plugin from " + sourceRoot.filename().string();
+    return true;
+}
+
+bool ProjectSession::ExportPlugin(std::string_view pluginId)
+{
+    if(!mProjectFile)
+    {
+        std::lock_guard lock(mMutex);
+        mLastError = "No project open";
+        return false;
+    }
+    const auto root = mProjectFile->parent_path();
+    const auto source = root / ProjectDescriptor::PluginsDirName / std::string(pluginId);
+    if(!std::filesystem::exists(source))
+    {
+        std::lock_guard lock(mMutex);
+        mLastError = "Plugin folder not found: " + source.string();
+        return false;
+    }
+    const auto dest = EditorPaths::DefaultPluginsDir() / std::string(pluginId);
+    std::error_code ec;
+    if(std::filesystem::exists(dest, ec))
+    {
+        std::filesystem::remove_all(dest, ec);
+    }
+    std::string error;
+    if(!PluginCatalog::CopyPluginTree(source, dest, error))
+    {
+        std::lock_guard lock(mMutex);
+        mLastError = error;
+        return false;
+    }
+    std::lock_guard lock(mMutex);
+    mStatusMessage = "Exported plugin to " + dest.string();
+    return true;
+}
+
+bool ProjectSession::SetPluginEnabled(std::string_view pluginId, bool enabled)
+{
+    if(!mProjectFile)
+    {
+        return false;
+    }
+    bool found = false;
+    for(auto &entry : mDescriptor.plugins)
+    {
+        if(entry.id == pluginId)
+        {
+            entry.enabled = enabled;
+            found         = true;
+            break;
+        }
+    }
+    if(!found)
+    {
+        std::lock_guard lock(mMutex);
+        mLastError = "Unknown plugin: " + std::string(pluginId);
+        return false;
+    }
+    if(!SaveDescriptor())
+    {
+        return false;
+    }
+    loadEnabledPlugins();
+    SyncEcsLayout();
+    return true;
 }
 
 std::filesystem::path ProjectSession::projectRootFromPath(

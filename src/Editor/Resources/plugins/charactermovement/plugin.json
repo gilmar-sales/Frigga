@@ -1,0 +1,7 @@
+{
+  "id": "charactermovement",
+  "name": "Character Movement",
+  "target": "charactermovement",
+  "library": "build/libcharactermovement.so",
+  "bundled": true
+}

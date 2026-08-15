@@ -1,6 +1,5 @@
 #include "EmptyApp.hpp"
 
-#include <Frigga/ECS/Components/CharacterControllerComponent.hpp>
 #include <Frigga/ECS/Components/NameComponent.hpp>
 #include <Frigga/ECS/Components/RigidBodyComponent.hpp>
 #include <Frigga/ECS/Components/TransformComponent.hpp>
@@ -11,6 +10,8 @@
 #include <Freyr/Freyr.hpp>
 #include <gtest/gtest.h>
 
+#include <cstdint>
+#include <functional>
 #include <unordered_map>
 
 namespace
@@ -22,6 +23,7 @@ namespace
         {
             bodies.clear();
             characters.clear();
+            entityCharacters.clear();
             nextBody      = 1;
             nextCharacter = 1;
         }
@@ -124,6 +126,55 @@ namespace
         void DestroyCharacter(fg::PhysicsCharacterHandle handle) override
         {
             characters.erase(handle.id);
+            for(auto it = entityCharacters.begin(); it != entityCharacters.end();)
+            {
+                if(it->second.id == handle.id)
+                {
+                    it = entityCharacters.erase(it);
+                }
+                else
+                {
+                    ++it;
+                }
+            }
+        }
+
+        void BindCharacter(std::uint64_t entity, fg::PhysicsCharacterHandle handle) override
+        {
+            if(!handle.IsValid())
+            {
+                entityCharacters.erase(entity);
+                return;
+            }
+            entityCharacters[entity] = handle;
+        }
+
+        void UnbindCharacter(std::uint64_t entity) override
+        {
+            entityCharacters.erase(entity);
+        }
+
+        [[nodiscard]] fg::PhysicsCharacterHandle FindCharacter(std::uint64_t entity) const override
+        {
+            const auto it = entityCharacters.find(entity);
+            if(it == entityCharacters.end())
+            {
+                return {};
+            }
+            return it->second;
+        }
+
+        void ForEachCharacter(
+            const std::function<void(std::uint64_t, fg::PhysicsCharacterHandle)> &visit) const override
+        {
+            if(!visit)
+            {
+                return;
+            }
+            for(const auto &[entity, handle] : entityCharacters)
+            {
+                visit(entity, handle);
+            }
         }
 
         void SetCharacterVelocity(fg::PhysicsCharacterHandle handle,
@@ -204,6 +255,7 @@ namespace
 
         std::unordered_map<std::uint32_t, BodyState> bodies;
         std::unordered_map<std::uint32_t, CharacterState> characters;
+        std::unordered_map<std::uint64_t, fg::PhysicsCharacterHandle> entityCharacters;
         std::uint32_t nextBody      = 1;
         std::uint32_t nextCharacter = 1;
         glm::vec3 gravity {0.0f, -9.81f, 0.0f};
@@ -231,7 +283,6 @@ namespace
                         freyr.WithComponent<fg::NameComponent>()
                             .WithComponent<fg::TransformComponent>()
                             .WithComponent<fg::RigidBodyComponent>()
-                            .WithComponent<fg::CharacterControllerComponent>()
                             .WithPipeline([](fr::PipelineBuilder &pipeline) {
                                 pipeline.WithName("Simulation");
                             });
@@ -310,15 +361,11 @@ TEST(PhysicsFacade, MoveCharacterForwardsVelocity)
 {
     auto harness = PhysicsHarness::Create();
     auto entity  = harness.registry->CreateEntity(
-        fg::NameComponent {.name = "Hero"}, fg::TransformComponent {},
-        fg::CharacterControllerComponent {});
+        fg::NameComponent {.name = "Hero"}, fg::TransformComponent {});
     harness.registry->ExecuteTasks();
 
-    harness.registry->TryGetComponents<fg::CharacterControllerComponent>(
-        entity, [&](fg::CharacterControllerComponent &cc) {
-            cc.character = harness.world->CreateCharacter(fg::PhysicsCharacterDesc {});
-        });
-    harness.registry->ExecuteTasks();
+    const auto handle = harness.world->CreateCharacter(fg::PhysicsCharacterDesc {});
+    harness.world->BindCharacter(static_cast<std::uint64_t>(entity), handle);
 
     harness.world->characters.begin()->second.grounded = true;
     harness.physics->MoveCharacter(entity, {2.0f, 0.0f, -1.0f});

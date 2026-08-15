@@ -17,6 +17,7 @@
  */
 
 #include "frigga_plugin.h"
+#include "Frigga/Plugin/FriPluginSdk.hpp"
 
 #include "Frigga/ECS/UserComponentReflection.hpp"
 
@@ -91,7 +92,9 @@ namespace FRIGGA_NAMESPACE
         template <typename T>
             requires fr::IsComponent<T>
         FriPluginBuilder &Component(std::string_view typeId = {},
-                                    std::string_view displayName = {})
+                                    std::string_view displayName = {},
+                                    UserComponentDetachPolicy detach =
+                                        UserComponentDetachPolicy::Unregister)
         {
             if(!IsValid())
             {
@@ -101,7 +104,7 @@ namespace FRIGGA_NAMESPACE
             const std::string id =
                 typeId.empty() ? fri_plugin_detail::ShortTypeName(refl::type_name<T>())
                                : std::string(typeId);
-            FriRegisterUserComponent<T>(*mRegistry, *mUserComponents, id, displayName);
+            FriRegisterUserComponent<T>(*mRegistry, *mUserComponents, id, displayName, detach);
             return *this;
         }
 

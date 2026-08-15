@@ -36,7 +36,7 @@ function ensureInclude(source: string, includeLine: string): string {
     return source;
   }
 
-  const componentInclude = /#include\s+"Components\/[^"]+"\s*\n/g;
+  const componentInclude = /#include\s+"components\/[^"]+"\s*\n/g;
   let lastMatch: RegExpExecArray | null = null;
   let match: RegExpExecArray | null;
   while ((match = componentInclude.exec(source)) !== null) {
@@ -92,8 +92,10 @@ export async function createGameplayComponent(
 
   const headerUri = vscode.Uri.joinPath(
     project.root,
+    "plugins",
+    "gameplay",
     "src",
-    "Components",
+    "components",
     `${typeName}.hpp`
   );
   try {
@@ -104,9 +106,15 @@ export async function createGameplayComponent(
     // ok
   }
 
-  const pluginUri = vscode.Uri.joinPath(project.root, "src", "GameplayPlugin.cpp");
+  const pluginUri = vscode.Uri.joinPath(
+    project.root,
+    "plugins",
+    "gameplay",
+    "src",
+    "GameplayPlugin.cpp"
+  );
   if (!(await pathExistsUri(pluginUri))) {
-    vscode.window.showErrorMessage("src/GameplayPlugin.cpp not found in project");
+    vscode.window.showErrorMessage("plugins/gameplay/src/GameplayPlugin.cpp not found in project");
     return;
   }
 
@@ -114,7 +122,7 @@ export async function createGameplayComponent(
 
   let plugin = await readTextFile(pluginUri);
   try {
-    plugin = ensureInclude(plugin, `#include "Components/${typeName}.hpp"`);
+    plugin = ensureInclude(plugin, `#include "components/${typeName}.hpp"`);
     plugin = insertFluentCall(plugin, `.Component<${typeName}>()`, "Component");
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

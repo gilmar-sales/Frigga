@@ -4,6 +4,9 @@
 #include "Frigga/Physics/PhysicsCharacterHandle.hpp"
 #include "Frigga/Physics/PhysicsTypes.hpp"
 
+#include <cstdint>
+#include <functional>
+
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 
@@ -37,6 +40,11 @@ namespace FRIGGA_NAMESPACE
 
         virtual PhysicsCharacterHandle CreateCharacter(const PhysicsCharacterDesc &desc) = 0;
         virtual void DestroyCharacter(PhysicsCharacterHandle handle) = 0;
+        virtual void BindCharacter(std::uint64_t entity, PhysicsCharacterHandle handle) = 0;
+        virtual void UnbindCharacter(std::uint64_t entity) = 0;
+        [[nodiscard]] virtual PhysicsCharacterHandle FindCharacter(std::uint64_t entity) const = 0;
+        virtual void ForEachCharacter(
+            const std::function<void(std::uint64_t, PhysicsCharacterHandle)> &visit) const = 0;
         virtual void SetCharacterVelocity(PhysicsCharacterHandle handle,
                                           const glm::vec3 &velocity) = 0;
         [[nodiscard]] virtual glm::vec3 GetCharacterVelocity(

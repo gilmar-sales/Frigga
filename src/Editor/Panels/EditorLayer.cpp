@@ -33,10 +33,12 @@ EditorLayer::EditorLayer(skr::Arc<fra::Renderer> renderer, skr::Arc<fr::Registry
                          skr::Arc<fg::PrimitiveMeshFactory> primitives,
                          skr::Arc<SelectionContext> selection, skr::Arc<fg::Scene> scene,
                          skr::Arc<fg::SceneSimulationState> simulation,
+                         skr::Arc<fg::UserComponentRegistry> userComponents,
                          skr::Arc<EditorPreferences> preferences)
     : fg::Layer("Editor"), mRenderer(std::move(renderer)), mRegistry(std::move(registry)),
       mPrimitives(std::move(primitives)), mSelection(std::move(selection)),
       mScene(std::move(scene)), mSimulation(std::move(simulation)),
+      mUserComponents(std::move(userComponents)),
       mPreferences(std::move(preferences))
 {
 }
@@ -145,7 +147,7 @@ void EditorLayer::onGui()
                                                 : SelectionContext::Invalid;
                 fg::ColliderDebugDraw::Draw(ImGui::GetWindowDrawList(), mRegistry, mPrimitives,
                                             projectionUbo.view, projectionUbo.projection, imageMin,
-                                            avail, selected);
+                                            avail, selected, {}, false, mUserComponents);
             }
             handlePicking(imageMin, avail);
         }

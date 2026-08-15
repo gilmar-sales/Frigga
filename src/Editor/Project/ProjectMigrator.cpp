@@ -54,16 +54,7 @@ ProjectMigrationResult ProjectMigrator::Migrate(const std::filesystem::path &pro
                                                 : ProjectDescriptor::LegacyFormatVersion;
     result.toVersion   = ProjectDescriptor::CurrentFormatVersion;
 
-    if(result.fromVersion > ProjectDescriptor::CurrentFormatVersion)
-    {
-        result.error =
-            "Project format version " + std::to_string(result.fromVersion) +
-            " is newer than this Editor supports (" +
-            std::to_string(ProjectDescriptor::CurrentFormatVersion) + ")";
-        return result;
-    }
-
-    if(!force && result.fromVersion >= ProjectDescriptor::CurrentFormatVersion)
+    if(!force && result.fromVersion == ProjectDescriptor::CurrentFormatVersion)
     {
         result.ok      = true;
         result.message = "Project is already at format v" +
@@ -94,17 +85,7 @@ ProjectMigrationResult ProjectMigrator::Migrate(const std::filesystem::path &pro
         return result;
     }
 
-    // v1 → v2: C++26 CMake + plugin header / README
-    // v2 → v3: user-component helpers, Health example, managed plugin registration
-    // v3 → v4: Health : fr::Component + FriRegister(registry, catalog) + Freyr Mutatons
-    // v4 → v5: GameplaySystem : fr::System + late host DI registration
-    // v5 → v6: register GameplaySystem on Simulation pipeline (Play-only)
-    // v6 → v7: FRI_PLUGIN_MODULE fluent Component/System/Singleton/Scoped/Transient
-    // v7 → v8: input.json + GameplaySystem DI fg::Input
-    // v8 → v9: GameplaySystem DI fg::Physics + CharacterController movement
-    // v9 → v10: portable CMake (FRIGGA_SDK / env / CMakeUserPresets, no baked machine paths)
-    // v10 → v11: GameplaySystem camera-relative move (ThirdPersonCamera yaw)
-    // v11 → v12: ecs.json pipeline/system layout (created on first editor save / plugin apply)
+    // v1: plugins/ (lowercase) with gameplay + extras; src/components + src/systems.
     std::string stepError;
     if(!ApplyManagedLayout(projectFile.parent_path(), desc, stepError))
     {
@@ -127,8 +108,8 @@ ProjectMigrationResult ProjectMigrator::Migrate(const std::filesystem::path &pro
     }
     else
     {
-        msg << "Migrated project format v" << result.fromVersion << " → v" << result.toVersion
-            << " (portable FRIGGA_SDK CMake, FRI_PLUGIN_MODULE)";
+        msg << "Applied project format v" << result.toVersion
+            << " (plugins/ layout, FRI_PLUGIN_MODULE)";
     }
     msg << ". Rebuild the gameplay plugin.";
     result.message = msg.str();

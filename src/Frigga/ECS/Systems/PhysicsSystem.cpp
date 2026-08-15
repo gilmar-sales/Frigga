@@ -1,6 +1,5 @@
 #include "PhysicsSystem.hpp"
 
-#include "Frigga/ECS/Components/CharacterControllerComponent.hpp"
 #include "Frigga/ECS/Components/RigidBodyComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/ECS/TransformUtil.hpp"
@@ -54,7 +53,7 @@ namespace FRIGGA_NAMESPACE
         // Write dynamic simulation poses back to ECS transforms.
         mRegistry->CreateMutation()->Each<TransformComponent, RigidBodyComponent>(
             [&](auto entity, TransformComponent &, RigidBodyComponent &rigidBody) {
-                if(mRegistry->HasComponent<CharacterControllerComponent>(entity))
+                if(mPhysicsWorld->FindCharacter(static_cast<std::uint64_t>(entity)).IsValid())
                 {
                     return;
                 }
@@ -69,15 +68,16 @@ namespace FRIGGA_NAMESPACE
             });
 
         // CharacterVirtual owns pose for entities with a character controller.
-        mRegistry->CreateMutation()->Each<TransformComponent, CharacterControllerComponent>(
-            [&](auto entity, TransformComponent &, CharacterControllerComponent &character) {
-                if(!character.character.IsValid())
+        mPhysicsWorld->ForEachCharacter(
+            [&](std::uint64_t rawEntity, PhysicsCharacterHandle character) {
+                const auto entity = static_cast<fr::Entity>(rawEntity);
+                if(!character.IsValid() || !mRegistry->HasComponent<TransformComponent>(entity))
                 {
                     return;
                 }
                 glm::vec3 position {};
                 glm::quat rotation {1.0f, 0.0f, 0.0f, 0.0f};
-                mPhysicsWorld->GetCharacterTransform(character.character, position, rotation);
+                mPhysicsWorld->GetCharacterTransform(character, position, rotation);
                 TransformUtil::SetWorldPose(*mRegistry, entity, position, rotation);
             });
     }

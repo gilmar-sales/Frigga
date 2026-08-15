@@ -225,6 +225,7 @@ namespace FRIGGA_NAMESPACE
         JPH::PhysicsSystem physicsSystem;
         float accumulator = 0.0f;
         std::unordered_map<std::uint32_t, CharacterEntry> characters;
+        std::unordered_map<std::uint64_t, PhysicsCharacterHandle> entityCharacters;
         std::uint32_t nextCharacterId = 1;
     };
 
@@ -243,6 +244,7 @@ namespace FRIGGA_NAMESPACE
     void JoltPhysicsWorld::Clear()
     {
         mImpl->characters.clear();
+        mImpl->entityCharacters.clear();
 
         auto &bodyInterface = mImpl->physicsSystem.GetBodyInterface();
         JPH::BodyIDVector bodies;
@@ -556,6 +558,55 @@ namespace FRIGGA_NAMESPACE
             return;
         }
         mImpl->characters.erase(handle.id);
+        for(auto it = mImpl->entityCharacters.begin(); it != mImpl->entityCharacters.end();)
+        {
+            if(it->second.id == handle.id)
+            {
+                it = mImpl->entityCharacters.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
+    }
+
+    void JoltPhysicsWorld::BindCharacter(std::uint64_t entity, PhysicsCharacterHandle handle)
+    {
+        if(!handle.IsValid())
+        {
+            mImpl->entityCharacters.erase(entity);
+            return;
+        }
+        mImpl->entityCharacters[entity] = handle;
+    }
+
+    void JoltPhysicsWorld::UnbindCharacter(std::uint64_t entity)
+    {
+        mImpl->entityCharacters.erase(entity);
+    }
+
+    PhysicsCharacterHandle JoltPhysicsWorld::FindCharacter(std::uint64_t entity) const
+    {
+        const auto it = mImpl->entityCharacters.find(entity);
+        if(it == mImpl->entityCharacters.end())
+        {
+            return {};
+        }
+        return it->second;
+    }
+
+    void JoltPhysicsWorld::ForEachCharacter(
+        const std::function<void(std::uint64_t, PhysicsCharacterHandle)> &visit) const
+    {
+        if(!visit)
+        {
+            return;
+        }
+        for(const auto &[entity, handle] : mImpl->entityCharacters)
+        {
+            visit(entity, handle);
+        }
     }
 
     void JoltPhysicsWorld::SetCharacterVelocity(PhysicsCharacterHandle handle,

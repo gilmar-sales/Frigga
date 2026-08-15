@@ -1,13 +1,11 @@
 #include "Scene.hpp"
 
 #include "Frigga/ECS/Components/CameraComponent.hpp"
-#include "Frigga/ECS/Components/CharacterControllerComponent.hpp"
 #include "Frigga/ECS/Components/LightComponent.hpp"
 #include "Frigga/ECS/Components/MaterialComponent.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/NameComponent.hpp"
 #include "Frigga/ECS/Components/RigidBodyComponent.hpp"
-#include "Frigga/ECS/Components/ThirdPersonCameraComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/Scene/SceneSerializer.hpp"
 
@@ -105,8 +103,7 @@ namespace FRIGGA_NAMESPACE
                                 .scale    = {1.0f, 1.0f, 1.0f},
                                 .rotation = {1.0f, 0.0f, 0.0f, 0.0f}},
             MeshComponent {.meshId = mPrimitives->GetMesh(PrimitiveType::Capsule)},
-            MaterialComponent {.materialId = mPrimitives->GetDefaultMaterial()},
-            CharacterControllerComponent {});
+            MaterialComponent {.materialId = mPrimitives->GetDefaultMaterial()});
 
         // Blender-like default framing: elevated 3/4 view looking at the unit cube.
         constexpr glm::vec3 cubeCenter {0.0f, 0.0f, 0.0f};
@@ -126,8 +123,7 @@ namespace FRIGGA_NAMESPACE
                              .nearPlane  = 0.1f,
                              .farPlane   = 1000.0f,
                              .primary    = true,
-                             .locked     = true},
-            ThirdPersonCameraComponent {});
+                             .locked     = true});
 
         // Default key light: elevated, aiming down at the cube (-Y along local -Z).
         mEcsRegistry->CreateEntity(
@@ -165,8 +161,7 @@ namespace FRIGGA_NAMESPACE
                                 .scale    = {0.75f, 0.75f, 0.75f},
                                 .rotation = {1.0f, 0.0f, 0.0f, 0.0f}},
             MeshComponent {.meshId = mPrimitives->GetMesh(PrimitiveType::Quad)},
-            MaterialComponent {.materialId = mPrimitives->GetDefaultMaterial()},
-            CharacterControllerComponent {.radius = 0.3f, .height = 0.4f});
+            MaterialComponent {.materialId = mPrimitives->GetDefaultMaterial()});
 
         constexpr glm::vec3 lookTarget {0.0f, 0.0f, 0.0f};
         constexpr glm::vec3 cameraPosition {0.0f, 12.0f, 0.01f};

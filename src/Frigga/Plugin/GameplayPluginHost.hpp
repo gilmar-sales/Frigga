@@ -11,13 +11,20 @@
 #include <filesystem>
 #include <mutex>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace FRIGGA_NAMESPACE
 {
 
+    struct PluginLoadRequest
+    {
+        std::string           id;
+        std::filesystem::path libraryPath;
+    };
+
     /**
-     * Loads / unloads a gameplay shared library exposing fri_plugin_api().
+     * Loads / unloads gameplay shared libraries exposing fri_plugin_api().
      * Safe to call Reload from the main thread; UpdatePlugin is called from the ECS bridge.
      */
     class GameplayPluginHost
@@ -34,10 +41,9 @@ namespace FRIGGA_NAMESPACE
         GameplayPluginHost &operator=(const GameplayPluginHost &) = delete;
 
         [[nodiscard]] bool IsLoaded() const;
-        [[nodiscard]] const std::filesystem::path &GetLibraryPath() const
-        {
-            return mLibraryPath;
-        }
+        [[nodiscard]] bool IsPluginLoaded(std::string_view id) const;
+        [[nodiscard]] std::size_t LoadedCount() const;
+        [[nodiscard]] std::vector<std::string> GetLoadedPluginIds() const;
         [[nodiscard]] const std::string &GetLastError() const
         {
             return mLastError;
@@ -45,20 +51,32 @@ namespace FRIGGA_NAMESPACE
         /// TypeIds registered by the last successful attach (e.g. "Health, Player").
         [[nodiscard]] std::vector<std::string> GetRegisteredTypeIds() const;
 
-        /// Unload any previous plugin, then load @p libraryPath.
-        /// Preserves gameplay component instances across the swap when possible.
+        /// Unload every plugin, then load @p plugins in order (callers should put gameplay last).
+        bool LoadAll(const std::vector<PluginLoadRequest> &plugins);
+        /// Compatibility: replace the set with a single library.
         bool Load(const std::filesystem::path &libraryPath);
         bool Reload();
         void Unload();
 
-        /// Forwards to the plugin when loaded (no-op otherwise).
+        /// Forwards to every loaded plugin (no-op otherwise).
         void UpdatePlugin(float deltaTime);
 
       private:
-        bool loadUnlocked(const std::filesystem::path &libraryPath);
-        void unloadUnlocked(bool preserveUserComponents);
-        void attachUnlocked();
-        void detachUnlocked(bool preserveUserComponents);
+        struct LoadedPlugin
+        {
+            std::string           id;
+            std::filesystem::path libraryPath;
+            std::filesystem::path stagedLibraryPath;
+            void                 *handle   = nullptr;
+            const FriPluginApi   *api      = nullptr;
+            FriPlugin            *plugin   = nullptr;
+            bool                  attached = false;
+        };
+
+        bool loadUnlocked(const PluginLoadRequest &request, bool restoreAfterAttach);
+        void unloadAllUnlocked(bool preserveUserComponents);
+        void unloadOneUnlocked(LoadedPlugin &slot, bool preserveUserComponents);
+        void attachUnlocked(LoadedPlugin &slot, bool restoreAfterAttach);
 
         skr::Arc<fr::Registry> mRegistry;
         skr::Arc<UserComponentRegistry> mUserComponents;
@@ -67,13 +85,7 @@ namespace FRIGGA_NAMESPACE
         skr::Arc<skr::Logger<GameplayPluginHost>> mLogger;
 
         mutable std::mutex mMutex;
-        std::filesystem::path mLibraryPath;
-        /// Unique copy actually passed to dlopen (avoids stale-inode hot-reload).
-        std::filesystem::path mStagedLibraryPath;
-        void *mHandle            = nullptr;
-        const FriPluginApi *mApi = nullptr;
-        FriPlugin *mPlugin       = nullptr;
-        bool mAttached           = false;
+        std::vector<LoadedPlugin> mPlugins;
         std::uint64_t mLoadGeneration = 0;
         std::string mLastError;
         UserComponentWorldSnapshot mPendingRestore {};

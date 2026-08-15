@@ -5,7 +5,6 @@
 #include <Frigga/ECS/Components/BillboardComponent.hpp>
 #include <Frigga/ECS/Components/BillboardTextComponent.hpp>
 #include <Frigga/ECS/Components/CameraComponent.hpp>
-#include <Frigga/ECS/Components/CharacterControllerComponent.hpp>
 #include <Frigga/ECS/Components/FullscreenEffectComponent.hpp>
 #include <Frigga/ECS/Components/HealthBarComponent.hpp>
 #include <Frigga/ECS/Components/HierarchyComponent.hpp>
@@ -15,7 +14,6 @@
 #include <Frigga/ECS/Components/NameComponent.hpp>
 #include <Frigga/ECS/Components/ParticleEmitterComponent.hpp>
 #include <Frigga/ECS/Components/RigidBodyComponent.hpp>
-#include <Frigga/ECS/Components/ThirdPersonCameraComponent.hpp>
 #include <Frigga/ECS/Components/TransformComponent.hpp>
 #include <Frigga/ECS/TransformUtil.hpp>
 #include <Frigga/ECS/Components/UserDataComponent.hpp>
@@ -31,6 +29,7 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <glm/glm.hpp>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -200,10 +199,13 @@ namespace
     }
 } // namespace
 
-struct SpecHealth: fr::Component
+struct SpecOrbit: fr::Component
 {
-    float current = 100.0f;
-    float max     = 100.0f;
+    std::string targetName = "Player";
+    glm::vec3   pivotOffset {0.0f, 1.4f, 0.0f};
+    float       distance = 6.0f;
+    float       yaw      = 0.0f;
+    float       pitch    = 18.0f;
 };
 
 class SceneSerializerSpec: public ::testing::Test
@@ -221,8 +223,6 @@ class SceneSerializerSpec: public ::testing::Test
                            .WithComponent<fg::CameraComponent>()
                            .WithComponent<fg::LightComponent>()
                            .WithComponent<fg::RigidBodyComponent>()
-                           .WithComponent<fg::CharacterControllerComponent>()
-                           .WithComponent<fg::ThirdPersonCameraComponent>()
                            .WithComponent<fg::BillboardComponent>()
                            .WithComponent<fg::BillboardTextComponent>()
                            .WithComponent<fg::HealthBarComponent>()
@@ -600,9 +600,25 @@ TEST_F(SceneSerializerSpec, ClearEntities_DropsDeferredUserComponents)
 
 TEST_F(SceneSerializerSpec, RoundTrip_ThirdPersonCamera)
 {
+    fg::FriRegisterUserComponent<SpecOrbit>(*mRegistry, *mUserComponents,
+                                            "ThirdPersonCameraComponent", "Third Person Camera");
+
+    bool attached = false;
+    mRegistry->CreateMutation()->Each<fg::NameComponent>([&](auto entity, fg::NameComponent &name) {
+        if(name.name != "Main Camera" || attached)
+        {
+            return;
+        }
+        const auto ops = mUserComponents->Find("ThirdPersonCameraComponent");
+        ASSERT_TRUE(ops && ops->addDefault);
+        ops->addDefault(*mRegistry, entity);
+        attached = true;
+    });
+    mRegistry->ExecuteTasks();
+
     bool found = false;
-    mRegistry->CreateMutation()->Each<fg::NameComponent, fg::ThirdPersonCameraComponent>(
-        [&](auto, fg::NameComponent &name, fg::ThirdPersonCameraComponent &orbit) {
+    mRegistry->CreateMutation()->Each<fg::NameComponent, SpecOrbit>(
+        [&](auto, fg::NameComponent &name, SpecOrbit &orbit) {
             if(name.name != "Main Camera")
             {
                 return;
@@ -622,8 +638,8 @@ TEST_F(SceneSerializerSpec, RoundTrip_ThirdPersonCamera)
     ASSERT_TRUE(mScene->RestoreSnapshot(json));
 
     found = false;
-    mRegistry->CreateMutation()->Each<fg::NameComponent, fg::ThirdPersonCameraComponent>(
-        [&](auto, fg::NameComponent &name, fg::ThirdPersonCameraComponent &orbit) {
+    mRegistry->CreateMutation()->Each<fg::NameComponent, SpecOrbit>(
+        [&](auto, fg::NameComponent &name, SpecOrbit &orbit) {
             if(name.name != "Main Camera")
             {
                 return;

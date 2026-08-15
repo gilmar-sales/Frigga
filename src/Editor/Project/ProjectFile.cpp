@@ -127,24 +127,145 @@ namespace
             return false;
         }
     }
+
+    bool ExtractJsonBoolField(std::string_view text, std::string_view key, bool &out)
+    {
+        const std::string needle = "\"" + std::string(key) + "\"";
+        const auto keyPos        = text.find(needle);
+        if(keyPos == std::string_view::npos)
+        {
+            return false;
+        }
+        const auto colon = text.find(':', keyPos + needle.size());
+        if(colon == std::string_view::npos)
+        {
+            return false;
+        }
+        std::size_t i = colon + 1;
+        while(i < text.size() && std::isspace(static_cast<unsigned char>(text[i])))
+        {
+            ++i;
+        }
+        if(text.substr(i, 4) == "true")
+        {
+            out = true;
+            return true;
+        }
+        if(text.substr(i, 5) == "false")
+        {
+            out = false;
+            return true;
+        }
+        return false;
+    }
+
+    PluginSource ParsePluginSource(std::string_view value)
+    {
+        return value == "user" ? PluginSource::User : PluginSource::Project;
+    }
+
+    const char *PluginSourceId(PluginSource source)
+    {
+        return source == PluginSource::User ? "user" : "project";
+    }
+
+    void ParsePluginObject(std::string_view object, ProjectPluginEntry &entry)
+    {
+        ExtractJsonStringField(object, "id", entry.id);
+        ExtractJsonStringField(object, "target", entry.target);
+        ExtractJsonStringField(object, "library", entry.libraryRelative);
+        ExtractJsonBoolField(object, "enabled", entry.enabled);
+        std::string source;
+        if(ExtractJsonStringField(object, "source", source))
+        {
+            entry.source = ParsePluginSource(source);
+        }
+        if(entry.id.empty())
+        {
+            entry.id = entry.target;
+        }
+        if(entry.target.empty())
+        {
+            entry.target = entry.id;
+        }
+    }
+
+    void ExtractPluginsArray(std::string_view text, std::vector<ProjectPluginEntry> &out)
+    {
+        const auto arrayKey = text.find("\"plugins\"");
+        if(arrayKey == std::string_view::npos)
+        {
+            return;
+        }
+        const auto bracket = text.find('[', arrayKey);
+        if(bracket == std::string_view::npos)
+        {
+            return;
+        }
+        const auto end = text.find(']', bracket);
+        if(end == std::string_view::npos)
+        {
+            return;
+        }
+        const auto body = text.substr(bracket + 1, end - bracket - 1);
+        std::size_t search = 0;
+        while(search < body.size())
+        {
+            const auto objStart = body.find('{', search);
+            if(objStart == std::string_view::npos)
+            {
+                break;
+            }
+            const auto objEnd = body.find('}', objStart);
+            if(objEnd == std::string_view::npos)
+            {
+                break;
+            }
+            ProjectPluginEntry entry;
+            ParsePluginObject(body.substr(objStart, objEnd - objStart + 1), entry);
+            if(!entry.id.empty() || !entry.target.empty())
+            {
+                out.push_back(std::move(entry));
+            }
+            search = objEnd + 1;
+        }
+    }
 } // namespace
 
 bool ProjectFile::Save(const std::filesystem::path &projectFile, const ProjectDescriptor &desc)
 {
+    ProjectDescriptor written = desc;
+    written.EnsureGameplayPlugin();
+    written.SyncGameplayMirror();
+
     std::ostringstream json;
     json << "{\n";
-    json << "  \"version\": " << desc.formatVersion << ",\n";
-    json << "  \"name\": \"" << EscapeJson(desc.name) << "\",\n";
-    json << "  \"template\": \"" << EscapeJson(desc.TemplateId()) << "\",\n";
-    json << "  \"scene\": \"" << EscapeJson(desc.sceneRelativePath) << "\",\n";
+    json << "  \"version\": " << written.formatVersion << ",\n";
+    json << "  \"name\": \"" << EscapeJson(written.name) << "\",\n";
+    json << "  \"template\": \"" << EscapeJson(written.TemplateId()) << "\",\n";
+    json << "  \"scene\": \"" << EscapeJson(written.sceneRelativePath) << "\",\n";
     json << "  \"plugin\": {\n";
-    json << "    \"target\": \"" << EscapeJson(desc.pluginTarget) << "\",\n";
-    json << "    \"library\": \"" << EscapeJson(desc.pluginLibraryRelative) << "\"\n";
+    json << "    \"target\": \"" << EscapeJson(written.pluginTarget) << "\",\n";
+    json << "    \"library\": \"" << EscapeJson(written.pluginLibraryRelative) << "\"\n";
     json << "  },\n";
+    json << "  \"plugins\": [\n";
+    for(std::size_t i = 0; i < written.plugins.size(); ++i)
+    {
+        const auto &entry = written.plugins[i];
+        json << "    {\n";
+        json << "      \"id\": \"" << EscapeJson(entry.id) << "\",\n";
+        json << "      \"target\": \"" << EscapeJson(entry.target) << "\",\n";
+        json << "      \"library\": \"" << EscapeJson(entry.libraryRelative) << "\",\n";
+        json << "      \"enabled\": " << (entry.enabled ? "true" : "false") << ",\n";
+        json << "      \"source\": \"" << PluginSourceId(entry.source) << "\"\n";
+        json << "    }";
+        json << (i + 1 < written.plugins.size() ? ",\n" : "\n");
+    }
+    json << "  ],\n";
     json << "  \"engine\": {\n";
-    json << "    \"friggaSdk\": \"" << EscapeJson(desc.friggaSdk.generic_string()) << "\",\n";
-    json << "    \"friggaRoot\": \"" << EscapeJson(desc.friggaRoot.generic_string()) << "\",\n";
-    json << "    \"friggaBuild\": \"" << EscapeJson(desc.friggaBuild.generic_string()) << "\"\n";
+    json << "    \"friggaSdk\": \"" << EscapeJson(written.friggaSdk.generic_string()) << "\",\n";
+    json << "    \"friggaRoot\": \"" << EscapeJson(written.friggaRoot.generic_string()) << "\",\n";
+    json << "    \"friggaBuild\": \"" << EscapeJson(written.friggaBuild.generic_string()) << "\"\n";
     json << "  }\n";
     json << "}\n";
 
@@ -208,6 +329,10 @@ std::optional<ProjectDescriptor> ProjectFile::Load(const std::filesystem::path &
     desc.friggaSdk   = sdk;
     desc.friggaRoot  = root;
     desc.friggaBuild = build;
+
+    ExtractPluginsArray(text, desc.plugins);
+    desc.EnsureGameplayPlugin();
+    desc.SyncGameplayMirror();
 
     return desc;
 }

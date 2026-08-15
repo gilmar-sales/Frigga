@@ -1,14 +1,17 @@
 #pragma once
 
+#include "Frigga/Macro.hpp"
+
 #ifndef FREYA_NAMESPACE
 #    define FREYA_NAMESPACE fra
 #endif
 
+#include <cstdint>
+#include <type_traits>
+
 #include <Freya/Events/Gamepad.hpp>
 #include <Freya/Events/KeyCode.hpp>
 #include <Freya/Events/Mouse.hpp>
-
-#include <cstdint>
 
 #include <optional>
 #include <string>

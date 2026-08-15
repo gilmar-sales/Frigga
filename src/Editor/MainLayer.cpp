@@ -436,7 +436,7 @@ void MainLayer::drawMenuBar()
             {
                 mSession->OpenInCodeEditor();
             }
-            if(ImGui::MenuItem("Build Gameplay Plugin", "Ctrl+B"))
+            if(ImGui::MenuItem("Build Plugins", "Ctrl+B"))
             {
                 mSession->BuildPlugin();
             }
@@ -444,7 +444,7 @@ void MainLayer::drawMenuBar()
             {
                 mSession->MigrateOpenProject(true);
             }
-            if(ImGui::MenuItem("Reload Gameplay Plugin", "Ctrl+R"))
+            if(ImGui::MenuItem("Reload Plugins", "Ctrl+R"))
             {
                 mSession->ReloadPlugin();
             }
@@ -568,11 +568,13 @@ void MainLayer::drawMenuBar()
                 {
                     mHierarchy->addRigidBodyToSelection();
                 }
-                if(ImGui::MenuItem("Character Controller"))
+                if(mHierarchy->hasUserComponentType("CharacterControllerComponent") &&
+                   ImGui::MenuItem("Character Controller"))
                 {
                     mHierarchy->addCharacterControllerToSelection();
                 }
-                if(ImGui::MenuItem("Third Person Camera"))
+                if(mHierarchy->hasUserComponentType("ThirdPersonCameraComponent") &&
+                   ImGui::MenuItem("Third Person Camera"))
                 {
                     mHierarchy->addThirdPersonCameraToSelection();
                 }

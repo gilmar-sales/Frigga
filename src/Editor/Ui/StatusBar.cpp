@@ -180,7 +180,9 @@ void StatusBar::drawStrip(const ImGuiViewport *viewport, float barHeight)
     const std::string stats = std::format(
         "{}  ·  {}  ·  {} models  ·  {} textures  ·  {} mats  ·  plugin {}  ·  ",
         desc.name.empty() ? "Project" : desc.name, mScene->GetDisplayName(), models, textures,
-        materials, pluginLoaded ? std::format("{} types", typeCount) : "unloaded");
+        materials,
+        pluginLoaded ? std::format("{} plugins, {} types", mPluginHost->LoadedCount(), typeCount)
+                     : "unloaded");
 
     ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted(stats.c_str());
@@ -215,7 +217,7 @@ void StatusBar::drawStrip(const ImGuiViewport *viewport, float barHeight)
         }
         if(ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
         {
-            ImGui::SetTooltip("Build gameplay plugin (Ctrl+B)");
+            ImGui::SetTooltip("Build plugins (Ctrl+B)");
         }
         ImGui::EndDisabled();
 
@@ -227,7 +229,7 @@ void StatusBar::drawStrip(const ImGuiViewport *viewport, float barHeight)
         }
         if(ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
         {
-            ImGui::SetTooltip("Reload gameplay plugin (Ctrl+R)");
+            ImGui::SetTooltip("Reload plugins (Ctrl+R)");
         }
         ImGui::EndDisabled();
         ImGui::PopStyleVar();

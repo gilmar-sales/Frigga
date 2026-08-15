@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Frigga/Asset/PrimitiveMeshFactory.hpp"
+#include "Frigga/ECS/UserComponentRegistry.hpp"
 #include "Frigga/Physics/IPhysicsWorld.hpp"
 
 #include <Freyr/Freyr.hpp>
@@ -19,7 +20,8 @@ namespace FRIGGA_NAMESPACE
                          const ImVec2 &imageSize,
                          fr::Entity selectedEntity = static_cast<fr::Entity>(-1),
                          const skr::Arc<IPhysicsWorld> &physicsWorld = {},
-                         bool dimInactiveBodies = false);
+                         bool dimInactiveBodies = false,
+                         const skr::Arc<UserComponentRegistry> &userComponents = {});
     };
 
 } // namespace FRIGGA_NAMESPACE

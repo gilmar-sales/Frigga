@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Frigga/Macro.hpp"
 #include "Frigga/Input/InputMap.hpp"
 
 #include <Skirnir/Skirnir.hpp>

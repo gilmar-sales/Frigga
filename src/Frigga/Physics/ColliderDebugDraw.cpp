@@ -1,10 +1,10 @@
 #include "ColliderDebugDraw.hpp"
 
-#include "Frigga/ECS/Components/CharacterControllerComponent.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/RigidBodyComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/ECS/TransformUtil.hpp"
+#include "Frigga/Physics/CharacterPhysics.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -258,7 +258,8 @@ namespace FRIGGA_NAMESPACE
                                  const ImVec2 &imageMin, const ImVec2 &imageSize,
                                  fr::Entity selectedEntity,
                                  const skr::Arc<IPhysicsWorld> &physicsWorld,
-                                 bool dimInactiveBodies)
+                                 bool dimInactiveBodies,
+                                 const skr::Arc<UserComponentRegistry> &userComponents)
     {
         if(drawList == nullptr || imageSize.x < 1.0f || imageSize.y < 1.0f)
         {
@@ -318,23 +319,37 @@ namespace FRIGGA_NAMESPACE
             });
 
         // Character capsules: Transform is feet; CapsuleCenterLocal includes centerOffset.
-        registry->CreateMutation()->Each<TransformComponent, CharacterControllerComponent>(
-            [&](auto entity, TransformComponent &,
-                CharacterControllerComponent &controller) {
-                const bool selected   = entity == selectedEntity;
-                const ImU32 color     = AdjustColor(IM_COL32(220, 120, 255, 220), selected, false);
-                const float thickness = selected ? 3.0f : 1.5f;
-
-                const float radius = std::max(controller.radius, 0.001f);
-                const auto pose    = TransformUtil::WorldPose(*registry, entity);
-                const glm::vec3 center =
-                    pose.position + pose.rotation * controller.CapsuleCenterLocal();
-
-                glm::mat4 model = glm::translate(glm::mat4(1.0f), center);
-                model           = model * glm::mat4_cast(pose.rotation);
-                DrawCapsule(drawList, model, viewProj, imageMin, imageSize, radius,
-                            controller.height, color, thickness);
-            });
+        if(userComponents)
+        {
+            const auto ops = userComponents->Find(kCharacterControllerTypeId);
+            if(ops && ops->forEachEntity && ops->toInstance)
+            {
+                ops->forEachEntity(*registry, [&](fr::Entity entity) {
+                    if(!registry->HasComponent<TransformComponent>(entity))
+                    {
+                        return;
+                    }
+                    UserComponentInstance instance {};
+                    if(!ops->toInstance(*registry, entity, instance))
+                    {
+                        return;
+                    }
+                    const auto desc     = CharacterDescFromInstance(instance);
+                    const bool selected = entity == selectedEntity;
+                    const ImU32 color =
+                        AdjustColor(IM_COL32(220, 120, 255, 220), selected, false);
+                    const float thickness = selected ? 3.0f : 1.5f;
+                    const float radius    = std::max(desc.radius, 0.001f);
+                    const auto pose       = TransformUtil::WorldPose(*registry, entity);
+                    const glm::vec3 center =
+                        pose.position + pose.rotation * CapsuleCenterLocalFromDesc(desc);
+                    glm::mat4 model = glm::translate(glm::mat4(1.0f), center);
+                    model           = model * glm::mat4_cast(pose.rotation);
+                    DrawCapsule(drawList, model, viewProj, imageMin, imageSize, radius, desc.height,
+                                color, thickness);
+                });
+            }
+        }
     }
 
 } // namespace FRIGGA_NAMESPACE

@@ -1,0 +1,7 @@
+{
+  "id": "thirdpersoncamera",
+  "name": "Third Person Camera",
+  "target": "thirdpersoncamera",
+  "library": "build/libthirdpersoncamera.so",
+  "bundled": true
+}

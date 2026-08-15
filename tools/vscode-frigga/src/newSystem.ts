@@ -41,7 +41,7 @@ class ${className}: public fr::System
 }
 
 function systemSource(className: string, fileBase: string): string {
-  return `#include "Systems/${fileBase}.hpp"
+  return `#include "systems/${fileBase}.hpp"
 
 ${className}::${className}(const skr::Arc<fr::Registry> &registry) : fr::System(registry) {}
 
@@ -60,7 +60,7 @@ function ensureInclude(source: string, includeLine: string): string {
     return source;
   }
 
-  const systemInclude = /#include\s+"Systems\/[^"]+"\s*\n/g;
+  const systemInclude = /#include\s+"systems\/[^"]+"\s*\n/g;
   let lastMatch: RegExpExecArray | null = null;
   let match: RegExpExecArray | null;
   while ((match = systemInclude.exec(source)) !== null) {
@@ -94,10 +94,10 @@ function ensureCmakeSource(cmake: string, relativeCpp: string): string {
   }
 
   const libraryBlock =
-    /add_library\s*\(\s*\w+\s+SHARED\s*\n([\s\S]*?)\)/;
+    /(?:add_library\s*\(\s*\w+\s+SHARED|frigga_add_plugin\s*\(\s*\w+)\s*\n([\s\S]*?)\)/;
   const match = libraryBlock.exec(cmake);
   if (!match) {
-    throw new Error("Could not find add_library(... SHARED ...) in CMakeLists.txt");
+    throw new Error("Could not find frigga_add_plugin(...) in CMakeLists.txt");
   }
 
   const bodyStart = match.index + match[0].indexOf(match[1]);
@@ -130,26 +130,41 @@ export async function createGameplaySystem(project: FriggaProject): Promise<void
 
   const headerUri = vscode.Uri.joinPath(
     project.root,
+    "plugins",
+    "gameplay",
     "src",
-    "Systems",
+    "systems",
     `${fileBase}.hpp`
   );
   const sourceUri = vscode.Uri.joinPath(
     project.root,
+    "plugins",
+    "gameplay",
     "src",
-    "Systems",
+    "systems",
     `${fileBase}.cpp`
   );
 
   if ((await pathExistsUri(headerUri)) || (await pathExistsUri(sourceUri))) {
-    vscode.window.showErrorMessage(`${fileBase} already exists under src/Systems`);
+    vscode.window.showErrorMessage(`${fileBase} already exists under plugins/gameplay/src/systems`);
     return;
   }
 
-  const pluginUri = vscode.Uri.joinPath(project.root, "src", "GameplayPlugin.cpp");
-  const cmakeUri = vscode.Uri.joinPath(project.root, "CMakeLists.txt");
+  const pluginUri = vscode.Uri.joinPath(
+    project.root,
+    "plugins",
+    "gameplay",
+    "src",
+    "GameplayPlugin.cpp"
+  );
+  const cmakeUri = vscode.Uri.joinPath(
+    project.root,
+    "plugins",
+    "gameplay",
+    "CMakeLists.txt"
+  );
   if (!(await pathExistsUri(pluginUri))) {
-    vscode.window.showErrorMessage("src/GameplayPlugin.cpp not found");
+    vscode.window.showErrorMessage("plugins/gameplay/src/GameplayPlugin.cpp not found");
     return;
   }
   if (!(await pathExistsUri(cmakeUri))) {
@@ -162,7 +177,7 @@ export async function createGameplaySystem(project: FriggaProject): Promise<void
 
   let plugin = await readTextFile(pluginUri);
   try {
-    plugin = ensureInclude(plugin, `#include "Systems/${fileBase}.hpp"`);
+    plugin = ensureInclude(plugin, `#include "systems/${fileBase}.hpp"`);
     plugin = insertFluentCall(plugin, `.System<${className}>()`, "System");
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -173,7 +188,7 @@ export async function createGameplaySystem(project: FriggaProject): Promise<void
 
   let cmake = await readTextFile(cmakeUri);
   try {
-    cmake = ensureCmakeSource(cmake, `src/Systems/${fileBase}.cpp`);
+    cmake = ensureCmakeSource(cmake, `src/systems/${fileBase}.cpp`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     vscode.window.showErrorMessage(message);

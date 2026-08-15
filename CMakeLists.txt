@@ -119,6 +119,7 @@ set_source_files_properties(
 )
 
 file(GLOB_RECURSE EDITOR_SRC src/Editor/*.cpp src/Editor/*.hpp)
+list(FILTER EDITOR_SRC EXCLUDE REGEX "/Resources/plugins/")
 
 add_executable(Editor ${EDITOR_SRC}
         src/Editor/Main.cpp

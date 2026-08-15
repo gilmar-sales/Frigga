@@ -1,10 +1,11 @@
 #include "Frigga/Physics/Physics.hpp"
 
-#include "Frigga/ECS/Components/CharacterControllerComponent.hpp"
 #include "Frigga/ECS/Components/RigidBodyComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/ECS/TransformUtil.hpp"
 #include "Frigga/Physics/IPhysicsWorld.hpp"
+
+#include <cstdint>
 
 namespace FRIGGA_NAMESPACE
 {
@@ -24,17 +25,14 @@ namespace FRIGGA_NAMESPACE
             return handle;
         }
 
-        PhysicsCharacterHandle CharacterHandle(const skr::Arc<fr::Registry> &registry,
+        PhysicsCharacterHandle CharacterHandle(const skr::Arc<IPhysicsWorld> &world,
                                                fr::Entity entity)
         {
-            PhysicsCharacterHandle handle {};
-            if(!registry)
+            if(!world)
             {
-                return handle;
+                return {};
             }
-            registry->TryGetComponents<CharacterControllerComponent>(
-                entity, [&](CharacterControllerComponent &cc) { handle = cc.character; });
-            return handle;
+            return world->FindCharacter(static_cast<std::uint64_t>(entity));
         }
     } // namespace
 
@@ -121,7 +119,7 @@ namespace FRIGGA_NAMESPACE
         {
             return;
         }
-        const auto handle = CharacterHandle(mRegistry, entity);
+        const auto handle = CharacterHandle(mWorld, entity);
         if(handle.IsValid())
         {
             mWorld->SetCharacterVelocity(handle, desiredWorldVelocity);
@@ -134,7 +132,7 @@ namespace FRIGGA_NAMESPACE
         {
             return false;
         }
-        const auto handle = CharacterHandle(mRegistry, entity);
+        const auto handle = CharacterHandle(mWorld, entity);
         if(!handle.IsValid())
         {
             return false;
@@ -148,7 +146,7 @@ namespace FRIGGA_NAMESPACE
         {
             return {};
         }
-        const auto handle = CharacterHandle(mRegistry, entity);
+        const auto handle = CharacterHandle(mWorld, entity);
         if(!handle.IsValid())
         {
             return {};

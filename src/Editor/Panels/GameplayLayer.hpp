@@ -7,6 +7,7 @@
 #include <Frigga/Asset/PrimitiveMeshFactory.hpp>
 #include <Frigga/Input/Input.hpp>
 #include <Frigga/Physics/IPhysicsWorld.hpp>
+#include <Frigga/ECS/UserComponentRegistry.hpp>
 #include <Frigga/Scene/Scene.hpp>
 #include <Frigga/Scene/SceneSimulationState.hpp>
 
@@ -18,7 +19,8 @@ class GameplayLayer: public fg::Layer
     GameplayLayer(skr::Arc<fra::Renderer> renderer, skr::Arc<fr::Registry> registry,
                   skr::Arc<fg::Scene> scene, skr::Arc<fg::PrimitiveMeshFactory> primitives,
                   skr::Arc<fg::SceneSimulationState> simulation,
-                  skr::Arc<SelectionContext> selection, skr::Arc<fg::IPhysicsWorld> physicsWorld,
+                  skr::Arc<SelectionContext> selection,                   skr::Arc<fg::IPhysicsWorld> physicsWorld,
+                  skr::Arc<fg::UserComponentRegistry> userComponents,
                   skr::Arc<EditorPreferences> preferences, skr::Arc<fg::Input> input);
     ~GameplayLayer() override = default;
 
@@ -41,6 +43,7 @@ class GameplayLayer: public fg::Layer
     skr::Arc<fg::SceneSimulationState> mSimulation;
     skr::Arc<SelectionContext> mSelection;
     skr::Arc<fg::IPhysicsWorld> mPhysicsWorld;
+    skr::Arc<fg::UserComponentRegistry> mUserComponents;
     skr::Arc<EditorPreferences> mPreferences;
     skr::Arc<fg::Input> mInput;
     skr::Arc<fra::RenderTarget> mTarget;

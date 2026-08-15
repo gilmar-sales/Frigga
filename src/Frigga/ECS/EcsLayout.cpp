@@ -71,7 +71,6 @@ namespace FRIGGA_NAMESPACE
     {
         return LabelEndsWith(label, "AnimationSystem") || LabelEndsWith(label, "RenderSystem") ||
                LabelEndsWith(label, "PhysicsSystem") ||
-               LabelEndsWith(label, "ThirdPersonCameraSystem") ||
                LabelEndsWith(label, "GameplayPluginBridge");
     }
 
@@ -81,8 +80,7 @@ namespace FRIGGA_NAMESPACE
         {
             return kRenderPipelineName.data();
         }
-        if(LabelEndsWith(label, "AnimationSystem") ||
-           LabelEndsWith(label, "ThirdPersonCameraSystem"))
+        if(LabelEndsWith(label, "AnimationSystem"))
         {
             return kMainPipelineName.data();
         }

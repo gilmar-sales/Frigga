@@ -1,7 +1,9 @@
 #pragma once
 
 #include "ProjectDescriptor.hpp"
+#include "PluginCatalog.hpp"
 #include "../Preferences/EditorPreferences.hpp"
+#include "../Paths/EditorPaths.hpp"
 
 #include <Frigga/Input/Input.hpp>
 #include <Frigga/Plugin/GameplayPluginHost.hpp>
@@ -16,6 +18,7 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
 
@@ -137,11 +140,17 @@ class ProjectSession
                      bool setAsStartup = true);
     bool SetStartupScene(const std::filesystem::path &scenePath);
 
-    /// Starts an asynchronous cmake configure+build. Returns false if busy / no project.
-    bool BuildPlugin();
+    /// Starts an asynchronous cmake configure+build. Empty @p cmakeTarget builds all plugins.
+    bool BuildPlugin(std::string cmakeTarget = {});
     bool ReloadPlugin();
     void UnloadPlugin();
     void DismissBuildUi();
+
+    bool CreatePlugin(std::string name);
+    bool InstallPluginFrom(const std::filesystem::path &sourceRoot);
+    bool ExportPlugin(std::string_view pluginId);
+    bool SetPluginEnabled(std::string_view pluginId, bool enabled);
+    bool SaveDescriptor();
 
     /// Writes the live pipeline/system layout to `{project}/ecs.json`.
     bool SaveEcsLayout();
@@ -164,10 +173,13 @@ class ProjectSession
     void touchRecent();
     void loadProjectInputBindings(const std::filesystem::path &projectRoot);
     void joinBuildThread();
-    void runBuildJob(std::filesystem::path root, std::filesystem::path buildDir);
+    void runBuildJob(std::filesystem::path root, std::filesystem::path buildDir,
+                     std::string cmakeTarget);
     void writeEditorSessionMarker();
     void clearEditorSessionMarker();
     [[nodiscard]] std::filesystem::path pluginLibraryAbsolute() const;
+    [[nodiscard]] std::filesystem::path pluginLibraryAbsolute(const ProjectPluginEntry &entry) const;
+    bool loadEnabledPlugins();
     [[nodiscard]] static std::filesystem::path projectRootFromPath(
         const std::filesystem::path &projectFileOrRoot);
 

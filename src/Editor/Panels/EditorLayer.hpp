@@ -7,6 +7,7 @@
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/Scene/Scene.hpp"
 #include "Frigga/Scene/SceneSimulationState.hpp"
+#include "Frigga/ECS/UserComponentRegistry.hpp"
 
 #include <Frigga/Frigga.hpp>
 
@@ -19,6 +20,7 @@ class EditorLayer: public fg::Layer
     EditorLayer(skr::Arc<fra::Renderer> renderer, skr::Arc<fr::Registry> registry,
                 skr::Arc<fg::PrimitiveMeshFactory> primitives, skr::Arc<SelectionContext> selection,
                 skr::Arc<fg::Scene> scene, skr::Arc<fg::SceneSimulationState> simulation,
+                skr::Arc<fg::UserComponentRegistry> userComponents,
                 skr::Arc<EditorPreferences> preferences);
     ~EditorLayer() override = default;
 
@@ -59,6 +61,7 @@ class EditorLayer: public fg::Layer
     skr::Arc<SelectionContext> mSelection;
     skr::Arc<fg::Scene> mScene;
     skr::Arc<fg::SceneSimulationState> mSimulation;
+    skr::Arc<fg::UserComponentRegistry> mUserComponents;
     skr::Arc<EditorPreferences> mPreferences;
     skr::Arc<fra::RenderTarget> mTarget;
     VkDescriptorSet mTextureId = VK_NULL_HANDLE;

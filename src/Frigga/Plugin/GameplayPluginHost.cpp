@@ -32,8 +32,7 @@ namespace FRIGGA_NAMESPACE
 
         void *LookupSymbol(void *handle, const char *name)
         {
-            return reinterpret_cast<void *>(
-                GetProcAddress(static_cast<HMODULE>(handle), name));
+            return reinterpret_cast<void *>(GetProcAddress(static_cast<HMODULE>(handle), name));
         }
 
         std::string LastDlError()
@@ -43,10 +42,6 @@ namespace FRIGGA_NAMESPACE
 #else
         void *OpenLibrary(const char *path)
         {
-            // RTLD_LOCAL: keep plugin symbols out of the global namespace so subsequent
-            // plugins (and Freyr unique symbols) do not pin one another forever.
-            // Unique path staging (below) is still required because STB_GNU_UNIQUE
-            // symbols inside a single .so routinely prevent true dlclose unload.
             return dlopen(path, RTLD_NOW | RTLD_LOCAL);
         }
 
@@ -73,10 +68,9 @@ namespace FRIGGA_NAMESPACE
         [[nodiscard]] std::filesystem::path
         MakeStagedLibraryPath(const std::filesystem::path &source, std::uint64_t generation)
         {
-            const auto stamp =
-                std::chrono::duration_cast<std::chrono::nanoseconds>(
-                    std::chrono::steady_clock::now().time_since_epoch())
-                    .count();
+            const auto stamp = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                   std::chrono::steady_clock::now().time_since_epoch())
+                                   .count();
             auto staged = source;
             staged += ".reload-" + std::to_string(generation) + "-" + std::to_string(stamp);
             return staged;
@@ -92,7 +86,6 @@ namespace FRIGGA_NAMESPACE
             std::filesystem::remove(path, ec);
         }
 
-        /// Best-effort GC of previous staged copies that failed to delete while unique-pinned.
         void CleanupStaleStagedCopies(const std::filesystem::path &source,
                                       const std::filesystem::path &keep)
         {
@@ -123,12 +116,11 @@ namespace FRIGGA_NAMESPACE
         }
     } // namespace
 
-    GameplayPluginHost::GameplayPluginHost(
-        const skr::Arc<fr::Registry> &registry,
-        const skr::Arc<UserComponentRegistry> &userComponents,
-        const skr::Arc<fr::SystemManager> &systemManager,
-        const skr::Arc<skr::ServiceProvider> &services,
-        const skr::Arc<skr::Logger<GameplayPluginHost>> &logger)
+    GameplayPluginHost::GameplayPluginHost(const skr::Arc<fr::Registry> &registry,
+                                           const skr::Arc<UserComponentRegistry> &userComponents,
+                                           const skr::Arc<fr::SystemManager> &systemManager,
+                                           const skr::Arc<skr::ServiceProvider> &services,
+                                           const skr::Arc<skr::Logger<GameplayPluginHost>> &logger)
         : mRegistry(registry), mUserComponents(userComponents), mSystemManager(systemManager),
           mServices(services), mLogger(logger)
     {
@@ -142,7 +134,55 @@ namespace FRIGGA_NAMESPACE
     bool GameplayPluginHost::IsLoaded() const
     {
         std::lock_guard lock(mMutex);
-        return mPlugin != nullptr && mApi != nullptr;
+        for(const auto &slot : mPlugins)
+        {
+            if(slot.plugin && slot.api && slot.attached)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool GameplayPluginHost::IsPluginLoaded(std::string_view id) const
+    {
+        std::lock_guard lock(mMutex);
+        for(const auto &slot : mPlugins)
+        {
+            if(slot.id == id && slot.plugin && slot.attached)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    std::size_t GameplayPluginHost::LoadedCount() const
+    {
+        std::lock_guard lock(mMutex);
+        std::size_t count = 0;
+        for(const auto &slot : mPlugins)
+        {
+            if(slot.plugin && slot.attached)
+            {
+                ++count;
+            }
+        }
+        return count;
+    }
+
+    std::vector<std::string> GameplayPluginHost::GetLoadedPluginIds() const
+    {
+        std::lock_guard lock(mMutex);
+        std::vector<std::string> ids;
+        for(const auto &slot : mPlugins)
+        {
+            if(slot.plugin && slot.attached)
+            {
+                ids.push_back(slot.id);
+            }
+        }
+        return ids;
     }
 
     std::vector<std::string> GameplayPluginHost::GetRegisteredTypeIds() const
@@ -159,45 +199,76 @@ namespace FRIGGA_NAMESPACE
         return ids;
     }
 
-    bool GameplayPluginHost::Load(const std::filesystem::path &libraryPath)
+    bool GameplayPluginHost::LoadAll(const std::vector<PluginLoadRequest> &plugins)
     {
         std::lock_guard lock(mMutex);
-        unloadUnlocked(/*preserveUserComponents=*/true);
-        return loadUnlocked(libraryPath);
+        unloadAllUnlocked(/*preserveUserComponents=*/true);
+        mLastError.clear();
+        bool any = false;
+        for(std::size_t i = 0; i < plugins.size(); ++i)
+        {
+            const bool last = i + 1 == plugins.size();
+            if(loadUnlocked(plugins[i], last))
+            {
+                any = true;
+            }
+        }
+        if(!plugins.empty() && !any)
+        {
+            if(mLastError.empty())
+            {
+                mLastError = "No plugin libraries could be loaded";
+            }
+            return false;
+        }
+        return true;
+    }
+
+    bool GameplayPluginHost::Load(const std::filesystem::path &libraryPath)
+    {
+        return LoadAll({PluginLoadRequest {.id = "gameplay", .libraryPath = libraryPath}});
     }
 
     bool GameplayPluginHost::Reload()
     {
-        std::lock_guard lock(mMutex);
-        if(mLibraryPath.empty())
+        std::vector<PluginLoadRequest> requests;
         {
-            mLastError = "No plugin library path set";
-            return false;
+            std::lock_guard lock(mMutex);
+            if(mPlugins.empty())
+            {
+                mLastError = "No plugin library path set";
+                return false;
+            }
+            for(const auto &slot : mPlugins)
+            {
+                requests.push_back(
+                    PluginLoadRequest {.id = slot.id, .libraryPath = slot.libraryPath});
+            }
         }
-        const auto path = mLibraryPath;
-        unloadUnlocked(/*preserveUserComponents=*/true);
-        return loadUnlocked(path);
+        return LoadAll(requests);
     }
 
     void GameplayPluginHost::Unload()
     {
         std::lock_guard lock(mMutex);
-        unloadUnlocked(/*preserveUserComponents=*/false);
+        unloadAllUnlocked(/*preserveUserComponents=*/false);
     }
 
     void GameplayPluginHost::UpdatePlugin(float deltaTime)
     {
         std::lock_guard lock(mMutex);
-        if(mPlugin && mApi && mApi->on_update && mAttached)
+        for(auto &slot : mPlugins)
         {
-            mApi->on_update(mPlugin, deltaTime);
+            if(slot.plugin && slot.api && slot.api->on_update && slot.attached)
+            {
+                slot.api->on_update(slot.plugin, deltaTime);
+            }
         }
     }
 
-    bool GameplayPluginHost::loadUnlocked(const std::filesystem::path &libraryPath)
+    bool GameplayPluginHost::loadUnlocked(const PluginLoadRequest &request, bool restoreAfterAttach)
     {
-        mLastError.clear();
-
+        const auto &libraryPath = request.libraryPath;
         if(libraryPath.empty() || !std::filesystem::exists(libraryPath))
         {
             mLastError = "Plugin library not found: " + libraryPath.string();
@@ -206,11 +277,7 @@ namespace FRIGGA_NAMESPACE
         }
 
         const auto absolute = std::filesystem::weakly_canonical(libraryPath);
-
-        // Always dlopen a unique copy. Linux often keeps the previous DSO mapped
-        // (STB_GNU_UNIQUE Freyr component ids), so reopening the same path keeps
-        // running stale OnAttach / systems after a rebuild.
-        const auto staged = MakeStagedLibraryPath(absolute, ++mLoadGeneration);
+        const auto staged   = MakeStagedLibraryPath(absolute, ++mLoadGeneration);
         {
             std::error_code ec;
             std::filesystem::copy_file(absolute, staged,
@@ -223,8 +290,11 @@ namespace FRIGGA_NAMESPACE
             }
         }
 
-        mHandle = OpenLibrary(staged.string().c_str());
-        if(!mHandle)
+        LoadedPlugin slot;
+        slot.id          = request.id.empty() ? absolute.stem().string() : request.id;
+        slot.libraryPath = absolute;
+        slot.handle      = OpenLibrary(staged.string().c_str());
+        if(!slot.handle)
         {
             mLastError = LastDlError();
             mLogger->LogError("Failed to load plugin {}: {}", staged.string(), mLastError);
@@ -232,153 +302,125 @@ namespace FRIGGA_NAMESPACE
             return false;
         }
 
-        using ApiFn = const FriPluginApi *(*)();
-        auto *symbol = LookupSymbol(mHandle, "fri_plugin_api");
+        using ApiFn  = const FriPluginApi *(*)();
+        auto *symbol = LookupSymbol(slot.handle, "fri_plugin_api");
         if(!symbol)
         {
             mLastError = "Missing export fri_plugin_api: " + LastDlError();
             mLogger->LogError("{}", mLastError);
-            CloseLibrary(mHandle);
-            mHandle = nullptr;
+            CloseLibrary(slot.handle);
             RemoveFileQuietly(staged);
             return false;
         }
 
         auto *getApi = reinterpret_cast<ApiFn>(symbol);
-        mApi         = getApi();
-        if(!mApi || !mApi->create || !mApi->destroy)
+        slot.api     = getApi();
+        if(!slot.api || !slot.api->create || !slot.api->destroy)
         {
             mLastError = "Invalid FriPluginApi table";
             mLogger->LogError("{}", mLastError);
-            CloseLibrary(mHandle);
-            mHandle = nullptr;
-            mApi    = nullptr;
+            CloseLibrary(slot.handle);
             RemoveFileQuietly(staged);
             return false;
         }
 
-        mPlugin = mApi->create();
-        if(!mPlugin)
+        slot.plugin = slot.api->create();
+        if(!slot.plugin)
         {
             mLastError = "fri_plugin_api create() returned null";
             mLogger->LogError("{}", mLastError);
-            CloseLibrary(mHandle);
-            mHandle = nullptr;
-            mApi    = nullptr;
+            CloseLibrary(slot.handle);
             RemoveFileQuietly(staged);
             return false;
         }
 
-        mLibraryPath       = absolute;
-        mStagedLibraryPath = staged;
+        slot.stagedLibraryPath = staged;
         CleanupStaleStagedCopies(absolute, staged);
-        attachUnlocked();
-        mLogger->LogInformation("Loaded gameplay plugin {} (staged {})", absolute.string(),
+        attachUnlocked(slot, restoreAfterAttach);
+        mLogger->LogInformation("Loaded plugin {} from {} (staged {})", slot.id, absolute.string(),
                                 staged.filename().string());
+        mPlugins.push_back(std::move(slot));
         return true;
     }
 
-    void GameplayPluginHost::unloadUnlocked(bool preserveUserComponents)
+    void GameplayPluginHost::unloadAllUnlocked(bool preserveUserComponents)
     {
-        detachUnlocked(preserveUserComponents);
-        if(mPlugin && mApi && mApi->destroy)
-        {
-            mApi->destroy(mPlugin);
-        }
-        mPlugin = nullptr;
-        mApi    = nullptr;
-        if(mHandle)
-        {
-            CloseLibrary(mHandle);
-            mHandle = nullptr;
-        }
-
-        // Best-effort: often fails while STB_GNU_UNIQUE keeps the inode mapped.
-        RemoveFileQuietly(mStagedLibraryPath);
-        mStagedLibraryPath.clear();
-
-        if(!preserveUserComponents)
-        {
-            mPendingRestore = {};
-        }
-    }
-
-    void GameplayPluginHost::attachUnlocked()
-    {
-        if(!mPlugin || !mApi || !mApi->on_attach || mAttached)
-        {
-            return;
-        }
-
-        FriHost host {.registry         = mRegistry.get(),
-                      .user_components  = mUserComponents.get(),
-                      .system_manager   = mSystemManager.get(),
-                      .services         = mServices.get()};
-        mApi->on_attach(mPlugin, &host);
-        mAttached = true;
-
-        const auto types = mUserComponents->GetTypes();
-        std::string registered;
-        for(const auto &ops : types)
-        {
-            if(!registered.empty())
-            {
-                registered += ", ";
-            }
-            registered += ops.typeId;
-        }
-        mLogger->LogInformation("Gameplay plugin registered {} user component(s): {}",
-                                types.size(),
-                                registered.empty() ? "(none)" : registered);
-
-        // Scene deserialize may have stashed gameplay components before types existed.
-        if(const auto deferred = mUserComponents->ApplyDeferred(*mRegistry); deferred > 0)
-        {
-            mLogger->LogInformation(
-                "Applied {} deferred gameplay component instance(s) after plugin load", deferred);
-        }
-
-        if(!mPendingRestore.entries.empty())
-        {
-            const auto restored = mUserComponents->RestoreAll(*mRegistry, mPendingRestore);
-            mLogger->LogInformation(
-                "Restored {} gameplay component instance(s) after plugin load", restored);
-            mPendingRestore = {};
-        }
-    }
-
-    void GameplayPluginHost::detachUnlocked(bool preserveUserComponents)
-    {
-        if(!mPlugin || !mApi || !mAttached)
-        {
-            mAttached = false;
-            if(!preserveUserComponents)
-            {
-                mPendingRestore = {};
-            }
-            return;
-        }
-
-        if(preserveUserComponents)
+        if(preserveUserComponents && mPendingRestore.entries.empty() && mUserComponents)
         {
             mPendingRestore = mUserComponents->CaptureAll(*mRegistry);
             mLogger->LogInformation(
                 "Captured {} gameplay component instance(s) before plugin unload",
                 mPendingRestore.entries.size());
         }
-        else
+        else if(!preserveUserComponents)
         {
             mPendingRestore = {};
         }
 
-        // Strip Freyr SoA instances + unregister while .so (and ops) are still mapped.
-        mUserComponents->DetachAll(*mRegistry);
-
-        if(mApi->on_detach)
+        if(mUserComponents)
         {
-            mApi->on_detach(mPlugin);
+            mUserComponents->DetachAll(*mRegistry);
         }
-        mAttached = false;
+
+        for(auto it = mPlugins.rbegin(); it != mPlugins.rend(); ++it)
+        {
+            if(it->plugin && it->api && it->attached && it->api->on_detach)
+            {
+                it->api->on_detach(it->plugin);
+            }
+            it->attached = false;
+            unloadOneUnlocked(*it, preserveUserComponents);
+        }
+        mPlugins.clear();
+    }
+
+    void GameplayPluginHost::unloadOneUnlocked(LoadedPlugin &slot, bool)
+    {
+        if(slot.plugin && slot.api && slot.api->destroy)
+        {
+            slot.api->destroy(slot.plugin);
+        }
+        slot.plugin = nullptr;
+        slot.api    = nullptr;
+        if(slot.handle)
+        {
+            CloseLibrary(slot.handle);
+            slot.handle = nullptr;
+        }
+        RemoveFileQuietly(slot.stagedLibraryPath);
+        slot.stagedLibraryPath.clear();
+    }
+
+    void GameplayPluginHost::attachUnlocked(LoadedPlugin &slot, bool restoreAfterAttach)
+    {
+        if(!slot.plugin || !slot.api || !slot.api->on_attach || slot.attached)
+        {
+            return;
+        }
+
+        FriHost host {.registry        = mRegistry.get(),
+                      .user_components = mUserComponents.get(),
+                      .system_manager  = mSystemManager.get(),
+                      .services        = mServices.get()};
+        slot.api->on_attach(slot.plugin, &host);
+        slot.attached = true;
+
+        mLogger->LogInformation("Plugin {} attached; {} user component type(s) total", slot.id,
+                                mUserComponents->GetTypes().size());
+
+        if(const auto deferred = mUserComponents->ApplyDeferred(*mRegistry); deferred > 0)
+        {
+            mLogger->LogInformation(
+                "Applied {} deferred gameplay component instance(s) after plugin load", deferred);
+        }
+
+        if(restoreAfterAttach && !mPendingRestore.entries.empty())
+        {
+            const auto restored = mUserComponents->RestoreAll(*mRegistry, mPendingRestore);
+            mLogger->LogInformation(
+                "Restored {} gameplay component instance(s) after plugin load", restored);
+            mPendingRestore = {};
+        }
     }
 
 } // namespace FRIGGA_NAMESPACE

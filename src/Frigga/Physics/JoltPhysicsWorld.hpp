@@ -40,6 +40,11 @@ namespace FRIGGA_NAMESPACE
 
         PhysicsCharacterHandle CreateCharacter(const PhysicsCharacterDesc &desc) override;
         void DestroyCharacter(PhysicsCharacterHandle handle) override;
+        void BindCharacter(std::uint64_t entity, PhysicsCharacterHandle handle) override;
+        void UnbindCharacter(std::uint64_t entity) override;
+        [[nodiscard]] PhysicsCharacterHandle FindCharacter(std::uint64_t entity) const override;
+        void ForEachCharacter(
+            const std::function<void(std::uint64_t, PhysicsCharacterHandle)> &visit) const override;
         void SetCharacterVelocity(PhysicsCharacterHandle handle,
                                   const glm::vec3 &velocity) override;
         [[nodiscard]] glm::vec3 GetCharacterVelocity(PhysicsCharacterHandle handle) const override;

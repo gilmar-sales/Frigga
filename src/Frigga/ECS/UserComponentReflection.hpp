@@ -231,6 +231,13 @@ namespace FRIGGA_NAMESPACE
         return any;
     }
 
+    /// Host-shared types (physics camera/controller) stay in Freyr when the plugin unloads.
+    enum class UserComponentDetachPolicy : std::uint8_t
+    {
+        Unregister = 0,
+        Keep,
+    };
+
     /**
      * Registers T as a Freyr component and publishes type-erased Editor ops.
      * Must be called from the plugin TU (so ops lambdas stay valid until detach).
@@ -238,7 +245,9 @@ namespace FRIGGA_NAMESPACE
     template <typename T>
         requires fr::IsComponent<T>
     void FriRegisterUserComponent(fr::Registry &registry, UserComponentRegistry &catalog,
-                                  std::string_view typeId, std::string_view displayName = {})
+                                  std::string_view typeId, std::string_view displayName = {},
+                                  UserComponentDetachPolicy detach =
+                                      UserComponentDetachPolicy::Unregister)
     {
         registry.RegisterComponent<T>();
 
@@ -306,17 +315,26 @@ namespace FRIGGA_NAMESPACE
                 reg.CreateMutation()->Each<T>(
                     [&](fr::Entity entity, T &) { visit(entity); });
             };
-        ops.removeFromAllEntities = [](fr::Registry &reg) {
-            std::vector<fr::Entity> toStrip;
-            reg.CreateMutation()->Each<T>([&](fr::Entity entity, T &) { toStrip.push_back(entity); });
-            for(const auto entity : toStrip)
-            {
-                reg.RemoveComponent<T>(entity);
-            }
-        };
-        ops.unregisterFromFreyr = [](fr::Registry &reg) {
-            return reg.UnregisterComponent<T>();
-        };
+        if(detach == UserComponentDetachPolicy::Keep)
+        {
+            ops.removeFromAllEntities = [](fr::Registry &) {};
+            ops.unregisterFromFreyr   = [](fr::Registry &) { return true; };
+        }
+        else
+        {
+            ops.removeFromAllEntities = [](fr::Registry &reg) {
+                std::vector<fr::Entity> toStrip;
+                reg.CreateMutation()->Each<T>(
+                    [&](fr::Entity entity, T &) { toStrip.push_back(entity); });
+                for(const auto entity : toStrip)
+                {
+                    reg.RemoveComponent<T>(entity);
+                }
+            };
+            ops.unregisterFromFreyr = [](fr::Registry &reg) {
+                return reg.UnregisterComponent<T>();
+            };
+        }
 
         catalog.Register(std::move(ops));
     }
