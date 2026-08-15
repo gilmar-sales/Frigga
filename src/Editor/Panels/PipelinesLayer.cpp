@@ -52,13 +52,13 @@ namespace
     const EngineCatalogEntry kEngineCatalog[] = {
         {"AnimationSystem", "Main", &IsRegistered<fg::AnimationSystem>,
          &RegisterInto<fg::AnimationSystem>},
-        {"RenderSystem", "Main", &IsRegistered<fg::RenderSystem>, &RegisterInto<fg::RenderSystem>},
+        {"ThirdPersonCameraSystem", "Main", &IsRegistered<fg::ThirdPersonCameraSystem>,
+         &RegisterInto<fg::ThirdPersonCameraSystem>},
+        {"RenderSystem", "Render", &IsRegistered<fg::RenderSystem>, &RegisterInto<fg::RenderSystem>},
         {"GameplayPluginBridge", "Simulation", &IsRegistered<fg::GameplayPluginBridge>,
          &RegisterInto<fg::GameplayPluginBridge>},
         {"PhysicsSystem", "Simulation", &IsRegistered<fg::PhysicsSystem>,
          &RegisterInto<fg::PhysicsSystem>},
-        {"ThirdPersonCameraSystem", "Simulation", &IsRegistered<fg::ThirdPersonCameraSystem>,
-         &RegisterInto<fg::ThirdPersonCameraSystem>},
     };
 
     [[nodiscard]] bool AcceptPipelineDrop(int32_t &outId)
@@ -97,6 +97,7 @@ PipelinesLayer::PipelinesLayer(skr::Arc<fr::Registry> registry, skr::Arc<Project
 
 void PipelinesLayer::persistLayout()
 {
+    pinRenderLast();
     mError.clear();
     if(!mSession->SaveEcsLayout())
     {
@@ -105,6 +106,17 @@ void PipelinesLayer::persistLayout()
         return;
     }
     mStatus = "Saved ecs.json";
+}
+
+void PipelinesLayer::pinRenderLast()
+{
+    const auto renderId = mRegistry->FindPipelineId(std::string(fg::kRenderPipelineName));
+    if(!renderId)
+    {
+        return;
+    }
+    (void)mRegistry->MovePipeline(*renderId,
+                                  static_cast<std::size_t>(mRegistry->GetPipelineCount()));
 }
 
 void PipelinesLayer::addPipeline()
@@ -129,7 +141,20 @@ void PipelinesLayer::addPipeline()
         mError = "A pipeline with that name already exists";
         return;
     }
-    (void)mRegistry->RegisterPipeline(name, mNewHz);
+    std::size_t insertAt = static_cast<std::size_t>(-1);
+    if(const auto renderId = mRegistry->FindPipelineId(std::string(fg::kRenderPipelineName)))
+    {
+        std::size_t index = 0;
+        mRegistry->ForEachPipeline([&](const fr::PipelineView &pipe) {
+            if(pipe.Id == *renderId)
+            {
+                insertAt = index;
+            }
+            ++index;
+        });
+    }
+    (void)mRegistry->RegisterPipeline(name, mNewHz, insertAt);
+    pinRenderLast();
     std::memset(mNewName, 0, sizeof(mNewName));
     mNewHz = 0.0f;
     persistLayout();
@@ -161,7 +186,7 @@ void PipelinesLayer::deleteUserPipeline(int32_t pipelineId)
     persistLayout();
 }
 
-void PipelinesLayer::registerEngineSystem(std::size_t catalogIndex, int32_t pipelineId)
+void PipelinesLayer::registerEngineSystem(std::size_t catalogIndex, int32_t)
 {
     if(catalogIndex >= std::size(kEngineCatalog))
     {
@@ -173,7 +198,13 @@ void PipelinesLayer::registerEngineSystem(std::size_t catalogIndex, int32_t pipe
         mError = std::format("{} is already registered", entry.label);
         return;
     }
-    entry.registerInto(*mRegistry, pipelineId);
+    auto targetId = mRegistry->FindPipelineId(entry.defaultPipeline);
+    if(!targetId)
+    {
+        mError = std::format("Missing pipeline {}", entry.defaultPipeline);
+        return;
+    }
+    entry.registerInto(*mRegistry, *targetId);
     persistLayout();
 }
 
@@ -264,12 +295,13 @@ void PipelinesLayer::drawPipeline(int32_t pipelineId, std::string_view nameView,
     const bool builtin      = fg::IsBuiltinPipelineName(name);
     const bool isMain       = name == fg::kMainPipelineName;
     const bool isSimulation = name == fg::kDefaultEcsPipelineName;
+    const bool isRender     = name == fg::kRenderPipelineName;
 
     ImGui::PushID(pipelineId);
     const bool open = ImGui::TreeNodeEx("##pipe", ImGuiTreeNodeFlags_DefaultOpen |
                                                       ImGuiTreeNodeFlags_SpanAvailWidth,
                                         "%s", name.c_str());
-    if(ImGui::BeginDragDropSource())
+    if(!isRender && ImGui::BeginDragDropSource())
     {
         ImGui::SetDragDropPayload(kPipelinePayload, &pipelineId, sizeof(pipelineId));
         ImGui::TextUnformatted(name.c_str());
@@ -281,6 +313,7 @@ void PipelinesLayer::drawPipeline(int32_t pipelineId, std::string_view nameView,
         if(AcceptPipelineDrop(droppedPipe) && droppedPipe != pipelineId)
         {
             (void)mRegistry->MovePipeline(droppedPipe, index);
+            pinRenderLast();
             persistLayout();
         }
         SystemDrag drag {};
@@ -293,18 +326,20 @@ void PipelinesLayer::drawPipeline(int32_t pipelineId, std::string_view nameView,
     }
 
     ImGui::SameLine();
-    ImGui::BeginDisabled(index == 0);
+    ImGui::BeginDisabled(isRender || index == 0);
     if(ImGui::SmallButton("^"))
     {
         (void)mRegistry->MovePipeline(pipelineId, index - 1);
+        pinRenderLast();
         persistLayout();
     }
     ImGui::EndDisabled();
     ImGui::SameLine();
-    ImGui::BeginDisabled(index + 1 >= count);
+    ImGui::BeginDisabled(isRender || index + 1 >= count);
     if(ImGui::SmallButton("v"))
     {
         (void)mRegistry->MovePipeline(pipelineId, index + 1);
+        pinRenderLast();
         persistLayout();
     }
     ImGui::EndDisabled();
@@ -352,7 +387,8 @@ void PipelinesLayer::drawPipeline(int32_t pipelineId, std::string_view nameView,
             ImGui::EndDisabled();
         }
 
-        float hz = fg::StoredRateToHz(storedRate);
+        float hz = isSimulation ? fg::kSimulationRateHz : fg::StoredRateToHz(storedRate);
+        ImGui::BeginDisabled(isSimulation);
         if(ImGui::DragFloat("Hz", &hz, 1.0f, 0.0f, 1000.0f, hz <= 0.0f ? "every frame" : "%.1f"))
         {
             mRegistry->SetPipelineRate(pipelineId, hz);
@@ -361,7 +397,12 @@ void PipelinesLayer::drawPipeline(int32_t pipelineId, std::string_view nameView,
         {
             persistLayout();
         }
-        if(isMain)
+        ImGui::EndDisabled();
+        if(isSimulation && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        {
+            ImGui::SetTooltip("Simulation is locked at 60 Hz");
+        }
+        if(isMain || isRender)
         {
             ImGui::BeginDisabled(true);
             enabled = true;
@@ -369,7 +410,8 @@ void PipelinesLayer::drawPipeline(int32_t pipelineId, std::string_view nameView,
             ImGui::EndDisabled();
             if(ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
             {
-                ImGui::SetTooltip("Main cannot be disabled");
+                ImGui::SetTooltip(isRender ? "Render cannot be disabled"
+                                           : "Main cannot be disabled");
             }
         }
         else if(isSimulation)

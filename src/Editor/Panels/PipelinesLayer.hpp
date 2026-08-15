@@ -20,6 +20,7 @@ class PipelinesLayer: public fg::Layer
 
   private:
     void persistLayout();
+    void pinRenderLast();
     void addPipeline();
     void deleteUserPipeline(int32_t pipelineId);
     void registerEngineSystem(std::size_t catalogIndex, int32_t pipelineId);

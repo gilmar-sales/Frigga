@@ -10,9 +10,11 @@
 namespace FRIGGA_NAMESPACE
 {
 
-    inline constexpr std::string_view kEcsLayoutFileName     = "ecs.json";
+    inline constexpr std::string_view kEcsLayoutFileName      = "ecs.json";
     inline constexpr std::string_view kDefaultEcsPipelineName = "Simulation";
     inline constexpr std::string_view kMainPipelineName       = "Main";
+    inline constexpr std::string_view kRenderPipelineName     = "Render";
+    inline constexpr float            kSimulationRateHz       = 60.0f;
 
     struct EcsPipelineLayout
     {
@@ -40,6 +42,7 @@ namespace FRIGGA_NAMESPACE
     [[nodiscard]] bool        IsBuiltinPipelineName(std::string_view name);
     [[nodiscard]] bool        IsEngineSystemLabel(std::string_view label);
     [[nodiscard]] const char *EngineSystemBuiltinPipeline(std::string_view label);
+    void                      EnforceBuiltinGameLoop(fr::Registry &registry);
 
     [[nodiscard]] float StoredRateToHz(float storedRate);
     [[nodiscard]] EcsLayout CaptureEcsLayout(fr::Registry &registry);

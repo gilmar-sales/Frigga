@@ -8,6 +8,7 @@
 #include <optional>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 namespace FRIGGA_NAMESPACE
 {
@@ -62,7 +63,8 @@ namespace FRIGGA_NAMESPACE
 
     bool IsBuiltinPipelineName(std::string_view name)
     {
-        return name == kMainPipelineName || name == kDefaultEcsPipelineName;
+        return name == kMainPipelineName || name == kDefaultEcsPipelineName ||
+               name == kRenderPipelineName;
     }
 
     bool IsEngineSystemLabel(std::string_view label)
@@ -75,11 +77,58 @@ namespace FRIGGA_NAMESPACE
 
     const char *EngineSystemBuiltinPipeline(std::string_view label)
     {
-        if(LabelEndsWith(label, "AnimationSystem") || LabelEndsWith(label, "RenderSystem"))
+        if(LabelEndsWith(label, "RenderSystem"))
+        {
+            return kRenderPipelineName.data();
+        }
+        if(LabelEndsWith(label, "AnimationSystem") ||
+           LabelEndsWith(label, "ThirdPersonCameraSystem"))
         {
             return kMainPipelineName.data();
         }
         return kDefaultEcsPipelineName.data();
+    }
+
+    void EnforceBuiltinGameLoop(fr::Registry &registry)
+    {
+        auto ensure = [&](std::string_view name, float hz) {
+            auto id = registry.FindPipelineId(std::string(name));
+            if(!id)
+            {
+                id = registry.RegisterPipeline(std::string(name), hz);
+            }
+            else
+            {
+                registry.SetPipelineRate(*id, hz);
+            }
+            return *id;
+        };
+
+        (void)ensure(kDefaultEcsPipelineName, kSimulationRateHz);
+        (void)ensure(kMainPipelineName, 0.0f);
+        const auto renderId = ensure(kRenderPipelineName, 0.0f);
+
+        registry.ForEachRegisteredSystem([&](fr::SystemId id, std::string_view label) {
+            if(!IsEngineSystemLabel(label))
+            {
+                return;
+            }
+            const auto targetName = EngineSystemBuiltinPipeline(label);
+            const auto targetId   = registry.FindPipelineId(targetName);
+            if(!targetId)
+            {
+                return;
+            }
+            const auto current = registry.FindPipelineContaining(id);
+            if(current && *current == *targetId)
+            {
+                return;
+            }
+            const auto slot = registry.GetPipeline(*targetId).Systems.size();
+            (void)registry.MoveSystem(id, *targetId, slot);
+        });
+
+        (void)registry.MovePipeline(renderId, static_cast<std::size_t>(registry.GetPipelineCount()));
     }
 
     float StoredRateToHz(float storedRate)
@@ -101,7 +150,9 @@ namespace FRIGGA_NAMESPACE
         registry.ForEachPipeline([&](const fr::PipelineView &pipeline) {
             EcsPipelineLayout row {};
             row.name    = std::string(pipeline.Name);
-            row.hz      = StoredRateToHz(pipeline.Rate);
+            row.hz      = pipeline.Name == kDefaultEcsPipelineName
+                              ? kSimulationRateHz
+                              : StoredRateToHz(pipeline.Rate);
             row.enabled = pipeline.Name == kDefaultEcsPipelineName ? true : pipeline.Enabled;
             row.systems.reserve(pipeline.Systems.size());
             for(const auto systemId : pipeline.Systems)
@@ -119,11 +170,7 @@ namespace FRIGGA_NAMESPACE
     EcsLayoutApplyResult ApplyEcsLayout(fr::Registry &registry, const EcsLayout &layout)
     {
         EcsLayoutApplyResult result {};
-        if(layout.pipelines.empty())
-        {
-            result.ok = true;
-            return result;
-        }
+        result.ok = true;
 
         const std::string defaultName =
             layout.defaultPipeline.empty() ? std::string(kDefaultEcsPipelineName)
@@ -142,9 +189,9 @@ namespace FRIGGA_NAMESPACE
             {
                 id = registry.RegisterPipeline(pipe.name, pipe.hz, i);
             }
-            registry.SetPipelineRate(*id, pipe.hz);
             if(!IsBuiltinPipelineName(pipe.name))
             {
+                registry.SetPipelineRate(*id, pipe.hz);
                 registry.SetPipelineEnabled(*id, pipe.enabled);
             }
             for(const auto &label : pipe.systems)
@@ -207,7 +254,7 @@ namespace FRIGGA_NAMESPACE
             }
         }
 
-        result.ok = true;
+        EnforceBuiltinGameLoop(registry);
         return result;
     }
 
@@ -318,6 +365,7 @@ namespace FRIGGA_NAMESPACE
         std::error_code ec;
         if(!std::filesystem::exists(path, ec))
         {
+            EnforceBuiltinGameLoop(registry);
             const auto captured = CaptureEcsLayout(registry);
             if(!SaveEcsLayoutFile(path, captured, &result.error))
             {
@@ -337,13 +385,10 @@ namespace FRIGGA_NAMESPACE
         {
             return result;
         }
-        if(result.addedPluginSystems)
+        const auto captured = CaptureEcsLayout(registry);
+        if(!SaveEcsLayoutFile(path, captured, &result.error))
         {
-            const auto captured = CaptureEcsLayout(registry);
-            if(!SaveEcsLayoutFile(path, captured, &result.error))
-            {
-                result.ok = false;
-            }
+            result.ok = false;
         }
         return result;
     }

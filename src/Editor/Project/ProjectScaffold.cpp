@@ -423,10 +423,11 @@ struct Health: fr::Component
         out << "Optional DI: `plugin.Singleton<T>()`, `.Scoped<T>()`, `.Transient<T>()`.\n";
         out << "Host exposes `fg::Input` and `fg::Physics` — inject them in system ctors "
                "(`IsDown`/`WasPressed`/`GetAxis`, `MoveCharacter`/`SetLinearVelocity`).\n";
-        out << "Host placement: new plugin systems append to **Simulation**; known labels are "
-               "restored from `ecs.json` after attach. Edit pipelines in the **ECS** workflow.\n";
-        out << "Edit mode disables Simulation (physics + gameplay); Animation/Render stay on "
-               "**Main**.\n\n";
+        out << "Host placement: new plugin systems append to **Simulation** (60 Hz, Play only); "
+               "known labels are restored from `ecs.json` after attach. Edit pipelines in the "
+               "**ECS** workflow.\n";
+        out << "Tick order: **Simulation** (gameplay + physics) → **Main** (animation + camera) → "
+               "**Render** (always last). Edit mode disables Simulation only.\n\n";
         out << "## Build the plugin\n\n";
         out << "Requires a **C++26** compiler with reflection (GCC 16+ or Clang 22+), "
                "same as Frigga.\n\n";

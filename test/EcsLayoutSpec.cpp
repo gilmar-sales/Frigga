@@ -6,8 +6,10 @@
 #include <Skirnir/Skirnir.hpp>
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <vector>
 
 namespace
 {
@@ -60,6 +62,49 @@ TEST(EcsLayout, ParseSerializeRoundTrip)
     EXPECT_EQ(parsed.pipelines[1].hz, 60.0f);
     ASSERT_EQ(parsed.pipelines[1].systems.size(), 2u);
     EXPECT_EQ(parsed.pipelines[1].systems[0], "GameplayPluginBridge");
+}
+
+TEST(EcsLayout, EnforceLocksSimulationAt60AndPinsRenderLast)
+{
+    auto app =
+        skr::ApplicationBuilder()
+            .WithExtension<fr::FreyrExtension>([](fr::FreyrExtension &freyr) {
+                freyr.WithPipeline([](fr::PipelineBuilder &pipeline) {
+                    pipeline.WithName("Main");
+                });
+                freyr.WithPipeline([](fr::PipelineBuilder &pipeline) {
+                    pipeline.WithName("Simulation");
+                });
+            })
+            .Build<EmptyApp>();
+
+    auto registry = app->GetRootServiceProvider()->GetService<fr::Registry>();
+    ASSERT_TRUE(registry);
+
+    fg::EcsLayout layout {};
+    layout.pipelines.push_back(
+        fg::EcsPipelineLayout {.name = "Main", .hz = 0.0f, .enabled = true, .systems = {}});
+    layout.pipelines.push_back(
+        fg::EcsPipelineLayout {.name = "Simulation", .hz = 0.0f, .enabled = true, .systems = {}});
+    layout.pipelines.push_back(
+        fg::EcsPipelineLayout {.name = "Logic", .hz = 30.0f, .enabled = true, .systems = {}});
+
+    ASSERT_TRUE(fg::ApplyEcsLayout(*registry, layout).ok);
+
+    const auto simId = registry->FindPipelineId("Simulation");
+    ASSERT_TRUE(simId);
+    EXPECT_NEAR(fg::StoredRateToHz(registry->GetPipeline(*simId).Rate), fg::kSimulationRateHz,
+                0.01f);
+
+    const auto renderId = registry->FindPipelineId("Render");
+    ASSERT_TRUE(renderId);
+
+    std::vector<std::string> names;
+    registry->ForEachPipeline(
+        [&](const fr::PipelineView &pipe) { names.emplace_back(pipe.Name); });
+    ASSERT_FALSE(names.empty());
+    EXPECT_EQ(names.back(), "Render");
+    EXPECT_TRUE(std::find(names.begin(), names.end(), "Logic") != names.end());
 }
 
 TEST(EcsLayout, ApplyMovesUnknownSystemsToSimulationLast)
@@ -137,7 +182,19 @@ TEST(EcsLayout, SyncCreatesMissingFileFromRuntime)
 
     fg::EcsLayout loaded {};
     ASSERT_TRUE(fg::LoadEcsLayoutFile(path, loaded));
-    EXPECT_GE(loaded.pipelines.size(), 2u);
+    EXPECT_GE(loaded.pipelines.size(), 3u);
+    ASSERT_FALSE(loaded.pipelines.empty());
+    EXPECT_EQ(loaded.pipelines.back().name, "Render");
+    bool foundSim = false;
+    for(const auto &pipe : loaded.pipelines)
+    {
+        if(pipe.name == "Simulation")
+        {
+            foundSim = true;
+            EXPECT_NEAR(pipe.hz, fg::kSimulationRateHz, 0.01f);
+        }
+    }
+    EXPECT_TRUE(foundSim);
 
     std::filesystem::remove(path, ec);
 }

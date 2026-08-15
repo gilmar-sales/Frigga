@@ -57,18 +57,22 @@ namespace FRIGGA_NAMESPACE
                     .WithComponent<FullscreenEffectComponent>()
                     .WithComponent<AnimatorComponent>()
                     .WithPipeline([](fr::PipelineBuilder &pipeline) {
-                        // Always runs: editor viewport / presentation.
-                        pipeline.WithName("Main")
-                            .WithSystem<AnimationSystem>()
-                            .WithSystem<RenderSystem>();
-                    })
-                    .WithPipeline([](fr::PipelineBuilder &pipeline) {
                         // Play mode only (Editor disables this pipeline while editing).
                         // Gameplay runs first so fg::Physics intents apply before the step.
                         pipeline.WithName("Simulation")
+                            .WithRate(60)
                             .WithSystem<GameplayPluginBridge>()
-                            .WithSystem<PhysicsSystem>()
+                            .WithSystem<PhysicsSystem>();
+                    })
+                    .WithPipeline([](fr::PipelineBuilder &pipeline) {
+                        // Always runs: animation + camera at display rate.
+                        pipeline.WithName("Main")
+                            .WithSystem<AnimationSystem>()
                             .WithSystem<ThirdPersonCameraSystem>();
+                    })
+                    .WithPipeline([](fr::PipelineBuilder &pipeline) {
+                        // Always last: draw after simulation and presentation.
+                        pipeline.WithName("Render").WithSystem<RenderSystem>();
                     });
             })
             .WithExtension<fra::FreyaExtension>([](fra::FreyaExtension &freya) {
