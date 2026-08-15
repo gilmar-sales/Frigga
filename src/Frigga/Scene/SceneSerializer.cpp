@@ -180,6 +180,8 @@ namespace FRIGGA_NAMESPACE
             std::string        fontSource {"Fonts/NotoSans-Regular.ttf"};
             float              heightMeters = 0.16f;
             std::vector<float> color;
+            float              borderWidth = 0.0f;
+            std::vector<float> borderColor;
             std::vector<float> offset;
             std::string        align {"Cylindrical"};
             std::string        layer {"Ui"};
@@ -1059,6 +1061,9 @@ namespace FRIGGA_NAMESPACE
                         .fontSource   = label.fontSource,
                         .heightMeters = label.heightMeters,
                         .color        = {label.color.x, label.color.y, label.color.z, label.color.w},
+                        .borderWidth  = label.borderWidth,
+                        .borderColor  = {label.borderColor.x, label.borderColor.y,
+                                         label.borderColor.z, label.borderColor.w},
                         .offset       = {label.offset.x, label.offset.y, label.offset.z},
                         .align        = BillboardAlignToString(label.align),
                         .layer        = BillboardLayerToString(label.layer),
@@ -1610,6 +1615,13 @@ namespace FRIGGA_NAMESPACE
                 if(!textDto.color.empty() && !ReadVec4(textDto.color, label.color))
                 {
                     scene.mLogger->LogError("Invalid billboardText.color on '{}'", entityDto.name);
+                    return false;
+                }
+                label.borderWidth = textDto.borderWidth;
+                if(!textDto.borderColor.empty() && !ReadVec4(textDto.borderColor, label.borderColor))
+                {
+                    scene.mLogger->LogError("Invalid billboardText.borderColor on '{}'",
+                                            entityDto.name);
                     return false;
                 }
                 if(!textDto.offset.empty() && !ReadVec3(textDto.offset, label.offset))

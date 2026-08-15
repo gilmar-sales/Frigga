@@ -1419,6 +1419,8 @@ void HierarchyLayer::drawComponents()
                 ImGui::DragFloat("Height", &label.heightMeters, 0.01f, 0.02f, 5.0f);
                 ImGui::DragFloat3("Offset", &label.offset[0], 0.01f);
                 ImGui::ColorEdit4("Color", &label.color[0]);
+                ImGui::DragFloat("Border Width", &label.borderWidth, 0.1f, 0.0f, 8.0f);
+                ImGui::ColorEdit4("Border Color", &label.borderColor[0]);
                 int align = static_cast<int>(label.align);
                 if(ImGui::Combo("Align", &align, "Screen\0Cylindrical\0"))
                 {

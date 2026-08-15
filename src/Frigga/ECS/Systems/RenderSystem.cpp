@@ -364,7 +364,8 @@ namespace FRIGGA_NAMESPACE
                     return;
                 }
                 draw.Text(transform.position + label.offset, label.text, *font, label.heightMeters,
-                          label.color, label.align, label.layer);
+                          label.color, label.borderWidth, label.borderColor, label.align,
+                          label.layer);
             });
 
         std::unordered_set<fr::Entity> liveEmitters;
