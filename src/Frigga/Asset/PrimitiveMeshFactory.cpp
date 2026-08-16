@@ -1,7 +1,9 @@
 #include "PrimitiveMeshFactory.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <numbers>
+#include <utility>
 #include <vector>
 
 namespace FRIGGA_NAMESPACE
@@ -42,6 +44,14 @@ namespace FRIGGA_NAMESPACE
                             static_cast<std::uint32_t>(base + 2), base,
                             static_cast<std::uint32_t>(base + 2),
                             static_cast<std::uint32_t>(base + 3)});
+        }
+
+        void invertTriangles(std::vector<std::uint32_t> &indices)
+        {
+            for(std::size_t i = 0; i + 2 < indices.size(); i += 3)
+            {
+                std::swap(indices[i + 1], indices[i + 2]);
+            }
         }
     } // namespace
 
@@ -356,6 +366,7 @@ namespace FRIGGA_NAMESPACE
             }
         }
 
+        invertTriangles(indices);
         return mMeshPool->CreateMesh(vertices, indices);
     }
 
@@ -428,6 +439,7 @@ namespace FRIGGA_NAMESPACE
             }
         }
 
+        invertTriangles(indices);
         return mMeshPool->CreateMesh(vertices, indices);
     }
 
@@ -500,6 +512,7 @@ namespace FRIGGA_NAMESPACE
                            {bottomCenter, static_cast<std::uint32_t>(b0 + 1), b0});
         }
 
+        invertTriangles(indices);
         return mMeshPool->CreateMesh(vertices, indices);
     }
 
@@ -550,6 +563,7 @@ namespace FRIGGA_NAMESPACE
                            {bottomCenter, static_cast<std::uint32_t>(b0 + 1), b0});
         }
 
+        invertTriangles(indices);
         return mMeshPool->CreateMesh(vertices, indices);
     }
 
@@ -573,6 +587,7 @@ namespace FRIGGA_NAMESPACE
         std::vector<std::uint32_t> indices;
         pushQuad(vertices, indices, {-0.5f, -0.5f, 0.0f}, {0.5f, -0.5f, 0.0f},
                  {0.5f, 0.5f, 0.0f}, {-0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f});
+        invertTriangles(indices);
         return mMeshPool->CreateMesh(vertices, indices);
     }
 
