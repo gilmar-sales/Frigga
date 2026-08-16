@@ -242,8 +242,8 @@ namespace FRIGGA_NAMESPACE
             }
             for(const auto &slot : mPlugins)
             {
-                requests.push_back(
-                    PluginLoadRequest {.id = slot.id, .libraryPath = slot.libraryPath});
+                requests.push_back(PluginLoadRequest {
+                    .id = slot.id, .name = slot.name, .libraryPath = slot.libraryPath});
             }
         }
         return LoadAll(requests);
@@ -293,6 +293,7 @@ namespace FRIGGA_NAMESPACE
 
         LoadedPlugin slot;
         slot.id          = request.id.empty() ? absolute.stem().string() : request.id;
+        slot.name        = request.name.empty() ? slot.id : request.name;
         slot.libraryPath = absolute;
         slot.handle      = OpenLibrary(staged.string().c_str());
         if(!slot.handle)
@@ -402,7 +403,9 @@ namespace FRIGGA_NAMESPACE
         FriHost host {.registry        = mRegistry.get(),
                       .user_components = mUserComponents.get(),
                       .system_manager  = mSystemManager.get(),
-                      .services        = mServices.get()};
+                      .services        = mServices.get(),
+                      .plugin_id       = slot.id.c_str(),
+                      .plugin_name     = slot.name.c_str()};
         slot.api->on_attach(slot.plugin, &host);
         slot.attached = true;
 

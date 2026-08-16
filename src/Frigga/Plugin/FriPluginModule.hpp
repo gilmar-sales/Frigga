@@ -86,7 +86,11 @@ namespace FRIGGA_NAMESPACE
               mRegistry(static_cast<fr::Registry *>(host.registry)),
               mUserComponents(static_cast<UserComponentRegistry *>(host.user_components)),
               mSystemManager(static_cast<fr::SystemManager *>(host.system_manager)),
-              mServices(static_cast<skr::ServiceProvider *>(host.services))
+              mServices(static_cast<skr::ServiceProvider *>(host.services)),
+              mPluginId(host.plugin_id ? host.plugin_id : ""),
+              mPluginName(host.plugin_name && host.plugin_name[0] != '\0'
+                              ? host.plugin_name
+                              : mPluginId)
         {
         }
 
@@ -121,7 +125,7 @@ namespace FRIGGA_NAMESPACE
                 typeId.empty() ? fri_plugin_detail::ShortTypeName(refl::type_name<T>())
                                : std::string(typeId);
             FriRegisterUserComponent<T>(*mRegistry, *mUserComponents, id, displayName, detach,
-                                        draw);
+                                        draw, mPluginId, mPluginName);
             return *this;
         }
 
@@ -191,6 +195,8 @@ namespace FRIGGA_NAMESPACE
         UserComponentRegistry *mUserComponents = nullptr;
         fr::SystemManager *mSystemManager      = nullptr;
         skr::ServiceProvider *mServices        = nullptr;
+        std::string mPluginId;
+        std::string mPluginName;
     };
 } // namespace FRIGGA_NAMESPACE
 

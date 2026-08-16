@@ -54,7 +54,7 @@ class HierarchyLayer: public fg::Layer
     void drawEntityNode(fr::Entity entity, fg::NameComponent &name);
 
     void drawComponents();
-    void drawGameplayAddComponentMenu(fr::Entity entity);
+    void drawPluginAddComponentMenus(fr::Entity entity);
 
     void onUpdate() override;
     void onGui() override;

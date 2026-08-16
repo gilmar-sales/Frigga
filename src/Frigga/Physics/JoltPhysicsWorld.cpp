@@ -22,6 +22,8 @@
 #include <mutex>
 #include <thread>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 JPH_SUPPRESS_WARNINGS
 
@@ -600,7 +602,15 @@ namespace FRIGGA_NAMESPACE
             return;
         }
 
+        std::vector<std::pair<std::uint64_t, PhysicsCharacterHandle>> snapshot;
+        snapshot.reserve(mImpl->entityCharacters.size());
+
         for(const auto &[entity, handle]: mImpl->entityCharacters)
+        {
+            snapshot.emplace_back(entity, handle);
+        }
+        
+        for(const auto &[entity, handle] : snapshot)
         {
             visit(entity, handle);
         }

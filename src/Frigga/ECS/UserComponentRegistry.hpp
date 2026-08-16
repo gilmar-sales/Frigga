@@ -30,6 +30,8 @@ namespace FRIGGA_NAMESPACE
     {
         std::string                         typeId;
         std::string                         displayName;
+        std::string                         pluginId;
+        std::string                         pluginName;
         fr::ComponentId                     componentId = 0;
         std::vector<UserComponentFieldDesc> fields;
         UserComponentInstance               defaultInstance {};

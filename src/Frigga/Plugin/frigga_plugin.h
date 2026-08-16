@@ -36,6 +36,10 @@ typedef struct FriHost
     void *system_manager;
     /** Opaque pointer to skr::ServiceProvider (host) for late AddSingleton / Remove. */
     void *services;
+    /** Plugin id from the project (e.g. "gameplay"). May be NULL. */
+    const char *plugin_id;
+    /** Menu label (plugin.json name). May be NULL; fall back to plugin_id. */
+    const char *plugin_name;
 } FriHost;
 
 typedef struct FriPlugin FriPlugin;

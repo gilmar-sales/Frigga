@@ -1414,7 +1414,16 @@ bool ProjectSession::loadEnabledPlugins()
         {
             continue;
         }
-        requests.push_back(fg::PluginLoadRequest {.id = entry.id, .libraryPath = lib});
+        std::string name = entry.id;
+        const auto pluginRoot =
+            mProjectFile->parent_path() / ProjectDescriptor::PluginsDirName / entry.id;
+        if(const auto manifest = PluginCatalog::ReadManifest(pluginRoot); manifest &&
+                                                                         !manifest->name.empty())
+        {
+            name = manifest->name;
+        }
+        requests.push_back(
+            fg::PluginLoadRequest {.id = entry.id, .name = std::move(name), .libraryPath = lib});
     }
     if(requests.empty())
     {

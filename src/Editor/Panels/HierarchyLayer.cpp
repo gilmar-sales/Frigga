@@ -28,8 +28,9 @@
 #include <cstring>
 #include <cstdint>
 #include <format>
-#include <imgui.h>
+#include <map>
 #include <sstream>
+#include <imgui.h>
 #include <unordered_set>
 #include <vector>
 
@@ -42,11 +43,6 @@ namespace
 
     constexpr std::string_view kThirdPersonCameraTypeId = fg::kThirdPersonCameraTypeId;
     constexpr std::string_view kCharacterControllerTypeId = fg::kCharacterControllerTypeId;
-
-    [[nodiscard]] bool IsHostSharedGameplayType(std::string_view typeId)
-    {
-        return typeId == kThirdPersonCameraTypeId || typeId == kCharacterControllerTypeId;
-    }
 
     glm::quat LookDown()
     {
@@ -589,6 +585,30 @@ void HierarchyLayer::addUserComponentToEntity(fr::Entity entity, std::string_vie
         return;
     }
 
+    if(typeId == kCharacterControllerTypeId)
+    {
+        if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
+        {
+            mRegistry->AddComponents(entity, fg::TransformComponent {});
+        }
+        if(mRegistry->HasComponent<fg::RigidBodyComponent>(entity))
+        {
+            mRegistry->RemoveComponent<fg::RigidBodyComponent>(entity);
+            mRegistry->ExecuteTasks();
+        }
+    }
+    else if(typeId == kThirdPersonCameraTypeId)
+    {
+        if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
+        {
+            mRegistry->AddComponents(entity, fg::TransformComponent {});
+        }
+        if(!mRegistry->HasComponent<fg::CameraComponent>(entity))
+        {
+            mRegistry->AddComponents(entity, fg::CameraComponent {});
+        }
+    }
+
     ops->addDefault(*mRegistry, entity);
     mRegistry->ExecuteTasks();
 }
@@ -598,7 +618,7 @@ bool HierarchyLayer::hasUserComponentType(std::string_view typeId) const
     return mUserComponents && mUserComponents->Has(typeId);
 }
 
-void HierarchyLayer::drawGameplayAddComponentMenu(fr::Entity entity)
+void HierarchyLayer::drawPluginAddComponentMenus(fr::Entity entity)
 {
     if(!mUserComponents)
     {
@@ -606,45 +626,58 @@ void HierarchyLayer::drawGameplayAddComponentMenu(fr::Entity entity)
     }
 
     const auto types = mUserComponents->GetTypes();
-    bool hasGameplayTypes = false;
+    struct PluginGroup
+    {
+        std::string id;
+        std::string name;
+        std::vector<fg::RuntimeComponentOps> components;
+    };
+    std::vector<PluginGroup> groups;
+    std::map<std::string, std::size_t> indexById;
     for(const auto &ops : types)
     {
-        if(!IsHostSharedGameplayType(ops.typeId))
+        const auto id = ops.pluginId.empty() ? std::string("plugins") : ops.pluginId;
+        auto found    = indexById.find(id);
+        if(found == indexById.end())
         {
-            hasGameplayTypes = true;
-            break;
+            indexById.emplace(id, groups.size());
+            groups.push_back(PluginGroup {
+                .id   = id,
+                .name = ops.pluginName.empty() ? id : ops.pluginName,
+            });
+            found = indexById.find(id);
         }
+        groups[found->second].components.push_back(ops);
     }
-    if(!hasGameplayTypes)
+    if(groups.empty())
     {
         return;
     }
 
     ImGui::Separator();
-    if(!ImGui::BeginMenu("Gameplay"))
+    for(const auto &group : groups)
     {
-        return;
-    }
-
-    for(const auto &ops : types)
-    {
-        if(IsHostSharedGameplayType(ops.typeId))
+        ImGui::PushID(group.id.c_str());
+        if(ImGui::BeginMenu(group.name.c_str()))
         {
-            continue;
+            for(const auto &ops : group.components)
+            {
+                ImGui::PushID(ops.typeId.c_str());
+                const bool alreadyHas = ops.has && ops.has(*mRegistry, entity);
+                ImGui::BeginDisabled(alreadyHas);
+                const auto label =
+                    ops.fields.empty() ? std::format("{} (tag)", ops.displayName) : ops.displayName;
+                if(ImGui::MenuItem(label.c_str()))
+                {
+                    addUserComponentToEntity(entity, ops.typeId);
+                }
+                ImGui::EndDisabled();
+                ImGui::PopID();
+            }
+            ImGui::EndMenu();
         }
-        ImGui::PushID(ops.typeId.c_str());
-        const bool alreadyHas = ops.has && ops.has(*mRegistry, entity);
-        ImGui::BeginDisabled(alreadyHas);
-        const auto label =
-            ops.fields.empty() ? std::format("{} (tag)", ops.displayName) : ops.displayName;
-        if(ImGui::MenuItem(label.c_str()))
-        {
-            addUserComponentToEntity(entity, ops.typeId);
-        }
-        ImGui::EndDisabled();
         ImGui::PopID();
     }
-    ImGui::EndMenu();
 }
 
 void HierarchyLayer::addLightToEntity(fr::Entity entity, fra::LightType type)
@@ -1104,20 +1137,6 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
             }
         }
 
-        if(hasUserComponentType(kThirdPersonCameraTypeId) &&
-           ImGui::MenuItem("Add third person camera"))
-        {
-            if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
-            {
-                mRegistry->AddComponents(entity, fg::TransformComponent {});
-            }
-            if(!mRegistry->HasComponent<fg::CameraComponent>(entity))
-            {
-                mRegistry->AddComponents(entity, fg::CameraComponent {});
-            }
-            addUserComponentToEntity(entity, kThirdPersonCameraTypeId);
-        }
-
         if(ImGui::MenuItem("Add billboard"))
         {
             if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
@@ -1206,21 +1225,6 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
             }
         }
 
-        if(hasUserComponentType(kCharacterControllerTypeId) &&
-           ImGui::MenuItem("Add character controller"))
-        {
-            if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
-            {
-                mRegistry->AddComponents(entity, fg::TransformComponent {});
-            }
-            if(mRegistry->HasComponent<fg::RigidBodyComponent>(entity))
-            {
-                mRegistry->RemoveComponent<fg::RigidBodyComponent>(entity);
-                mRegistry->ExecuteTasks();
-            }
-            addUserComponentToEntity(entity, kCharacterControllerTypeId);
-        }
-
         if(ImGui::MenuItem("Add animator"))
         {
             if(!mRegistry->HasComponent<fg::AnimatorComponent>(entity))
@@ -1238,7 +1242,7 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
             }
         }
 
-        drawGameplayAddComponentMenu(entity);
+        drawPluginAddComponentMenus(entity);
         ImGui::EndDisabled();
 
         ImGui::EndPopup();

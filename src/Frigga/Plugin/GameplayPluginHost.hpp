@@ -20,6 +20,7 @@ namespace FRIGGA_NAMESPACE
     struct PluginLoadRequest
     {
         std::string           id;
+        std::string           name;
         std::filesystem::path libraryPath;
     };
 
@@ -65,6 +66,7 @@ namespace FRIGGA_NAMESPACE
         struct LoadedPlugin
         {
             std::string           id;
+            std::string           name;
             std::filesystem::path libraryPath;
             std::filesystem::path stagedLibraryPath;
             void                 *handle   = nullptr;

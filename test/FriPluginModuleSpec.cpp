@@ -74,6 +74,8 @@ TEST(FriPluginModule, BuilderRegistersComponentSystemAndDiLifetimes_ThenDetachCl
         .user_components  = userComponents.get(),
         .system_manager   = systemManager.get(),
         .services         = services.get(),
+        .plugin_id        = "probe",
+        .plugin_name      = "Probe Plugin",
     };
 
     fg::FriPluginBuilder builder(plugin, host);

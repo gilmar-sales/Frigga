@@ -569,16 +569,6 @@ void MainLayer::drawMenuBar()
                 {
                     mHierarchy->addRigidBodyToSelection();
                 }
-                if(mHierarchy->hasUserComponentType("CharacterControllerComponent") &&
-                   ImGui::MenuItem("Character Controller"))
-                {
-                    mHierarchy->addCharacterControllerToSelection();
-                }
-                if(mHierarchy->hasUserComponentType("ThirdPersonCameraComponent") &&
-                   ImGui::MenuItem("Third Person Camera"))
-                {
-                    mHierarchy->addThirdPersonCameraToSelection();
-                }
                 if(ImGui::MenuItem("Billboard"))
                 {
                     mHierarchy->addBillboardToSelection();
@@ -616,7 +606,7 @@ void MainLayer::drawMenuBar()
                 }
                 if(mSelection->HasSelection())
                 {
-                    mHierarchy->drawGameplayAddComponentMenu(mSelection->Get());
+                    mHierarchy->drawPluginAddComponentMenus(mSelection->Get());
                 }
                 ImGui::EndDisabled();
                 ImGui::EndMenu();

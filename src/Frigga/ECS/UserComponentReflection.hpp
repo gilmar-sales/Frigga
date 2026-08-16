@@ -251,13 +251,17 @@ namespace FRIGGA_NAMESPACE
                                   std::string_view typeId, std::string_view displayName = {},
                                   UserComponentDetachPolicy detach =
                                       UserComponentDetachPolicy::Unregister,
-                                  FriDrawComponent<T> draw = nullptr)
+                                  FriDrawComponent<T> draw = nullptr,
+                                  std::string_view pluginId = {},
+                                  std::string_view pluginName = {})
     {
         registry.RegisterComponent<T>();
 
         RuntimeComponentOps ops;
         ops.typeId      = std::string(typeId);
         ops.displayName = displayName.empty() ? ops.typeId : std::string(displayName);
+        ops.pluginId    = std::string(pluginId);
+        ops.pluginName  = pluginName.empty() ? ops.pluginId : std::string(pluginName);
         ops.componentId = fr::GetComponentId<T>();
 
         T sample {};
