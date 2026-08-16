@@ -2,6 +2,7 @@
 
 #include "Frigga/ECS/Components/UserDataComponent.hpp"
 #include "Frigga/ECS/UserComponentRegistry.hpp"
+#include "Frigga/Plugin/FriComponentInspector.hpp"
 
 #include <Freyr/Freyr.hpp>
 
@@ -13,6 +14,7 @@
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <vector>
 
 namespace FRIGGA_NAMESPACE
 {
@@ -241,13 +243,15 @@ namespace FRIGGA_NAMESPACE
     /**
      * Registers T as a Freyr component and publishes type-erased Editor ops.
      * Must be called from the plugin TU (so ops lambdas stay valid until detach).
+     * @param draw optional inspector; nullptr keeps the generic reflection fallback.
      */
     template <typename T>
         requires fr::IsComponent<T>
     void FriRegisterUserComponent(fr::Registry &registry, UserComponentRegistry &catalog,
                                   std::string_view typeId, std::string_view displayName = {},
                                   UserComponentDetachPolicy detach =
-                                      UserComponentDetachPolicy::Unregister)
+                                      UserComponentDetachPolicy::Unregister,
+                                  FriDrawComponent<T> draw = nullptr)
     {
         registry.RegisterComponent<T>();
 
@@ -333,6 +337,14 @@ namespace FRIGGA_NAMESPACE
             };
             ops.unregisterFromFreyr = [](fr::Registry &reg) {
                 return reg.UnregisterComponent<T>();
+            };
+        }
+
+        if(draw != nullptr)
+        {
+            ops.drawInspector = [draw](fr::Registry &reg, fr::Entity entity,
+                                       FriComponentInspector &ui) {
+                reg.TryGetComponents<T>(entity, [&](T &comp) { draw(comp, ui); });
             };
         }
 

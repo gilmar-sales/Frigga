@@ -18,6 +18,7 @@
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/ECS/TransformUtil.hpp"
 #include "Frigga/ECS/Components/UserDataComponent.hpp"
+#include "Frigga/Plugin/FriComponentInspector.hpp"
 #include "Frigga/Plugin/GameplayTypeIds.hpp"
 
 #include <SDL3/SDL_dialog.h>
@@ -45,43 +46,6 @@ namespace
     [[nodiscard]] bool IsHostSharedGameplayType(std::string_view typeId)
     {
         return typeId == kThirdPersonCameraTypeId || typeId == kCharacterControllerTypeId;
-    }
-
-    void EditStringField(fg::UserComponentInstance &instance, const char *field, const char *label)
-    {
-        auto *property = fg::FindProperty(instance, field);
-        if(property == nullptr)
-        {
-            return;
-        }
-        char buffer[128];
-        std::snprintf(buffer, sizeof(buffer), "%s", property->value.stringValue.c_str());
-        if(ImGui::InputText(label, buffer, sizeof(buffer)))
-        {
-            property->value.stringValue = buffer;
-        }
-    }
-
-    void EditFloatField(fg::UserComponentInstance &instance, const char *field, const char *label,
-                        float speed, float minV, float maxV)
-    {
-        auto *property = fg::FindProperty(instance, field);
-        if(property == nullptr)
-        {
-            return;
-        }
-        ImGui::DragFloat(label, &property->value.floatValue, speed, minV, maxV);
-    }
-
-    void EditVec3Field(fg::UserComponentInstance &instance, const char *field, const char *label,
-                       float speed)
-    {
-        auto *property = fg::FindProperty(instance, field);
-        if(property == nullptr)
-        {
-            return;
-        }
-        ImGui::DragFloat3(label, &property->value.vec3Value[0], speed);
     }
 
     glm::quat LookDown()
@@ -632,122 +596,6 @@ void HierarchyLayer::addUserComponentToEntity(fr::Entity entity, std::string_vie
 bool HierarchyLayer::hasUserComponentType(std::string_view typeId) const
 {
     return mUserComponents && mUserComponents->Has(typeId);
-}
-
-bool HierarchyLayer::drawThirdPersonCameraInspector(fr::Entity entity,
-                                                    const fg::RuntimeComponentOps &ops)
-{
-    fg::UserComponentInstance instance {};
-    if(!ops.toInstance || !ops.toInstance(*mRegistry, entity, instance))
-    {
-        return false;
-    }
-
-    bool open = true;
-    if(ImGui::CollapsingHeader(ops.displayName.c_str(), &open, ImGuiWindowFlags_ChildWindow))
-    {
-        EditStringField(instance, "targetName", "Target");
-        EditVec3Field(instance, "pivotOffset", "Pivot Offset", 0.01f);
-        auto *distance = fg::FindProperty(instance, "distance");
-        auto *minDistance = fg::FindProperty(instance, "minDistance");
-        auto *maxDistance = fg::FindProperty(instance, "maxDistance");
-        const float minD = minDistance ? minDistance->value.floatValue : 0.1f;
-        const float maxD = maxDistance ? maxDistance->value.floatValue : 50.0f;
-        if(distance)
-        {
-            ImGui::DragFloat("Distance", &distance->value.floatValue, 0.05f, minD, maxD);
-        }
-        EditFloatField(instance, "minDistance", "Min Distance", 0.05f, 0.1f, 50.0f);
-        EditFloatField(instance, "maxDistance", "Max Distance", 0.05f, 0.1f, 50.0f);
-        EditFloatField(instance, "yaw", "Yaw", 0.5f, 0.0f, 0.0f);
-        auto *pitch    = fg::FindProperty(instance, "pitch");
-        auto *minPitch = fg::FindProperty(instance, "minPitch");
-        auto *maxPitch = fg::FindProperty(instance, "maxPitch");
-        const float minP = minPitch ? minPitch->value.floatValue : -89.0f;
-        const float maxP = maxPitch ? maxPitch->value.floatValue : 89.0f;
-        if(pitch)
-        {
-            ImGui::DragFloat("Pitch", &pitch->value.floatValue, 0.5f, minP, maxP);
-        }
-        EditFloatField(instance, "minPitch", "Min Pitch", 0.5f, -89.0f, 89.0f);
-        EditFloatField(instance, "maxPitch", "Max Pitch", 0.5f, -89.0f, 89.0f);
-        EditStringField(instance, "lookXAxis", "Look X Axis");
-        EditStringField(instance, "lookYAxis", "Look Y Axis");
-        EditStringField(instance, "zoomAxis", "Zoom Axis");
-        ImGui::TextDisabled("Uses Input Map LookX / LookY / Zoom");
-        if(!mSimulation->IsPlaying() && ops.fromInstance)
-        {
-            ops.fromInstance(*mRegistry, entity, instance);
-        }
-    }
-
-    if(!open && !mSimulation->IsPlaying() && ops.remove)
-    {
-        ops.remove(*mRegistry, entity);
-        mRegistry->ExecuteTasks();
-    }
-    return true;
-}
-
-bool HierarchyLayer::drawCharacterControllerInspector(fr::Entity entity,
-                                                      const fg::RuntimeComponentOps &ops)
-{
-    fg::UserComponentInstance instance {};
-    if(!ops.toInstance || !ops.toInstance(*mRegistry, entity, instance))
-    {
-        return false;
-    }
-
-    bool open = true;
-    if(ImGui::CollapsingHeader(ops.displayName.c_str(), &open, ImGuiWindowFlags_ChildWindow))
-    {
-        ImGui::BeginDisabled(mSimulation->IsPlaying());
-        EditFloatField(instance, "radius", "Radius", 0.01f, 0.05f, 5.0f);
-        EditFloatField(instance, "height", "Height", 0.01f, 0.05f, 5.0f);
-        EditVec3Field(instance, "centerOffset", "Center Offset", 0.01f);
-        if(ImGui::IsItemHovered())
-        {
-            ImGui::SetTooltip(
-                "Local offset of the capsule center from Transform.\n"
-                "Built-in feet lift (0, height/2+radius, 0) is always applied first.");
-        }
-        EditFloatField(instance, "maxSlopeDegrees", "Max Slope", 0.5f, 1.0f, 89.0f);
-        EditFloatField(instance, "mass", "Mass", 0.5f, 1.0f, 500.0f);
-        auto *layerProp = fg::FindProperty(instance, "collisionLayer");
-        if(layerProp)
-        {
-            int layer = static_cast<int>(layerProp->value.intValue);
-            if(ImGui::SliderInt("Collision Layer", &layer, 0, 15))
-            {
-                layerProp->value.intValue = layer;
-            }
-        }
-        auto *mask = fg::FindProperty(instance, "collideWithLayers");
-        const auto maskValue = mask ? static_cast<std::uint16_t>(mask->value.intValue) : 0xffff;
-        ImGui::TextDisabled("Mask: 0x%04X", maskValue);
-        ImGui::EndDisabled();
-
-        const auto handle = mSimulation->CharacterHandleOf(entity);
-        if(handle.IsValid())
-        {
-            ImGui::TextDisabled("Character ID: %u", handle.id);
-        }
-        else if(mSimulation->IsPlaying())
-        {
-            ImGui::TextDisabled("Controller edits apply after Stop");
-        }
-        if(!mSimulation->IsPlaying() && ops.fromInstance)
-        {
-            ops.fromInstance(*mRegistry, entity, instance);
-        }
-    }
-
-    if(!open && !mSimulation->IsPlaying() && ops.remove)
-    {
-        ops.remove(*mRegistry, entity);
-        mRegistry->ExecuteTasks();
-    }
-    return true;
 }
 
 void HierarchyLayer::drawGameplayAddComponentMenu(fr::Entity entity)
@@ -2126,38 +1974,36 @@ void HierarchyLayer::drawComponents()
         }
 
         ImGui::PushID(static_cast<int>(typeIndex));
-        if(ops.typeId == kThirdPersonCameraTypeId)
-        {
-            drawThirdPersonCameraInspector(selection, ops);
-            ImGui::PopID();
-            continue;
-        }
-        if(ops.typeId == kCharacterControllerTypeId)
-        {
-            drawCharacterControllerInspector(selection, ops);
-            ImGui::PopID();
-            continue;
-        }
-
-        fg::UserComponentInstance instance {};
-        if(!ops.toInstance || !ops.toInstance(*mRegistry, selection, instance))
-        {
-            ImGui::PopID();
-            continue;
-        }
 
         bool open = true;
         if(ImGui::CollapsingHeader(ops.displayName.c_str(), &open, ImGuiWindowFlags_ChildWindow))
         {
-            ImGui::BeginDisabled(mSimulation->IsPlaying());
-            for(auto &property : instance.properties)
+            if(ops.drawInspector)
             {
-                DrawNamedProperty(property);
+                fg::FriComponentInspector ui;
+                ui.entity       = selection;
+                ui.playing      = mSimulation->IsPlaying();
+                const auto handle = mSimulation->CharacterHandleOf(selection);
+                ui.hasCharacter = handle.IsValid();
+                ui.characterId  = handle.id;
+                ops.drawInspector(*mRegistry, selection, ui);
             }
-            ImGui::EndDisabled();
-            if(!mSimulation->IsPlaying() && ops.fromInstance)
+            else
             {
-                ops.fromInstance(*mRegistry, selection, instance);
+                fg::UserComponentInstance instance {};
+                if(ops.toInstance && ops.toInstance(*mRegistry, selection, instance))
+                {
+                    ImGui::BeginDisabled(mSimulation->IsPlaying());
+                    for(auto &property : instance.properties)
+                    {
+                        DrawNamedProperty(property);
+                    }
+                    ImGui::EndDisabled();
+                    if(!mSimulation->IsPlaying() && ops.fromInstance)
+                    {
+                        ops.fromInstance(*mRegistry, selection, instance);
+                    }
+                }
             }
         }
 

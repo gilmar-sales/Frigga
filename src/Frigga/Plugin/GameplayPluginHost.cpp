@@ -124,6 +124,7 @@ namespace FRIGGA_NAMESPACE
         : mRegistry(registry), mUserComponents(userComponents), mSystemManager(systemManager),
           mServices(services), mLogger(logger)
     {
+        FriKeepComponentInspectorSymbols();
     }
 
     GameplayPluginHost::~GameplayPluginHost()

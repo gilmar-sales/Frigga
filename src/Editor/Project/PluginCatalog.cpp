@@ -5,6 +5,7 @@
 #include <cctype>
 #include <fstream>
 #include <sstream>
+#include <unordered_set>
 
 namespace
 {
@@ -230,19 +231,28 @@ std::vector<std::filesystem::path> PluginCatalog::BundledPluginSearchDirs(
     const std::filesystem::path &executableDir)
 {
     std::vector<std::filesystem::path> dirs;
+    std::unordered_set<std::string> seen;
     auto add = [&](std::filesystem::path path) {
         if(path.empty())
         {
             return;
         }
         std::error_code ec;
-        if(std::filesystem::is_directory(path, ec))
+        if(!std::filesystem::is_directory(path, ec))
         {
-            dirs.push_back(std::move(path));
+            return;
         }
+        const auto canonical = std::filesystem::weakly_canonical(path, ec);
+        const auto key       = (ec ? path : canonical).string();
+        if(!seen.insert(key).second)
+        {
+            return;
+        }
+        dirs.push_back(ec ? std::move(path) : canonical);
     };
-    add(friggaSdk / "plugins");
+    // First hit wins in ScanBundled: this Editor's copy, then SDK pack, then source.
     add(executableDir / "Resources" / "plugins");
+    add(friggaSdk / "plugins");
     add(friggaRoot / "src" / "Editor" / "Resources" / "plugins");
     return dirs;
 }
@@ -252,10 +262,17 @@ std::vector<DiscoveredPlugin> PluginCatalog::ScanBundled(const std::filesystem::
                                                          const std::filesystem::path &executableDir)
 {
     std::vector<DiscoveredPlugin> result;
+    std::unordered_set<std::string> ids;
     for(const auto &dir : BundledPluginSearchDirs(friggaSdk, friggaRoot, executableDir))
     {
-        auto found = ScanDirectory(dir, true);
-        result.insert(result.end(), found.begin(), found.end());
+        for(auto &plugin : ScanDirectory(dir, true))
+        {
+            if(!ids.insert(plugin.id).second)
+            {
+                continue;
+            }
+            result.push_back(std::move(plugin));
+        }
     }
     return result;
 }

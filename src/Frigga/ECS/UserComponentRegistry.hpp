@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Frigga/ECS/Components/UserDataComponent.hpp"
+#include "Frigga/Plugin/FriComponentInspector.hpp"
 
 #include <Freyr/Freyr.hpp>
 
@@ -38,6 +39,8 @@ namespace FRIGGA_NAMESPACE
         std::function<bool(fr::Registry &, fr::Entity)> has;
         std::function<bool(fr::Registry &, fr::Entity, UserComponentInstance &)> toInstance;
         std::function<void(fr::Registry &, fr::Entity, const UserComponentInstance &)> fromInstance;
+        /// Optional custom inspector from plugin.Component<T>(..., Draw). Empty = reflection UI.
+        std::function<void(fr::Registry &, fr::Entity, FriComponentInspector &)> drawInspector;
         /// Visit every entity that currently has this component (read-only iteration).
         std::function<void(fr::Registry &, const std::function<void(fr::Entity)> &)> forEachEntity;
         std::function<void(fr::Registry &)> removeFromAllEntities;

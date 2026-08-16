@@ -88,9 +88,6 @@ class HierarchyLayer: public fg::Layer
     void processPendingTextureImport();
     static void onTextureDialog(void *userdata, const char *const *filelist, int filter);
 
-    bool drawThirdPersonCameraInspector(fr::Entity entity, const fg::RuntimeComponentOps &ops);
-    bool drawCharacterControllerInspector(fr::Entity entity, const fg::RuntimeComponentOps &ops);
-
     skr::Arc<fr::Registry> mRegistry;
     skr::Arc<fg::Scene> mScene;
     skr::Arc<fg::PrimitiveMeshFactory> mPrimitives;

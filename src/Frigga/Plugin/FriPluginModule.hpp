@@ -10,14 +10,20 @@
  * FRI_PLUGIN_MODULE(plugin)
  * {
  *     plugin.Component<Health>()
+ *           .Component<CharacterControllerComponent>(
+ *               "CharacterControllerComponent", "Character Controller",
+ *               DrawCharacterController)
  *           .System<GameplaySystem>()
  *           .Singleton<MyConfig>();
  * }
  * @endcode
+ *
+ * A draw callback is optional. Without one, the Editor falls back to reflection.
  */
 
 #include "frigga_plugin.h"
 #include "Frigga/Plugin/FriPluginSdk.hpp"
+#include "Frigga/Plugin/FriComponentInspector.hpp"
 
 #include "Frigga/ECS/UserComponentReflection.hpp"
 
@@ -96,6 +102,16 @@ namespace FRIGGA_NAMESPACE
                                     UserComponentDetachPolicy detach =
                                         UserComponentDetachPolicy::Unregister)
         {
+            return Component<T>(typeId, displayName, nullptr, detach);
+        }
+
+        template <typename T>
+            requires fr::IsComponent<T>
+        FriPluginBuilder &Component(std::string_view typeId, std::string_view displayName,
+                                    FriDrawComponent<T> draw,
+                                    UserComponentDetachPolicy detach =
+                                        UserComponentDetachPolicy::Unregister)
+        {
             if(!IsValid())
             {
                 return *this;
@@ -104,7 +120,8 @@ namespace FRIGGA_NAMESPACE
             const std::string id =
                 typeId.empty() ? fri_plugin_detail::ShortTypeName(refl::type_name<T>())
                                : std::string(typeId);
-            FriRegisterUserComponent<T>(*mRegistry, *mUserComponents, id, displayName, detach);
+            FriRegisterUserComponent<T>(*mRegistry, *mUserComponents, id, displayName, detach,
+                                        draw);
             return *this;
         }
 
