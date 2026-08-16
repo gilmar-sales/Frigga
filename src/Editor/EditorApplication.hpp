@@ -47,8 +47,8 @@ class EditorApplication final: public fg::AbstractApplication
         io.Fonts->AddFontFromFileTTF("Resources/BootstrapIconsFont.ttf", 16, &icons_config,
                                      icons_ranges);
 
-        // Edit mode at startup: do not tick physics / gameplay until Play.
-        syncSimulationPipeline();
+        // Edit mode at startup: only Render (animation preview + draw) ticks.
+        syncPlayPipelines();
     }
 
   protected:
@@ -56,7 +56,7 @@ class EditorApplication final: public fg::AbstractApplication
     void Update() override;
 
   private:
-    void syncSimulationPipeline();
+    void syncPlayPipelines();
 
     skr::Arc<fr::Registry> mRegistry;
     skr::Arc<fr::SystemManager> mSystemManager;

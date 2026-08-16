@@ -49,7 +49,7 @@ namespace
     }
 
     const EngineCatalogEntry kEngineCatalog[] = {
-        {"AnimationSystem", "Main", &IsRegistered<fg::AnimationSystem>,
+        {"AnimationSystem", "Render", &IsRegistered<fg::AnimationSystem>,
          &RegisterInto<fg::AnimationSystem>},
         {"RenderSystem", "Render", &IsRegistered<fg::RenderSystem>, &RegisterInto<fg::RenderSystem>},
         {"GameplayPluginBridge", "Simulation", &IsRegistered<fg::GameplayPluginBridge>,
@@ -399,7 +399,7 @@ void PipelinesLayer::drawPipeline(int32_t pipelineId, std::string_view nameView,
         {
             ImGui::SetTooltip("Simulation is locked at 60 Hz");
         }
-        if(isMain || isRender)
+        if(isRender)
         {
             ImGui::BeginDisabled(true);
             enabled = true;
@@ -407,11 +407,10 @@ void PipelinesLayer::drawPipeline(int32_t pipelineId, std::string_view nameView,
             ImGui::EndDisabled();
             if(ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
             {
-                ImGui::SetTooltip(isRender ? "Render cannot be disabled"
-                                           : "Main cannot be disabled");
+                ImGui::SetTooltip("Render cannot be disabled (draw + animation preview)");
             }
         }
-        else if(isSimulation)
+        else if(isSimulation || isMain)
         {
             ImGui::BeginDisabled(true);
             enabled = mSimulation->IsPlaying();
@@ -419,7 +418,8 @@ void PipelinesLayer::drawPipeline(int32_t pipelineId, std::string_view nameView,
             ImGui::EndDisabled();
             if(ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
             {
-                ImGui::SetTooltip("Simulation enable is driven by Play / Stop");
+                ImGui::SetTooltip(isMain ? "Main enable is driven by Play / Stop"
+                                         : "Simulation enable is driven by Play / Stop");
             }
         }
         else

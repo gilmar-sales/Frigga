@@ -20,29 +20,83 @@ namespace FRIGGA_NAMESPACE
     {
     }
 
+    void SceneSimulationState::queue(PendingCommand command)
+    {
+        if(mDeferModeChanges)
+        {
+            mPending = command;
+            return;
+        }
+        mPending = PendingCommand::None;
+        switch(command)
+        {
+        case PendingCommand::Play:
+            applyPlay();
+            break;
+        case PendingCommand::Stop:
+            applyStop();
+            break;
+        case PendingCommand::Pause:
+            applyPause();
+            break;
+        case PendingCommand::Resume:
+            applyResume();
+            break;
+        case PendingCommand::Step:
+            applyStep();
+            break;
+        case PendingCommand::None:
+            break;
+        }
+    }
+
+    void SceneSimulationState::FlushPending()
+    {
+        const auto pending = mPending;
+        mPending           = PendingCommand::None;
+        switch(pending)
+        {
+        case PendingCommand::Play:
+            applyPlay();
+            break;
+        case PendingCommand::Stop:
+            applyStop();
+            break;
+        case PendingCommand::Pause:
+            applyPause();
+            break;
+        case PendingCommand::Resume:
+            applyResume();
+            break;
+        case PendingCommand::Step:
+            applyStep();
+            break;
+        case PendingCommand::None:
+            break;
+        }
+    }
+
     void SceneSimulationState::TogglePlayPause()
     {
         if(!IsPlaying())
         {
-            Play();
+            queue(PendingCommand::Play);
             return;
         }
 
-        if(mPaused)
-        {
-            Resume();
-        }
-        else
-        {
-            Pause();
-        }
+        queue(mPaused ? PendingCommand::Resume : PendingCommand::Pause);
     }
 
     void SceneSimulationState::Play()
     {
+        queue(PendingCommand::Play);
+    }
+
+    void SceneSimulationState::applyPlay()
+    {
         if(IsPlaying())
         {
-            Resume();
+            applyResume();
             return;
         }
 
@@ -59,6 +113,11 @@ namespace FRIGGA_NAMESPACE
 
     void SceneSimulationState::Pause()
     {
+        queue(PendingCommand::Pause);
+    }
+
+    void SceneSimulationState::applyPause()
+    {
         if(!IsPlaying() || mPaused)
         {
             return;
@@ -71,6 +130,11 @@ namespace FRIGGA_NAMESPACE
 
     void SceneSimulationState::Resume()
     {
+        queue(PendingCommand::Resume);
+    }
+
+    void SceneSimulationState::applyResume()
+    {
         if(!IsPlaying() || !mPaused)
         {
             return;
@@ -82,6 +146,11 @@ namespace FRIGGA_NAMESPACE
     }
 
     void SceneSimulationState::Stop()
+    {
+        queue(PendingCommand::Stop);
+    }
+
+    void SceneSimulationState::applyStop()
     {
         if(!IsPlaying())
         {
@@ -100,6 +169,11 @@ namespace FRIGGA_NAMESPACE
     }
 
     void SceneSimulationState::Step()
+    {
+        queue(PendingCommand::Step);
+    }
+
+    void SceneSimulationState::applyStep()
     {
         if(!IsPlaying())
         {

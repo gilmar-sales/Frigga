@@ -390,8 +390,9 @@ struct Health: fr::Component
         out << "Host placement: new plugin systems append to **Simulation** (60 Hz, Play only); "
                "known labels are restored from `ecs.json` after attach. Edit pipelines in the "
                "**ECS** workflow.\n";
-        out << "Tick order: **Simulation** (gameplay + physics) → **Main** (animation + camera) → "
-               "**Render** (always last). Edit mode disables Simulation only.\n\n";
+        out << "Tick order: **Simulation** (gameplay + physics) → **Main** (camera) → "
+               "**Render** (animation preview + draw, always last). Edit mode keeps only "
+               "Render; Simulation and Main tick in Play.\n\n";
         out << "## Build the plugin\n\n";
         out << "Requires a **C++26** compiler with reflection (GCC 16+ or Clang 22+), "
                "same as Frigga.\n\n";

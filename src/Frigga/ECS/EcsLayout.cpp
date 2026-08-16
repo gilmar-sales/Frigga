@@ -76,13 +76,9 @@ namespace FRIGGA_NAMESPACE
 
     const char *EngineSystemBuiltinPipeline(std::string_view label)
     {
-        if(LabelEndsWith(label, "RenderSystem"))
+        if(LabelEndsWith(label, "RenderSystem") || LabelEndsWith(label, "AnimationSystem"))
         {
             return kRenderPipelineName.data();
-        }
-        if(LabelEndsWith(label, "AnimationSystem"))
-        {
-            return kMainPipelineName.data();
         }
         return kDefaultEcsPipelineName.data();
     }
@@ -122,7 +118,11 @@ namespace FRIGGA_NAMESPACE
             {
                 return;
             }
-            const auto slot = registry.GetPipeline(*targetId).Systems.size();
+            const bool animationOnRender =
+                LabelEndsWith(label, "AnimationSystem") && targetName == kRenderPipelineName;
+            const auto slot = animationOnRender
+                                  ? std::size_t {0}
+                                  : registry.GetPipeline(*targetId).Systems.size();
             (void)registry.MoveSystem(id, *targetId, slot);
         });
 

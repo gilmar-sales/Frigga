@@ -44,7 +44,7 @@ TEST(EcsLayout, ParseSerializeRoundTrip)
     fg::EcsLayout layout {};
     layout.defaultPipeline = "Simulation";
     layout.pipelines.push_back(fg::EcsPipelineLayout {
-        .name = "Main", .hz = 0.0f, .enabled = true, .systems = {"AnimationSystem"}});
+        .name = "Render", .hz = 0.0f, .enabled = true, .systems = {"AnimationSystem", "RenderSystem"}});
     layout.pipelines.push_back(fg::EcsPipelineLayout {
         .name     = "Simulation",
         .hz       = 60.0f,

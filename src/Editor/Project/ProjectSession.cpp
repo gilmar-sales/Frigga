@@ -732,6 +732,7 @@ void ProjectSession::CloseToHome()
     if(mSimulation->IsPlaying())
     {
         mSimulation->Stop();
+        mSimulation->FlushPending();
     }
     UnloadPlugin();
     clearEditorSessionMarker();

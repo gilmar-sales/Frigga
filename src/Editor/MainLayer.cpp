@@ -181,6 +181,7 @@ void MainLayer::ensureEditMode()
     if(mSimulation->IsPlaying())
     {
         mSimulation->Stop();
+        mSimulation->FlushPending();
     }
 }
 

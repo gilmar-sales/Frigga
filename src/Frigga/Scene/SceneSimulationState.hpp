@@ -93,6 +93,14 @@ namespace FRIGGA_NAMESPACE
             return requested;
         }
 
+        /// Apply queued Play/Stop/Pause from the previous GUI frame (call before systems).
+        void FlushPending();
+        /// Queue mode changes instead of applying immediately (Editor frame).
+        void SetDeferModeChanges(bool defer)
+        {
+            mDeferModeChanges = defer;
+        }
+
         void Play();
         void Pause();
         void Resume();
@@ -104,6 +112,22 @@ namespace FRIGGA_NAMESPACE
         [[nodiscard]] PhysicsCharacterHandle CharacterHandleOf(fr::Entity entity) const;
 
       private:
+        enum class PendingCommand : std::uint8_t
+        {
+            None = 0,
+            Play,
+            Stop,
+            Pause,
+            Resume,
+            Step,
+        };
+
+        void queue(PendingCommand command);
+        void applyPlay();
+        void applyPause();
+        void applyResume();
+        void applyStop();
+        void applyStep();
         void snapshotScene();
         void restoreScene();
         void buildPhysicsWorld();
@@ -124,6 +148,8 @@ namespace FRIGGA_NAMESPACE
         bool mShowColliders          = false;
         bool mFocusGameplayRequested = false;
         bool mFocusEditorRequested   = false;
+        bool mDeferModeChanges       = false;
+        PendingCommand mPending      = PendingCommand::None;
         std::string mEditSceneSnapshot;
     };
 

@@ -60,13 +60,15 @@ namespace FRIGGA_NAMESPACE
                             .WithSystem<PhysicsSystem>();
                     })
                     .WithPipeline([](fr::PipelineBuilder &pipeline) {
-                        // Always runs: animation at display rate.
-                        pipeline.WithName("Main")
-                            .WithSystem<AnimationSystem>();
+                        // Play mode only, display rate (e.g. third-person camera).
+                        pipeline.WithName("Main");
                     })
                     .WithPipeline([](fr::PipelineBuilder &pipeline) {
-                        // Always last: draw after simulation and presentation.
-                        pipeline.WithName("Render").WithSystem<RenderSystem>();
+                        // Always: pose preview then draw. Animation stays here so Edit
+                        // can preview clips without ticking Main/Simulation.
+                        pipeline.WithName("Render")
+                            .WithSystem<AnimationSystem>()
+                            .WithSystem<RenderSystem>();
                     });
             })
             .WithExtension<fra::FreyaExtension>([](fra::FreyaExtension &freya) {

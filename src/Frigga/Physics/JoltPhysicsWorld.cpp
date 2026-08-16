@@ -33,7 +33,7 @@ namespace FRIGGA_NAMESPACE
         constexpr unsigned kMaxBodyPairs          = 65536;
         constexpr unsigned kMaxContactConstraints = 20480;
         constexpr unsigned kLayerCount            = 16;
-        constexpr float    kFixedDeltaTime        = 1.0f / 60.0f;
+        constexpr float kFixedDeltaTime           = 1.0f / 60.0f;
 
         void TraceImpl(const char *fmt, ...)
         {
@@ -57,9 +57,9 @@ namespace FRIGGA_NAMESPACE
 
         namespace BroadPhaseLayers
         {
-            constexpr JPH::BroadPhaseLayer NonMoving {0};
-            constexpr JPH::BroadPhaseLayer Moving {1};
-            constexpr unsigned             NumLayers = 2;
+            constexpr JPH::BroadPhaseLayer NonMoving{0};
+            constexpr JPH::BroadPhaseLayer Moving{1};
+            constexpr unsigned NumLayers = 2;
         } // namespace BroadPhaseLayers
 
         class BPLayerInterfaceImpl final: public JPH::BroadPhaseLayerInterface
@@ -83,13 +83,14 @@ namespace FRIGGA_NAMESPACE
             }
 
 #if defined(JPH_EXTERNAL_PROFILE) || defined(JPH_PROFILE_ENABLED)
-            [[nodiscard]] const char *GetBroadPhaseLayerName(JPH::BroadPhaseLayer layer) const override
+            [[nodiscard]] const char *GetBroadPhaseLayerName(
+                JPH::BroadPhaseLayer layer) const override
             {
                 switch((JPH::BroadPhaseLayer::Type)layer)
                 {
-                case (JPH::BroadPhaseLayer::Type)BroadPhaseLayers::NonMoving:
+                case(JPH::BroadPhaseLayer::Type)BroadPhaseLayers::NonMoving:
                     return "NON_MOVING";
-                case (JPH::BroadPhaseLayer::Type)BroadPhaseLayers::Moving:
+                case(JPH::BroadPhaseLayer::Type)BroadPhaseLayers::Moving:
                     return "MOVING";
                 default:
                     return "INVALID";
@@ -176,7 +177,7 @@ namespace FRIGGA_NAMESPACE
         struct CharacterEntry
         {
             JPH::Ref<JPH::CharacterVirtual> character;
-            JPH::ObjectLayer                layer = 0;
+            JPH::ObjectLayer layer = 0;
         };
     } // namespace
 
@@ -216,9 +217,9 @@ namespace FRIGGA_NAMESPACE
 
         JPH::TempAllocatorImpl tempAllocator;
         JPH::JobSystemThreadPool jobSystem;
-        std::array<bool, kLayerCount> layerIsMoving {};
-        std::array<std::uint16_t, kLayerCount> layerMasks {};
-        std::array<std::uint16_t, kLayerCount> layerBodyCount {};
+        std::array<bool, kLayerCount> layerIsMoving{};
+        std::array<std::uint16_t, kLayerCount> layerMasks{};
+        std::array<std::uint16_t, kLayerCount> layerBodyCount{};
         BPLayerInterfaceImpl broadPhase;
         ObjectVsBroadPhaseLayerFilterImpl objectVsBroadphase;
         ObjectLayerPairFilterImpl objectVsObject;
@@ -249,7 +250,7 @@ namespace FRIGGA_NAMESPACE
         auto &bodyInterface = mImpl->physicsSystem.GetBodyInterface();
         JPH::BodyIDVector bodies;
         mImpl->physicsSystem.GetBodies(bodies);
-        for(const JPH::BodyID id : bodies)
+        for(const JPH::BodyID id: bodies)
         {
             bodyInterface.RemoveBody(id);
             bodyInterface.DestroyBody(id);
@@ -277,7 +278,7 @@ namespace FRIGGA_NAMESPACE
 
         const Vec3 worldGravity = mImpl->physicsSystem.GetGravity();
 
-        for(auto &[id, entry] : mImpl->characters)
+        for(auto &[id, entry]: mImpl->characters)
         {
             if(entry.character == nullptr)
             {
@@ -341,34 +342,30 @@ namespace FRIGGA_NAMESPACE
         RefConst<Shape> shape;
         switch(desc.shape)
         {
-        case ColliderShape::Box:
-        {
-            const Vec3 half {std::max(desc.halfExtents.x * desc.scale.x, 0.001f),
-                             std::max(desc.halfExtents.y * desc.scale.y, 0.001f),
-                             std::max(desc.halfExtents.z * desc.scale.z, 0.001f)};
+        case ColliderShape::Box: {
+            const Vec3 half{std::max(desc.halfExtents.x * desc.scale.x, 0.001f),
+                            std::max(desc.halfExtents.y * desc.scale.y, 0.001f),
+                            std::max(desc.halfExtents.z * desc.scale.z, 0.001f)};
             shape = new BoxShape(half);
             break;
         }
-        case ColliderShape::Sphere:
-        {
-            const float radius =
-                std::max(desc.radius * std::max({desc.scale.x, desc.scale.y, desc.scale.z}), 0.001f);
+        case ColliderShape::Sphere: {
+            const float radius = std::max(
+                desc.radius * std::max({desc.scale.x, desc.scale.y, desc.scale.z}), 0.001f);
             shape = new SphereShape(radius);
             break;
         }
-        case ColliderShape::Capsule:
-        {
+        case ColliderShape::Capsule: {
             const float radius =
                 std::max(desc.radius * std::max(desc.scale.x, desc.scale.z), 0.001f);
             const float halfHeight = std::max(0.5f * desc.height * desc.scale.y, 0.001f);
             shape                  = new CapsuleShape(halfHeight, radius);
             break;
         }
-        case ColliderShape::Mesh:
-        {
+        case ColliderShape::Mesh: {
             Array<Vec3> points;
             points.reserve(desc.meshPoints.size());
-            for(const auto &p : desc.meshPoints)
+            for(const auto &p: desc.meshPoints)
             {
                 points.push_back(Vec3(p.x * desc.scale.x, p.y * desc.scale.y, p.z * desc.scale.z));
             }
@@ -402,21 +399,20 @@ namespace FRIGGA_NAMESPACE
         settings.mRestitution = desc.restitution;
         if(desc.motion == BodyMotionType::Dynamic)
         {
-            settings.mOverrideMassProperties = EOverrideMassProperties::CalculateInertia;
+            settings.mOverrideMassProperties       = EOverrideMassProperties::CalculateInertia;
             settings.mMassPropertiesOverride.mMass = std::max(desc.mass, 0.001f);
         }
 
         BodyInterface &bodyInterface = mImpl->physicsSystem.GetBodyInterface();
-        const BodyID id =
-            bodyInterface.CreateAndAddBody(settings, desc.motion == BodyMotionType::Static
-                                                         ? EActivation::DontActivate
-                                                         : EActivation::Activate);
+        const BodyID id              = bodyInterface.CreateAndAddBody(
+            settings, desc.motion == BodyMotionType::Static ? EActivation::DontActivate
+                                                            : EActivation::Activate);
         if(id.IsInvalid())
         {
             return {};
         }
 
-        return PhysicsBodyHandle {.id = id.GetIndexAndSequenceNumber()};
+        return PhysicsBodyHandle{.id = id.GetIndexAndSequenceNumber()};
     }
 
     void JoltPhysicsWorld::DestroyBody(PhysicsBodyHandle handle)
@@ -524,8 +520,8 @@ namespace FRIGGA_NAMESPACE
             static_cast<ObjectLayer>(std::min<std::uint8_t>(desc.collisionLayer, kLayerCount - 1));
         mImpl->NoteLayer(desc.collisionLayer, desc.collideWithLayers, true);
 
-        const float radius     = std::max(desc.radius, 0.001f);
-        const float halfHeight = std::max(0.5f * desc.height, 0.001f);
+        const float radius      = std::max(desc.radius, 0.001f);
+        const float halfHeight  = std::max(0.5f * desc.height, 0.001f);
         RefConst<Shape> capsule = new CapsuleShape(halfHeight, radius);
         // Feet at CharacterVirtual position; centerOffset shifts the capsule center further.
         RefConst<Shape> standingShape = new RotatedTranslatedShape(
@@ -537,7 +533,7 @@ namespace FRIGGA_NAMESPACE
         settings->mMass                        = std::max(desc.mass, 0.001f);
         settings->mMaxSlopeAngle =
             JPH::DegreesToRadians(std::clamp(desc.maxSlopeDegrees, 1.0f, 89.0f));
-        settings->mShape = standingShape;
+        settings->mShape            = standingShape;
         settings->mSupportingVolume = Plane(Vec3::sAxisY(), -radius);
 
         const RVec3 position(desc.position.x, desc.position.y, desc.position.z);
@@ -547,8 +543,8 @@ namespace FRIGGA_NAMESPACE
             new CharacterVirtual(settings, position, rotation, 0, &mImpl->physicsSystem);
 
         const std::uint32_t id = mImpl->nextCharacterId++;
-        mImpl->characters.emplace(id, CharacterEntry {.character = character, .layer = layer});
-        return PhysicsCharacterHandle {.id = id};
+        mImpl->characters.emplace(id, CharacterEntry{.character = character, .layer = layer});
+        return PhysicsCharacterHandle{.id = id};
     }
 
     void JoltPhysicsWorld::DestroyCharacter(PhysicsCharacterHandle handle)
@@ -603,7 +599,8 @@ namespace FRIGGA_NAMESPACE
         {
             return;
         }
-        for(const auto &[entity, handle] : mImpl->entityCharacters)
+
+        for(const auto &[entity, handle]: mImpl->entityCharacters)
         {
             visit(entity, handle);
         }
