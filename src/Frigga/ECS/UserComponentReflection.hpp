@@ -190,7 +190,7 @@ namespace FRIGGA_NAMESPACE
                              std::meta::nonstatic_data_members_of(
                                  ^^T, std::meta::access_context::current())))
             {
-                fn(std::meta::display_string_of(member), obj.[:member:]);
+                fn(std::meta::identifier_of(member), obj.[:member:]);
             }
         }
     } // namespace user_comp_detail
