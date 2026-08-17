@@ -199,6 +199,12 @@ namespace
     }
 } // namespace
 
+struct SpecHealth: fr::Component
+{
+    float current = 100.0f;
+    float max     = 100.0f;
+};
+
 struct SpecOrbit: fr::Component
 {
     std::string targetName = "Player";

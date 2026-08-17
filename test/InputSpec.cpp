@@ -54,7 +54,8 @@ namespace
                                         primitives, assets, userComponents);
 
             harness.simulation =
-                skr::MakeArc<fg::SceneSimulationState>(registry, physics, scene, primitives, logger);
+                skr::MakeArc<fg::SceneSimulationState>(registry, physics, scene, primitives,
+                                                       userComponents, logger);
             harness.input = skr::MakeArc<fg::Input>(harness.events, harness.simulation);
             return harness;
         }
