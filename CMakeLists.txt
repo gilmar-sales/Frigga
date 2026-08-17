@@ -171,6 +171,7 @@ endif ()
 file(COPY src/Editor/Resources DESTINATION ${CMAKE_BINARY_DIR})
 
 # --- Tests -----------------------------------------------------------------
+enable_testing()
 add_subdirectory(test)
 
 # --- Install / packaging ---------------------------------------------------
