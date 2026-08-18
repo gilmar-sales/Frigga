@@ -488,12 +488,18 @@ void MainLayer::drawMenuBar()
             if(ImGui::MenuItem("Cut", "Ctrl+X"))
             { /* Do stuff */
             }
-            if(ImGui::MenuItem("Copy", "Ctrl+C"))
-            { /* Do stuff */
+            ImGui::BeginDisabled(!mSelection->HasSelection() || mSimulation->IsPlaying());
+            if(ImGui::MenuItem("Copy Component", "Ctrl+C"))
+            {
+                mHierarchy->copyActiveComponent();
             }
-            if(ImGui::MenuItem("Paste", "Ctrl+V"))
-            { /* Do stuff */
+            ImGui::EndDisabled();
+            ImGui::BeginDisabled(!mHierarchy->canPasteComponent());
+            if(ImGui::MenuItem("Paste Component", "Ctrl+V"))
+            {
+                mHierarchy->pasteComponent();
             }
+            ImGui::EndDisabled();
             ImGui::Separator();
             if(ImGui::MenuItem(ICON_BTSP_GEAR " Preferences...", "Ctrl+,"))
             {

@@ -54,7 +54,13 @@ class HierarchyLayer: public fg::Layer
     void drawEntityNode(fr::Entity entity, fg::NameComponent &name);
 
     void drawComponents();
+    void drawComponentsPanelActions();
     void drawPluginAddComponentMenus(fr::Entity entity);
+
+    void copyComponent(std::string_view kind);
+    void pasteComponent();
+    void copyActiveComponent();
+    [[nodiscard]] bool canPasteComponent() const;
 
     void onUpdate() override;
     void onGui() override;
@@ -82,8 +88,15 @@ class HierarchyLayer: public fg::Layer
     static fg::TransformComponent makeDefaultLightTransform(fra::LightType type);
     [[nodiscard]] fg::RigidBodyComponent makeDefaultRigidBody(fr::Entity entity) const;
 
+    [[nodiscard]] bool entityHasVisibleComponents(fr::Entity entity) const;
+    void ensureTransformForPaste(fr::Entity entity);
+
     void drawTextureSlot(const char *label, PendingTextureSlot slot,
                          std::optional<std::uint32_t> &textureId, bool &changed);
+    void drawComponentContextMenu(std::string_view kind);
+    [[nodiscard]] bool drawComponentHeader(const char *label, std::string_view kind,
+                                           bool *open = nullptr);
+    void handleComponentClipboardInput();
     void requestTextureForSlot(PendingTextureSlot slot);
     void processPendingTextureImport();
     static void onTextureDialog(void *userdata, const char *const *filelist, int filter);
@@ -97,6 +110,7 @@ class HierarchyLayer: public fg::Layer
     skr::Arc<fra::Window> mWindow;
     skr::Arc<fg::UserComponentRegistry> mUserComponents;
     fr::Entity nodeToRename;
+    std::string mActiveComponentKind;
 
     std::mutex mDialogMutex;
     PendingTextureSlot mPendingTextureSlot = PendingTextureSlot::None;

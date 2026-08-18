@@ -17,6 +17,7 @@
 #include "Frigga/ECS/TransformUtil.hpp"
 #include "Frigga/ECS/Components/UserDataComponent.hpp"
 #include "Frigga/ECS/UserComponentRegistry.hpp"
+#include "Frigga/Plugin/GameplayTypeIds.hpp"
 
 #define SIMDJSON_STATIC_REFLECTION 1
 #include <simdjson.h>
@@ -1811,6 +1812,831 @@ namespace FRIGGA_NAMESPACE
 
         scene.mLogger->LogInformation("Loaded scene from {}", path.string());
         return true;
+    }
+
+    namespace
+    {
+        constexpr int64_t kComponentClipboardVersion = 1;
+
+        struct ComponentClipboardDocument
+        {
+            int64_t                            version = kComponentClipboardVersion;
+            std::string                        kind;
+            std::optional<std::string>         userTypeId;
+            std::optional<SceneTransformDto>   transform;
+            std::optional<SceneCameraDto>      camera;
+            std::optional<SceneLightDto>       light;
+            std::optional<SceneMeshDto>        mesh;
+            std::optional<SceneMaterialDto>    material;
+            std::optional<SceneRigidBodyDto>   rigidBody;
+            std::optional<SceneAnimatorDto>    animator;
+            std::optional<SceneBillboardDto>   billboard;
+            std::optional<SceneParticleEmitterDto> particles;
+            std::optional<SceneHealthBarDto>   healthBar;
+            std::optional<SceneBillboardTextDto> billboardText;
+            std::optional<SceneFullscreenEffectDto> fullscreenEffect;
+            std::optional<SceneUserComponentDto> userComponent;
+        };
+
+        [[nodiscard]] bool TryParseUserKind(std::string_view kind, std::string_view &typeIdOut)
+        {
+            constexpr std::string_view prefix = "user:";
+            if(!kind.starts_with(prefix))
+            {
+                return false;
+            }
+            typeIdOut = kind.substr(prefix.size());
+            return !typeIdOut.empty();
+        }
+
+        template<typename T>
+        void UpsertComponent(fr::Registry &registry, fr::Entity entity, T component)
+        {
+            if(registry.HasComponent<T>(entity))
+            {
+                registry.TryGetComponents<T>(entity,
+                                             [&](T &existing) { existing = std::move(component); });
+            }
+            else
+            {
+                registry.AddComponents(entity, std::move(component));
+            }
+        }
+
+        void StripCharacterController(const skr::Arc<UserComponentRegistry> &userComponents,
+                                      fr::Registry &registry, fr::Entity entity)
+        {
+            if(!userComponents)
+            {
+                return;
+            }
+            const auto ops = userComponents->Find(kCharacterControllerTypeId);
+            if(ops && ops->has && ops->has(registry, entity) && ops->remove)
+            {
+                ops->remove(registry, entity);
+            }
+        }
+
+        void StripRigidBody(fr::Registry &registry, fr::Entity entity)
+        {
+            if(registry.HasComponent<RigidBodyComponent>(entity))
+            {
+                registry.RemoveComponent<RigidBodyComponent>(entity);
+            }
+        }
+    } // namespace
+
+    bool SceneSerializer::CopyComponent(const Scene &scene, fr::Entity entity, std::string_view kind,
+                                        std::string &outJson)
+    {
+        const auto registry   = scene.mEcsRegistry;
+        const auto primitives = scene.mPrimitives;
+
+        ComponentClipboardDocument document {.kind = std::string {kind}};
+
+        std::string_view userTypeId {};
+        if(TryParseUserKind(kind, userTypeId))
+        {
+            if(!scene.mUserComponents)
+            {
+                return false;
+            }
+            const auto ops = scene.mUserComponents->Find(userTypeId);
+            if(!ops || !ops->has || !ops->has(*registry, entity) || !ops->toInstance)
+            {
+                return false;
+            }
+            UserComponentInstance instance {};
+            if(!ops->toInstance(*registry, entity, instance))
+            {
+                return false;
+            }
+            document.kind       = "user";
+            document.userTypeId = std::string {userTypeId};
+            SceneUserComponentDto userDto {.typeId = instance.typeId};
+            userDto.properties.reserve(instance.properties.size());
+            for(const auto &property : instance.properties)
+            {
+                userDto.properties.push_back(PropertyToDto(property));
+            }
+            document.userComponent = std::move(userDto);
+        }
+        else if(kind == "transform")
+        {
+            bool found = false;
+            registry->TryGetComponents<TransformComponent>(entity, [&](TransformComponent &transform) {
+                document.transform = ToDto(transform);
+                found              = true;
+            });
+            if(!found)
+            {
+                return false;
+            }
+        }
+        else if(kind == "camera")
+        {
+            bool found = false;
+            registry->TryGetComponents<CameraComponent>(entity, [&](CameraComponent &camera) {
+                document.camera = SceneCameraDto {
+                    .fovDegrees = camera.fovDegrees,
+                    .nearPlane  = camera.nearPlane,
+                    .farPlane   = camera.farPlane,
+                    .primary    = camera.primary,
+                    .locked     = camera.locked,
+                };
+                found = true;
+            });
+            if(!found)
+            {
+                return false;
+            }
+        }
+        else if(kind == "light")
+        {
+            bool found = false;
+            registry->TryGetComponents<LightComponent>(entity, [&](LightComponent &light) {
+                document.light = SceneLightDto {
+                    .type              = LightTypeToString(light.type),
+                    .color             = {light.color.x, light.color.y, light.color.z},
+                    .radius            = light.radius,
+                    .intensity         = light.intensity,
+                    .innerAngleDegrees = light.innerAngleDegrees,
+                    .outerAngleDegrees = light.outerAngleDegrees,
+                    .halfWidth         = light.halfWidth,
+                    .halfHeight        = light.halfHeight,
+                    .castShadows       = light.castShadows,
+                };
+                found = true;
+            });
+            if(!found)
+            {
+                return false;
+            }
+        }
+        else if(kind == "mesh")
+        {
+            bool found = false;
+            registry->TryGetComponents<MeshComponent>(entity, [&](MeshComponent &mesh) {
+                SceneMeshDto meshDto {.castShadows = mesh.castShadows};
+                PrimitiveType primitive = PrimitiveType::Cube;
+                if(primitives->TryFindPrimitive(mesh.meshId, primitive))
+                {
+                    meshDto.primitive = PrimitiveMeshFactory::GetDisplayName(primitive);
+                }
+                else
+                {
+                    ModelAsset model {};
+                    std::uint32_t submesh = 0;
+                    if(scene.mAssets &&
+                       scene.mAssets->TryFindModelByMeshId(mesh.meshId, model, submesh))
+                    {
+                        meshDto.source = model.relativePath;
+                        meshDto.index  = static_cast<int64_t>(submesh);
+                    }
+                }
+                document.mesh = std::move(meshDto);
+                found         = true;
+            });
+            if(!found)
+            {
+                return false;
+            }
+        }
+        else if(kind == "material")
+        {
+            bool found = false;
+            registry->TryGetComponents<MaterialComponent>(entity, [&](MaterialComponent &material) {
+                document.material = MaterialToDto(primitives, scene.mAssets, material.materialId);
+                found             = true;
+            });
+            if(!found)
+            {
+                return false;
+            }
+        }
+        else if(kind == "rigidBody")
+        {
+            bool found = false;
+            registry->TryGetComponents<RigidBodyComponent>(entity, [&](RigidBodyComponent &rb) {
+                document.rigidBody = SceneRigidBodyDto {
+                    .motion            = MotionToString(rb.motion),
+                    .shape             = ShapeToString(rb.shape),
+                    .halfExtents       = {rb.halfExtents.x, rb.halfExtents.y, rb.halfExtents.z},
+                    .radius            = rb.radius,
+                    .height            = rb.height,
+                    .mass              = rb.mass,
+                    .friction          = rb.friction,
+                    .restitution       = rb.restitution,
+                    .collisionLayer    = rb.collisionLayer,
+                    .collideWithLayers = rb.collideWithLayers,
+                };
+                found = true;
+            });
+            if(!found)
+            {
+                return false;
+            }
+        }
+        else if(kind == "animator")
+        {
+            bool found = false;
+            registry->TryGetComponents<AnimatorComponent>(entity, [&](AnimatorComponent &animator) {
+                document.animator = SceneAnimatorDto {
+                    .modelSource   = animator.modelSource,
+                    .clipName      = animator.clipName,
+                    .timeSec       = animator.timeSec,
+                    .speed         = animator.speed,
+                    .playing       = animator.playing,
+                    .loop          = animator.loop,
+                    .useGpu        = animator.useGpu,
+                    .previewInEdit = animator.previewInEdit,
+                };
+                found = true;
+            });
+            if(!found)
+            {
+                return false;
+            }
+        }
+        else if(kind == "billboard")
+        {
+            bool found = false;
+            registry->TryGetComponents<BillboardComponent>(entity, [&](BillboardComponent &bb) {
+                document.billboard = SceneBillboardDto {
+                    .size        = {bb.size.x, bb.size.y},
+                    .color       = {bb.color.x, bb.color.y, bb.color.z, bb.color.w},
+                    .uvRect      = {bb.uvRect.x, bb.uvRect.y, bb.uvRect.z, bb.uvRect.w},
+                    .texture     = TexturePathOrNull(scene.mAssets, bb.textureId),
+                    .align       = BillboardAlignToString(bb.align),
+                    .blend       = BillboardBlendToString(bb.blend),
+                    .layer       = BillboardLayerToString(bb.layer),
+                    .depthTest   = bb.depthTest,
+                    .sdf         = bb.sdf,
+                    .clipMax     = bb.clipMax,
+                    .localOffset = {bb.localOffset.x, bb.localOffset.y},
+                };
+                found = true;
+            });
+            if(!found)
+            {
+                return false;
+            }
+        }
+        else if(kind == "particles")
+        {
+            bool found = false;
+            registry->TryGetComponents<ParticleEmitterComponent>(
+                entity, [&](ParticleEmitterComponent &p) {
+                    document.particles = SceneParticleEmitterDto {
+                        .velocity       = {p.velocity.x, p.velocity.y, p.velocity.z},
+                        .velocityJitter = {p.velocityJitter.x, p.velocityJitter.y,
+                                           p.velocityJitter.z},
+                        .spawnRate      = p.spawnRate,
+                        .lifetime       = p.lifetime,
+                        .size0          = p.size0,
+                        .size1          = p.size1,
+                        .color0         = {p.color0.x, p.color0.y, p.color0.z, p.color0.w},
+                        .color1         = {p.color1.x, p.color1.y, p.color1.z, p.color1.w},
+                        .blend          = BillboardBlendToString(p.blend),
+                        .texture        = TexturePathOrNull(scene.mAssets, p.textureId),
+                        .maxParticles   = p.maxParticles,
+                        .playing        = p.playing,
+                    };
+                    found = true;
+                });
+            if(!found)
+            {
+                return false;
+            }
+        }
+        else if(kind == "healthBar")
+        {
+            bool found = false;
+            registry->TryGetComponents<HealthBarComponent>(entity, [&](HealthBarComponent &bar) {
+                document.healthBar = SceneHealthBarDto {
+                    .fill       = bar.fill,
+                    .width      = bar.width,
+                    .height     = bar.height,
+                    .offset     = {bar.offset.x, bar.offset.y, bar.offset.z},
+                    .background = {bar.background.x, bar.background.y, bar.background.z,
+                                   bar.background.w},
+                    .foreground = {bar.foreground.x, bar.foreground.y, bar.foreground.z,
+                                   bar.foreground.w},
+                };
+                found = true;
+            });
+            if(!found)
+            {
+                return false;
+            }
+        }
+        else if(kind == "billboardText")
+        {
+            bool found = false;
+            registry->TryGetComponents<BillboardTextComponent>(
+                entity, [&](BillboardTextComponent &label) {
+                    document.billboardText = SceneBillboardTextDto {
+                        .text         = label.text,
+                        .fontSource   = label.fontSource,
+                        .heightMeters = label.heightMeters,
+                        .color        = {label.color.x, label.color.y, label.color.z, label.color.w},
+                        .borderWidth  = label.borderWidth,
+                        .borderColor  = {label.borderColor.x, label.borderColor.y,
+                                         label.borderColor.z, label.borderColor.w},
+                        .offset       = {label.offset.x, label.offset.y, label.offset.z},
+                        .align        = BillboardAlignToString(label.align),
+                        .layer        = BillboardLayerToString(label.layer),
+                    };
+                    found = true;
+                });
+            if(!found)
+            {
+                return false;
+            }
+        }
+        else if(kind == "fullscreenEffect")
+        {
+            bool found = false;
+            registry->TryGetComponents<FullscreenEffectComponent>(
+                entity, [&](FullscreenEffectComponent &fx) {
+                    document.fullscreenEffect = SceneFullscreenEffectDto {
+                        .name            = fx.name,
+                        .fragment        = fx.fragment,
+                        .enabled         = fx.enabled,
+                        .bands           = fx.bands,
+                        .edgeDepthScale  = fx.edgeDepthScale,
+                        .edgeNormalScale = fx.edgeNormalScale,
+                        .strength        = fx.strength,
+                        .edgeColor       = {fx.edgeColor.x, fx.edgeColor.y, fx.edgeColor.z,
+                                            fx.edgeColor.w},
+                        .shadowLift      = fx.shadowLift,
+                        .edgeWidth       = fx.edgeWidth,
+                    };
+                    found = true;
+                });
+            if(!found)
+            {
+                return false;
+            }
+        }
+        else
+        {
+            return false;
+        }
+
+        outJson.clear();
+        if(const auto error = simdjson::to_json(document, outJson); error)
+        {
+            return false;
+        }
+        return true;
+    }
+
+    bool SceneSerializer::PasteComponent(Scene &scene, fr::Entity entity, std::string_view json)
+    {
+        const simdjson::padded_string padded(json);
+        ComponentClipboardDocument document {};
+        if(const auto error = simdjson::from(padded).get(document); error)
+        {
+            scene.mLogger->LogError("Failed to parse component clipboard: {}",
+                                    simdjson::error_message(error));
+            return false;
+        }
+
+        if(document.version > kComponentClipboardVersion)
+        {
+            scene.mLogger->LogWarning("Component clipboard version {} is newer than supported {}",
+                                      document.version, kComponentClipboardVersion);
+        }
+
+        auto registry   = scene.mEcsRegistry;
+        auto primitives = scene.mPrimitives;
+
+        const auto loadOptionalTexture = [&](const std::optional<std::string> &path,
+                                             std::optional<std::uint32_t> &outId) {
+            if(!path || path->empty())
+            {
+                return true;
+            }
+            std::uint32_t textureId = 0;
+            if(!scene.mAssets || !scene.mAssets->TryGetTextureId(*path, textureId))
+            {
+                scene.mLogger->LogWarning("Failed to load texture '{}' while pasting component",
+                                          *path);
+                return true;
+            }
+            outId = textureId;
+            return true;
+        };
+
+        if(document.kind == "user")
+        {
+            if(!document.userComponent || !scene.mUserComponents)
+            {
+                return false;
+            }
+            const auto &userDto = *document.userComponent;
+            if(userDto.typeId.empty())
+            {
+                return false;
+            }
+
+            UserComponentInstance instance {.typeId = userDto.typeId};
+            instance.properties.reserve(userDto.properties.size());
+            for(const auto &propertyDto : userDto.properties)
+            {
+                NamedProperty property {};
+                if(!PropertyFromDto(propertyDto, property))
+                {
+                    scene.mLogger->LogError("Invalid user component property '{}' ({})",
+                                            propertyDto.name, userDto.typeId);
+                    return false;
+                }
+                instance.properties.push_back(std::move(property));
+            }
+
+            const auto ops = scene.mUserComponents->Find(userDto.typeId);
+            if(!ops || !ops->fromInstance)
+            {
+                scene.mUserComponents->EnqueueDeferred(entity, std::move(instance));
+                scene.mLogger->LogWarning(
+                    "Deferred gameplay component '{}' until the plugin registers it",
+                    userDto.typeId);
+                scene.FlushEcs();
+                return true;
+            }
+
+            if(userDto.typeId == kCharacterControllerTypeId)
+            {
+                StripRigidBody(*registry, entity);
+            }
+
+            ops->fromInstance(*registry, entity, instance);
+            scene.FlushEcs();
+            return true;
+        }
+
+        if(document.kind == "transform" && document.transform)
+        {
+            TransformComponent parsed {};
+            if(!FromDto(*document.transform, parsed))
+            {
+                return false;
+            }
+            UpsertComponent(*registry, entity, parsed);
+            scene.FlushEcs();
+            return true;
+        }
+
+        if(document.kind == "camera" && document.camera)
+        {
+            const auto &cameraDto = *document.camera;
+            const bool preserveFlags =
+                scene.IsMainCamera(entity) ||
+                [&] {
+                    bool locked = false;
+                    registry->TryGetComponents<CameraComponent>(
+                        entity, [&](CameraComponent &camera) { locked = camera.locked; });
+                    return locked;
+                }();
+
+            CameraComponent camera {
+                .fovDegrees = cameraDto.fovDegrees,
+                .nearPlane  = cameraDto.nearPlane,
+                .farPlane   = cameraDto.farPlane,
+                .primary    = preserveFlags ? false : cameraDto.primary,
+                .locked     = preserveFlags ? false : cameraDto.locked,
+            };
+
+            if(registry->HasComponent<CameraComponent>(entity))
+            {
+                registry->TryGetComponents<CameraComponent>(entity, [&](CameraComponent &existing) {
+                    existing.fovDegrees = camera.fovDegrees;
+                    existing.nearPlane  = camera.nearPlane;
+                    existing.farPlane   = camera.farPlane;
+                    if(!preserveFlags)
+                    {
+                        existing.primary = camera.primary;
+                        existing.locked  = camera.locked;
+                    }
+                });
+            }
+            else
+            {
+                if(preserveFlags)
+                {
+                    camera.primary = false;
+                    camera.locked  = false;
+                }
+                registry->AddComponents(entity, camera);
+            }
+
+            if(!preserveFlags && camera.primary)
+            {
+                registry->CreateMutation()->Each<CameraComponent>(
+                    [entity](auto candidate, CameraComponent &cam) {
+                        cam.primary = (candidate == entity);
+                    });
+            }
+
+            scene.FlushEcs();
+            return true;
+        }
+
+        if(document.kind == "light" && document.light)
+        {
+            const auto &lightDto = *document.light;
+            fra::LightType type  = fra::LightType::Point;
+            if(!TryParseLightType(lightDto.type, type))
+            {
+                return false;
+            }
+            glm::vec3 color {1.0f, 1.0f, 1.0f};
+            if(!lightDto.color.empty() && !ReadVec3(lightDto.color, color))
+            {
+                return false;
+            }
+            UpsertComponent(*registry, entity,
+                            LightComponent {
+                                .type              = type,
+                                .color             = color,
+                                .radius            = lightDto.radius,
+                                .intensity         = lightDto.intensity,
+                                .innerAngleDegrees = lightDto.innerAngleDegrees,
+                                .outerAngleDegrees = lightDto.outerAngleDegrees,
+                                .halfWidth         = lightDto.halfWidth.value_or(1.0f),
+                                .halfHeight        = lightDto.halfHeight.value_or(1.0f),
+                                .castShadows       = lightDto.castShadows.value_or(false),
+                            });
+            scene.FlushEcs();
+            return true;
+        }
+
+        if(document.kind == "mesh" && document.mesh)
+        {
+            const auto &meshDto = *document.mesh;
+            std::uint32_t meshId = 0;
+            if(meshDto.source && !meshDto.source->empty())
+            {
+                const auto submesh = static_cast<std::uint32_t>(meshDto.index.value_or(0));
+                if(!scene.mAssets || !scene.mAssets->TryGetMeshId(*meshDto.source, submesh, meshId))
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                const std::string primitiveName = meshDto.primitive.value_or(std::string {"Cube"});
+                PrimitiveType primitive       = PrimitiveType::Cube;
+                if(!PrimitiveMeshFactory::TryParsePrimitive(primitiveName, primitive))
+                {
+                    return false;
+                }
+                meshId = primitives->GetMesh(primitive);
+            }
+
+            UpsertComponent(*registry, entity,
+                            MeshComponent {.meshId     = meshId,
+                                           .castShadows = meshDto.castShadows.value_or(true)});
+            if(!registry->HasComponent<MaterialComponent>(entity))
+            {
+                registry->AddComponents(entity, MaterialComponent {
+                                                     .materialId = primitives->GetDefaultMaterial(),
+                                                 });
+            }
+            scene.FlushEcs();
+            return true;
+        }
+
+        if(document.kind == "material" && document.material)
+        {
+            MaterialComponent parsed {};
+            if(!MaterialFromDto(primitives, scene.mAssets, scene.mLogger, *document.material,
+                                parsed))
+            {
+                return false;
+            }
+            UpsertComponent(*registry, entity, parsed);
+            scene.FlushEcs();
+            return true;
+        }
+
+        if(document.kind == "rigidBody" && document.rigidBody)
+        {
+            StripCharacterController(scene.mUserComponents, *registry, entity);
+
+            const auto &rbDto = *document.rigidBody;
+            RigidBodyComponent rb {};
+            if(!TryParseMotion(rbDto.motion, rb.motion) || !TryParseShape(rbDto.shape, rb.shape))
+            {
+                return false;
+            }
+            if(rbDto.halfExtents.empty())
+            {
+                rb.halfExtents = {0.5f, 0.5f, 0.5f};
+            }
+            else if(!ReadVec3(rbDto.halfExtents, rb.halfExtents))
+            {
+                return false;
+            }
+            rb.radius            = rbDto.radius;
+            rb.height            = rbDto.height;
+            rb.mass              = rbDto.mass;
+            rb.friction          = rbDto.friction;
+            rb.restitution       = rbDto.restitution;
+            rb.collisionLayer    = static_cast<std::uint8_t>(
+                std::clamp<int64_t>(rbDto.collisionLayer, 0, 15));
+            rb.collideWithLayers = static_cast<std::uint16_t>(
+                std::clamp<int64_t>(rbDto.collideWithLayers, 0, 0xffff));
+            rb.body.Reset();
+            UpsertComponent(*registry, entity, rb);
+            scene.FlushEcs();
+            return true;
+        }
+
+        if(document.kind == "animator" && document.animator)
+        {
+            const auto &animDto = *document.animator;
+            if(animDto.modelSource.empty())
+            {
+                return false;
+            }
+            if(scene.mAssets)
+            {
+                (void)scene.mAssets->LoadModel(animDto.modelSource);
+            }
+            AnimatorComponent animator {
+                .modelSource   = animDto.modelSource,
+                .clipName      = animDto.clipName.value_or(std::string {}),
+                .timeSec       = animDto.timeSec.value_or(0.0f),
+                .speed         = animDto.speed.value_or(1.0f),
+                .playing       = animDto.playing.value_or(true),
+                .loop          = animDto.loop.value_or(true),
+                .useGpu        = animDto.useGpu.value_or(false),
+                .previewInEdit = animDto.previewInEdit.value_or(true),
+            };
+            UpsertComponent(*registry, entity, animator);
+            scene.FlushEcs();
+            return true;
+        }
+
+        if(document.kind == "billboard" && document.billboard)
+        {
+            const auto &bbDto = *document.billboard;
+            BillboardComponent bb {};
+            if(!bbDto.size.empty() && !ReadVec2(bbDto.size, bb.size))
+            {
+                return false;
+            }
+            if(!bbDto.color.empty() && !ReadVec4(bbDto.color, bb.color))
+            {
+                return false;
+            }
+            if(!bbDto.uvRect.empty() && !ReadVec4(bbDto.uvRect, bb.uvRect))
+            {
+                return false;
+            }
+            if(!TryParseBillboardAlign(bbDto.align, bb.align) ||
+               !TryParseBillboardBlend(bbDto.blend, bb.blend) ||
+               !TryParseBillboardLayer(bbDto.layer, bb.layer))
+            {
+                return false;
+            }
+            loadOptionalTexture(bbDto.texture, bb.textureId);
+            bb.depthTest = bbDto.depthTest;
+            bb.sdf       = bbDto.sdf;
+            bb.clipMax   = bbDto.clipMax;
+            if(!bbDto.localOffset.empty() && !ReadVec2(bbDto.localOffset, bb.localOffset))
+            {
+                return false;
+            }
+            UpsertComponent(*registry, entity, bb);
+            scene.FlushEcs();
+            return true;
+        }
+
+        if(document.kind == "particles" && document.particles)
+        {
+            const auto &pDto = *document.particles;
+            ParticleEmitterComponent p {};
+            if(!pDto.velocity.empty() && !ReadVec3(pDto.velocity, p.velocity))
+            {
+                return false;
+            }
+            if(!pDto.velocityJitter.empty() && !ReadVec3(pDto.velocityJitter, p.velocityJitter))
+            {
+                return false;
+            }
+            p.spawnRate = pDto.spawnRate;
+            p.lifetime  = pDto.lifetime;
+            p.size0     = pDto.size0;
+            p.size1     = pDto.size1;
+            if(!pDto.color0.empty() && !ReadVec4(pDto.color0, p.color0))
+            {
+                return false;
+            }
+            if(!pDto.color1.empty() && !ReadVec4(pDto.color1, p.color1))
+            {
+                return false;
+            }
+            if(!TryParseBillboardBlend(pDto.blend, p.blend))
+            {
+                return false;
+            }
+            loadOptionalTexture(pDto.texture, p.textureId);
+            p.maxParticles = static_cast<std::uint32_t>(std::max<int64_t>(pDto.maxParticles, 1));
+            p.playing      = pDto.playing;
+            UpsertComponent(*registry, entity, p);
+            scene.FlushEcs();
+            return true;
+        }
+
+        if(document.kind == "healthBar" && document.healthBar)
+        {
+            const auto &barDto = *document.healthBar;
+            HealthBarComponent bar {};
+            bar.fill   = barDto.fill;
+            bar.width  = barDto.width;
+            bar.height = barDto.height;
+            if(!barDto.offset.empty() && !ReadVec3(barDto.offset, bar.offset))
+            {
+                return false;
+            }
+            if(!barDto.background.empty() && !ReadVec4(barDto.background, bar.background))
+            {
+                return false;
+            }
+            if(!barDto.foreground.empty() && !ReadVec4(barDto.foreground, bar.foreground))
+            {
+                return false;
+            }
+            UpsertComponent(*registry, entity, bar);
+            scene.FlushEcs();
+            return true;
+        }
+
+        if(document.kind == "billboardText" && document.billboardText)
+        {
+            const auto &textDto = *document.billboardText;
+            BillboardTextComponent label {};
+            label.text = textDto.text;
+            if(!textDto.fontSource.empty())
+            {
+                label.fontSource = textDto.fontSource;
+            }
+            label.heightMeters = textDto.heightMeters;
+            if(!textDto.color.empty() && !ReadVec4(textDto.color, label.color))
+            {
+                return false;
+            }
+            label.borderWidth = textDto.borderWidth;
+            if(!textDto.borderColor.empty() && !ReadVec4(textDto.borderColor, label.borderColor))
+            {
+                return false;
+            }
+            if(!textDto.offset.empty() && !ReadVec3(textDto.offset, label.offset))
+            {
+                return false;
+            }
+            if(!TryParseBillboardAlign(textDto.align, label.align) ||
+               !TryParseBillboardLayer(textDto.layer, label.layer))
+            {
+                return false;
+            }
+            UpsertComponent(*registry, entity, label);
+            scene.FlushEcs();
+            return true;
+        }
+
+        if(document.kind == "fullscreenEffect" && document.fullscreenEffect)
+        {
+            const auto &fxDto = *document.fullscreenEffect;
+            FullscreenEffectComponent fx {};
+            if(!fxDto.name.empty())
+            {
+                fx.name = fxDto.name;
+            }
+            if(!fxDto.fragment.empty())
+            {
+                fx.fragment = fxDto.fragment;
+            }
+            fx.enabled         = fxDto.enabled;
+            fx.bands           = fxDto.bands;
+            fx.edgeDepthScale  = fxDto.edgeDepthScale;
+            fx.edgeNormalScale = fxDto.edgeNormalScale;
+            fx.strength        = fxDto.strength;
+            if(!fxDto.edgeColor.empty() && !ReadVec4(fxDto.edgeColor, fx.edgeColor))
+            {
+                return false;
+            }
+            fx.shadowLift = fxDto.shadowLift;
+            fx.edgeWidth  = fxDto.edgeWidth;
+            UpsertComponent(*registry, entity, fx);
+            scene.FlushEcs();
+            return true;
+        }
+
+        return false;
     }
 
 } // namespace FRIGGA_NAMESPACE

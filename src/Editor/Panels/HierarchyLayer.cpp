@@ -2,6 +2,7 @@
 
 #include "Editor/BoostrapIconsFont.hpp"
 #include "Editor/DockLayout.hpp"
+#include "Editor/Ui/ComponentClipboard.hpp"
 #include "Frigga/ECS/Components/CameraComponent.hpp"
 #include "Frigga/ECS/Components/LightComponent.hpp"
 #include "Frigga/ECS/Components/MaterialComponent.hpp"
@@ -991,9 +992,173 @@ void HierarchyLayer::onGui()
 
     ImGui::Begin(componentsTitle.c_str());
 
-    if(mSelection->HasSelection()) drawComponents();
+    if(mSelection->HasSelection())
+    {
+        drawComponents();
+        handleComponentClipboardInput();
+
+        if(ImGui::BeginPopupContextWindow("##ComponentsPanelCtx", ImGuiPopupFlags_NoOpenOverItems))
+        {
+            ImGui::BeginDisabled(!canPasteComponent());
+            if(ImGui::MenuItem("Paste Component", "Ctrl+V"))
+            {
+                pasteComponent();
+            }
+            ImGui::EndDisabled();
+            ImGui::EndPopup();
+        }
+    }
 
     ImGui::End();
+}
+
+void HierarchyLayer::copyComponent(std::string_view kind)
+{
+    if(!mSelection->HasSelection() || mSimulation->IsPlaying())
+    {
+        return;
+    }
+    if(ComponentClipboard::Copy(*mScene, mSelection->Get(), kind))
+    {
+        mActiveComponentKind = std::string {kind};
+    }
+}
+
+void HierarchyLayer::pasteComponent()
+{
+    if(!mSelection->HasSelection() || mSimulation->IsPlaying())
+    {
+        return;
+    }
+    const fr::Entity entity = mSelection->Get();
+    ensureTransformForPaste(entity);
+    (void)ComponentClipboard::Paste(*mScene, entity);
+    mRegistry->ExecuteTasks();
+}
+
+void HierarchyLayer::copyActiveComponent()
+{
+    if(mActiveComponentKind.empty())
+    {
+        return;
+    }
+    copyComponent(mActiveComponentKind);
+}
+
+bool HierarchyLayer::canPasteComponent() const
+{
+    return !mSimulation->IsPlaying() && mSelection->HasSelection() &&
+           ComponentClipboard::HasData();
+}
+
+void HierarchyLayer::drawComponentContextMenu(std::string_view kind)
+{
+    ImGui::PushID(kind.data(), kind.data() + kind.size());
+    if(ImGui::BeginPopupContextItem("##ComponentCtx"))
+    {
+        mActiveComponentKind = std::string {kind};
+
+        if(ImGui::MenuItem("Copy Component", "Ctrl+C"))
+        {
+            copyComponent(kind);
+        }
+
+        ImGui::BeginDisabled(!canPasteComponent());
+        if(ImGui::MenuItem("Paste Component", "Ctrl+V"))
+        {
+            pasteComponent();
+        }
+        ImGui::EndDisabled();
+
+        ImGui::EndPopup();
+    }
+    else if(ImGui::IsItemClicked(ImGuiMouseButton_Left))
+    {
+        mActiveComponentKind = std::string {kind};
+    }
+    ImGui::PopID();
+}
+
+bool HierarchyLayer::drawComponentHeader(const char *label, std::string_view kind, bool *open)
+{
+    const bool expanded =
+        open != nullptr
+            ? ImGui::CollapsingHeader(label, open, ImGuiWindowFlags_ChildWindow)
+            : ImGui::CollapsingHeader(label, nullptr, ImGuiWindowFlags_ChildWindow);
+    drawComponentContextMenu(kind);
+    return expanded;
+}
+
+bool HierarchyLayer::entityHasVisibleComponents(fr::Entity entity) const
+{
+    if(mRegistry->HasComponent<fg::TransformComponent>(entity) ||
+       mRegistry->HasComponent<fg::CameraComponent>(entity) ||
+       mRegistry->HasComponent<fg::LightComponent>(entity) ||
+       mRegistry->HasComponent<fg::MeshComponent>(entity) ||
+       mRegistry->HasComponent<fg::MaterialComponent>(entity) ||
+       mRegistry->HasComponent<fg::RigidBodyComponent>(entity) ||
+       mRegistry->HasComponent<fg::AnimatorComponent>(entity) ||
+       mRegistry->HasComponent<fg::BillboardComponent>(entity) ||
+       mRegistry->HasComponent<fg::ParticleEmitterComponent>(entity) ||
+       mRegistry->HasComponent<fg::HealthBarComponent>(entity) ||
+       mRegistry->HasComponent<fg::BillboardTextComponent>(entity) ||
+       mRegistry->HasComponent<fg::FullscreenEffectComponent>(entity))
+    {
+        return true;
+    }
+
+    if(!mUserComponents)
+    {
+        return false;
+    }
+
+    for(const auto &ops : mUserComponents->GetTypes())
+    {
+        if(ops.has && ops.has(*mRegistry, entity))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void HierarchyLayer::ensureTransformForPaste(fr::Entity entity)
+{
+    if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
+    {
+        mRegistry->AddComponents(entity, fg::TransformComponent {});
+    }
+}
+
+void HierarchyLayer::drawComponentsPanelActions()
+{
+    if(mSimulation->IsPlaying() || entityHasVisibleComponents(mSelection->Get()))
+    {
+        return;
+    }
+
+    ImGui::TextDisabled("No components on this entity.");
+    ImGui::TextDisabled("Right-click to paste or use Component → Add Component.");
+}
+
+void HierarchyLayer::handleComponentClipboardInput()
+{
+    if(!ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) ||
+       mSimulation->IsPlaying() || !mSelection->HasSelection())
+    {
+        return;
+    }
+
+    const ImGuiIO &io = ImGui::GetIO();
+    if(io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_C) && !mActiveComponentKind.empty())
+    {
+        copyActiveComponent();
+    }
+    if(io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_V) && canPasteComponent())
+    {
+        pasteComponent();
+    }
 }
 
 void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
@@ -1354,7 +1519,7 @@ void HierarchyLayer::drawComponents()
             const char *header =
                 hasParent ? "Transform (Local)" : "Transform Component";
 
-            if(ImGui::CollapsingHeader(header, nullptr, ImGuiWindowFlags_ChildWindow))
+            if(drawComponentHeader(header, "transform"))
             {
                 ImGui::DragFloat3("Position", &transform.position[0], 0.1f);
 
@@ -1382,7 +1547,7 @@ void HierarchyLayer::drawComponents()
 
     mRegistry->TryGetComponents<fg::CameraComponent>(
         selection, [this, selection](fg::CameraComponent &camera) {
-            if(ImGui::CollapsingHeader("Camera Component", nullptr, ImGuiWindowFlags_ChildWindow))
+            if(drawComponentHeader("Camera Component", "camera"))
             {
                 ImGui::DragFloat("FOV", &camera.fovDegrees, 0.1f, 1.0f, 179.0f);
                 ImGui::DragFloat("Near", &camera.nearPlane, 0.01f, 0.001f, 100.0f);
@@ -1413,7 +1578,7 @@ void HierarchyLayer::drawComponents()
     mRegistry->TryGetComponents<fg::BillboardComponent>(
         selection, [this, selection](fg::BillboardComponent &billboard) {
             bool open = true;
-            if(ImGui::CollapsingHeader("Billboard", &open, ImGuiWindowFlags_ChildWindow))
+            if(drawComponentHeader("Billboard", "billboard", &open))
             {
                 ImGui::DragFloat2("Size", &billboard.size[0], 0.01f, 0.01f, 50.0f);
                 ImGui::ColorEdit4("Color", &billboard.color[0]);
@@ -1450,7 +1615,7 @@ void HierarchyLayer::drawComponents()
     mRegistry->TryGetComponents<fg::ParticleEmitterComponent>(
         selection, [this, selection](fg::ParticleEmitterComponent &particles) {
             bool open = true;
-            if(ImGui::CollapsingHeader("Particle Emitter", &open, ImGuiWindowFlags_ChildWindow))
+            if(drawComponentHeader("Particle Emitter", "particles", &open))
             {
                 ImGui::Checkbox("Playing", &particles.playing);
                 ImGui::DragFloat3("Velocity", &particles.velocity[0], 0.01f);
@@ -1484,7 +1649,7 @@ void HierarchyLayer::drawComponents()
     mRegistry->TryGetComponents<fg::HealthBarComponent>(
         selection, [this, selection](fg::HealthBarComponent &bar) {
             bool open = true;
-            if(ImGui::CollapsingHeader("Health Bar", &open, ImGuiWindowFlags_ChildWindow))
+            if(drawComponentHeader("Health Bar", "healthBar", &open))
             {
                 ImGui::SliderFloat("Fill", &bar.fill, 0.0f, 1.0f);
                 ImGui::DragFloat("Width", &bar.width, 0.01f, 0.05f, 10.0f);
@@ -1502,7 +1667,7 @@ void HierarchyLayer::drawComponents()
     mRegistry->TryGetComponents<fg::BillboardTextComponent>(
         selection, [this, selection](fg::BillboardTextComponent &label) {
             bool open = true;
-            if(ImGui::CollapsingHeader("Billboard Text", &open, ImGuiWindowFlags_ChildWindow))
+            if(drawComponentHeader("Billboard Text", "billboardText", &open))
             {
                 char textBuf[256];
                 char fontBuf[256];
@@ -1542,7 +1707,7 @@ void HierarchyLayer::drawComponents()
     mRegistry->TryGetComponents<fg::FullscreenEffectComponent>(
         selection, [this, selection](fg::FullscreenEffectComponent &fx) {
             bool open = true;
-            if(ImGui::CollapsingHeader("Fullscreen Effect", &open, ImGuiWindowFlags_ChildWindow))
+            if(drawComponentHeader("Fullscreen Effect", "fullscreenEffect", &open))
             {
                 char nameBuf[64];
                 char fragBuf[256];
@@ -1577,7 +1742,7 @@ void HierarchyLayer::drawComponents()
     mRegistry->TryGetComponents<fg::LightComponent>(
         selection, [this, selection](fg::LightComponent &light) {
             bool open = true;
-            if(ImGui::CollapsingHeader("Light Component", &open, ImGuiWindowFlags_ChildWindow))
+            if(drawComponentHeader("Light Component", "light", &open))
             {
                 int typeIndex = static_cast<int>(light.type);
                 if(ImGui::Combo("Type", &typeIndex, "Point\0Directional\0Spot\0Area\0"))
@@ -1615,15 +1780,15 @@ void HierarchyLayer::drawComponents()
 
                 ImGui::Checkbox("Cast Shadows", &light.castShadows);
             }
-
             if(!open && !mSimulation->IsPlaying())
             {
                 mRegistry->RemoveComponent<fg::LightComponent>(selection);
             }
         });
 
-    mRegistry->TryGetComponents<fg::MeshComponent>(selection, [this](fg::MeshComponent &mesh) {
-        if(ImGui::CollapsingHeader("Mesh Component", nullptr, ImGuiWindowFlags_ChildWindow))
+    mRegistry->TryGetComponents<fg::MeshComponent>(selection, [this, selection](fg::MeshComponent &mesh) {
+        bool open = true;
+        if(drawComponentHeader("Mesh Component", "mesh", &open))
         {
             fg::PrimitiveType currentPrimitive = fg::PrimitiveType::Cube;
             const bool isPrimitive =
@@ -1712,12 +1877,17 @@ void HierarchyLayer::drawComponents()
                 }
             }
         }
+        if(!open && !mSimulation->IsPlaying())
+        {
+            mRegistry->RemoveComponent<fg::MeshComponent>(selection);
+            mRegistry->ExecuteTasks();
+        }
     });
 
     mRegistry->TryGetComponents<fg::MaterialComponent>(
         selection, [this, selection](fg::MaterialComponent &material) {
             bool open = true;
-            if(ImGui::CollapsingHeader("Material Component", &open, ImGuiWindowFlags_ChildWindow))
+            if(drawComponentHeader("Material Component", "material", &open))
             {
                 ImGui::BeginDisabled(mSimulation->IsPlaying());
 
@@ -1795,7 +1965,6 @@ void HierarchyLayer::drawComponents()
 
                 ImGui::EndDisabled();
             }
-
             if(!open && !mSimulation->IsPlaying())
             {
                 mRegistry->RemoveComponent<fg::MaterialComponent>(selection);
@@ -1804,8 +1973,7 @@ void HierarchyLayer::drawComponents()
 
     mRegistry->TryGetComponents<fg::RigidBodyComponent>(
         selection, [this](fg::RigidBodyComponent &rigidBody) {
-            if(ImGui::CollapsingHeader("Rigid Body Component", nullptr,
-                                       ImGuiWindowFlags_ChildWindow))
+            if(drawComponentHeader("Rigid Body Component", "rigidBody"))
             {
                 ImGui::BeginDisabled(mSimulation->IsPlaying());
                 int motion = static_cast<int>(rigidBody.motion);
@@ -1909,7 +2077,7 @@ void HierarchyLayer::drawComponents()
     mRegistry->TryGetComponents<fg::AnimatorComponent>(
         selection, [this, selection](fg::AnimatorComponent &animator) {
             bool open = true;
-            if(ImGui::CollapsingHeader("Animator Component", &open, ImGuiWindowFlags_ChildWindow))
+            if(drawComponentHeader("Animator Component", "animator", &open))
             {
                 ImGui::BeginDisabled(mSimulation->IsPlaying());
 
@@ -1956,66 +2124,66 @@ void HierarchyLayer::drawComponents()
                                     animator.boneCount);
                 ImGui::EndDisabled();
             }
-
             if(!open && !mSimulation->IsPlaying())
             {
                 mRegistry->RemoveComponent<fg::AnimatorComponent>(selection);
             }
         });
 
-    if(!mUserComponents)
+    if(mUserComponents)
     {
-        return;
-    }
-
-    const auto types = mUserComponents->GetTypes();
-    for(std::size_t typeIndex = 0; typeIndex < types.size(); ++typeIndex)
-    {
-        const auto &ops = types[typeIndex];
-        if(!ops.has || !ops.has(*mRegistry, selection))
+        const auto types = mUserComponents->GetTypes();
+        for(std::size_t typeIndex = 0; typeIndex < types.size(); ++typeIndex)
         {
-            continue;
-        }
-
-        ImGui::PushID(static_cast<int>(typeIndex));
-
-        bool open = true;
-        if(ImGui::CollapsingHeader(ops.displayName.c_str(), &open, ImGuiWindowFlags_ChildWindow))
-        {
-            if(ops.drawInspector)
+            const auto &ops = types[typeIndex];
+            if(!ops.has || !ops.has(*mRegistry, selection))
             {
-                fg::FriComponentInspector ui;
-                ui.entity       = selection;
-                ui.playing      = mSimulation->IsPlaying();
-                const auto handle = mSimulation->CharacterHandleOf(selection);
-                ui.hasCharacter = handle.IsValid();
-                ui.characterId  = handle.id;
-                ops.drawInspector(*mRegistry, selection, ui);
+                continue;
             }
-            else
+
+            ImGui::PushID(static_cast<int>(typeIndex));
+
+            bool open = true;
+            const std::string userKind = std::format("user:{}", ops.typeId);
+            if(drawComponentHeader(ops.displayName.c_str(), userKind, &open))
             {
-                fg::UserComponentInstance instance {};
-                if(ops.toInstance && ops.toInstance(*mRegistry, selection, instance))
+                if(ops.drawInspector)
                 {
-                    ImGui::BeginDisabled(mSimulation->IsPlaying());
-                    for(auto &property : instance.properties)
+                    fg::FriComponentInspector ui;
+                    ui.entity       = selection;
+                    ui.playing      = mSimulation->IsPlaying();
+                    const auto handle = mSimulation->CharacterHandleOf(selection);
+                    ui.hasCharacter = handle.IsValid();
+                    ui.characterId  = handle.id;
+                    ops.drawInspector(*mRegistry, selection, ui);
+                }
+                else
+                {
+                    fg::UserComponentInstance instance {};
+                    if(ops.toInstance && ops.toInstance(*mRegistry, selection, instance))
                     {
-                        DrawNamedProperty(property);
-                    }
-                    ImGui::EndDisabled();
-                    if(!mSimulation->IsPlaying() && ops.fromInstance)
-                    {
-                        ops.fromInstance(*mRegistry, selection, instance);
+                        ImGui::BeginDisabled(mSimulation->IsPlaying());
+                        for(auto &property : instance.properties)
+                        {
+                            DrawNamedProperty(property);
+                        }
+                        ImGui::EndDisabled();
+                        if(!mSimulation->IsPlaying() && ops.fromInstance)
+                        {
+                            ops.fromInstance(*mRegistry, selection, instance);
+                        }
                     }
                 }
             }
-        }
 
-        if(!open && !mSimulation->IsPlaying() && ops.remove)
-        {
-            ops.remove(*mRegistry, selection);
-            mRegistry->ExecuteTasks();
+            if(!open && !mSimulation->IsPlaying() && ops.remove)
+            {
+                ops.remove(*mRegistry, selection);
+                mRegistry->ExecuteTasks();
+            }
+            ImGui::PopID();
         }
-        ImGui::PopID();
     }
+
+    drawComponentsPanelActions();
 }
