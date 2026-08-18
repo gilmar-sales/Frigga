@@ -57,6 +57,8 @@ class HierarchyLayer: public fg::Layer
     void createPrefabFromSelection();
     void drawEntityNode(fr::Entity entity, fg::NameComponent &name);
 
+    static constexpr const char *kDragPayloadId = "FRIGGA_HIERARCHY_ENTITY";
+
     void drawComponents();
     void drawComponentsPanelActions();
     void drawPluginAddComponentMenus(fr::Entity entity);

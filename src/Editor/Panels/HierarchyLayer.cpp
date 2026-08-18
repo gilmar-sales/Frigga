@@ -1091,7 +1091,7 @@ void HierarchyLayer::onGui()
                         std::max(24.0f, ImGui::GetContentRegionAvail().y)));
     if(ImGui::BeginDragDropTarget())
     {
-        if(const ImGuiPayload *payload = ImGui::AcceptDragDropPayload("FRIGGA_HIERARCHY_ENTITY"))
+        if(const ImGuiPayload *payload = ImGui::AcceptDragDropPayload(kDragPayloadId))
         {
             const auto child = *static_cast<const fr::Entity *>(payload->Data);
             fg::TransformUtil::SetParent(*mRegistry, child, fg::kInvalidEntity, true);
@@ -1320,13 +1320,13 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
 
     if(ImGui::BeginDragDropSource())
     {
-        ImGui::SetDragDropPayload("FRIGGA_HIERARCHY_ENTITY", &entity, sizeof(entity));
+        ImGui::SetDragDropPayload(HierarchyLayer::kDragPayloadId, &entity, sizeof(entity));
         ImGui::TextUnformatted(name.name.c_str());
         ImGui::EndDragDropSource();
     }
     if(ImGui::BeginDragDropTarget())
     {
-        if(const ImGuiPayload *payload = ImGui::AcceptDragDropPayload("FRIGGA_HIERARCHY_ENTITY"))
+        if(const ImGuiPayload *payload = ImGui::AcceptDragDropPayload(kDragPayloadId))
         {
             const auto child = *static_cast<const fr::Entity *>(payload->Data);
             fg::TransformUtil::SetParent(*mRegistry, child, entity, true);

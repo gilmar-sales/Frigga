@@ -20,6 +20,7 @@
 #include <gtest/gtest.h>
 
 #include <filesystem>
+#include <fstream>
 #include <string>
 
 class PrefabSpec: public ::testing::Test
@@ -167,4 +168,22 @@ TEST(PrefabHelpers, SanitizeFileStem)
     EXPECT_TRUE(fg::Prefab::IsPrefabExtension(".prefab"));
     EXPECT_TRUE(fg::Prefab::IsPrefabExtension(".PREFAB"));
     EXPECT_FALSE(fg::Prefab::IsPrefabExtension(".json"));
+}
+
+TEST(PrefabHelpers, UniqueAssetPathSkipsExisting)
+{
+    const auto dir = std::filesystem::temp_directory_path() / "frigga_prefab_unique";
+    std::filesystem::remove_all(dir);
+    std::filesystem::create_directories(dir);
+
+    const auto first = fg::Prefab::UniqueAssetPath(dir, "Enemy");
+    EXPECT_EQ(first.filename().string(), "Enemy.prefab");
+    {
+        std::ofstream file(first);
+        file << "{}\n";
+    }
+    const auto second = fg::Prefab::UniqueAssetPath(dir, "Enemy");
+    EXPECT_EQ(second.filename().string(), "Enemy_2.prefab");
+
+    std::filesystem::remove_all(dir);
 }

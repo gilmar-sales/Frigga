@@ -2,12 +2,14 @@
 
 #include "Editor/BoostrapIconsFont.hpp"
 #include "Editor/DockLayout.hpp"
+#include "Editor/Panels/HierarchyLayer.hpp"
 #include "Editor/UiScale.hpp"
 #include "Frigga/ECS/Components/AnimatorComponent.hpp"
 #include "Frigga/ECS/Components/HierarchyComponent.hpp"
 #include "Frigga/ECS/Components/MaterialComponent.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/NameComponent.hpp"
+#include "Frigga/ECS/Components/PrefabComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/ECS/TransformUtil.hpp"
 #include "Frigga/Scene/Prefab.hpp"
@@ -20,6 +22,7 @@
 #include <cstring>
 #include <format>
 #include <imgui.h>
+#include <system_error>
 
 namespace
 {
@@ -357,6 +360,112 @@ void ResourcesLayer::goUp()
     }
 }
 
+std::filesystem::path ResourcesLayer::currentRelativePath() const
+{
+    std::filesystem::path path;
+    for(const auto &name : mFolderPath)
+    {
+        path /= name;
+    }
+    return path;
+}
+
+std::filesystem::path ResourcesLayer::writablePrefabFolder(const std::filesystem::path &relative)
+{
+    if(relative.empty())
+    {
+        return "Prefabs";
+    }
+
+    const auto first = relative.begin()->string();
+    if(first == "Primitives" || first == "Materials")
+    {
+        return "Prefabs";
+    }
+    return relative;
+}
+
+void ResourcesLayer::acceptHierarchyPrefabDrop(const std::filesystem::path &destRelative)
+{
+    if(!ImGui::BeginDragDropTarget())
+    {
+        return;
+    }
+
+    const auto flags = ImGuiDragDropFlags_AcceptBeforeDelivery;
+    if(const ImGuiPayload *payload =
+           ImGui::AcceptDragDropPayload(HierarchyLayer::kDragPayloadId, flags))
+    {
+        const auto dest = writablePrefabFolder(destRelative);
+        ImGui::SetTooltip("Create prefab in %s/", dest.generic_string().c_str());
+        if(payload->IsDelivery())
+        {
+            const auto entity = *static_cast<const fr::Entity *>(payload->Data);
+            (void)CreatePrefabFromEntity(entity, dest);
+        }
+    }
+    ImGui::EndDragDropTarget();
+}
+
+bool ResourcesLayer::CreatePrefabFromEntity(fr::Entity entity, std::filesystem::path destRelative)
+{
+    if(mSimulation->IsPlaying() || entity == fg::kInvalidEntity)
+    {
+        mStatus = mSimulation->IsPlaying() ? "Stop Play mode to create prefabs"
+                                           : "Invalid entity for prefab";
+        return false;
+    }
+
+    destRelative = writablePrefabFolder(destRelative);
+
+    std::string name = "Prefab";
+    mRegistry->TryGetComponents<fg::NameComponent>(
+        entity, [&](fg::NameComponent &component) { name = component.name; });
+
+    const auto directory = fg::AssetRegistry::ToAbsoluteResourcePath(destRelative);
+    std::error_code ec;
+    std::filesystem::create_directories(directory, ec);
+
+    const auto path = fg::Prefab::UniqueAssetPath(directory, name);
+    if(!fg::Prefab::Save(*mScene, entity, path))
+    {
+        mStatus = std::format("Failed to create prefab '{}'", path.string());
+        return false;
+    }
+
+    auto relative = fg::AssetRegistry::MakeRelativeToResources(path);
+    if(relative.empty())
+    {
+        relative = path.lexically_normal().generic_string();
+    }
+    const auto relativeStr = relative.generic_string();
+
+    if(mRegistry->HasComponent<fg::PrefabComponent>(entity))
+    {
+        mRegistry->TryGetComponents<fg::PrefabComponent>(
+            entity, [&](fg::PrefabComponent &prefab) { prefab.source = relativeStr; });
+    }
+    else
+    {
+        mRegistry->AddComponents(entity, fg::PrefabComponent {.source = relativeStr});
+    }
+
+    mFolderPath.clear();
+    for(const auto &part : destRelative)
+    {
+        mFolderPath.push_back(part.string());
+    }
+    mSelected = AssetEntry {
+        .kind         = EntryKind::Prefab,
+        .label        = path.stem().string(),
+        .relativePath = relative,
+    };
+    mSelectedFolder.reset();
+    mNeedsRefresh = true;
+    mStatus       = std::format("Created prefab '{}'", relativeStr);
+    return true;
+}
+
 bool ResourcesLayer::isSelected(const AssetEntry &entry) const
 {
     if(!mSelected)
@@ -451,6 +560,7 @@ bool ResourcesLayer::drawFolderRow(const AssetFolder &folder, ViewMode mode)
         enterFolder(folder.name);
         return true;
     }
+    acceptHierarchyPrefabDrop(currentRelativePath() / folder.name);
     return false;
 }
 
@@ -535,7 +645,8 @@ void ResourcesLayer::drawGridView(const AssetFolder &folder)
     int column        = 0;
 
     auto drawCell = [&](const char *id, const char *icon, const ImVec4 &color,
-                        const std::string &label, bool selected, auto onClick, auto onActivate) {
+                        const std::string &label, bool selected, auto onClick, auto onActivate,
+                        const std::filesystem::path *dropDest = nullptr) {
         ImGui::PushID(id);
         ImGui::BeginGroup();
         const ImVec2 size {cellW - EditorUiScale::S(8.0f), cellH - EditorUiScale::S(8.0f)};
@@ -549,6 +660,10 @@ void ResourcesLayer::drawGridView(const AssetFolder &folder)
         }
         const ImVec2 min = ImGui::GetItemRectMin();
         const ImVec2 max = ImGui::GetItemRectMax();
+        if(dropDest)
+        {
+            acceptHierarchyPrefabDrop(*dropDest);
+        }
         ImDrawList *draw = ImGui::GetWindowDrawList();
         const ImVec2 iconPos {min.x + (max.x - min.x) * 0.5f,
                               min.y + EditorUiScale::S(28.0f)};
@@ -577,9 +692,10 @@ void ResourcesLayer::drawGridView(const AssetFolder &folder)
         }
         const bool selected = mSelectedFolder && *mSelectedFolder == child.name;
         const auto id       = std::format("folder_{}", child.name);
+        const auto dropDest = currentRelativePath() / child.name;
         drawCell(
             id.c_str(), ICON_BTSP_FOLDER, ImVec4(0.95f, 0.82f, 0.40f, 1.0f), child.name, selected,
-            [&] { selectFolder(child); }, [&] { enterFolder(child.name); });
+            [&] { selectFolder(child); }, [&] { enterFolder(child.name); }, &dropDest);
         column = (column + 1) % columns;
         if(column == 0)
         {
@@ -1319,6 +1435,7 @@ void ResourcesLayer::onGui()
         drawBrowser();
     }
     ImGui::EndChild();
+    acceptHierarchyPrefabDrop(currentRelativePath());
 
     ImGui::Separator();
     drawInspector();

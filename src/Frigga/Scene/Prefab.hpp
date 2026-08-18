@@ -29,6 +29,9 @@ namespace FRIGGA_NAMESPACE
         [[nodiscard]] static bool IsPrefabExtension(std::string_view extension);
         [[nodiscard]] static std::filesystem::path DefaultDirectory();
         [[nodiscard]] static std::filesystem::path SanitizeFileStem(std::string_view name);
+        /// `directory/stem.prefab`, or `stem_2.prefab` if that file already exists.
+        [[nodiscard]] static std::filesystem::path UniqueAssetPath(
+            const std::filesystem::path &directory, std::string_view stem);
     };
 
 } // namespace FRIGGA_NAMESPACE

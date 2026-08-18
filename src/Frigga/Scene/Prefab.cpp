@@ -4,6 +4,7 @@
 #include "Frigga/Scene/SceneSerializer.hpp"
 
 #include <cctype>
+#include <format>
 #include <fstream>
 #include <system_error>
 
@@ -49,6 +50,19 @@ namespace FRIGGA_NAMESPACE
             stem = "Prefab";
         }
         return stem;
+    }
+
+    std::filesystem::path Prefab::UniqueAssetPath(const std::filesystem::path &directory,
+                                                  std::string_view stem)
+    {
+        const auto sanitized = SanitizeFileStem(stem).string();
+        auto candidate       = directory / (sanitized + ".prefab");
+        std::error_code ec;
+        for(int suffix = 2; std::filesystem::exists(candidate, ec); ++suffix)
+        {
+            candidate = directory / std::format("{}_{}.prefab", sanitized, suffix);
+        }
+        return candidate;
     }
 
     bool Prefab::Serialize(Scene &scene, fr::Entity root, std::string &outJson)

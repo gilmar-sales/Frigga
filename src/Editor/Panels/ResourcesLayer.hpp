@@ -60,6 +60,7 @@ class ResourcesLayer: public fg::Layer
     [[nodiscard]] bool InstantiatePrefab(const std::filesystem::path &relativePath,
                                          fr::Entity parent = static_cast<fr::Entity>(-1));
     bool HandleDrop(const ResourceDragPayload &payload, fr::Entity parent);
+    bool CreatePrefabFromEntity(fr::Entity entity, std::filesystem::path destRelative = {});
 
     struct AssetEntry
     {
@@ -112,6 +113,10 @@ class ResourcesLayer: public fg::Layer
     [[nodiscard]] bool passesFilter(std::string_view text) const;
     void beginDrag(const AssetEntry &entry) const;
     void collectMatches(const AssetFolder &folder, std::vector<const AssetEntry *> &out) const;
+    [[nodiscard]] std::filesystem::path currentRelativePath() const;
+    [[nodiscard]] static std::filesystem::path writablePrefabFolder(
+        const std::filesystem::path &relative);
+    void acceptHierarchyPrefabDrop(const std::filesystem::path &destRelative);
 
     void requestImportModel();
     void requestImportTexture();
