@@ -74,19 +74,33 @@ namespace
         {
             return 3;
         }
-        if(name == "Materials")
+        if(name == "Fonts")
         {
             return 4;
         }
-        if(name == "Environments")
+        if(name == "Materials")
         {
             return 5;
+        }
+        if(name == "Environments")
+        {
+            return 6;
         }
         if(name == "Shaders")
         {
             return 100;
         }
         return 50;
+    }
+
+    bool IsEngineOnlyFolder(std::string_view name)
+    {
+        return name == "plugins" || name == "Shaders" || name == "ProjectTemplate";
+    }
+
+    bool IsStandardProjectFolder(std::string_view name)
+    {
+        return name == "Models" || name == "Textures" || name == "Prefabs" || name == "Fonts";
     }
 
     const char *KindLabel(ResourcesLayer::EntryKind kind)
@@ -209,6 +223,7 @@ void ResourcesLayer::refresh()
 {
     mRoot         = AssetFolder {.name = kResourcesRoot};
     mNeedsRefresh = false;
+    mScannedRoot  = fg::AssetRegistry::ResourcesRoot();
 
     AssetFolder primitivesFolder {.name = "Primitives"};
     for(std::uint8_t i = 0; i < static_cast<std::uint8_t>(fg::PrimitiveType::Count); ++i)
@@ -240,26 +255,32 @@ void ResourcesLayer::refresh()
     }
     mRoot.children.push_back(std::move(materialsFolder));
 
-    const std::filesystem::path rootPath {kResourcesRoot};
+    const auto rootPath = fg::AssetRegistry::ResourcesRoot();
     if(std::filesystem::exists(rootPath) && std::filesystem::is_directory(rootPath))
     {
         scanDirectory(rootPath, {}, mRoot);
     }
 
-    ensurePrefabsFolder();
+    ensureStandardFolders();
     SortFolder(mRoot);
 }
 
-void ResourcesLayer::ensurePrefabsFolder()
+void ResourcesLayer::ensureStandardFolders()
 {
-    const bool hasPrefabs =
-        std::ranges::any_of(mRoot.children, [](const AssetFolder &folder) {
-            return folder.name == "Prefabs";
-        });
-    if(!hasPrefabs)
-    {
-        mRoot.children.push_back(AssetFolder {.name = "Prefabs"});
-    }
+    auto ensure = [this](std::string_view name) {
+        const bool has =
+            std::ranges::any_of(mRoot.children, [&](const AssetFolder &folder) {
+                return folder.name == name;
+            });
+        if(!has)
+        {
+            mRoot.children.push_back(AssetFolder {.name = std::string(name)});
+        }
+    };
+    ensure("Models");
+    ensure("Textures");
+    ensure("Prefabs");
+    ensure("Fonts");
 }
 
 void ResourcesLayer::scanDirectory(const std::filesystem::path &absoluteDir,
@@ -278,6 +299,10 @@ void ResourcesLayer::scanDirectory(const std::filesystem::path &absoluteDir,
         {
             continue;
         }
+        if(relativeDir.empty() && IsEngineOnlyFolder(name))
+        {
+            continue;
+        }
 
         if(entry.is_directory(ec))
         {
@@ -286,7 +311,8 @@ void ResourcesLayer::scanDirectory(const std::filesystem::path &absoluteDir,
                 relativeDir.empty() ? std::filesystem::path {name} : relativeDir / name;
             scanDirectory(entry.path(), childRelative, child);
 
-            if(!child.entries.empty() || !child.children.empty() || name == "Prefabs")
+            if(!child.entries.empty() || !child.children.empty() ||
+               IsStandardProjectFolder(name))
             {
                 folder.children.push_back(std::move(child));
             }
@@ -1398,6 +1424,10 @@ void ResourcesLayer::drawInspector()
 void ResourcesLayer::onUpdate()
 {
     processPendingImports();
+    if(mScannedRoot != fg::AssetRegistry::ResourcesRoot())
+    {
+        mNeedsRefresh = true;
+    }
 }
 
 void ResourcesLayer::onGui()

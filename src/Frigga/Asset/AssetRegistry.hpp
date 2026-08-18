@@ -53,10 +53,10 @@ namespace FRIGGA_NAMESPACE
 
         explicit AssetRegistry(CatalogTag);
 
-        /// Copy `sourcePath` into Resources/Models (if needed) and load meshes.
+        /// Copy `sourcePath` into the project Resources/Models (if needed) and load meshes.
         [[nodiscard]] std::optional<ModelAsset> ImportModel(const std::filesystem::path &sourcePath);
 
-        /// Copy `sourcePath` into Resources/Textures (if needed) and load the texture.
+        /// Copy `sourcePath` into the project Resources/Textures (if needed) and load the texture.
         [[nodiscard]] std::optional<TextureAsset> ImportTexture(
             const std::filesystem::path &sourcePath);
 
@@ -64,7 +64,7 @@ namespace FRIGGA_NAMESPACE
         [[nodiscard]] std::optional<ModelAsset> LoadModel(
             const std::filesystem::path &relativePath);
 
-        /// Load a texture already stored under Resources/.
+        /// Load a texture already stored under the project Resources/.
         [[nodiscard]] std::optional<TextureAsset> LoadTexture(
             const std::filesystem::path &relativePath);
 
@@ -116,13 +116,27 @@ namespace FRIGGA_NAMESPACE
         [[nodiscard]] static bool IsTextureExtension(std::string_view extension);
         [[nodiscard]] static bool IsPrefabExtension(std::string_view extension);
 
+        /// Editor/install tree beside the binary (`Resources/` in the process CWD).
+        /// Shaders, UI fonts, bundled plugins, and engine default textures live here.
+        [[nodiscard]] static std::filesystem::path EngineResourcesRoot();
+
+        /// Project `Resources/` while a project is open; otherwise `EngineResourcesRoot()`.
         [[nodiscard]] static std::filesystem::path ResourcesRoot();
+
+        /// Point gameplay asset lookup at @p root (typically `{project}/Resources`).
+        /// Empty @p root restores `EngineResourcesRoot()`.
+        static void SetResourcesRoot(std::filesystem::path root);
+        static void ResetResourcesRoot();
+
         [[nodiscard]] static std::filesystem::path ToAbsoluteResourcePath(
             const std::filesystem::path &relativePath);
 
         /// Returns path relative to Resources/, or empty if outside the tree.
         [[nodiscard]] static std::filesystem::path MakeRelativeToResources(
             const std::filesystem::path &path);
+
+        /// Drops loaded model/texture/material catalog entries (GPU pools are unchanged).
+        void ClearCatalog();
 
       private:
         [[nodiscard]] std::filesystem::path copyIntoResources(

@@ -170,6 +170,40 @@ TEST(PrefabHelpers, SanitizeFileStem)
     EXPECT_FALSE(fg::Prefab::IsPrefabExtension(".json"));
 }
 
+TEST(AssetRegistryResources, SetResourcesRoot_RetargetsLookups)
+{
+    struct ResetOnExit
+    {
+        ~ResetOnExit()
+        {
+            fg::AssetRegistry::ResetResourcesRoot();
+        }
+    } reset;
+
+    const auto dir = std::filesystem::temp_directory_path() / "frigga_project_resources";
+    std::filesystem::remove_all(dir);
+    std::filesystem::create_directories(dir / "Prefabs");
+    std::filesystem::create_directories(dir / "Textures");
+
+    fg::AssetRegistry::SetResourcesRoot(dir);
+    EXPECT_EQ(fg::AssetRegistry::ResourcesRoot(), dir);
+    EXPECT_EQ(fg::Prefab::DefaultDirectory(), dir / "Prefabs");
+    EXPECT_EQ(fg::AssetRegistry::ToAbsoluteResourcePath(std::filesystem::path {"Models"} / "car.glb"),
+              dir / "Models" / "car.glb");
+
+    const auto nested = dir / "Textures" / "albedo.png";
+    {
+        std::ofstream file(nested);
+        file << "x";
+    }
+    EXPECT_EQ(fg::AssetRegistry::MakeRelativeToResources(nested).generic_string(),
+              "Textures/albedo.png");
+
+    fg::AssetRegistry::ResetResourcesRoot();
+    EXPECT_EQ(fg::AssetRegistry::ResourcesRoot(), fg::AssetRegistry::EngineResourcesRoot());
+    std::filesystem::remove_all(dir);
+}
+
 TEST(PrefabHelpers, UniqueAssetPathSkipsExisting)
 {
     const auto dir = std::filesystem::temp_directory_path() / "frigga_prefab_unique";

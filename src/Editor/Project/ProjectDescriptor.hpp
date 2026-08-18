@@ -34,7 +34,8 @@ struct ProjectDescriptor
     /// Missing / 0 on disk is treated as LegacyFormatVersion (1).
     static constexpr int LegacyFormatVersion  = 1;
     static constexpr int CurrentFormatVersion = 1;
-    static constexpr std::string_view PluginsDirName = "plugins";
+    static constexpr std::string_view PluginsDirName   = "plugins";
+    static constexpr std::string_view ResourcesDirName = "Resources";
 
     int formatVersion = CurrentFormatVersion;
 

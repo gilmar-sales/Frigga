@@ -55,6 +55,13 @@ class ProjectScaffold
     static bool EnsureDefaultInputJson(const std::filesystem::path &projectRoot,
                                        std::string &error);
 
+    /// Creates `{project}/Resources/{Models,Textures,Prefabs,Fonts}` from the engine
+    /// ProjectTemplate (plus optional engine default textures/font). Never overwrites
+    /// files already in the project.
+    static bool EnsureProjectResources(const std::filesystem::path &projectRoot,
+                                       std::string &error,
+                                       const std::filesystem::path &friggaRoot = {});
+
     /// Rewrites GameplayPlugin.cpp only if missing or still marked managed.
     static bool MaybeRewriteManagedPluginEntry(const std::filesystem::path &projectRoot,
                                                std::string &error);

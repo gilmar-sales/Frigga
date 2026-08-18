@@ -4,9 +4,11 @@
 #include "ProjectEnginePaths.hpp"
 #include "ProjectFile.hpp"
 
+#include <Frigga/Asset/AssetRegistry.hpp>
 #include <Frigga/Input/InputMap.hpp>
 #include <Frigga/Input/InputMapIO.hpp>
 
+#include <array>
 #include <fstream>
 #include <sstream>
 #include <string_view>
@@ -369,6 +371,7 @@ struct Health: fr::Component
         out << "- `input.json` — named Actions / Axes bindings\n";
         out << "- `ecs.json` — ECS pipeline / system layout (created on first Editor open)\n";
         out << "- `scenes/main.json` — default scene\n";
+        out << "- `Resources/` — models, textures, prefabs, and fonts owned by this project\n";
         out << "- `plugins/` — shared libraries (`gameplay`, optional extras)\n";
         out << "- `plugins/gameplay/src/systems/` — Freyr systems\n";
         out << "- `plugins/gameplay/src/components/` — project POD components (example: Health)\n";
@@ -539,6 +542,13 @@ ProjectManagedWriteResult ProjectScaffold::WriteManagedFiles(
         return result;
     }
 
+    std::string resourcesError;
+    if(!EnsureProjectResources(projectRoot, resourcesError, desc.friggaRoot))
+    {
+        result.error = resourcesError;
+        return result;
+    }
+
     result.ok = true;
     return result;
 }
@@ -565,6 +575,87 @@ bool ProjectScaffold::EnsureDefaultInputJson(const std::filesystem::path &projec
         }
         return false;
     }
+    return true;
+}
+
+bool ProjectScaffold::EnsureProjectResources(const std::filesystem::path &projectRoot,
+                                             std::string &error,
+                                             const std::filesystem::path &friggaRoot)
+{
+    static constexpr std::array<std::string_view, 4> kFolders = {
+        "Models", "Textures", "Prefabs", "Fonts"};
+
+    const auto destRoot = projectRoot / ProjectDescriptor::ResourcesDirName;
+    std::error_code ec;
+    std::filesystem::create_directories(destRoot, ec);
+    if(ec)
+    {
+        error = "Failed to create Resources/";
+        return false;
+    }
+
+    auto copyIfMissing = [&](const std::filesystem::path &source,
+                             const std::filesystem::path &destination) {
+        if(!std::filesystem::is_regular_file(source, ec) ||
+           std::filesystem::exists(destination, ec))
+        {
+            return;
+        }
+        std::filesystem::create_directories(destination.parent_path(), ec);
+        std::filesystem::copy_file(source, destination,
+                                   std::filesystem::copy_options::skip_existing, ec);
+    };
+
+    auto copyDirFilesIfMissing = [&](const std::filesystem::path &sourceDir,
+                                     const std::filesystem::path &destDir) {
+        if(!std::filesystem::is_directory(sourceDir, ec))
+        {
+            return;
+        }
+        for(const auto &entry : std::filesystem::directory_iterator(sourceDir, ec))
+        {
+            if(ec || !entry.is_regular_file(ec))
+            {
+                continue;
+            }
+            copyIfMissing(entry.path(), destDir / entry.path().filename());
+        }
+    };
+
+    std::filesystem::path templateRoot =
+        fg::AssetRegistry::EngineResourcesRoot() / "ProjectTemplate";
+    if(!std::filesystem::is_directory(templateRoot, ec) && !friggaRoot.empty())
+    {
+        templateRoot = friggaRoot / "src" / "Editor" / "Resources" / "ProjectTemplate";
+    }
+    if(!std::filesystem::is_directory(templateRoot, ec))
+    {
+        templateRoot.clear();
+    }
+
+    for(const auto folder : kFolders)
+    {
+        const auto destDir = destRoot / folder;
+        std::filesystem::create_directories(destDir, ec);
+        if(ec)
+        {
+            error = "Failed to create Resources/" + std::string(folder);
+            return false;
+        }
+        if(!templateRoot.empty())
+        {
+            copyDirFilesIfMissing(templateRoot / folder, destDir);
+        }
+    }
+
+    const auto engineRoot = fg::AssetRegistry::EngineResourcesRoot();
+    copyIfMissing(engineRoot / "Textures" / "default_gray.png",
+                  destRoot / "Textures" / "default_gray.png");
+    copyIfMissing(engineRoot / "Textures" / "default_roughness.png",
+                  destRoot / "Textures" / "default_roughness.png");
+    copyIfMissing(engineRoot / "Fonts" / "NotoSans-Regular.ttf",
+                  destRoot / "Fonts" / "NotoSans-Regular.ttf");
+
     return true;
 }
 

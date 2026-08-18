@@ -51,12 +51,14 @@ Targets:
 | `Shaders` | Freya SPIR-V compile (built as a Freya dependency) |
 | `package` | CPack archive (`cpack` / `ninja package`) |
 
-CMake copies `src/Editor/Resources` into the build tree (`build/Resources`). Freya also deposits compiled shaders under that tree. **Run the editor from the build directory** so relative resource paths resolve:
+CMake copies `src/Editor/Resources` into the build tree (`build/Resources`). That tree is the **engine** pack (UI fonts, shaders, bundled plugins, default textures). Freya also deposits compiled shaders under it. **Run the editor from the build directory** so engine resource paths resolve:
 
 ```bash
 cd build
 ./Editor
 ```
+
+Each gameplay project gets its own `Resources/` (Models, Textures, Prefabs, Fonts), copied from `src/Editor/Resources/ProjectTemplate` when the project is created or opened.
 
 ### Tests
 
@@ -112,7 +114,7 @@ cd build-release && ./Editor
 | Gizmo translate / rotate / scale | W / E / R (editor viewport focused) |
 | Frame selection | F (editor viewport) |
 
-The Editor starts on a **home screen**: create a 2D/3D project (scaffolds CMake + Freyr gameplay plugin stubs + scene), open an existing `frigga.project`, or pick a recent project. Opening a project auto-migrates older `frigga.project` formats (rewrites managed `CMakeLists.txt` / plugin header / scaffold `GameplaySystem` when still marked managed). Gameplay CMake does not bake machine paths: the Editor passes `-DFRIGGA_SDK` (packaged `Sdk/` next to the binary, or the engine tree), and CLI builds can use the same flag, the `FRIGGA_SDK` environment variable, or local `CMakeUserPresets.json`. Use **File → Migrate Project Files** to force-refresh managed files, then **Build Plugins** (Ctrl+B) and **Reload** (Ctrl+R). Each project has a `gameplay` plugin plus optional extras under `plugins/` (combat, camera, movement, …). Share extras by exporting to `~/Frigga/Plugins`. Plugins use `FRI_PLUGIN_MODULE` to register components/systems/DI. Host `fg::Input` loads `input.json` Actions/Axes; inject it into Freyr systems. Pipeline layout lives in `ecs.json` (ECS workflow editor). **Play** enables the Freyr **Simulation** pipeline at 60 Hz (physics + gameplay). **Main** runs animation (and optional third-person camera plugin) every frame; **Render** always ticks last.
+The Editor starts on a **home screen**: create a 2D/3D project (scaffolds CMake + Freyr gameplay plugin stubs + `Resources/` + scene), open an existing `frigga.project`, or pick a recent project. Opening a project auto-migrates older `frigga.project` formats (rewrites managed `CMakeLists.txt` / plugin header / scaffold `GameplaySystem` when still marked managed). Gameplay CMake does not bake machine paths: the Editor passes `-DFRIGGA_SDK` (packaged `Sdk/` next to the binary, or the engine tree), and CLI builds can use the same flag, the `FRIGGA_SDK` environment variable, or local `CMakeUserPresets.json`. Use **File → Migrate Project Files** to force-refresh managed files, then **Build Plugins** (Ctrl+B) and **Reload** (Ctrl+R). Each project has a `gameplay` plugin plus optional extras under `plugins/` (combat, camera, movement, …). Share extras by exporting to `~/Frigga/Plugins`. Plugins use `FRI_PLUGIN_MODULE` to register components/systems/DI. Host `fg::Input` loads `input.json` Actions/Axes; inject it into Freyr systems. Pipeline layout lives in `ecs.json` (ECS workflow editor). **Play** enables the Freyr **Simulation** pipeline at 60 Hz (physics + gameplay). **Main** runs animation (and optional third-person camera plugin) every frame; **Render** always ticks last.
 
 ### Debug gameplay (VS Code + GDB)
 
@@ -133,9 +135,11 @@ Default environment map path in preferences may point at a missing HDR under `Re
 src/
   Frigga/          Engine library (ECS, scene I/O, physics, plugins, GUI, render systems)
   Editor/          Editor app (home, projects, workflows, panels, preferences)
-    Resources/     Fonts, default textures, and bundled installable plugins
+    Resources/     Engine pack: UI fonts, default textures, bundled plugins, ProjectTemplate/
 CMakeLists.txt
 ```
+
+Gameplay assets (models, textures, prefabs, fonts) live in each project's `Resources/`, not in the engine tree.
 
 Pinned FetchContent tags (see root `CMakeLists.txt`): Freyr `v0.29.0`, Freya `v0.38.0`, Jolt `v5.3.0`, ImGui `docking` fork.
 

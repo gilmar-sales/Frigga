@@ -5,6 +5,7 @@
 #include "../Preferences/EditorPreferences.hpp"
 #include "../Paths/EditorPaths.hpp"
 
+#include <Frigga/Asset/AssetRegistry.hpp>
 #include <Frigga/Input/Input.hpp>
 #include <Frigga/Plugin/GameplayPluginHost.hpp>
 #include <Frigga/Scene/Scene.hpp>
@@ -67,6 +68,7 @@ class ProjectSession
                    skr::Arc<fg::GameplayPluginHost> pluginHost,
                    skr::Arc<fg::SceneSimulationState> simulation,
                    skr::Arc<fg::Input> input,
+                   skr::Arc<fg::AssetRegistry> assets,
                    skr::Arc<fr::Registry> registry,
                    skr::Arc<EditorPreferences> preferences,
                    skr::Arc<skr::Logger<ProjectSession>> logger);
@@ -132,6 +134,7 @@ class ProjectSession
 
     [[nodiscard]] std::optional<std::filesystem::path> GetProjectRoot() const;
     [[nodiscard]] std::filesystem::path GetScenesDirectory() const;
+    [[nodiscard]] std::filesystem::path GetResourcesDirectory() const;
     /// Absolute paths to `scenes/*.json` in the open project (sorted by filename).
     [[nodiscard]] std::vector<std::filesystem::path> ListSceneFiles() const;
     bool OpenSceneFile(const std::filesystem::path &scenePath);
@@ -172,6 +175,8 @@ class ProjectSession
                             bool force);
     void touchRecent();
     void loadProjectInputBindings(const std::filesystem::path &projectRoot);
+    void bindProjectResources(const std::filesystem::path &projectRoot);
+    void unbindProjectResources();
     void joinBuildThread();
     void runBuildJob(std::filesystem::path root, std::filesystem::path buildDir,
                      std::string cmakeTarget);
@@ -187,6 +192,7 @@ class ProjectSession
     skr::Arc<fg::GameplayPluginHost> mPluginHost;
     skr::Arc<fg::SceneSimulationState> mSimulation;
     skr::Arc<fg::Input> mInput;
+    skr::Arc<fg::AssetRegistry> mAssets;
     skr::Arc<fr::Registry> mRegistry;
     skr::Arc<EditorPreferences> mPreferences;
     skr::Arc<skr::Logger<ProjectSession>> mLogger;

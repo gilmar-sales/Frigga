@@ -92,7 +92,7 @@ class ResourcesLayer: public fg::Layer
     void refresh();
     void scanDirectory(const std::filesystem::path &absoluteDir,
                        const std::filesystem::path &relativeDir, AssetFolder &folder);
-    void ensurePrefabsFolder();
+    void ensureStandardFolders();
     [[nodiscard]] const AssetFolder *currentFolder() const;
     void enterFolder(std::string_view name);
     void goUp();
@@ -142,6 +142,7 @@ class ResourcesLayer: public fg::Layer
 
     AssetFolder mRoot {};
     bool mNeedsRefresh = true;
+    std::filesystem::path mScannedRoot;
     std::string mFilter;
     std::optional<AssetEntry> mSelected;
     std::optional<std::string> mSelectedFolder;

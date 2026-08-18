@@ -35,9 +35,48 @@ namespace FRIGGA_NAMESPACE
 
     AssetRegistry::AssetRegistry(CatalogTag) {}
 
-    std::filesystem::path AssetRegistry::ResourcesRoot()
+    namespace
+    {
+        std::filesystem::path &MutableResourcesRoot()
+        {
+            static std::filesystem::path root = AssetRegistry::EngineResourcesRoot();
+            return root;
+        }
+    } // namespace
+
+    std::filesystem::path AssetRegistry::EngineResourcesRoot()
     {
         return {"Resources"};
+    }
+
+    std::filesystem::path AssetRegistry::ResourcesRoot()
+    {
+        return MutableResourcesRoot();
+    }
+
+    void AssetRegistry::SetResourcesRoot(std::filesystem::path root)
+    {
+        if(root.empty())
+        {
+            MutableResourcesRoot() = EngineResourcesRoot();
+            return;
+        }
+        MutableResourcesRoot() = std::move(root);
+    }
+
+    void AssetRegistry::ResetResourcesRoot()
+    {
+        SetResourcesRoot({});
+    }
+
+    void AssetRegistry::ClearCatalog()
+    {
+        mModels.clear();
+        mTextures.clear();
+        mMaterials.clear();
+        mModelIndexByPath.clear();
+        mTextureIndexByPath.clear();
+        mTexturePathById.clear();
     }
 
     std::filesystem::path AssetRegistry::ToAbsoluteResourcePath(

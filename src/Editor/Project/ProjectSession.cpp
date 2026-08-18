@@ -7,6 +7,7 @@
 #include "PluginCatalog.hpp"
 #include "ProjectEnginePaths.hpp"
 
+#include <Frigga/Asset/AssetRegistry.hpp>
 #include <Frigga/ECS/EcsLayout.hpp>
 #include <Frigga/Input/InputMapIO.hpp>
 
@@ -222,17 +223,19 @@ ProjectSession::ProjectSession(skr::Arc<fg::Scene> scene,
                                skr::Arc<fg::GameplayPluginHost> pluginHost,
                                skr::Arc<fg::SceneSimulationState> simulation,
                                skr::Arc<fg::Input> input,
+                               skr::Arc<fg::AssetRegistry> assets,
                                skr::Arc<fr::Registry> registry,
                                skr::Arc<EditorPreferences> preferences,
                                skr::Arc<skr::Logger<ProjectSession>> logger)
     : mScene(std::move(scene)), mPluginHost(std::move(pluginHost)),
-      mSimulation(std::move(simulation)), mInput(std::move(input)), mRegistry(std::move(registry)),
-      mPreferences(std::move(preferences)), mLogger(std::move(logger))
+      mSimulation(std::move(simulation)), mInput(std::move(input)), mAssets(std::move(assets)),
+      mRegistry(std::move(registry)), mPreferences(std::move(preferences)), mLogger(std::move(logger))
 {
 }
 
 ProjectSession::~ProjectSession()
 {
+    unbindProjectResources();
     clearEditorSessionMarker();
     joinBuildThread();
 }
@@ -597,6 +600,8 @@ bool ProjectSession::CreateProject(const std::filesystem::path &parentDir, std::
         return false;
     }
 
+    mDescriptor = *loaded;
+    bindProjectResources(result.projectFile.parent_path());
     return enterEditor(result.projectFile, std::move(*loaded));
 }
 
@@ -631,10 +636,12 @@ bool ProjectSession::OpenProject(const std::filesystem::path &projectFile)
     }
 
     const auto root      = projectFile.parent_path();
+    bindProjectResources(root);
     const auto scenePath = root / loaded->sceneRelativePath;
     if(!mScene->LoadScene(scenePath))
     {
         mPluginHost->Unload();
+        unbindProjectResources();
         mProjectFile.reset();
         mDescriptor = {};
         std::lock_guard lock(mMutex);
@@ -735,6 +742,7 @@ void ProjectSession::CloseToHome()
         mSimulation->FlushPending();
     }
     UnloadPlugin();
+    unbindProjectResources();
     clearEditorSessionMarker();
     mProjectFile.reset();
     mDescriptor = {};
@@ -873,6 +881,41 @@ std::filesystem::path ProjectSession::GetScenesDirectory() const
         return {};
     }
     return *root / "scenes";
+}
+
+std::filesystem::path ProjectSession::GetResourcesDirectory() const
+{
+    const auto root = GetProjectRoot();
+    if(!root)
+    {
+        return {};
+    }
+    return *root / ProjectDescriptor::ResourcesDirName;
+}
+
+void ProjectSession::bindProjectResources(const std::filesystem::path &projectRoot)
+{
+    std::string error;
+    const auto friggaRoot =
+        mDescriptor.friggaRoot.empty() ? DiscoverFriggaRoot() : mDescriptor.friggaRoot;
+    if(!ProjectScaffold::EnsureProjectResources(projectRoot, error, friggaRoot))
+    {
+        mLogger->LogWarning("Project Resources folder: {}", error);
+    }
+    if(mAssets)
+    {
+        mAssets->ClearCatalog();
+    }
+    fg::AssetRegistry::SetResourcesRoot(projectRoot / ProjectDescriptor::ResourcesDirName);
+}
+
+void ProjectSession::unbindProjectResources()
+{
+    if(mAssets)
+    {
+        mAssets->ClearCatalog();
+    }
+    fg::AssetRegistry::ResetResourcesRoot();
 }
 
 std::vector<std::filesystem::path> ProjectSession::ListSceneFiles() const

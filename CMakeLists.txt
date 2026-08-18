@@ -168,6 +168,7 @@ if (WIN32 AND CMAKE_NM)
             COMMENT "Pack Editor import lib into Sdk for gameplay plugins")
 endif ()
 
+# Engine pack (UI fonts, shaders, bundled plugins) plus ProjectTemplate for new games.
 file(COPY src/Editor/Resources DESTINATION ${CMAKE_BINARY_DIR})
 
 # --- Tests -----------------------------------------------------------------
