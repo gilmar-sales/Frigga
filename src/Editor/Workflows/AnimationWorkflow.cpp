@@ -5,7 +5,7 @@
 #include "Editor/Panels/AnimationPreviewLayer.hpp"
 #include "Editor/Panels/AnimationTimelineLayer.hpp"
 #include "Editor/Panels/AnimatorPanelLayer.hpp"
-#include "Editor/Panels/PlaceholderLayer.hpp"
+#include "Editor/Panels/AnimGraphEditorLayer.hpp"
 
 #include <imgui_internal.h>
 
@@ -16,7 +16,8 @@ AnimationWorkflow::AnimationWorkflow(skr::Arc<HierarchyLayer> hierarchy,
                                      skr::Arc<fg::SceneSimulationState> simulation,
                                      skr::Arc<fra::Renderer> renderer,
                                      skr::Arc<fra::MeshPool> meshPool, skr::Arc<fg::Scene> scene,
-                                     skr::Arc<EditorPreferences> preferences)
+                                     skr::Arc<EditorPreferences> preferences,
+                                     skr::Arc<fg::AnimationController> controller)
     : Workflow("Animation",
                {
                    hierarchy,
@@ -24,8 +25,8 @@ AnimationWorkflow::AnimationWorkflow(skr::Arc<HierarchyLayer> hierarchy,
                                                        scene, preferences),
                    skr::MakeArc<AnimationTimelineLayer>(assets, selection, registry),
                    skr::MakeArc<AnimatorPanelLayer>(assets, selection, registry, simulation),
-                   skr::MakeArc<PlaceholderLayer>(
-                       "Curve Editor", "Edit animation curves, keys, and tangents."),
+                   skr::MakeArc<AnimGraphEditorLayer>(assets, selection, registry, simulation,
+                                                      controller),
                    skr::MakeArc<AnimationClipsLayer>(assets, selection, registry, simulation),
                })
 {
@@ -47,16 +48,16 @@ void AnimationWorkflow::buildDefaultDockLayout(ImGuiID dockspaceId)
     const auto preview    = EditorDock::WindowId("Preview");
     const auto timeline   = EditorDock::WindowId("Timeline");
     const auto animator   = EditorDock::WindowId("Animator");
-    const auto curves     = EditorDock::WindowId("Curve Editor");
+    const auto animGraph  = EditorDock::WindowId("Anim Graph");
     const auto clips      = EditorDock::WindowId("Animation Clips");
 
     ImGui::DockBuilderDockWindow(hierarchy.c_str(), leftId);
     ImGui::DockBuilderDockWindow(components.c_str(), rightId);
     ImGui::DockBuilderDockWindow(animator.c_str(), rightId);
     ImGui::DockBuilderDockWindow(preview.c_str(), mainId);
+    ImGui::DockBuilderDockWindow(animGraph.c_str(), mainId);
     ImGui::DockBuilderDockWindow(timeline.c_str(), bottomId);
     ImGui::DockBuilderDockWindow(clips.c_str(), bottomId);
-    ImGui::DockBuilderDockWindow(curves.c_str(), bottomId);
 
     ImGui::DockBuilderFinish(dockspaceId);
 }

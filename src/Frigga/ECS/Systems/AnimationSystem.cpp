@@ -5,6 +5,8 @@
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/ECS/TransformUtil.hpp"
 
+#include <Freya/Asset/Pose.hpp>
+
 #include <algorithm>
 #include <cmath>
 #include <unordered_map>
@@ -181,6 +183,54 @@ namespace FRIGGA_NAMESPACE
                     return;
                 }
 
+                if(mController)
+                {
+                    mController->SyncAnimGraph(entity, animator, *model);
+                }
+                auto *graph = mController ? mController->TryGetAnimGraph(entity) : nullptr;
+
+                const bool allowPreview = editMode && animator.previewInEdit;
+                const bool ticking =
+                    animator.playing && (allowPreview || mSimulation->IsRunning());
+
+                if(graph != nullptr)
+                {
+                    auto *runtime = mController->TryGetRuntime(entity);
+                    if(ticking && runtime != nullptr)
+                    {
+                        for(const auto &[name, value] : runtime->floats)
+                        {
+                            graph->SetFloat(name, value);
+                        }
+                        for(const auto &[name, value] : runtime->bools)
+                        {
+                            graph->SetBool(name, value);
+                        }
+                        for(auto &[name, raised] : runtime->triggers)
+                        {
+                            if(raised)
+                            {
+                                graph->SetTrigger(name);
+                                raised = false;
+                            }
+                        }
+                        graph->Advance(deltaTime * animator.speed);
+                        animator.clipName = std::string {graph->CurrentStateName()};
+                    }
+
+                    const auto jointCount = model->skeleton.JointCount();
+                    const auto boneOffset = static_cast<std::uint32_t>(mBonePalette.size());
+                    mBonePalette.resize(mBonePalette.size() + jointCount, glm::mat4(1.0f));
+                    animator.boneOffset = boneOffset;
+                    animator.boneCount  = jointCount;
+
+                    const auto pose = graph->SampleCurrent();
+                    const auto skin = fra::PoseToSkinMatrices(model->skeleton, pose);
+                    std::copy(skin.begin(), skin.end(),
+                              mBonePalette.begin() + static_cast<std::ptrdiff_t>(boneOffset));
+                    return;
+                }
+
                 const auto *clip = resolveClip(*model, animator.clipName);
                 if(clip == nullptr)
                 {
@@ -189,10 +239,6 @@ namespace FRIGGA_NAMESPACE
 
                 auto *runtime = mController ? mController->TryGetRuntime(entity) : nullptr;
                 const bool crossFading = runtime != nullptr && runtime->crossFading;
-
-                const bool allowPreview = editMode && animator.previewInEdit;
-                const bool ticking =
-                    animator.playing && (allowPreview || mSimulation->IsRunning());
 
                 if(ticking)
                 {

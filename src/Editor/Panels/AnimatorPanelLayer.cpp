@@ -104,6 +104,11 @@ void AnimatorPanelLayer::onGui()
             ImGui::Checkbox("Loop", &animator.loop);
             ImGui::Checkbox("Use GPU", &animator.useGpu);
             ImGui::Checkbox("Preview in Edit", &animator.previewInEdit);
+            ImGui::Checkbox("Use Anim Graph", &animator.useAnimGraph);
+            if(animator.useAnimGraph)
+            {
+                ImGui::TextDisabled("Edit states in the Anim Graph panel.");
+            }
 
             float duration = 0.0f;
             if(const auto *model = mAssets->FindModel(animator.modelSource);

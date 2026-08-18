@@ -1,9 +1,12 @@
 #pragma once
 
 #include "Frigga/Asset/AssetRegistry.hpp"
+#include "Frigga/ECS/Components/AnimatorComponent.hpp"
 
+#include <Freya/Asset/AnimGraph.hpp>
 #include <Freyr/Freyr.hpp>
 
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -39,6 +42,9 @@ namespace FRIGGA_NAMESPACE
             bool        crossFading        = false;
             float       crossFadeDuration  = 0.0f;
             float       crossFadeElapsed   = 0.0f;
+
+            std::optional<fra::AnimGraph> animGraph;
+            std::string                   graphFingerprint;
         };
 
         AnimationController(const skr::Arc<fr::Registry> &registry,
@@ -79,6 +85,12 @@ namespace FRIGGA_NAMESPACE
 
         /// Drop runtime when the entity is destroyed / animator removed.
         void ClearRuntime(fr::Entity entity);
+
+        /// Rebuild the compiled Freya graph when the authored definition changes.
+        void SyncAnimGraph(fr::Entity entity, const AnimatorComponent &animator,
+                           const ModelAsset &model);
+
+        [[nodiscard]] fra::AnimGraph *TryGetAnimGraph(fr::Entity entity);
 
       private:
         [[nodiscard]] bool resolveClipName(fr::Entity entity, std::string_view requested,

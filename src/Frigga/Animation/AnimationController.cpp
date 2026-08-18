@@ -1,6 +1,6 @@
 #include "AnimationController.hpp"
 
-#include "Frigga/ECS/Components/AnimatorComponent.hpp"
+#include "Frigga/Animation/AnimGraphDefinition.hpp"
 
 #include <algorithm>
 
@@ -232,6 +232,12 @@ namespace FRIGGA_NAMESPACE
 
     std::string_view AnimationController::GetState(fr::Entity entity) const
     {
+        if(const auto *runtime = TryGetRuntime(entity);
+           runtime != nullptr && runtime->animGraph)
+        {
+            return runtime->animGraph->CurrentStateName();
+        }
+
         std::string_view state {};
         mRegistry->TryGetComponents<AnimatorComponent>(
             entity, [&](AnimatorComponent &animator) { state = animator.clipName; });
@@ -250,6 +256,67 @@ namespace FRIGGA_NAMESPACE
     {
         const auto *runtime = TryGetRuntime(entity);
         return runtime != nullptr && runtime->crossFading;
+    }
+
+    void AnimationController::SyncAnimGraph(fr::Entity entity, const AnimatorComponent &animator,
+                                            const ModelAsset &model)
+    {
+        auto &runtime = EnsureRuntime(entity);
+        if(!animator.useAnimGraph || animator.animGraph.states.empty())
+        {
+            runtime.animGraph.reset();
+            runtime.graphFingerprint.clear();
+            return;
+        }
+
+        const auto fingerprint = AnimGraphFingerprint(animator.animGraph, model.relativePath);
+        if(runtime.animGraph && runtime.graphFingerprint == fingerprint)
+        {
+            return;
+        }
+
+        auto compiled = CompileAnimGraph(animator.animGraph, model);
+        if(!compiled)
+        {
+            runtime.animGraph.reset();
+            runtime.graphFingerprint.clear();
+            return;
+        }
+
+        runtime.animGraph        = std::move(*compiled);
+        runtime.graphFingerprint = fingerprint;
+
+        for(const auto &[name, value] : runtime.floats)
+        {
+            runtime.animGraph->SetFloat(name, value);
+        }
+        for(const auto &[name, value] : runtime.bools)
+        {
+            runtime.animGraph->SetBool(name, value);
+        }
+        for(const auto &param : animator.animGraph.params)
+        {
+            if(param.kind == "Float" && !runtime.floats.contains(param.name))
+            {
+                runtime.floats[param.name] = param.defaultFloat;
+                runtime.animGraph->SetFloat(param.name, param.defaultFloat);
+            }
+            else if(param.kind == "Bool" && !runtime.bools.contains(param.name))
+            {
+                runtime.bools[param.name] = param.defaultBool;
+                runtime.animGraph->SetBool(param.name, param.defaultBool);
+            }
+        }
+    }
+
+    fra::AnimGraph *AnimationController::TryGetAnimGraph(fr::Entity entity)
+    {
+        auto *runtime = TryGetRuntime(entity);
+        if(runtime == nullptr || !runtime->animGraph)
+        {
+            return nullptr;
+        }
+        return &*runtime->animGraph;
     }
 
 } // namespace FRIGGA_NAMESPACE

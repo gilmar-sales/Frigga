@@ -2120,6 +2120,7 @@ void HierarchyLayer::drawComponents()
                 ImGui::Checkbox("Use GPU", &animator.useGpu);
                 ImGui::SameLine();
                 ImGui::Checkbox("Preview in Edit", &animator.previewInEdit);
+                ImGui::Checkbox("Use Anim Graph", &animator.useAnimGraph);
                 ImGui::TextDisabled("Bones: offset %u count %u", animator.boneOffset,
                                     animator.boneCount);
                 ImGui::EndDisabled();

@@ -18,6 +18,7 @@
 #include "Frigga/ECS/Components/UserDataComponent.hpp"
 #include "Frigga/ECS/UserComponentRegistry.hpp"
 #include "Frigga/Plugin/GameplayTypeIds.hpp"
+#include "Frigga/Animation/AnimGraphDefinition.hpp"
 
 #define SIMDJSON_STATIC_REFLECTION 1
 #include <simdjson.h>
@@ -186,6 +187,8 @@ namespace FRIGGA_NAMESPACE
             std::optional<bool>  loop;
             std::optional<bool>  useGpu;
             std::optional<bool>  previewInEdit;
+            std::optional<bool>  useAnimGraph;
+            std::optional<AnimGraphDefinition> animGraph;
         };
 
         struct ScenePropertyDto
@@ -945,6 +948,8 @@ namespace FRIGGA_NAMESPACE
                     .loop          = animator.loop,
                     .useGpu        = animator.useGpu,
                     .previewInEdit = animator.previewInEdit,
+                    .useAnimGraph  = animator.useAnimGraph,
+                    .animGraph     = animator.animGraph,
                 };
             });
 
@@ -1382,6 +1387,8 @@ namespace FRIGGA_NAMESPACE
                     .loop          = animDto.loop.value_or(true),
                     .useGpu        = animDto.useGpu.value_or(false),
                     .previewInEdit = animDto.previewInEdit.value_or(true),
+                    .useAnimGraph  = animDto.useAnimGraph.value_or(false),
+                    .animGraph     = animDto.animGraph.value_or(AnimGraphDefinition {}),
                 };
             }
 
@@ -2050,6 +2057,8 @@ namespace FRIGGA_NAMESPACE
                     .loop          = animator.loop,
                     .useGpu        = animator.useGpu,
                     .previewInEdit = animator.previewInEdit,
+                    .useAnimGraph  = animator.useAnimGraph,
+                    .animGraph     = animator.animGraph,
                 };
                 found = true;
             });
@@ -2474,6 +2483,8 @@ namespace FRIGGA_NAMESPACE
                 .loop          = animDto.loop.value_or(true),
                 .useGpu        = animDto.useGpu.value_or(false),
                 .previewInEdit = animDto.previewInEdit.value_or(true),
+                .useAnimGraph  = animDto.useAnimGraph.value_or(false),
+                .animGraph     = animDto.animGraph.value_or(AnimGraphDefinition {}),
             };
             UpsertComponent(*registry, entity, animator);
             scene.FlushEcs();

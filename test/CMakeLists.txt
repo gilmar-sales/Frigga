@@ -25,6 +25,7 @@ add_executable(frigga_tests
         EcsLayoutSpec.cpp
         PhysicsSpec.cpp
         SceneSerializerSpec.cpp
+        AnimGraphDefinitionSpec.cpp
 )
 
 target_compile_features(frigga_tests PRIVATE cxx_std_26)
