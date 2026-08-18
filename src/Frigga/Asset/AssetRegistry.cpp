@@ -90,6 +90,12 @@ namespace FRIGGA_NAMESPACE
                ext == ".bmp" || ext == ".hdr" || ext == ".webp";
     }
 
+    bool AssetRegistry::IsPrefabExtension(std::string_view extension)
+    {
+        const auto ext = ToLower(std::string(extension));
+        return ext == ".prefab";
+    }
+
     std::filesystem::path AssetRegistry::copyIntoResources(const std::filesystem::path &sourcePath,
                                                            std::string_view subdir) const
     {

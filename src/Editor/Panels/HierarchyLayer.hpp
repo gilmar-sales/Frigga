@@ -20,6 +20,8 @@
 #include <string>
 #include <string_view>
 
+class ResourcesLayer;
+
 class HierarchyLayer: public fg::Layer
 {
   public:
@@ -27,7 +29,8 @@ class HierarchyLayer: public fg::Layer
                    skr::Arc<fg::PrimitiveMeshFactory> primitives,
                    skr::Arc<fg::AssetRegistry> assets, skr::Arc<SelectionContext> selection,
                    skr::Arc<fg::SceneSimulationState> simulation, skr::Arc<fra::Window> window,
-                   skr::Arc<fg::UserComponentRegistry> userComponents);
+                   skr::Arc<fg::UserComponentRegistry> userComponents,
+                   skr::Arc<ResourcesLayer> resources);
     ~HierarchyLayer() override = default;
 
     void createEmptyEntity();
@@ -51,6 +54,7 @@ class HierarchyLayer: public fg::Layer
     void addUserComponentToEntity(fr::Entity entity, std::string_view typeId);
     [[nodiscard]] bool hasUserComponentType(std::string_view typeId) const;
     void parentNewEntity(fr::Entity entity);
+    void createPrefabFromSelection();
     void drawEntityNode(fr::Entity entity, fg::NameComponent &name);
 
     void drawComponents();
@@ -99,7 +103,10 @@ class HierarchyLayer: public fg::Layer
     void handleComponentClipboardInput();
     void requestTextureForSlot(PendingTextureSlot slot);
     void processPendingTextureImport();
+    void processPendingPrefabSave();
+    void requestSavePrefabDialog(fr::Entity entity);
     static void onTextureDialog(void *userdata, const char *const *filelist, int filter);
+    static void onPrefabSaveDialog(void *userdata, const char *const *filelist, int filter);
 
     skr::Arc<fr::Registry> mRegistry;
     skr::Arc<fg::Scene> mScene;
@@ -109,6 +116,7 @@ class HierarchyLayer: public fg::Layer
     skr::Arc<fg::SceneSimulationState> mSimulation;
     skr::Arc<fra::Window> mWindow;
     skr::Arc<fg::UserComponentRegistry> mUserComponents;
+    skr::Arc<ResourcesLayer> mResources;
     fr::Entity nodeToRename;
     std::string mActiveComponentKind;
 
@@ -116,4 +124,7 @@ class HierarchyLayer: public fg::Layer
     PendingTextureSlot mPendingTextureSlot = PendingTextureSlot::None;
     std::optional<std::filesystem::path> mPendingTexturePath;
     fr::Entity mPendingTextureEntity = SelectionContext::Invalid;
+    std::optional<std::filesystem::path> mPendingPrefabPath;
+    fr::Entity mPendingPrefabEntity = SelectionContext::Invalid;
+    std::string mDialogDefaultLocation;
 };

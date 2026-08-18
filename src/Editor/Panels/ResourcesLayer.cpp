@@ -1,17 +1,23 @@
 #include "ResourcesLayer.hpp"
 
+#include "Editor/BoostrapIconsFont.hpp"
 #include "Editor/DockLayout.hpp"
+#include "Editor/UiScale.hpp"
 #include "Frigga/ECS/Components/AnimatorComponent.hpp"
+#include "Frigga/ECS/Components/HierarchyComponent.hpp"
 #include "Frigga/ECS/Components/MaterialComponent.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/NameComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
+#include "Frigga/ECS/TransformUtil.hpp"
+#include "Frigga/Scene/Prefab.hpp"
 
 #include <SDL3/SDL_dialog.h>
 
 #include <algorithm>
 #include <cctype>
 #include <cstdio>
+#include <cstring>
 #include <format>
 #include <imgui.h>
 
@@ -53,21 +59,25 @@ namespace
         {
             return 0;
         }
-        if(name == "Models")
+        if(name == "Prefabs")
         {
             return 1;
         }
-        if(name == "Textures")
+        if(name == "Models")
         {
             return 2;
         }
-        if(name == "Materials")
+        if(name == "Textures")
         {
             return 3;
         }
-        if(name == "Environments")
+        if(name == "Materials")
         {
             return 4;
+        }
+        if(name == "Environments")
+        {
+            return 5;
         }
         if(name == "Shaders")
         {
@@ -75,17 +85,116 @@ namespace
         }
         return 50;
     }
+
+    const char *KindLabel(ResourcesLayer::EntryKind kind)
+    {
+        switch(kind)
+        {
+        case ResourcesLayer::EntryKind::Primitive:
+            return "Primitive";
+        case ResourcesLayer::EntryKind::Model:
+            return "Model";
+        case ResourcesLayer::EntryKind::Texture:
+            return "Texture";
+        case ResourcesLayer::EntryKind::Material:
+            return "Material";
+        case ResourcesLayer::EntryKind::Prefab:
+            return "Prefab";
+        case ResourcesLayer::EntryKind::File:
+            return "File";
+        }
+        return "File";
+    }
+
+    const char *KindIcon(ResourcesLayer::EntryKind kind)
+    {
+        switch(kind)
+        {
+        case ResourcesLayer::EntryKind::Primitive:
+            return ICON_BTSP_BOXSEAM;
+        case ResourcesLayer::EntryKind::Model:
+            return ICON_BTSP_BOX;
+        case ResourcesLayer::EntryKind::Texture:
+            return ICON_BTSP_IMAGE;
+        case ResourcesLayer::EntryKind::Material:
+            return ICON_BTSP_LAYERS;
+        case ResourcesLayer::EntryKind::Prefab:
+            return ICON_BTSP_COLLECTION;
+        case ResourcesLayer::EntryKind::File:
+            return ICON_BTSP_FILE;
+        }
+        return ICON_BTSP_FILE;
+    }
+
+    ImVec4 KindColor(ResourcesLayer::EntryKind kind)
+    {
+        switch(kind)
+        {
+        case ResourcesLayer::EntryKind::Primitive:
+            return {0.55f, 0.78f, 1.00f, 1.0f};
+        case ResourcesLayer::EntryKind::Model:
+            return {0.45f, 0.85f, 0.75f, 1.0f};
+        case ResourcesLayer::EntryKind::Texture:
+            return {0.95f, 0.72f, 0.40f, 1.0f};
+        case ResourcesLayer::EntryKind::Material:
+            return {0.78f, 0.55f, 0.95f, 1.0f};
+        case ResourcesLayer::EntryKind::Prefab:
+            return {0.95f, 0.62f, 0.35f, 1.0f};
+        case ResourcesLayer::EntryKind::File:
+            return {0.75f, 0.75f, 0.78f, 1.0f};
+        }
+        return {0.80f, 0.80f, 0.80f, 1.0f};
+    }
+
+    void SortFolder(ResourcesLayer::AssetFolder &folder)
+    {
+        std::ranges::sort(folder.entries, [](const auto &a, const auto &b) {
+            return a.label < b.label;
+        });
+        std::ranges::sort(folder.children, [](const auto &a, const auto &b) {
+            const int pa = FolderSortPriority(a.name);
+            const int pb = FolderSortPriority(b.name);
+            if(pa != pb)
+            {
+                return pa < pb;
+            }
+            return a.name < b.name;
+        });
+    }
+
+    bool ViewModeButton(const char *id, const char *icon, const char *tooltip, bool active)
+    {
+        if(active)
+        {
+            ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
+        }
+        const bool clicked = ImGui::Button(std::format("{}##{}", icon, id).c_str());
+        if(active)
+        {
+            ImGui::PopStyleColor();
+        }
+        if(ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("%s", tooltip);
+        }
+        return clicked;
+    }
 } // namespace
 
 ResourcesLayer::ResourcesLayer(skr::Arc<fg::PrimitiveMeshFactory> primitives,
                                skr::Arc<fg::AssetRegistry> assets, skr::Arc<fr::Registry> registry,
-                               skr::Arc<SelectionContext> selection,
+                               skr::Arc<fg::Scene> scene, skr::Arc<SelectionContext> selection,
                                skr::Arc<fg::SceneSimulationState> simulation,
                                skr::Arc<fra::Window> window)
     : fg::Layer("Resources"), mPrimitives(std::move(primitives)), mAssets(std::move(assets)),
-      mRegistry(std::move(registry)), mSelection(std::move(selection)),
+      mRegistry(std::move(registry)), mScene(std::move(scene)), mSelection(std::move(selection)),
       mSimulation(std::move(simulation)), mWindow(std::move(window))
 {
+}
+
+void ResourcesLayer::MarkDirty()
+{
+    mNeedsRefresh = true;
 }
 
 bool ResourcesLayer::passesFilter(std::string_view text) const
@@ -134,15 +243,20 @@ void ResourcesLayer::refresh()
         scanDirectory(rootPath, {}, mRoot);
     }
 
-    std::ranges::sort(mRoot.children, [](const AssetFolder &a, const AssetFolder &b) {
-        const int pa = FolderSortPriority(a.name);
-        const int pb = FolderSortPriority(b.name);
-        if(pa != pb)
-        {
-            return pa < pb;
-        }
-        return a.name < b.name;
-    });
+    ensurePrefabsFolder();
+    SortFolder(mRoot);
+}
+
+void ResourcesLayer::ensurePrefabsFolder()
+{
+    const bool hasPrefabs =
+        std::ranges::any_of(mRoot.children, [](const AssetFolder &folder) {
+            return folder.name == "Prefabs";
+        });
+    if(!hasPrefabs)
+    {
+        mRoot.children.push_back(AssetFolder {.name = "Prefabs"});
+    }
 }
 
 void ResourcesLayer::scanDirectory(const std::filesystem::path &absoluteDir,
@@ -169,7 +283,7 @@ void ResourcesLayer::scanDirectory(const std::filesystem::path &absoluteDir,
                 relativeDir.empty() ? std::filesystem::path {name} : relativeDir / name;
             scanDirectory(entry.path(), childRelative, child);
 
-            if(!child.entries.empty() || !child.children.empty())
+            if(!child.entries.empty() || !child.children.empty() || name == "Prefabs")
             {
                 folder.children.push_back(std::move(child));
             }
@@ -199,21 +313,48 @@ void ResourcesLayer::scanDirectory(const std::filesystem::path &absoluteDir,
         {
             asset.kind = EntryKind::Texture;
         }
+        else if(fg::AssetRegistry::IsPrefabExtension(ext))
+        {
+            asset.kind  = EntryKind::Prefab;
+            asset.label = relativePath.stem().string();
+        }
 
         folder.entries.push_back(std::move(asset));
     }
 
-    std::ranges::sort(folder.entries,
-                      [](const AssetEntry &a, const AssetEntry &b) { return a.label < b.label; });
-    std::ranges::sort(folder.children, [](const AssetFolder &a, const AssetFolder &b) {
-        const int pa = FolderSortPriority(a.name);
-        const int pb = FolderSortPriority(b.name);
-        if(pa != pb)
+    SortFolder(folder);
+}
+
+const ResourcesLayer::AssetFolder *ResourcesLayer::currentFolder() const
+{
+    const AssetFolder *folder = &mRoot;
+    for(const auto &name : mFolderPath)
+    {
+        const auto it = std::ranges::find_if(folder->children, [&](const AssetFolder &child) {
+            return child.name == name;
+        });
+        if(it == folder->children.end())
         {
-            return pa < pb;
+            return nullptr;
         }
-        return a.name < b.name;
-    });
+        folder = &*it;
+    }
+    return folder;
+}
+
+void ResourcesLayer::enterFolder(std::string_view name)
+{
+    mFolderPath.emplace_back(name);
+    mSelectedFolder.reset();
+}
+
+void ResourcesLayer::goUp()
+{
+    if(!mFolderPath.empty())
+    {
+        mFolderPath.pop_back();
+        mSelectedFolder.reset();
+    }
 }
 
 bool ResourcesLayer::isSelected(const AssetEntry &entry) const
@@ -236,6 +377,7 @@ bool ResourcesLayer::isSelected(const AssetEntry &entry) const
         return entry.materialId == mSelected->materialId;
     case EntryKind::Model:
     case EntryKind::Texture:
+    case EntryKind::Prefab:
     case EntryKind::File:
         return entry.relativePath == mSelected->relativePath;
     }
@@ -244,40 +386,108 @@ bool ResourcesLayer::isSelected(const AssetEntry &entry) const
 
 void ResourcesLayer::selectEntry(const AssetEntry &entry)
 {
-    mSelected = entry;
+    mSelected       = entry;
+    mSelectedFolder.reset();
 }
 
-void ResourcesLayer::drawEntry(const AssetEntry &entry)
+void ResourcesLayer::selectFolder(const AssetFolder &folder)
 {
-    if(!passesFilter(entry.label) &&
-       !((entry.kind == EntryKind::File || entry.kind == EntryKind::Model ||
-          entry.kind == EntryKind::Texture) &&
-         passesFilter(entry.relativePath.string())))
+    mSelectedFolder = folder.name;
+    mSelected.reset();
+}
+
+void ResourcesLayer::beginDrag(const AssetEntry &entry) const
+{
+    if(entry.kind != EntryKind::Primitive && entry.kind != EntryKind::Model &&
+       entry.kind != EntryKind::Prefab && entry.kind != EntryKind::Material)
     {
         return;
     }
 
-    const ImGuiTreeNodeFlags flags =
-        ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen |
-        ImGuiTreeNodeFlags_SpanAvailWidth |
-        (isSelected(entry) ? ImGuiTreeNodeFlags_Selected : ImGuiTreeNodeFlags_None);
+    if(ImGui::BeginDragDropSource())
+    {
+        ResourceDragPayload payload {.kind      = entry.kind,
+                                     .primitive = entry.primitive,
+                                     .materialId = entry.materialId,
+                                     .meshId    = entry.meshId};
+        const auto path = entry.relativePath.generic_string();
+        std::snprintf(payload.relativePath, sizeof(payload.relativePath), "%s", path.c_str());
+        ImGui::SetDragDropPayload(kDragPayloadId, &payload, sizeof(payload));
+        ImGui::Text("%s %s", KindIcon(entry.kind), entry.label.c_str());
+        ImGui::EndDragDropSource();
+    }
+}
 
-    ImGui::TreeNodeEx(entry.label.c_str(), flags);
-    if(ImGui::IsItemClicked())
+void ResourcesLayer::handleEntryActivation(const AssetEntry &entry)
+{
+    selectEntry(entry);
+    if(entry.kind == EntryKind::Primitive || entry.kind == EntryKind::Model ||
+       entry.kind == EntryKind::Prefab)
+    {
+        spawnSelected();
+    }
+    else if(entry.kind == EntryKind::Material)
+    {
+        assignMaterialToSelection(entry.materialId);
+    }
+}
+
+bool ResourcesLayer::drawFolderRow(const AssetFolder &folder, ViewMode mode)
+{
+    const bool selected = mSelectedFolder && *mSelectedFolder == folder.name;
+    const auto flags    = ImGuiSelectableFlags_AllowDoubleClick |
+                       (mode == ViewMode::Details ? ImGuiSelectableFlags_SpanAllColumns
+                                                  : ImGuiSelectableFlags_None);
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.82f, 0.40f, 1.0f));
+    const std::string label = std::format("{}  {}", ICON_BTSP_FOLDER, folder.name);
+    const bool clicked      = ImGui::Selectable(label.c_str(), selected, flags);
+    ImGui::PopStyleColor();
+    if(clicked)
+    {
+        selectFolder(folder);
+    }
+    if(ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+    {
+        enterFolder(folder.name);
+        return true;
+    }
+    return false;
+}
+
+bool ResourcesLayer::drawEntryRow(const AssetEntry &entry, ViewMode mode)
+{
+    if(!passesFilter(entry.label) &&
+       !((entry.kind == EntryKind::File || entry.kind == EntryKind::Model ||
+          entry.kind == EntryKind::Texture || entry.kind == EntryKind::Prefab) &&
+         passesFilter(entry.relativePath.string())))
+    {
+        return false;
+    }
+
+    const bool selected = isSelected(entry);
+    const auto flags    = ImGuiSelectableFlags_AllowDoubleClick |
+                       (mode == ViewMode::Details ? ImGuiSelectableFlags_SpanAllColumns
+                                                  : ImGuiSelectableFlags_None);
+    ImGui::PushID(entry.label.c_str());
+    ImGui::PushStyleColor(ImGuiCol_Text, KindColor(entry.kind));
+    const std::string label = std::format("{}  {}", KindIcon(entry.kind), entry.label);
+    const bool clicked      = ImGui::Selectable(label.c_str(), selected, flags);
+    ImGui::PopStyleColor();
+    if(clicked)
     {
         selectEntry(entry);
     }
     if(ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
     {
-        selectEntry(entry);
-        spawnSelected();
+        handleEntryActivation(entry);
     }
+    beginDrag(entry);
 
     if(ImGui::BeginPopupContextItem())
     {
         selectEntry(entry);
-        const bool canSpawn =
-            entry.kind == EntryKind::Primitive || entry.kind == EntryKind::Model;
+        const bool canSpawn = entry.kind == EntryKind::Primitive || entry.kind == EntryKind::Model ||
+                              entry.kind == EntryKind::Prefab;
         if(ImGui::MenuItem("Add to Scene", nullptr, false, canSpawn && !mSimulation->IsPlaying()))
         {
             spawnSelected();
@@ -293,53 +503,328 @@ void ResourcesLayer::drawEntry(const AssetEntry &entry)
         }
         ImGui::EndPopup();
     }
+    ImGui::PopID();
+    return false;
 }
 
-void ResourcesLayer::drawFolder(const AssetFolder &folder)
+void ResourcesLayer::drawListView(const AssetFolder &folder)
 {
-    bool anyVisible = mFilter.empty();
-    if(!anyVisible)
-    {
-        for(const auto &entry : folder.entries)
-        {
-            if(passesFilter(entry.label) ||
-               ((entry.kind == EntryKind::File || entry.kind == EntryKind::Model ||
-                 entry.kind == EntryKind::Texture) &&
-                passesFilter(entry.relativePath.string())))
-            {
-                anyVisible = true;
-                break;
-            }
-        }
-        if(!anyVisible)
-        {
-            anyVisible = true;
-        }
-    }
-
-    if(!anyVisible)
-    {
-        return;
-    }
-
-    const bool openByDefault = folder.name != "Shaders";
-    ImGui::SetNextItemOpen(openByDefault, ImGuiCond_Once);
-
-    if(!ImGui::TreeNodeEx(folder.name.c_str(), ImGuiTreeNodeFlags_SpanAvailWidth))
-    {
-        return;
-    }
-
     for(const auto &child : folder.children)
     {
-        drawFolder(child);
+        if(!mFilter.empty() && !passesFilter(child.name))
+        {
+            continue;
+        }
+        if(drawFolderRow(child, ViewMode::List))
+        {
+            return;
+        }
     }
     for(const auto &entry : folder.entries)
     {
-        drawEntry(entry);
+        drawEntryRow(entry, ViewMode::List);
+    }
+}
+
+void ResourcesLayer::drawGridView(const AssetFolder &folder)
+{
+    const float cellW = EditorUiScale::S(96.0f);
+    const float cellH = EditorUiScale::S(108.0f);
+    const float avail = ImGui::GetContentRegionAvail().x;
+    const int columns = std::max(1, static_cast<int>(avail / cellW));
+    int column        = 0;
+
+    auto drawCell = [&](const char *id, const char *icon, const ImVec4 &color,
+                        const std::string &label, bool selected, auto onClick, auto onActivate) {
+        ImGui::PushID(id);
+        ImGui::BeginGroup();
+        const ImVec2 size {cellW - EditorUiScale::S(8.0f), cellH - EditorUiScale::S(8.0f)};
+        if(ImGui::Selectable("##cell", selected, ImGuiSelectableFlags_AllowDoubleClick, size))
+        {
+            onClick();
+        }
+        if(ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+        {
+            onActivate();
+        }
+        const ImVec2 min = ImGui::GetItemRectMin();
+        const ImVec2 max = ImGui::GetItemRectMax();
+        ImDrawList *draw = ImGui::GetWindowDrawList();
+        const ImVec2 iconPos {min.x + (max.x - min.x) * 0.5f,
+                              min.y + EditorUiScale::S(28.0f)};
+        draw->AddText(ImGui::GetFont(), ImGui::GetFontSize() * 1.8f, iconPos, ImGui::GetColorU32(color),
+                      icon);
+        const ImVec2 textSize = ImGui::CalcTextSize(label.c_str(), nullptr, false, size.x - 8.0f);
+        const ImVec2 textPos {min.x + (size.x - std::min(textSize.x, size.x - 8.0f)) * 0.5f,
+                              max.y - EditorUiScale::S(28.0f)};
+        const ImVec2 clipMax {max.x - 4.0f, max.y - 4.0f};
+        draw->AddText(ImGui::GetFont(), ImGui::GetFontSize(), textPos, ImGui::GetColorU32(ImGuiCol_Text),
+                      label.c_str(), nullptr, size.x - 8.0f, nullptr);
+        (void)clipMax;
+        ImGui::EndGroup();
+        ImGui::PopID();
+    };
+
+    for(const auto &child : folder.children)
+    {
+        if(!mFilter.empty() && !passesFilter(child.name))
+        {
+            continue;
+        }
+        if(column > 0)
+        {
+            ImGui::SameLine();
+        }
+        const bool selected = mSelectedFolder && *mSelectedFolder == child.name;
+        const auto id       = std::format("folder_{}", child.name);
+        drawCell(
+            id.c_str(), ICON_BTSP_FOLDER, ImVec4(0.95f, 0.82f, 0.40f, 1.0f), child.name, selected,
+            [&] { selectFolder(child); }, [&] { enterFolder(child.name); });
+        column = (column + 1) % columns;
+        if(column == 0)
+        {
+            // next row
+        }
     }
 
-    ImGui::TreePop();
+    for(const auto &entry : folder.entries)
+    {
+        if(!passesFilter(entry.label) &&
+           !((entry.kind == EntryKind::File || entry.kind == EntryKind::Model ||
+              entry.kind == EntryKind::Texture || entry.kind == EntryKind::Prefab) &&
+             passesFilter(entry.relativePath.string())))
+        {
+            continue;
+        }
+        if(column > 0)
+        {
+            ImGui::SameLine();
+        }
+        const auto id = std::format("entry_{}_{}", static_cast<int>(entry.kind), entry.label);
+        ImGui::PushID(id.c_str());
+        ImGui::BeginGroup();
+        const ImVec2 size {cellW - EditorUiScale::S(8.0f), cellH - EditorUiScale::S(8.0f)};
+        if(ImGui::Selectable("##cell", isSelected(entry), ImGuiSelectableFlags_AllowDoubleClick,
+                             size))
+        {
+            selectEntry(entry);
+        }
+        if(ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+        {
+            handleEntryActivation(entry);
+        }
+        beginDrag(entry);
+        if(ImGui::BeginPopupContextItem())
+        {
+            selectEntry(entry);
+            const bool canSpawn = entry.kind == EntryKind::Primitive ||
+                                  entry.kind == EntryKind::Model || entry.kind == EntryKind::Prefab;
+            if(ImGui::MenuItem("Add to Scene", nullptr, false,
+                               canSpawn && !mSimulation->IsPlaying()))
+            {
+                spawnSelected();
+            }
+            ImGui::EndPopup();
+        }
+        const ImVec2 min = ImGui::GetItemRectMin();
+        const ImVec2 max = ImGui::GetItemRectMax();
+        ImDrawList *draw = ImGui::GetWindowDrawList();
+        const char *icon = KindIcon(entry.kind);
+        const ImVec2 iconSize = ImGui::CalcTextSize(icon);
+        const ImVec2 iconPos {min.x + (max.x - min.x - iconSize.x * 1.8f) * 0.5f,
+                              min.y + EditorUiScale::S(22.0f)};
+        draw->AddText(ImGui::GetFont(), ImGui::GetFontSize() * 1.8f, iconPos,
+                      ImGui::GetColorU32(KindColor(entry.kind)), icon);
+        draw->AddText(ImGui::GetFont(), ImGui::GetFontSize(),
+                      ImVec2(min.x + 6.0f, max.y - EditorUiScale::S(26.0f)),
+                      ImGui::GetColorU32(ImGuiCol_Text), entry.label.c_str(), nullptr,
+                      size.x - 12.0f);
+        ImGui::EndGroup();
+        ImGui::PopID();
+        column = (column + 1) % columns;
+    }
+
+    (void)cellH;
+}
+
+void ResourcesLayer::drawDetailsView(const AssetFolder &folder)
+{
+    constexpr ImGuiTableFlags flags =
+        ImGuiTableFlags_Resizable | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY |
+        ImGuiTableFlags_SizingStretchProp;
+    if(!ImGui::BeginTable("##resource_details", 3, flags))
+    {
+        return;
+    }
+
+    ImGui::TableSetupScrollFreeze(0, 1);
+    ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch, 0.50f);
+    ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_WidthStretch, 0.20f);
+    ImGui::TableSetupColumn("Path", ImGuiTableColumnFlags_WidthStretch, 0.30f);
+    ImGui::TableHeadersRow();
+
+    for(const auto &child : folder.children)
+    {
+        if(!mFilter.empty() && !passesFilter(child.name))
+        {
+            continue;
+        }
+        ImGui::TableNextRow();
+        ImGui::TableSetColumnIndex(0);
+        if(drawFolderRow(child, ViewMode::Details))
+        {
+            ImGui::EndTable();
+            return;
+        }
+        ImGui::TableSetColumnIndex(1);
+        ImGui::TextUnformatted("Folder");
+        ImGui::TableSetColumnIndex(2);
+        ImGui::TextDisabled("—");
+    }
+
+    for(const auto &entry : folder.entries)
+    {
+        if(!passesFilter(entry.label) &&
+           !((entry.kind == EntryKind::File || entry.kind == EntryKind::Model ||
+              entry.kind == EntryKind::Texture || entry.kind == EntryKind::Prefab) &&
+             passesFilter(entry.relativePath.string())))
+        {
+            continue;
+        }
+        ImGui::TableNextRow();
+        ImGui::TableSetColumnIndex(0);
+        drawEntryRow(entry, ViewMode::Details);
+        ImGui::TableSetColumnIndex(1);
+        ImGui::TextUnformatted(KindLabel(entry.kind));
+        ImGui::TableSetColumnIndex(2);
+        if(entry.relativePath.empty())
+        {
+            ImGui::TextDisabled("—");
+        }
+        else
+        {
+            ImGui::TextUnformatted(entry.relativePath.generic_string().c_str());
+        }
+    }
+
+    ImGui::EndTable();
+}
+
+void ResourcesLayer::collectMatches(const AssetFolder &folder,
+                                    std::vector<const AssetEntry *> &out) const
+{
+    for(const auto &entry : folder.entries)
+    {
+        if(passesFilter(entry.label) ||
+           ((entry.kind == EntryKind::File || entry.kind == EntryKind::Model ||
+             entry.kind == EntryKind::Texture || entry.kind == EntryKind::Prefab) &&
+            passesFilter(entry.relativePath.string())))
+        {
+            out.push_back(&entry);
+        }
+    }
+    for(const auto &child : folder.children)
+    {
+        collectMatches(child, out);
+    }
+}
+
+void ResourcesLayer::drawSearchResults()
+{
+    std::vector<const AssetEntry *> matches;
+    collectMatches(mRoot, matches);
+    if(matches.empty())
+    {
+        ImGui::TextDisabled("No assets match \"%s\".", mFilter.c_str());
+        return;
+    }
+
+    if(mViewMode == ViewMode::Details)
+    {
+        AssetFolder fake {.name = "Search"};
+        for(const auto *entry : matches)
+        {
+            fake.entries.push_back(*entry);
+        }
+        drawDetailsView(fake);
+        return;
+    }
+
+    for(const auto *entry : matches)
+    {
+        drawEntryRow(*entry, ViewMode::List);
+    }
+}
+
+void ResourcesLayer::drawBreadcrumbs()
+{
+    ImGui::BeginDisabled(mFolderPath.empty());
+    if(ImGui::Button(ICON_BTSP_ARROWLEFT))
+    {
+        goUp();
+    }
+    ImGui::EndDisabled();
+    if(ImGui::IsItemHovered())
+    {
+        ImGui::SetTooltip("Up one folder");
+    }
+
+    ImGui::SameLine();
+    if(ImGui::SmallButton(kResourcesRoot))
+    {
+        mFolderPath.clear();
+        mSelectedFolder.reset();
+    }
+
+    std::vector<std::string> path;
+    for(const auto &name : mFolderPath)
+    {
+        path.push_back(name);
+        ImGui::SameLine();
+        ImGui::TextUnformatted("/");
+        ImGui::SameLine();
+        const auto snapshot = path;
+        if(ImGui::SmallButton(name.c_str()))
+        {
+            mFolderPath        = snapshot;
+            mSelectedFolder.reset();
+        }
+    }
+}
+
+void ResourcesLayer::drawBrowser()
+{
+    if(!mFilter.empty() && mViewMode != ViewMode::Grid)
+    {
+        drawSearchResults();
+        return;
+    }
+
+    const auto *folder = currentFolder();
+    if(folder == nullptr)
+    {
+        mFolderPath.clear();
+        folder = &mRoot;
+    }
+
+    if(!mFilter.empty() && mViewMode == ViewMode::Grid)
+    {
+        drawSearchResults();
+        return;
+    }
+
+    switch(mViewMode)
+    {
+    case ViewMode::List:
+        drawListView(*folder);
+        break;
+    case ViewMode::Grid:
+        drawGridView(*folder);
+        break;
+    case ViewMode::Details:
+        drawDetailsView(*folder);
+        break;
+    }
 }
 
 void ResourcesLayer::onImportModelDialog(void *userdata, const char *const *filelist, int)
@@ -400,7 +885,7 @@ void ResourcesLayer::processPendingImports()
     {
         if(const auto model = mAssets->ImportModel(path))
         {
-            mStatus = std::format("Imported model '{}'", model->relativePath);
+            mStatus   = std::format("Imported model '{}'", model->relativePath);
             mSelected = AssetEntry {
                 .kind         = EntryKind::Model,
                 .label        = model->label,
@@ -418,7 +903,7 @@ void ResourcesLayer::processPendingImports()
     {
         if(const auto texture = mAssets->ImportTexture(path))
         {
-            mStatus = std::format("Imported texture '{}'", texture->relativePath);
+            mStatus   = std::format("Imported texture '{}'", texture->relativePath);
             mSelected = AssetEntry {
                 .kind         = EntryKind::Texture,
                 .label        = texture->label,
@@ -515,6 +1000,75 @@ void ResourcesLayer::spawnModel(const std::filesystem::path &relativePath)
                           model->skinned ? ", skinned" : "");
 }
 
+void ResourcesLayer::spawnPrefab(const std::filesystem::path &relativePath)
+{
+    if(!InstantiatePrefab(relativePath))
+    {
+        return;
+    }
+}
+
+bool ResourcesLayer::InstantiatePrefab(const std::filesystem::path &relativePath, fr::Entity parent)
+{
+    if(mSimulation->IsPlaying())
+    {
+        return false;
+    }
+
+    const auto absolute = fg::AssetRegistry::ToAbsoluteResourcePath(relativePath);
+    fr::Entity root     = fg::kInvalidEntity;
+    if(!fg::Prefab::Load(*mScene, absolute, parent, root))
+    {
+        mStatus = std::format("Failed to instantiate prefab '{}'", relativePath.string());
+        return false;
+    }
+
+    mSelection->Select(root);
+    mStatus = std::format("Instantiated prefab '{}'", relativePath.string());
+    return true;
+}
+
+bool ResourcesLayer::HandleDrop(const ResourceDragPayload &payload, fr::Entity parent)
+{
+    if(mSimulation->IsPlaying())
+    {
+        return false;
+    }
+
+    switch(payload.kind)
+    {
+    case EntryKind::Prefab:
+        return InstantiatePrefab(payload.relativePath, parent);
+    case EntryKind::Primitive:
+        spawnPrimitive(payload.primitive);
+        if(parent != fg::kInvalidEntity && mSelection->Get() != SelectionContext::Invalid)
+        {
+            fg::TransformUtil::SetParent(*mRegistry, mSelection->Get(), parent, true);
+        }
+        return true;
+    case EntryKind::Model:
+        spawnModel(payload.relativePath);
+        if(parent != fg::kInvalidEntity && mSelection->Get() != SelectionContext::Invalid)
+        {
+            fg::TransformUtil::SetParent(*mRegistry, mSelection->Get(), parent, true);
+        }
+        return true;
+    case EntryKind::Material:
+        if(parent != fg::kInvalidEntity)
+        {
+            const auto previous = mSelection->Get();
+            mSelection->Select(parent);
+            assignMaterialToSelection(payload.materialId);
+            mSelection->Select(previous);
+            return true;
+        }
+        assignMaterialToSelection(payload.materialId);
+        return true;
+    default:
+        return false;
+    }
+}
+
 void ResourcesLayer::spawnSelected()
 {
     if(!mSelected)
@@ -529,6 +1083,9 @@ void ResourcesLayer::spawnSelected()
         break;
     case EntryKind::Model:
         spawnModel(mSelected->relativePath);
+        break;
+    case EntryKind::Prefab:
+        spawnPrefab(mSelected->relativePath);
         break;
     default:
         break;
@@ -584,41 +1141,76 @@ void ResourcesLayer::drawToolbar()
 {
     const bool playing = mSimulation->IsPlaying();
     ImGui::BeginDisabled(playing);
-    if(ImGui::Button("Import Model"))
+    if(ImGui::Button(ICON_BTSP_BOX " Import Model"))
     {
         requestImportModel();
     }
     ImGui::SameLine();
-    if(ImGui::Button("Import Texture"))
+    if(ImGui::Button(ICON_BTSP_IMAGE " Import Texture"))
     {
         requestImportTexture();
     }
     ImGui::SameLine();
-    if(ImGui::Button("New Material"))
+    if(ImGui::Button(ICON_BTSP_LAYERS " New Material"))
     {
         createMaterialAsset();
     }
     ImGui::EndDisabled();
     ImGui::SameLine();
-    if(ImGui::Button("Refresh"))
+    if(ImGui::Button(ICON_BTSP_RELOAD " Refresh"))
     {
         mNeedsRefresh = true;
+    }
+
+    ImGui::SameLine();
+    const float buttonsWidth = ImGui::CalcTextSize(ICON_BTSP_FILETEXT ICON_BTSP_COLLECTION
+                                                   ICON_BTSP_WINDOWS)
+                                   .x +
+                               ImGui::GetStyle().ItemSpacing.x * 6.0f +
+                               ImGui::GetStyle().FramePadding.x * 6.0f;
+    ImGui::SetCursorPosX(ImGui::GetCursorPosX() +
+                         std::max(0.0f, ImGui::GetContentRegionAvail().x - buttonsWidth));
+    if(ViewModeButton("list", ICON_BTSP_FILETEXT, "List", mViewMode == ViewMode::List))
+    {
+        mViewMode = ViewMode::List;
+    }
+    ImGui::SameLine();
+    if(ViewModeButton("grid", ICON_BTSP_COLLECTION, "Grid", mViewMode == ViewMode::Grid))
+    {
+        mViewMode = ViewMode::Grid;
+    }
+    ImGui::SameLine();
+    if(ViewModeButton("details", ICON_BTSP_SLIDERS, "Details", mViewMode == ViewMode::Details))
+    {
+        mViewMode = ViewMode::Details;
     }
 }
 
 void ResourcesLayer::drawInspector()
 {
+    if(mSelectedFolder)
+    {
+        ImGui::TextUnformatted(ICON_BTSP_FOLDER " Folder");
+        ImGui::Text("Name: %s", mSelectedFolder->c_str());
+        if(ImGui::Button("Open"))
+        {
+            enterFolder(*mSelectedFolder);
+        }
+        return;
+    }
+
     if(!mSelected)
     {
         ImGui::TextDisabled("Select an asset to inspect.");
         return;
     }
 
+    ImGui::Text("%s %s", KindIcon(mSelected->kind), KindLabel(mSelected->kind));
+    ImGui::Text("Name: %s", mSelected->label.c_str());
+
     switch(mSelected->kind)
     {
     case EntryKind::Primitive:
-        ImGui::TextUnformatted("Primitive mesh");
-        ImGui::Text("Name: %s", mSelected->label.c_str());
         ImGui::Text("Mesh ID: %u", mPrimitives->GetMesh(mSelected->primitive));
         ImGui::BeginDisabled(mSimulation->IsPlaying());
         if(ImGui::Button("Add to Scene"))
@@ -629,8 +1221,6 @@ void ResourcesLayer::drawInspector()
         break;
     case EntryKind::Model:
     {
-        ImGui::TextUnformatted("Model");
-        ImGui::Text("Name: %s", mSelected->label.c_str());
         ImGui::TextWrapped("Path: Resources/%s", mSelected->relativePath.string().c_str());
         if(const auto model = mAssets->LoadModel(mSelected->relativePath))
         {
@@ -650,8 +1240,6 @@ void ResourcesLayer::drawInspector()
     }
     case EntryKind::Texture:
     {
-        ImGui::TextUnformatted("Texture");
-        ImGui::Text("Name: %s", mSelected->label.c_str());
         ImGui::TextWrapped("Path: Resources/%s", mSelected->relativePath.string().c_str());
         if(const auto texture = mAssets->LoadTexture(mSelected->relativePath))
         {
@@ -661,8 +1249,6 @@ void ResourcesLayer::drawInspector()
         break;
     }
     case EntryKind::Material:
-        ImGui::TextUnformatted("Material");
-        ImGui::Text("Name: %s", mSelected->label.c_str());
         ImGui::Text("Material ID: %u", mSelected->materialId);
         ImGui::BeginDisabled(mSimulation->IsPlaying() ||
                              mSelection->Get() == SelectionContext::Invalid);
@@ -672,9 +1258,16 @@ void ResourcesLayer::drawInspector()
         }
         ImGui::EndDisabled();
         break;
+    case EntryKind::Prefab:
+        ImGui::TextWrapped("Path: Resources/%s", mSelected->relativePath.string().c_str());
+        ImGui::BeginDisabled(mSimulation->IsPlaying());
+        if(ImGui::Button("Add to Scene"))
+        {
+            spawnPrefab(mSelected->relativePath);
+        }
+        ImGui::EndDisabled();
+        break;
     case EntryKind::File:
-        ImGui::TextUnformatted("File asset");
-        ImGui::Text("Name: %s", mSelected->label.c_str());
         ImGui::TextWrapped("Path: Resources/%s", mSelected->relativePath.string().c_str());
         break;
     }
@@ -710,23 +1303,20 @@ void ResourcesLayer::onGui()
     ImGui::SetNextItemWidth(-1.0f);
     char filterBuf[128] {};
     std::snprintf(filterBuf, sizeof(filterBuf), "%s", mFilter.c_str());
-    if(ImGui::InputTextWithHint("##resource_filter", "Filter...", filterBuf, sizeof(filterBuf)))
+    if(ImGui::InputTextWithHint("##resource_filter", ICON_BTSP_SEARCH " Filter...", filterBuf,
+                                sizeof(filterBuf)))
     {
         mFilter = filterBuf;
     }
 
+    drawBreadcrumbs();
     ImGui::Separator();
 
-    if(ImGui::BeginChild("##resource_browser", ImVec2(0.0f, -120.0f), ImGuiChildFlags_Borders))
+    const float inspectorHeight = EditorUiScale::S(128.0f);
+    if(ImGui::BeginChild("##resource_browser", ImVec2(0.0f, -inspectorHeight),
+                         ImGuiChildFlags_Borders))
     {
-        for(const auto &child : mRoot.children)
-        {
-            drawFolder(child);
-        }
-        for(const auto &entry : mRoot.entries)
-        {
-            drawEntry(entry);
-        }
+        drawBrowser();
     }
     ImGui::EndChild();
 

@@ -114,6 +114,7 @@ namespace FRIGGA_NAMESPACE
 
         [[nodiscard]] static bool IsModelExtension(std::string_view extension);
         [[nodiscard]] static bool IsTextureExtension(std::string_view extension);
+        [[nodiscard]] static bool IsPrefabExtension(std::string_view extension);
 
         [[nodiscard]] static std::filesystem::path ResourcesRoot();
         [[nodiscard]] static std::filesystem::path ToAbsoluteResourcePath(

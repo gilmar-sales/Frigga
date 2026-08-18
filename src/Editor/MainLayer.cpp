@@ -516,6 +516,11 @@ void MainLayer::drawMenuBar()
             {
                 mHierarchy->createEmptyEntity();
             }
+            if(ImGui::MenuItem(ICON_BTSP_COLLECTION " Create Prefab from Selection", nullptr,
+                               false, mSelection->HasSelection()))
+            {
+                mHierarchy->createPrefabFromSelection();
+            }
             if(ImGui::BeginMenu("Create Geometry"))
             {
                 using fg::PrimitiveType;

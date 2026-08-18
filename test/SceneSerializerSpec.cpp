@@ -13,6 +13,7 @@
 #include <Frigga/ECS/Components/MeshComponent.hpp>
 #include <Frigga/ECS/Components/NameComponent.hpp>
 #include <Frigga/ECS/Components/ParticleEmitterComponent.hpp>
+#include <Frigga/ECS/Components/PrefabComponent.hpp>
 #include <Frigga/ECS/Components/RigidBodyComponent.hpp>
 #include <Frigga/ECS/Components/TransformComponent.hpp>
 #include <Frigga/ECS/TransformUtil.hpp>
@@ -233,7 +234,8 @@ class SceneSerializerSpec: public ::testing::Test
                            .WithComponent<fg::BillboardTextComponent>()
                            .WithComponent<fg::HealthBarComponent>()
                            .WithComponent<fg::ParticleEmitterComponent>()
-                           .WithComponent<fg::FullscreenEffectComponent>();
+                           .WithComponent<fg::FullscreenEffectComponent>()
+                           .WithComponent<fg::PrefabComponent>();
                    })
                    .Build<EmptyApp>();
 

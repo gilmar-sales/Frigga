@@ -16,6 +16,7 @@
 #include "ECS/Components/MeshComponent.hpp"
 #include "ECS/Components/NameComponent.hpp"
 #include "ECS/Components/ParticleEmitterComponent.hpp"
+#include "ECS/Components/PrefabComponent.hpp"
 #include "ECS/Components/RigidBodyComponent.hpp"
 #include "ECS/Components/TransformComponent.hpp"
 #include "ECS/Systems/AnimationSystem.hpp"
@@ -51,6 +52,7 @@ namespace FRIGGA_NAMESPACE
                     .WithComponent<ParticleEmitterComponent>()
                     .WithComponent<FullscreenEffectComponent>()
                     .WithComponent<AnimatorComponent>()
+                    .WithComponent<PrefabComponent>()
                     .WithPipeline([](fr::PipelineBuilder &pipeline) {
                         // Play mode only (Editor disables this pipeline while editing).
                         // Gameplay runs first so fg::Physics intents apply before the step.

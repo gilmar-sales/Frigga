@@ -12,6 +12,7 @@
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/NameComponent.hpp"
 #include "Frigga/ECS/Components/ParticleEmitterComponent.hpp"
+#include "Frigga/ECS/Components/PrefabComponent.hpp"
 #include "Frigga/ECS/Components/RigidBodyComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/ECS/TransformUtil.hpp"
@@ -224,6 +225,7 @@ namespace FRIGGA_NAMESPACE
             std::optional<SceneBillboardTextDto> billboardText;
             std::optional<SceneFullscreenEffectDto> fullscreenEffect;
             std::optional<std::vector<SceneUserComponentDto>> userComponents;
+            std::optional<std::string>             prefabSource;
             std::optional<int64_t>                 parent;
         };
 
@@ -239,6 +241,12 @@ namespace FRIGGA_NAMESPACE
         {
             int64_t                     version = kSceneVersion;
             SceneEditorCameraDto        editorCamera {};
+            std::vector<SceneEntityDto> entities {};
+        };
+
+        struct PrefabDocument
+        {
+            int64_t                     version = kSceneVersion;
             std::vector<SceneEntityDto> entities {};
         };
 
@@ -839,32 +847,20 @@ namespace FRIGGA_NAMESPACE
             }
             return true;
         }
-    } // namespace
 
-    bool SceneSerializer::Serialize(Scene &scene, std::string &outJson)
-    {
-        SceneDocument document {};
-        document.version = kSceneVersion;
+        SceneEntityDto FillEntityDto(fr::Registry &registry,
+                                     const skr::Arc<PrimitiveMeshFactory> &primitives,
+                                     const skr::Arc<AssetRegistry> &assets,
+                                     const skr::Arc<skr::Logger<Scene>> &logger,
+                                     const skr::Arc<UserComponentRegistry> &userComponents,
+                                     fr::Entity entity, std::string_view name)
+        {
+            SceneEntityDto dto {.name = std::string(name)};
 
-        const auto &editorCamera = scene.GetEditorCamera();
-        document.editorCamera    = SceneEditorCameraDto {
-               .transform  = ToDto(editorCamera.transform),
-               .fovDegrees = editorCamera.fovDegrees,
-               .nearPlane  = editorCamera.nearPlane,
-               .farPlane   = editorCamera.farPlane,
-        };
-
-        auto registry   = scene.mEcsRegistry;
-        auto primitives = scene.mPrimitives;
-
-        std::vector<fr::Entity> serializedEntities;
-        registry->CreateMutation()->Each<NameComponent>([&](auto entity, NameComponent &name) {
-            SceneEntityDto dto {.name = name.name};
-
-            registry->TryGetComponents<TransformComponent>(
+            registry.TryGetComponents<TransformComponent>(
                 entity, [&](TransformComponent &transform) { dto.transform = ToDto(transform); });
 
-            registry->TryGetComponents<MeshComponent>(entity, [&](MeshComponent &mesh) {
+            registry.TryGetComponents<MeshComponent>(entity, [&](MeshComponent &mesh) {
                 SceneMeshDto meshDto {.castShadows = mesh.castShadows};
 
                 PrimitiveType primitive = PrimitiveType::Cube;
@@ -876,18 +872,18 @@ namespace FRIGGA_NAMESPACE
                 {
                     ModelAsset model {};
                     std::uint32_t submesh = 0;
-                    if(scene.mAssets &&
-                       scene.mAssets->TryFindModelByMeshId(mesh.meshId, model, submesh))
+                    if(assets &&
+                       assets->TryFindModelByMeshId(mesh.meshId, model, submesh))
                     {
                         meshDto.source = model.relativePath;
                         meshDto.index  = static_cast<int64_t>(submesh);
                     }
                     else
                     {
-                        scene.mLogger->LogWarning(
+                        logger->LogWarning(
                             "Scene save: meshId {} on '{}' is not a known primitive or imported "
                             "model; defaulting to Cube",
-                            mesh.meshId, name.name);
+                            mesh.meshId, name);
                         meshDto.primitive = PrimitiveMeshFactory::GetDisplayName(PrimitiveType::Cube);
                     }
                 }
@@ -895,11 +891,11 @@ namespace FRIGGA_NAMESPACE
                 dto.mesh = std::move(meshDto);
             });
 
-            registry->TryGetComponents<MaterialComponent>(entity, [&](MaterialComponent &material) {
-                dto.material = MaterialToDto(primitives, scene.mAssets, material.materialId);
+            registry.TryGetComponents<MaterialComponent>(entity, [&](MaterialComponent &material) {
+                dto.material = MaterialToDto(primitives, assets, material.materialId);
             });
 
-            registry->TryGetComponents<CameraComponent>(entity, [&](CameraComponent &camera) {
+            registry.TryGetComponents<CameraComponent>(entity, [&](CameraComponent &camera) {
                 dto.camera = SceneCameraDto {
                     .fovDegrees = camera.fovDegrees,
                     .nearPlane  = camera.nearPlane,
@@ -909,7 +905,7 @@ namespace FRIGGA_NAMESPACE
                 };
             });
 
-            registry->TryGetComponents<LightComponent>(entity, [&](LightComponent &light) {
+            registry.TryGetComponents<LightComponent>(entity, [&](LightComponent &light) {
                 dto.light = SceneLightDto {
                     .type              = LightTypeToString(light.type),
                     .color             = {light.color.x, light.color.y, light.color.z},
@@ -923,7 +919,7 @@ namespace FRIGGA_NAMESPACE
                 };
             });
 
-            registry->TryGetComponents<RigidBodyComponent>(entity, [&](RigidBodyComponent &rb) {
+            registry.TryGetComponents<RigidBodyComponent>(entity, [&](RigidBodyComponent &rb) {
                 dto.rigidBody = SceneRigidBodyDto {
                     .motion            = MotionToString(rb.motion),
                     .shape             = ShapeToString(rb.shape),
@@ -938,7 +934,7 @@ namespace FRIGGA_NAMESPACE
                 };
             });
 
-            registry->TryGetComponents<AnimatorComponent>(entity, [&](AnimatorComponent &animator) {
+            registry.TryGetComponents<AnimatorComponent>(entity, [&](AnimatorComponent &animator) {
                 dto.animator = SceneAnimatorDto {
                     .modelSource   = animator.modelSource,
                     .clipName      = animator.clipName,
@@ -953,12 +949,12 @@ namespace FRIGGA_NAMESPACE
                 };
             });
 
-            registry->TryGetComponents<BillboardComponent>(entity, [&](BillboardComponent &bb) {
+            registry.TryGetComponents<BillboardComponent>(entity, [&](BillboardComponent &bb) {
                 dto.billboard = SceneBillboardDto {
                     .size        = {bb.size.x, bb.size.y},
                     .color       = {bb.color.x, bb.color.y, bb.color.z, bb.color.w},
                     .uvRect      = {bb.uvRect.x, bb.uvRect.y, bb.uvRect.z, bb.uvRect.w},
-                    .texture     = TexturePathOrNull(scene.mAssets, bb.textureId),
+                    .texture     = TexturePathOrNull(assets, bb.textureId),
                     .align       = BillboardAlignToString(bb.align),
                     .blend       = BillboardBlendToString(bb.blend),
                     .layer       = BillboardLayerToString(bb.layer),
@@ -969,7 +965,7 @@ namespace FRIGGA_NAMESPACE
                 };
             });
 
-            registry->TryGetComponents<ParticleEmitterComponent>(
+            registry.TryGetComponents<ParticleEmitterComponent>(
                 entity, [&](ParticleEmitterComponent &p) {
                     dto.particles = SceneParticleEmitterDto {
                         .velocity       = {p.velocity.x, p.velocity.y, p.velocity.z},
@@ -982,13 +978,13 @@ namespace FRIGGA_NAMESPACE
                         .color0         = {p.color0.x, p.color0.y, p.color0.z, p.color0.w},
                         .color1         = {p.color1.x, p.color1.y, p.color1.z, p.color1.w},
                         .blend          = BillboardBlendToString(p.blend),
-                        .texture        = TexturePathOrNull(scene.mAssets, p.textureId),
+                        .texture        = TexturePathOrNull(assets, p.textureId),
                         .maxParticles   = p.maxParticles,
                         .playing        = p.playing,
                     };
                 });
 
-            registry->TryGetComponents<HealthBarComponent>(entity, [&](HealthBarComponent &bar) {
+            registry.TryGetComponents<HealthBarComponent>(entity, [&](HealthBarComponent &bar) {
                 dto.healthBar = SceneHealthBarDto {
                     .fill        = bar.fill,
                     .width       = bar.width,
@@ -1001,7 +997,7 @@ namespace FRIGGA_NAMESPACE
                 };
             });
 
-            registry->TryGetComponents<BillboardTextComponent>(
+            registry.TryGetComponents<BillboardTextComponent>(
                 entity, [&](BillboardTextComponent &label) {
                     dto.billboardText = SceneBillboardTextDto {
                         .text         = label.text,
@@ -1017,7 +1013,7 @@ namespace FRIGGA_NAMESPACE
                     };
                 });
 
-            registry->TryGetComponents<FullscreenEffectComponent>(
+            registry.TryGetComponents<FullscreenEffectComponent>(
                 entity, [&](FullscreenEffectComponent &fx) {
                     dto.fullscreenEffect = SceneFullscreenEffectDto {
                         .name            = fx.name,
@@ -1034,17 +1030,24 @@ namespace FRIGGA_NAMESPACE
                     };
                 });
 
-            if(scene.mUserComponents)
+            registry.TryGetComponents<PrefabComponent>(entity, [&](PrefabComponent &prefab) {
+                if(!prefab.source.empty())
+                {
+                    dto.prefabSource = prefab.source;
+                }
+            });
+
+            if(userComponents)
             {
                 std::vector<SceneUserComponentDto> components;
-                for(const auto &ops : scene.mUserComponents->GetTypes())
+                for(const auto &ops : userComponents->GetTypes())
                 {
-                    if(!ops.has || !ops.has(*registry, entity) || !ops.toInstance)
+                    if(!ops.has || !ops.has(registry, entity) || !ops.toInstance)
                     {
                         continue;
                     }
                     UserComponentInstance instance {};
-                    if(!ops.toInstance(*registry, entity, instance))
+                    if(!ops.toInstance(registry, entity, instance))
                     {
                         continue;
                     }
@@ -1057,8 +1060,7 @@ namespace FRIGGA_NAMESPACE
                     components.push_back(std::move(userDto));
                 }
 
-                // Preserve gameplay data still waiting for the plugin to register types.
-                for(const auto &deferred : scene.mUserComponents->GetDeferredForEntity(entity))
+                for(const auto &deferred : userComponents->GetDeferredForEntity(entity))
                 {
                     const bool already =
                         std::ranges::any_of(components, [&](const SceneUserComponentDto &dto) {
@@ -1083,29 +1085,70 @@ namespace FRIGGA_NAMESPACE
                 }
             }
 
-            document.entities.push_back(std::move(dto));
+            return dto;
+        }
+
+        void AssignParentIndices(fr::Registry &registry, const std::vector<fr::Entity> &entities,
+                                 std::vector<SceneEntityDto> &dtos)
+        {
+            std::unordered_map<fr::Entity, int64_t> indexByEntity;
+            indexByEntity.reserve(entities.size());
+            for(int64_t i = 0; i < static_cast<int64_t>(entities.size()); ++i)
+            {
+                indexByEntity[entities[static_cast<std::size_t>(i)]] = i;
+            }
+            for(int64_t i = 0; i < static_cast<int64_t>(entities.size()); ++i)
+            {
+                const auto parent =
+                    TransformUtil::ParentOf(registry, entities[static_cast<std::size_t>(i)]);
+                if(parent == kInvalidEntity)
+                {
+                    continue;
+                }
+                if(const auto found = indexByEntity.find(parent); found != indexByEntity.end())
+                {
+                    dtos[static_cast<std::size_t>(i)].parent = found->second;
+                }
+            }
+        }
+
+        void CollectSubtree(fr::Registry &registry, fr::Entity root, std::vector<fr::Entity> &out)
+        {
+            out.push_back(root);
+            registry.TryGetComponents<HierarchyComponent>(root, [&](HierarchyComponent &hierarchy) {
+                for(const auto child : hierarchy.children)
+                {
+                    CollectSubtree(registry, child, out);
+                }
+            });
+        }
+
+    } // namespace
+
+    bool SceneSerializer::Serialize(Scene &scene, std::string &outJson)
+    {
+        SceneDocument document {};
+        document.version = kSceneVersion;
+
+        const auto &editorCamera = scene.GetEditorCamera();
+        document.editorCamera    = SceneEditorCameraDto {
+               .transform  = ToDto(editorCamera.transform),
+               .fovDegrees = editorCamera.fovDegrees,
+               .nearPlane  = editorCamera.nearPlane,
+               .farPlane   = editorCamera.farPlane,
+        };
+
+        auto registry = scene.mEcsRegistry;
+
+        std::vector<fr::Entity> serializedEntities;
+        registry->CreateMutation()->Each<NameComponent>([&](auto entity, NameComponent &name) {
+            document.entities.push_back(FillEntityDto(*registry, scene.mPrimitives, scene.mAssets,
+                                                       scene.mLogger, scene.mUserComponents,
+                                                       entity, name.name));
             serializedEntities.push_back(entity);
         });
 
-        std::unordered_map<fr::Entity, int64_t> indexByEntity;
-        indexByEntity.reserve(serializedEntities.size());
-        for(int64_t i = 0; i < static_cast<int64_t>(serializedEntities.size()); ++i)
-        {
-            indexByEntity[serializedEntities[static_cast<std::size_t>(i)]] = i;
-        }
-        for(int64_t i = 0; i < static_cast<int64_t>(serializedEntities.size()); ++i)
-        {
-            const auto parent =
-                TransformUtil::ParentOf(*registry, serializedEntities[static_cast<std::size_t>(i)]);
-            if(parent == kInvalidEntity)
-            {
-                continue;
-            }
-            if(const auto found = indexByEntity.find(parent); found != indexByEntity.end())
-            {
-                document.entities[static_cast<std::size_t>(i)].parent = found->second;
-            }
-        }
+        AssignParentIndices(*registry, serializedEntities, document.entities);
 
         outJson.clear();
         if(const auto error = simdjson::to_json(document, outJson); error)
@@ -1699,6 +1742,13 @@ namespace FRIGGA_NAMESPACE
             }
 
             scene.FlushEcs();
+
+            if(entityDto.prefabSource && !entityDto.prefabSource->empty())
+            {
+                registry->AddComponents(entity,
+                                        PrefabComponent {.source = *entityDto.prefabSource});
+                scene.FlushEcs();
+            }
 
             // Plugin gameplay components (Freyr SoA) via type-erased ops.
             if(entityDto.userComponents && !entityDto.userComponents->empty())
@@ -2648,6 +2698,186 @@ namespace FRIGGA_NAMESPACE
         }
 
         return false;
+    }
+
+
+    bool SceneSerializer::SerializePrefab(Scene &scene, fr::Entity root, std::string &outJson)
+    {
+        if(root == kInvalidEntity)
+        {
+            return false;
+        }
+
+        auto registry = scene.mEcsRegistry;
+        if(!registry->HasComponent<NameComponent>(root))
+        {
+            scene.mLogger->LogError("Cannot serialize prefab: entity has no NameComponent");
+            return false;
+        }
+
+        std::vector<fr::Entity> entities;
+        CollectSubtree(*registry, root, entities);
+
+        PrefabDocument document {};
+        document.version = kSceneVersion;
+        document.entities.reserve(entities.size());
+
+        for(const auto entity : entities)
+        {
+            std::string name;
+            registry->TryGetComponents<NameComponent>(
+                entity, [&](NameComponent &component) { name = component.name; });
+            if(name.empty())
+            {
+                name = "Entity";
+            }
+            auto dto = FillEntityDto(*registry, scene.mPrimitives, scene.mAssets,
+                                       scene.mLogger, scene.mUserComponents, entity, name);
+            dto.prefabSource.reset();
+            if(dto.camera)
+            {
+                dto.camera->primary = false;
+                dto.camera->locked  = false;
+            }
+            if(entity == root && dto.transform)
+            {
+                const auto world = TransformUtil::WorldPose(*registry, root);
+                TransformComponent worldTransform {
+                    .position = world.position,
+                    .scale    = world.scale,
+                    .rotation = world.rotation,
+                };
+                dto.transform = ToDto(worldTransform);
+            }
+            document.entities.push_back(std::move(dto));
+        }
+
+        AssignParentIndices(*registry, entities, document.entities);
+        if(!document.entities.empty())
+        {
+            document.entities.front().parent.reset();
+        }
+
+        outJson.clear();
+        if(const auto error = simdjson::to_json(document, outJson); error)
+        {
+            scene.mLogger->LogError("Failed to serialize prefab: {}",
+                                    simdjson::error_message(error));
+            return false;
+        }
+        return true;
+    }
+
+    bool SceneSerializer::InstantiatePrefab(Scene &scene, std::string_view json, fr::Entity parent,
+                                            fr::Entity &outRoot, std::string_view prefabSource)
+    {
+        outRoot = kInvalidEntity;
+        const simdjson::padded_string padded(json);
+        PrefabDocument document {};
+        if(const auto error = simdjson::from(padded).get(document); error)
+        {
+            scene.mLogger->LogError("Failed to parse prefab: {}", simdjson::error_message(error));
+            return false;
+        }
+
+        if(document.entities.empty())
+        {
+            scene.mLogger->LogError("Prefab has no entities");
+            return false;
+        }
+
+        const auto savedEditor = scene.GetEditorCamera();
+        const auto savedMain   = scene.mMainCameraEntity;
+
+        SceneDocument sceneDocument {};
+        sceneDocument.version      = document.version;
+        sceneDocument.entities     = document.entities;
+        sceneDocument.editorCamera = SceneEditorCameraDto {
+            .transform  = ToDto(savedEditor.transform),
+            .fovDegrees = savedEditor.fovDegrees,
+            .nearPlane  = savedEditor.nearPlane,
+            .farPlane   = savedEditor.farPlane,
+        };
+
+        std::string wrapped;
+        if(const auto error = simdjson::to_json(sceneDocument, wrapped); error)
+        {
+            scene.mLogger->LogError("Failed to wrap prefab for instantiate: {}",
+                                    simdjson::error_message(error));
+            return false;
+        }
+
+        std::unordered_set<fr::Entity> before;
+        scene.mEcsRegistry->CreateMutation()->Each<NameComponent>(
+            [&](auto entity, NameComponent &) { before.insert(entity); });
+
+        if(!Deserialize(scene, wrapped))
+        {
+            scene.mEditorCamera     = savedEditor;
+            scene.mMainCameraEntity = savedMain;
+            return false;
+        }
+
+        scene.mEditorCamera     = savedEditor;
+        scene.mMainCameraEntity = savedMain;
+
+        std::vector<fr::Entity> created;
+        scene.mEcsRegistry->CreateMutation()->Each<NameComponent>(
+            [&](auto entity, NameComponent &) {
+                if(!before.contains(entity))
+                {
+                    created.push_back(entity);
+                }
+            });
+
+        if(created.empty())
+        {
+            scene.mLogger->LogError("Prefab instantiate produced no entities");
+            return false;
+        }
+
+        std::vector<fr::Entity> roots;
+        for(const auto entity : created)
+        {
+            const auto entityParent = TransformUtil::ParentOf(*scene.mEcsRegistry, entity);
+            if(entityParent == kInvalidEntity || before.contains(entityParent))
+            {
+                roots.push_back(entity);
+            }
+        }
+        if(roots.empty())
+        {
+            roots.push_back(created.front());
+        }
+
+        outRoot = roots.front();
+        if(parent != kInvalidEntity)
+        {
+            for(const auto root : roots)
+            {
+                if(!TransformUtil::SetParent(*scene.mEcsRegistry, root, parent, true))
+                {
+                    scene.mLogger->LogWarning("Failed to parent prefab instance under selection");
+                }
+            }
+        }
+
+        if(!prefabSource.empty())
+        {
+            const std::string source {prefabSource};
+            if(scene.mEcsRegistry->HasComponent<PrefabComponent>(outRoot))
+            {
+                scene.mEcsRegistry->TryGetComponents<PrefabComponent>(
+                    outRoot, [&](PrefabComponent &prefab) { prefab.source = source; });
+            }
+            else
+            {
+                scene.mEcsRegistry->AddComponents(outRoot, PrefabComponent {.source = source});
+            }
+        }
+
+        scene.FlushEcs();
+        return true;
     }
 
 } // namespace FRIGGA_NAMESPACE

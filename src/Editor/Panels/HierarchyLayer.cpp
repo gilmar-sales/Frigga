@@ -2,6 +2,7 @@
 
 #include "Editor/BoostrapIconsFont.hpp"
 #include "Editor/DockLayout.hpp"
+#include "Editor/Panels/ResourcesLayer.hpp"
 #include "Editor/Ui/ComponentClipboard.hpp"
 #include "Frigga/ECS/Components/CameraComponent.hpp"
 #include "Frigga/ECS/Components/LightComponent.hpp"
@@ -15,12 +16,14 @@
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/NameComponent.hpp"
 #include "Frigga/ECS/Components/ParticleEmitterComponent.hpp"
+#include "Frigga/ECS/Components/PrefabComponent.hpp"
 #include "Frigga/ECS/Components/RigidBodyComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/ECS/TransformUtil.hpp"
 #include "Frigga/ECS/Components/UserDataComponent.hpp"
 #include "Frigga/Plugin/FriComponentInspector.hpp"
 #include "Frigga/Plugin/GameplayTypeIds.hpp"
+#include "Frigga/Scene/Prefab.hpp"
 
 #include <SDL3/SDL_dialog.h>
 
@@ -31,6 +34,7 @@
 #include <format>
 #include <map>
 #include <sstream>
+#include <system_error>
 #include <imgui.h>
 #include <unordered_set>
 #include <vector>
@@ -39,6 +43,11 @@ namespace
 {
     const SDL_DialogFileFilter kTextureFilters[] = {
         {"Images", "png;jpg;jpeg;tga;bmp;hdr;webp"},
+        {"All files", "*"},
+    };
+
+    const SDL_DialogFileFilter kPrefabFilters[] = {
+        {"Prefabs", "prefab"},
         {"All files", "*"},
     };
 
@@ -101,11 +110,13 @@ HierarchyLayer::HierarchyLayer(skr::Arc<fr::Registry> registry, skr::Arc<fg::Sce
                                skr::Arc<SelectionContext> selection,
                                skr::Arc<fg::SceneSimulationState> simulation,
                                skr::Arc<fra::Window> window,
-                               skr::Arc<fg::UserComponentRegistry> userComponents)
+                               skr::Arc<fg::UserComponentRegistry> userComponents,
+                               skr::Arc<ResourcesLayer> resources)
     : mRegistry(std::move(registry)), mScene(std::move(scene)),
       mPrimitives(std::move(primitives)), mAssets(std::move(assets)),
       mSelection(std::move(selection)), mSimulation(std::move(simulation)),
       mWindow(std::move(window)), mUserComponents(std::move(userComponents)),
+      mResources(std::move(resources)),
       nodeToRename(SelectionContext::Invalid)
 {
 }
@@ -272,6 +283,10 @@ const char *HierarchyLayer::resolveEntityIcon(fr::Entity entity) const
     {
         return ICON_BTSP_IMAGE;
     }
+    if(mRegistry->HasComponent<fg::PrefabComponent>(entity))
+    {
+        return ICON_BTSP_COLLECTION;
+    }
     if(mRegistry->HasComponent<fg::MeshComponent>(entity))
     {
         return ICON_BTSP_BOX;
@@ -296,6 +311,101 @@ void HierarchyLayer::parentNewEntity(fr::Entity entity)
     }
     mRegistry->ExecuteTasks();
     fg::TransformUtil::SetParent(*mRegistry, entity, parent, false);
+}
+
+void HierarchyLayer::createPrefabFromSelection()
+{
+    if(mSimulation->IsPlaying() || !mSelection->HasSelection())
+    {
+        return;
+    }
+    requestSavePrefabDialog(mSelection->Get());
+}
+
+void HierarchyLayer::requestSavePrefabDialog(fr::Entity entity)
+{
+    std::string name = "Prefab";
+    mRegistry->TryGetComponents<fg::NameComponent>(
+        entity, [&](fg::NameComponent &component) { name = component.name; });
+    const auto stem = fg::Prefab::SanitizeFileStem(name);
+    const auto path = (fg::Prefab::DefaultDirectory() / stem).replace_extension(".prefab");
+
+    {
+        std::lock_guard lock(mDialogMutex);
+        mPendingPrefabEntity     = entity;
+        mDialogDefaultLocation   = path.string();
+    }
+
+    std::error_code ec;
+    std::filesystem::create_directories(fg::Prefab::DefaultDirectory(), ec);
+    SDL_ShowSaveFileDialog(onPrefabSaveDialog, this, mWindow->Get(), kPrefabFilters,
+                           static_cast<int>(std::size(kPrefabFilters)),
+                           mDialogDefaultLocation.c_str());
+}
+
+void HierarchyLayer::onPrefabSaveDialog(void *userdata, const char *const *filelist, int)
+{
+    auto *self = static_cast<HierarchyLayer *>(userdata);
+    if(filelist == nullptr || filelist[0] == nullptr)
+    {
+        return;
+    }
+
+    std::lock_guard lock(self->mDialogMutex);
+    self->mPendingPrefabPath = filelist[0];
+}
+
+void HierarchyLayer::processPendingPrefabSave()
+{
+    std::filesystem::path path;
+    fr::Entity entity = SelectionContext::Invalid;
+    {
+        std::lock_guard lock(mDialogMutex);
+        if(!mPendingPrefabPath)
+        {
+            return;
+        }
+        path                 = *mPendingPrefabPath;
+        entity               = mPendingPrefabEntity;
+        mPendingPrefabPath.reset();
+        mPendingPrefabEntity = SelectionContext::Invalid;
+    }
+
+    if(entity == SelectionContext::Invalid)
+    {
+        return;
+    }
+    if(path.extension().empty())
+    {
+        path.replace_extension(".prefab");
+    }
+
+    if(fg::Prefab::Save(*mScene, entity, path))
+    {
+        if(mResources)
+        {
+            mResources->MarkDirty();
+        }
+        if(!mRegistry->HasComponent<fg::PrefabComponent>(entity))
+        {
+            auto relative = fg::AssetRegistry::MakeRelativeToResources(path);
+            if(relative.empty())
+            {
+                relative = path.generic_string();
+            }
+            mRegistry->AddComponents(entity,
+                                     fg::PrefabComponent {.source = relative.generic_string()});
+        }
+        else
+        {
+            auto relative = fg::AssetRegistry::MakeRelativeToResources(path);
+            mRegistry->TryGetComponents<fg::PrefabComponent>(
+                entity, [&](fg::PrefabComponent &prefab) {
+                    prefab.source = relative.empty() ? path.generic_string()
+                                                     : relative.generic_string();
+                });
+        }
+    }
 }
 
 void HierarchyLayer::createEmptyEntity()
@@ -884,6 +994,7 @@ void HierarchyLayer::processPendingTextureImport()
 void HierarchyLayer::onUpdate()
 {
     processPendingTextureImport();
+    processPendingPrefabSave();
 }
 
 void HierarchyLayer::onGui()
@@ -1102,7 +1213,8 @@ bool HierarchyLayer::entityHasVisibleComponents(fr::Entity entity) const
        mRegistry->HasComponent<fg::ParticleEmitterComponent>(entity) ||
        mRegistry->HasComponent<fg::HealthBarComponent>(entity) ||
        mRegistry->HasComponent<fg::BillboardTextComponent>(entity) ||
-       mRegistry->HasComponent<fg::FullscreenEffectComponent>(entity))
+       mRegistry->HasComponent<fg::FullscreenEffectComponent>(entity) ||
+       mRegistry->HasComponent<fg::PrefabComponent>(entity))
     {
         return true;
     }
@@ -1219,6 +1331,16 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
             const auto child = *static_cast<const fr::Entity *>(payload->Data);
             fg::TransformUtil::SetParent(*mRegistry, child, entity, true);
         }
+        if(const ImGuiPayload *payload =
+               ImGui::AcceptDragDropPayload(ResourcesLayer::kDragPayloadId))
+        {
+            const auto *drag =
+                static_cast<const ResourcesLayer::ResourceDragPayload *>(payload->Data);
+            if(mResources)
+            {
+                mResources->HandleDrop(*drag, entity);
+            }
+        }
         ImGui::EndDragDropTarget();
     }
 
@@ -1252,6 +1374,11 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
         }
 
         if(ImGui::MenuItem("Rename...", nullptr, false, !playLocked)) nodeToRename = entity;
+
+        if(ImGui::MenuItem(ICON_BTSP_COLLECTION " Create Prefab...", nullptr, false, !playLocked))
+        {
+            requestSavePrefabDialog(entity);
+        }
 
         const auto parent = fg::TransformUtil::ParentOf(*mRegistry, entity);
         if(ImGui::MenuItem("Unparent", nullptr, false,
@@ -1509,6 +1636,15 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
 void HierarchyLayer::drawComponents()
 {
     const fr::Entity selection = mSelection->Get();
+
+    mRegistry->TryGetComponents<fg::PrefabComponent>(
+        selection, [](fg::PrefabComponent &prefab) {
+            if(ImGui::CollapsingHeader("Prefab", ImGuiTreeNodeFlags_DefaultOpen))
+            {
+                ImGui::TextWrapped("Source: Resources/%s", prefab.source.c_str());
+                ImGui::TextDisabled("Double-click the prefab in Resources to spawn another copy.");
+            }
+        });
 
     mRegistry->TryGetComponents<fg::TransformComponent>(
         selection, [this, selection](fg::TransformComponent &transform) {
