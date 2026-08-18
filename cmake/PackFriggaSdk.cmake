@@ -56,6 +56,12 @@ file(COPY "${CMAKE_SOURCE_DIR}/src/Frigga/Input"
         PATTERN "*.hpp"
         PATTERN "*.h")
 
+file(COPY "${CMAKE_SOURCE_DIR}/src/Frigga/Net"
+     DESTINATION "${FRIGGA_SDK_DIR}/src/Frigga"
+     FILES_MATCHING
+        PATTERN "*.hpp"
+        PATTERN "*.h")
+
 # RigidBody / Character / fg::Physics facade (no Jolt / IPhysicsWorld in the SDK).
 file(MAKE_DIRECTORY "${FRIGGA_SDK_DIR}/src/Frigga/Physics")
 file(COPY "${CMAKE_SOURCE_DIR}/src/Frigga/Physics/PhysicsBodyHandle.hpp"

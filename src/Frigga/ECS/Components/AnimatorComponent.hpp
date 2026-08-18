@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Frigga/Animation/AnimGraphDefinition.hpp"
+
 #include <Frigga/Macro.hpp>
 
 #include <Freya/Asset/InstanceTransform.hpp>
@@ -33,6 +35,9 @@ namespace FRIGGA_NAMESPACE
         bool useGpu = false;
         /// Advance / sample pose while the editor is in Edit mode.
         bool previewInEdit = true;
+        /// Drive playback from `animGraph` instead of a single `clipName`.
+        bool useAnimGraph = false;
+        AnimGraphDefinition animGraph {};
 
         std::uint32_t boneOffset = fra::kNoSkin;
         std::uint32_t boneCount  = 0;

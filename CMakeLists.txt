@@ -77,6 +77,17 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(JoltPhysics)
 
+set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+set(BUILD_C-ARES OFF CACHE BOOL "" FORCE)
+set(TRANTOR_USE_TLS "none" CACHE STRING "" FORCE)
+FetchContent_Declare(
+        trantor
+        GIT_REPOSITORY "https://github.com/an-tao/trantor.git"
+        GIT_TAG "v1.5.28"
+        GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(trantor)
+
 # Headers needed to scaffold/build gameplay plugins from a published Editor.
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/PackFriggaSdk.cmake")
 
@@ -108,6 +119,7 @@ target_link_libraries(frigga PUBLIC
         imgui::imgui
         skirnir::skirnir
         Jolt
+        trantor
         ${CMAKE_DL_LIBS}
 )
 
@@ -170,6 +182,23 @@ endif ()
 
 file(COPY src/Editor/Resources DESTINATION ${CMAKE_BINARY_DIR})
 
+add_executable(FriggaServer
+        src/Server/Main.cpp
+        src/Server/ServerApplication.cpp
+        src/Editor/Project/ProjectFile.cpp)
+target_compile_features(FriggaServer PUBLIC cxx_std_26)
+target_include_directories(FriggaServer PRIVATE src)
+target_link_libraries(FriggaServer PUBLIC frigga::frigga)
+set_target_properties(FriggaServer PROPERTIES ENABLE_EXPORTS TRUE)
+if (UNIX AND NOT APPLE)
+    target_link_options(FriggaServer PRIVATE -Wl,--export-dynamic)
+elseif (APPLE)
+    target_link_options(FriggaServer PRIVATE -Wl,-export_dynamic)
+endif ()
+if (WIN32 AND CMAKE_NM)
+    target_sources(FriggaServer PRIVATE "${_plugin_exports}")
+endif ()
+
 # --- Tests -----------------------------------------------------------------
 enable_testing()
 add_subdirectory(test)
@@ -177,7 +206,7 @@ add_subdirectory(test)
 # --- Install / packaging ---------------------------------------------------
 include(GNUInstallDirs)
 
-install(TARGETS Editor
+install(TARGETS Editor FriggaServer
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
         COMPONENT Runtime)
 

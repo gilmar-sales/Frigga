@@ -71,7 +71,9 @@ namespace FRIGGA_NAMESPACE
     {
         return LabelEndsWith(label, "AnimationSystem") || LabelEndsWith(label, "RenderSystem") ||
                LabelEndsWith(label, "PhysicsSystem") ||
-               LabelEndsWith(label, "GameplayPluginBridge");
+               LabelEndsWith(label, "GameplayPluginBridge") ||
+               LabelEndsWith(label, "NetworkReceiveSystem") ||
+               LabelEndsWith(label, "NetworkSendSystem");
     }
 
     const char *EngineSystemBuiltinPipeline(std::string_view label)
@@ -101,20 +103,42 @@ namespace FRIGGA_NAMESPACE
         (void)ensure(kDefaultEcsPipelineName, kSimulationRateHz);
         (void)ensure(kMainPipelineName, 0.0f);
         const auto renderId = ensure(kRenderPipelineName, 0.0f);
+        const auto simId    = *registry.FindPipelineId(std::string(kDefaultEcsPipelineName));
+
+        std::optional<fr::SystemId> receiveId;
+        std::optional<fr::SystemId> gameplayId;
+        std::optional<fr::SystemId> physicsId;
+        std::optional<fr::SystemId> sendId;
 
         registry.ForEachRegisteredSystem([&](fr::SystemId id, std::string_view label) {
             if(!IsEngineSystemLabel(label))
             {
                 return;
             }
+            if(LabelEndsWith(label, "NetworkReceiveSystem"))
+            {
+                receiveId = id;
+                return;
+            }
+            if(LabelEndsWith(label, "GameplayPluginBridge"))
+            {
+                gameplayId = id;
+                return;
+            }
+            if(LabelEndsWith(label, "PhysicsSystem"))
+            {
+                physicsId = id;
+                return;
+            }
+            if(LabelEndsWith(label, "NetworkSendSystem"))
+            {
+                sendId = id;
+                return;
+            }
+
             const auto targetName = EngineSystemBuiltinPipeline(label);
             const auto targetId   = registry.FindPipelineId(targetName);
             if(!targetId)
-            {
-                return;
-            }
-            const auto current = registry.FindPipelineContaining(id);
-            if(current && *current == *targetId)
             {
                 return;
             }
@@ -125,6 +149,23 @@ namespace FRIGGA_NAMESPACE
                                   : registry.GetPipeline(*targetId).Systems.size();
             (void)registry.MoveSystem(id, *targetId, slot);
         });
+
+        if(receiveId)
+        {
+            (void)registry.MoveSystem(*receiveId, simId, 0);
+        }
+        if(gameplayId)
+        {
+            (void)registry.MoveSystem(*gameplayId, simId, 1);
+        }
+        if(physicsId)
+        {
+            (void)registry.MoveSystem(*physicsId, simId, registry.GetPipeline(simId).Systems.size());
+        }
+        if(sendId)
+        {
+            (void)registry.MoveSystem(*sendId, simId, registry.GetPipeline(simId).Systems.size());
+        }
 
         (void)registry.MovePipeline(renderId, static_cast<std::size_t>(registry.GetPipelineCount()));
     }

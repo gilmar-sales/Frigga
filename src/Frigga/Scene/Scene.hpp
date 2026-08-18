@@ -34,6 +34,18 @@ namespace FRIGGA_NAMESPACE
               const skr::Arc<PrimitiveMeshFactory> &primitives,
               const skr::Arc<AssetRegistry> &assets,
               const skr::Arc<UserComponentRegistry> &userComponents);
+
+        struct HeadlessTag
+        {
+        };
+
+        static constexpr HeadlessTag Headless {};
+
+        Scene(HeadlessTag, const skr::Arc<skr::Logger<Scene>> &logger,
+              const skr::Arc<fr::Registry> &ecsRegistry,
+              const skr::Arc<PrimitiveMeshFactory> &primitives,
+              const skr::Arc<AssetRegistry> &assets,
+              const skr::Arc<UserComponentRegistry> &userComponents);
         ~Scene() = default;
 
         void Update(float ts);

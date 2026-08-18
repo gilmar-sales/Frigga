@@ -25,6 +25,8 @@ add_executable(frigga_tests
         EcsLayoutSpec.cpp
         PhysicsSpec.cpp
         SceneSerializerSpec.cpp
+        ProtocolSpec.cpp
+        NetworkSpec.cpp
 )
 
 target_compile_features(frigga_tests PRIVATE cxx_std_26)

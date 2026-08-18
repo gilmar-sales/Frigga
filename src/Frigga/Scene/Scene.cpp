@@ -39,6 +39,17 @@ namespace FRIGGA_NAMESPACE
         CreateDefaultEntities();
     }
 
+    Scene::Scene(HeadlessTag, const skr::Arc<skr::Logger<Scene>> &logger,
+                 const skr::Arc<fr::Registry> &ecsRegistry,
+                 const skr::Arc<PrimitiveMeshFactory> &primitives,
+                 const skr::Arc<AssetRegistry> &assets,
+                 const skr::Arc<UserComponentRegistry> &userComponents)
+        : mEcsRegistry(ecsRegistry), mLogger(logger), mPrimitives(primitives), mAssets(assets),
+          mUserComponents(userComponents)
+    {
+        CreateDefaultEntities();
+    }
+
     void Scene::Update(float ts)
     {
         mLogger->LogTrace("scene update");
