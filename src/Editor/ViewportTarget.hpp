@@ -1,7 +1,7 @@
 #pragma once
 
-#include <Frigga/Gui/Backends/imgui_impl_vulkan.h>
 #include <Frigga/Frigga.hpp>
+#include <Frigga/Gui/Backends/imgui_impl_vulkan.h>
 
 #include <glm/glm.hpp>
 
@@ -10,8 +10,8 @@ namespace fg
     /// View (glm::lookAt) + Vulkan Y-flipped projection for a scene camera.
     struct ViewportCameraMatrices
     {
-        glm::mat4 view {1.0f};
-        glm::mat4 projection {1.0f};
+        glm::mat4 view{1.0f};
+        glm::mat4 projection{1.0f};
     };
 
     /// Thick wrapper around Freya v0.42's renderer-owned offscreen viewport.
@@ -24,10 +24,7 @@ namespace fg
     class ViewportTarget
     {
       public:
-        explicit ViewportTarget(skr::Arc<fra::Renderer> renderer)
-            : mRenderer(std::move(renderer))
-        {
-        }
+        explicit ViewportTarget(skr::Arc<fra::Renderer> renderer): mRenderer(std::move(renderer)) {}
 
         ~ViewportTarget()
         {
@@ -103,13 +100,15 @@ namespace fg
         {
             if(mTextureId != VK_NULL_HANDLE && size.x > 0.0f && size.y > 0.0f)
             {
-                ImGui::Image(static_cast<ImTextureID>(
-                                 reinterpret_cast<std::uintptr_t>(mTextureId)),
+                ImGui::Image(static_cast<ImTextureID>(reinterpret_cast<std::uintptr_t>(mTextureId)),
                              size);
             }
         }
 
-        [[nodiscard]] bool IsActive() const { return mClaimed && mImageValid; }
+        [[nodiscard]] bool IsActive() const
+        {
+            return mClaimed && mImageValid;
+        }
 
         /// Compute view/projection for a camera pose using the renderer's
         /// projection convention (Y-flipped, Freya -Z forward).
@@ -118,16 +117,14 @@ namespace fg
                                               float fovDegrees, float nearPlane, float farPlane,
                                               float aspect)
         {
-            const glm::vec3 forward =
-                glm::dot(rotation * glm::vec3(0.0f, 0.0f, -1.0f),
-                         rotation * glm::vec3(0.0f, 0.0f, -1.0f)) > 1e-6f
-                    ? glm::normalize(rotation * glm::vec3(0.0f, 0.0f, -1.0f))
-                    : glm::vec3(0.0f, 0.0f, -1.0f);
-            const glm::vec3 up =
-                glm::dot(rotation * glm::vec3(0.0f, 1.0f, 0.0f),
-                         rotation * glm::vec3(0.0f, 1.0f, 0.0f)) > 1e-6f
-                    ? glm::normalize(rotation * glm::vec3(0.0f, 1.0f, 0.0f))
-                    : glm::vec3(0.0f, 1.0f, 0.0f);
+            const glm::vec3 forward = glm::dot(rotation * glm::vec3(0.0f, 0.0f, -1.0f),
+                                               rotation * glm::vec3(0.0f, 0.0f, -1.0f)) > 1e-6f
+                                          ? glm::normalize(rotation * glm::vec3(0.0f, 0.0f, -1.0f))
+                                          : glm::vec3(0.0f, 0.0f, -1.0f);
+            const glm::vec3 up      = glm::dot(rotation * glm::vec3(0.0f, 1.0f, 0.0f),
+                                               rotation * glm::vec3(0.0f, 1.0f, 0.0f)) > 1e-6f
+                                          ? glm::normalize(rotation * glm::vec3(0.0f, 1.0f, 0.0f))
+                                          : glm::vec3(0.0f, 1.0f, 0.0f);
 
             ViewportCameraMatrices out;
             out.view       = glm::lookAt(position, position + forward, up);
@@ -147,20 +144,29 @@ namespace fg
                 return;
             }
 
-            // The renderer destroys and recreates the offscreen target whenever
-            // it is resized or replaced (AbstractApplication's fallback,
-            // quality prefs...), reusing the same VkImageView/VkSampler handle
-            // values afterwards. Caching handles and skipping when they match is
-            // therefore unsafe: a stale descriptor would reference freed
-            // handles. Always rebind against the renderer's current live image.
-            if(mTextureId != VK_NULL_HANDLE)
+            // ImGui_ImplVulkan_RemoveTexture() frees the descriptor set
+            // immediately (vkFreeDescriptorSets), which is illegal while the
+            // set may still be referenced by an in-flight frame. Only rebind
+            // when the underlying VkImageView / VkSampler actually change so
+            // we never tear down a descriptor on the hot path each frame.
+            //
+            // The renderer may destroy and recreate the offscreen target and
+            // the driver can reuse the same handle values afterwards. That is
+            // safe to cache here: a descriptor that was written with those
+            // handle values still aliases the same logical object, so skipping
+            // when the handles match cannot produce a stale texture.
+            if(mTextureId != VK_NULL_HANDLE && mBoundView == img.imageView &&
+               mBoundSampler == img.sampler)
             {
-                releaseTexture();
+                return;
             }
-            mTextureId = ImGui_ImplVulkan_AddTexture(
-                static_cast<VkSampler>(img.sampler),
-                static_cast<VkImageView>(img.imageView),
-                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+            releaseTexture();
+            mTextureId    = ImGui_ImplVulkan_AddTexture(static_cast<VkSampler>(img.sampler),
+                                                        static_cast<VkImageView>(img.imageView),
+                                                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+            mBoundView    = static_cast<const void *>(img.imageView);
+            mBoundSampler = static_cast<const void *>(img.sampler);
         }
 
         void releaseTexture()
@@ -169,14 +175,18 @@ namespace fg
             {
                 ImGui_ImplVulkan_RemoveTexture(mTextureId);
             }
-            mTextureId = VK_NULL_HANDLE;
+            mTextureId    = VK_NULL_HANDLE;
+            mBoundView    = nullptr;
+            mBoundSampler = nullptr;
         }
 
         skr::Arc<fra::Renderer> mRenderer;
-        VkDescriptorSet mTextureId     = VK_NULL_HANDLE;
-        std::uint32_t mWidth           = 0;
-        std::uint32_t mHeight          = 0;
-        bool mClaimed                  = false;
-        bool mImageValid               = false;
+        VkDescriptorSet mTextureId = VK_NULL_HANDLE;
+        const void *mBoundView     = nullptr;
+        const void *mBoundSampler  = nullptr;
+        std::uint32_t mWidth       = 0;
+        std::uint32_t mHeight      = 0;
+        bool mClaimed              = false;
+        bool mImageValid           = false;
     };
 } // namespace fg
