@@ -333,7 +333,9 @@ void MainLayer::onGui()
 
     static ImGuiIO &io = ImGui::GetIO();
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {0.0f, 0.0f});
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
     const bool dockOpen = ImGui::Begin("DockSpace", nullptr, window_flags);
+    ImGui::PopStyleVar();
     ImGui::PopStyleVar();
     if(dockOpen)
     {
