@@ -54,11 +54,17 @@ namespace fg
 
             if(mClaimed)
             {
-                if(mWidth == width && mHeight == height && mImageValid)
+                if(mWidth != width || mHeight != height || !mImageValid)
                 {
-                    return;
+                    if(!mRenderer->SetViewportTarget(width, height))
+                    {
+                        mImageValid = false;
+                    }
+                    else
+                    {
+                        mImageValid = true;
+                    }
                 }
-                mRenderer->SetViewportTarget(width, height);
             }
             else
             {
@@ -66,7 +72,7 @@ namespace fg
                 {
                     return;
                 }
-                mClaimed   = true;
+                mClaimed    = true;
                 mImageValid = true;
             }
 
@@ -140,22 +146,21 @@ namespace fg
                 releaseTexture();
                 return;
             }
-            
-            const auto imageView = static_cast<const void *>(img.imageView);
-            const auto sampler   = static_cast<const void *>(img.sampler);
-            if(mTextureId != VK_NULL_HANDLE && mLastImageView == imageView &&
-               mLastSampler == sampler)
-            {
-                return;
-            }
 
-            releaseTexture();
+            // The renderer destroys and recreates the offscreen target whenever
+            // it is resized or replaced (AbstractApplication's fallback,
+            // quality prefs...), reusing the same VkImageView/VkSampler handle
+            // values afterwards. Caching handles and skipping when they match is
+            // therefore unsafe: a stale descriptor would reference freed
+            // handles. Always rebind against the renderer's current live image.
+            if(mTextureId != VK_NULL_HANDLE)
+            {
+                releaseTexture();
+            }
             mTextureId = ImGui_ImplVulkan_AddTexture(
                 static_cast<VkSampler>(img.sampler),
                 static_cast<VkImageView>(img.imageView),
                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-            mLastImageView = imageView;
-            mLastSampler   = sampler;
         }
 
         void releaseTexture()
@@ -164,15 +169,11 @@ namespace fg
             {
                 ImGui_ImplVulkan_RemoveTexture(mTextureId);
             }
-            mTextureId     = VK_NULL_HANDLE;
-            mLastImageView = nullptr;
-            mLastSampler   = nullptr;
+            mTextureId = VK_NULL_HANDLE;
         }
 
         skr::Arc<fra::Renderer> mRenderer;
         VkDescriptorSet mTextureId     = VK_NULL_HANDLE;
-        const void *mLastImageView     = nullptr;
-        const void *mLastSampler       = nullptr;
         std::uint32_t mWidth           = 0;
         std::uint32_t mHeight          = 0;
         bool mClaimed                  = false;
