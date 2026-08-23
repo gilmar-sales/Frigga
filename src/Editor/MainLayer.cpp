@@ -292,7 +292,8 @@ void MainLayer::openSceneDialog()
 
     const char *defaultLocation =
         mDialogDefaultLocation.empty() ? nullptr : mDialogDefaultLocation.c_str();
-    SDL_ShowOpenFileDialog(onOpenSceneDialog, this, mWindow->Get(), kSceneFilters,
+    SDL_ShowOpenFileDialog(onOpenSceneDialog, this,
+                           static_cast<SDL_Window *>(mWindow->NativeWindow()), kSceneFilters,
                            static_cast<int>(std::size(kSceneFilters)), defaultLocation, false);
 }
 
@@ -304,7 +305,8 @@ void MainLayer::saveSceneDialog()
             mScene->HasPath() ? mScene->GetPath().string() : std::string {"untitled.json"};
     }
 
-    SDL_ShowSaveFileDialog(onSaveSceneDialog, this, mWindow->Get(), kSceneFilters,
+    SDL_ShowSaveFileDialog(onSaveSceneDialog, this,
+                           static_cast<SDL_Window *>(mWindow->NativeWindow()), kSceneFilters,
                            static_cast<int>(std::size(kSceneFilters)),
                            mDialogDefaultLocation.c_str());
 }

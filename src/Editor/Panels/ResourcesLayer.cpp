@@ -997,13 +997,15 @@ void ResourcesLayer::onImportTextureDialog(void *userdata, const char *const *fi
 
 void ResourcesLayer::requestImportModel()
 {
-    SDL_ShowOpenFileDialog(onImportModelDialog, this, mWindow->Get(), kModelFilters,
+    SDL_ShowOpenFileDialog(onImportModelDialog, this,
+                           static_cast<SDL_Window *>(mWindow->NativeWindow()), kModelFilters,
                            static_cast<int>(std::size(kModelFilters)), nullptr, false);
 }
 
 void ResourcesLayer::requestImportTexture()
 {
-    SDL_ShowOpenFileDialog(onImportTextureDialog, this, mWindow->Get(), kTextureFilters,
+    SDL_ShowOpenFileDialog(onImportTextureDialog, this,
+                           static_cast<SDL_Window *>(mWindow->NativeWindow()), kTextureFilters,
                            static_cast<int>(std::size(kTextureFilters)), nullptr, false);
 }
 

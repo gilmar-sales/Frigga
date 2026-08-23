@@ -76,12 +76,10 @@ namespace
             .SetFullscreen(graphics.fullscreen)
             .SetVSync(graphics.vSync)
             .SetFrameCount(graphics.frameCount)
-            .SetClearColor(vk::ClearColorValue {
-                static_cast<float>(graphics.clearColorR),
-                static_cast<float>(graphics.clearColorG),
-                static_cast<float>(graphics.clearColorB),
-                static_cast<float>(graphics.clearColorA),
-            })
+            .SetClearColor(glm::vec4 {static_cast<float>(graphics.clearColorR),
+                                       static_cast<float>(graphics.clearColorG),
+                                       static_cast<float>(graphics.clearColorB),
+                                       static_cast<float>(graphics.clearColorA)})
             .SetDrawDistance(static_cast<float>(graphics.drawDistance))
             .SetMaxLights(graphics.maxLights)
             .SetIblIntensity(static_cast<float>(graphics.iblIntensity))

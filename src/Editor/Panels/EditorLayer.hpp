@@ -2,6 +2,7 @@
 
 #include "Editor/SelectionContext.hpp"
 #include "Editor/Preferences/EditorPreferences.hpp"
+#include "Editor/ViewportTarget.hpp"
 
 #include "Frigga/Asset/PrimitiveMeshFactory.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
@@ -11,8 +12,9 @@
 
 #include <Frigga/Frigga.hpp>
 
+#include <glm/glm.hpp>
+
 #include <ImGuizmo.h>
-#include <vulkan/vulkan.h>
 
 class EditorLayer: public fg::Layer
 {
@@ -38,14 +40,12 @@ class EditorLayer: public fg::Layer
         Pan
     };
 
-    void ensureTarget(std::uint32_t width, std::uint32_t height);
-    void releaseTexture();
-    void recreateUiPipeline();
     void drawToolbar();
     void drawGizmos(const ImVec2 &imageMin, const ImVec2 &imageSize, bool allowManipulate);
     void handleNavigation();
     void handlePicking(const ImVec2 &imageMin, const ImVec2 &imageSize);
     void consumePickResult();
+    [[nodiscard]] bool computeActiveCamera(glm::mat4 &viewOut, glm::mat4 &projectionOut) const;
     [[nodiscard]] static glm::mat4 gizmoProjection(const glm::mat4 &vulkanProjection);
     void syncOrbitPivot(const fg::TransformComponent &camera);
     void applyYawPitch(fg::TransformComponent &camera, float yawDegrees, float pitchDegrees) const;
@@ -63,8 +63,7 @@ class EditorLayer: public fg::Layer
     skr::Arc<fg::SceneSimulationState> mSimulation;
     skr::Arc<fg::UserComponentRegistry> mUserComponents;
     skr::Arc<EditorPreferences> mPreferences;
-    skr::Arc<fra::RenderTarget> mTarget;
-    VkDescriptorSet mTextureId = VK_NULL_HANDLE;
+    fg::ViewportTarget mViewport;
     std::uint32_t mWidth         = 0;
     std::uint32_t mHeight        = 0;
     std::uint32_t mPendingWidth  = 1280;

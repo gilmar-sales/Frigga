@@ -338,7 +338,8 @@ void HierarchyLayer::requestSavePrefabDialog(fr::Entity entity)
 
     std::error_code ec;
     std::filesystem::create_directories(fg::Prefab::DefaultDirectory(), ec);
-    SDL_ShowSaveFileDialog(onPrefabSaveDialog, this, mWindow->Get(), kPrefabFilters,
+    SDL_ShowSaveFileDialog(onPrefabSaveDialog, this,
+                           static_cast<SDL_Window *>(mWindow->NativeWindow()), kPrefabFilters,
                            static_cast<int>(std::size(kPrefabFilters)),
                            mDialogDefaultLocation.c_str());
 }
@@ -894,7 +895,8 @@ void HierarchyLayer::requestTextureForSlot(PendingTextureSlot slot)
         mPendingTexturePath.reset();
     }
 
-    SDL_ShowOpenFileDialog(onTextureDialog, this, mWindow->Get(), kTextureFilters,
+    SDL_ShowOpenFileDialog(onTextureDialog, this,
+                           static_cast<SDL_Window *>(mWindow->NativeWindow()), kTextureFilters,
                            static_cast<int>(std::size(kTextureFilters)), nullptr, false);
 }
 

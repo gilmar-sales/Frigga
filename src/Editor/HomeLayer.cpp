@@ -282,7 +282,9 @@ void HomeLayer::requestOpenProjectDialog()
         std::lock_guard lock(mDialogMutex);
         mDialogDefaultLocation = mParentDir;
     }
-    SDL_ShowOpenFileDialog(onOpenProjectDialog, this, mWindow->Get(), kProjectFilters,
+    SDL_ShowOpenFileDialog(onOpenProjectDialog, this,
+                           static_cast<SDL_Window *>(mWindow->NativeWindow()),
+                           kProjectFilters,
                            static_cast<int>(std::size(kProjectFilters)),
                            mDialogDefaultLocation.c_str(), false);
 }
@@ -293,7 +295,8 @@ void HomeLayer::requestBrowseParentDialog()
         std::lock_guard lock(mDialogMutex);
         mDialogDefaultLocation = mParentDir;
     }
-    SDL_ShowOpenFolderDialog(onBrowseParentDialog, this, mWindow->Get(),
+    SDL_ShowOpenFolderDialog(onBrowseParentDialog, this,
+                             static_cast<SDL_Window *>(mWindow->NativeWindow()),
                              mDialogDefaultLocation.c_str(), false);
 }
 

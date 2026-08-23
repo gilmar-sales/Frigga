@@ -1,5 +1,7 @@
 #include "LayerStack.hpp"
 
+#include <algorithm>
+
 namespace FRIGGA_NAMESPACE
 {
 

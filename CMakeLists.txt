@@ -18,6 +18,8 @@ endif ()
 
 include(FetchContent)
 
+find_package(Vulkan REQUIRED)
+
 FetchContent_Declare(
         skirnir
         GIT_REPOSITORY "https://github.com/gilmar-sales/Skirnir.git"
@@ -38,7 +40,7 @@ FetchContent_MakeAvailable(freyr)
 FetchContent_Declare(
         freya
         GIT_REPOSITORY "https://github.com/gilmar-sales/Freya.git"
-        GIT_TAG "v0.41.0"
+        GIT_TAG "v0.42.0"
         GIT_SHALLOW TRUE
 )
 FetchContent_MakeAvailable(freya)
@@ -108,6 +110,8 @@ target_link_libraries(frigga PUBLIC
         imgui::imgui
         skirnir::skirnir
         Jolt
+        Vulkan::Vulkan
+        SDL3::SDL3
         ${CMAKE_DL_LIBS}
 )
 

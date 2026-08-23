@@ -15,7 +15,8 @@ namespace FRIGGA_NAMESPACE
 {
     namespace
     {
-        constexpr std::uint32_t kInvalidGpuClipSlot = 0xffffffffu;
+        constexpr std::uint32_t kInvalidGpuClipSlot      = 0xffffffffu;
+        constexpr std::uint32_t kMaxGpuAnimInstances     = 1024u;
 
         void AdvanceClipTime(float &timeSec, float duration, float delta, bool loop)
         {
@@ -107,11 +108,8 @@ namespace FRIGGA_NAMESPACE
 
         const bool editMode = !mSimulation->IsPlaying();
 
-        auto *gpuPass = mRenderer->GetGpuAnimPass();
-        if(gpuPass != nullptr)
-        {
-            gpuPass->SetEnabled(false);
-        }
+        const std::uint32_t gpuMaxJoints = mRenderer->GetGpuAnimJointsPerClipSlot();
+        mRenderer->SetGpuAnimEnabled(false);
 
         std::unordered_map<std::string, std::uint32_t> gpuVotes;
         mRegistry->CreateMutation()->Each<AnimatorComponent>(
@@ -141,7 +139,7 @@ namespace FRIGGA_NAMESPACE
         }
 
         const ModelAsset *gpuModel = nullptr;
-        if(gpuPass != nullptr && gpuPreferredCount > 0)
+        if(gpuPreferredCount > 0)
         {
             gpuModel = mAssets->FindModel(gpuPreferredSource);
             if(gpuModel == nullptr || !gpuModel->skinned)
@@ -150,18 +148,19 @@ namespace FRIGGA_NAMESPACE
             }
         }
 
-        if(gpuModel != nullptr && gpuPass != nullptr)
+        if(gpuModel != nullptr)
         {
             if(!mGpuSkeletonUploaded || mGpuSkeletonSource != gpuModel->relativePath)
             {
-                gpuPass->UploadSkeleton(fra::PackSkeleton(gpuModel->skeleton));
+                mRenderer->UploadGpuAnimSkeleton(fra::PackSkeleton(gpuModel->skeleton));
                 const auto root = fra::FindRootJoint(gpuModel->skeleton);
-                gpuPass->SetRigIndices(0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-                                       root >= 0 ? static_cast<std::uint32_t>(root) : 0u);
+                mRenderer->SetGpuAnimRigIndices(0xffffffffu, 0xffffffffu, 0xffffffffu,
+                                                0xffffffffu,
+                                                root >= 0 ? static_cast<std::uint32_t>(root) : 0u);
                 mGpuSkeletonSource   = gpuModel->relativePath;
                 mGpuSkeletonUploaded = true;
             }
-            gpuPass->SetCopyPrevBones(true);
+            mRenderer->SetGpuAnimCopyPrevBones(true);
         }
 
         mRegistry->CreateMutation()->Each<TransformComponent, MeshComponent, AnimatorComponent>(
@@ -270,15 +269,14 @@ namespace FRIGGA_NAMESPACE
                 // Cross-fade requires CPU local poses; skip GPU for this actor while blending.
                 const bool useGpuThisActor =
                     !crossFading && animator.useGpu && gpuModel != nullptr &&
-                    model->relativePath == gpuModel->relativePath && gpuPass != nullptr &&
-                    jointCount <= fra::GpuAnimPass::kMaxJoints &&
-                    mGpuInstances.size() < fra::GpuAnimPass::kMaxInstances;
+                    model->relativePath == gpuModel->relativePath &&
+                    jointCount <= gpuMaxJoints && mGpuInstances.size() < kMaxGpuAnimInstances;
 
                 if(useGpuThisActor)
                 {
                     const auto *bake = ensureBake(*model, *clip);
-                    const auto slot =
-                        gpuPass->EnsureClipResident(fra::GpuClipKey(clip->name), *bake);
+                    const auto slot  = mRenderer->EnsureGpuAnimClipResident(
+                        fra::GpuClipKey(clip->name), *bake);
                     if(slot != kInvalidGpuClipSlot)
                     {
                         fra::GpuAnimInstance instance {};
@@ -329,19 +327,14 @@ namespace FRIGGA_NAMESPACE
             mRenderer->UploadBoneMatrices(mBonePalette);
         }
 
-        if(gpuPass != nullptr)
+        if(!mGpuInstances.empty())
         {
-            if(!mGpuInstances.empty())
-            {
-                gpuPass->UploadInstances(mGpuInstances);
-                gpuPass->SetEnabled(true);
-                mRenderer->SetGpuAnimEnabled(true);
-            }
-            else
-            {
-                gpuPass->SetEnabled(false);
-                mRenderer->SetGpuAnimEnabled(false);
-            }
+            mRenderer->UploadGpuAnimInstances(mGpuInstances);
+            mRenderer->SetGpuAnimEnabled(true);
+        }
+        else
+        {
+            mRenderer->SetGpuAnimEnabled(false);
         }
     }
 

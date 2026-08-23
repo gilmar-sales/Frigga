@@ -6,7 +6,7 @@
 
 #include <Freya/Asset/BakedAnimation.hpp>
 #include <Freya/Asset/GpuAnimation.hpp>
-#include <Freya/Vulkan.hpp>
+#include <Freya/Freya.hpp>
 #include <Freyr/Freyr.hpp>
 
 #include <cstdint>

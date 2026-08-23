@@ -29,27 +29,19 @@ AnimationPreviewLayer::AnimationPreviewLayer(skr::Arc<fra::Renderer> renderer,
                                              skr::Arc<EditorPreferences> preferences)
     : fg::Layer("Preview"), mRenderer(std::move(renderer)), mRegistry(std::move(registry)),
       mMeshPool(std::move(meshPool)), mSelection(std::move(selection)), mScene(std::move(scene)),
-      mPreferences(std::move(preferences))
+      mPreferences(std::move(preferences)),
+      mViewport(mRenderer)
 {
 }
 
 void AnimationPreviewLayer::onAttach()
 {
-    ensureTarget(mPendingWidth, mPendingHeight);
 }
 
 void AnimationPreviewLayer::onDettach()
 {
-    releaseTexture();
-    if(mRenderer->GetOutputTarget() == mTarget)
-    {
-        mRenderer->ClearOutputTarget();
-        recreateUiPipeline();
-    }
+    mViewport.Release();
     mScene->ClearRenderIsolation();
-    mTarget.reset();
-    mWidth  = 0;
-    mHeight = 0;
 }
 
 void AnimationPreviewLayer::onUpdate()
@@ -57,6 +49,7 @@ void AnimationPreviewLayer::onUpdate()
     if(!mClaimOutput)
     {
         mScene->ClearRenderIsolation();
+        mViewport.Release();
         return;
     }
 
@@ -66,7 +59,7 @@ void AnimationPreviewLayer::onUpdate()
        EditorViewport::ApplyQualityPreferences(*mRenderer,
                                                mPreferences->graphics.editorViewport))
     {
-        recreateUiPipeline();
+        fg::GuiLayer::RecreateMainPipeline(mRenderer);
     }
 
     if(mSelection->HasSelection())
@@ -79,7 +72,7 @@ void AnimationPreviewLayer::onUpdate()
     }
 
     syncCameraToSelection();
-    ensureTarget(mPendingWidth, mPendingHeight);
+    mViewport.Claim(mPendingWidth, mPendingHeight);
 }
 
 void AnimationPreviewLayer::onGui()
@@ -104,10 +97,9 @@ void AnimationPreviewLayer::onGui()
             ImGui::TextDisabled("%s", hint);
             mViewportHovered = false;
         }
-        else if(mTextureId != VK_NULL_HANDLE)
+        mViewport.present(avail);
+        if(mViewport.IsActive())
         {
-            ImGui::Image(static_cast<ImTextureID>(reinterpret_cast<std::uintptr_t>(mTextureId)),
-                         avail);
             mViewportHovered = ImGui::IsItemHovered();
             handleOrbit();
         }
@@ -270,43 +262,4 @@ void AnimationPreviewLayer::handleOrbit()
         mDistance =
             std::clamp(mDistance * (1.0f - io.MouseWheel * 0.1f), mMinDistance, mMaxDistance);
     }
-}
-
-void AnimationPreviewLayer::ensureTarget(std::uint32_t width, std::uint32_t height)
-{
-    if(mTarget && mWidth == width && mHeight == height)
-    {
-        if(mRenderer->GetOutputTarget() != mTarget)
-        {
-            mRenderer->SetOutputTarget(mTarget);
-            recreateUiPipeline();
-        }
-        return;
-    }
-
-    releaseTexture();
-
-    mTarget = mRenderer->GetRenderTargetBuilder().SetWidth(width).SetHeight(height).Build();
-    mRenderer->SetOutputTarget(mTarget);
-    recreateUiPipeline();
-
-    mTextureId = ImGui_ImplVulkan_AddTexture(mTarget->GetSampler(), mTarget->GetColorImageView(),
-                                             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-    mWidth  = width;
-    mHeight = height;
-}
-
-void AnimationPreviewLayer::releaseTexture()
-{
-    if(mTextureId != VK_NULL_HANDLE)
-    {
-        ImGui_ImplVulkan_RemoveTexture(mTextureId);
-        mTextureId = VK_NULL_HANDLE;
-    }
-}
-
-void AnimationPreviewLayer::recreateUiPipeline()
-{
-    fg::GuiLayer::RecreateMainPipeline(mRenderer);
 }

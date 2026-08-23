@@ -2,12 +2,12 @@
 
 #include "Editor/SelectionContext.hpp"
 #include "Editor/Preferences/EditorPreferences.hpp"
+#include "Editor/ViewportTarget.hpp"
 #include "Frigga/Scene/Scene.hpp"
 
 #include <Frigga/Frigga.hpp>
 
 #include <cstdint>
-#include <vulkan/vulkan.h>
 
 class AnimationPreviewLayer: public fg::Layer
 {
@@ -29,13 +29,10 @@ class AnimationPreviewLayer: public fg::Layer
         float     radius = 1.0f;
     };
 
-    void ensureTarget(std::uint32_t width, std::uint32_t height);
-    void releaseTexture();
-    void recreateUiPipeline();
     void syncCameraToSelection();
     void handleOrbit();
     [[nodiscard]] FrameBounds computeSelectionBounds(fr::Entity entity,
-                                                     const fg::TransformComponent &transform) const;
+                                                      const fg::TransformComponent &transform) const;
     void applyFrame(const FrameBounds &bounds, bool resetOrbit);
 
     skr::Arc<fra::Renderer> mRenderer;
@@ -44,15 +41,12 @@ class AnimationPreviewLayer: public fg::Layer
     skr::Arc<SelectionContext> mSelection;
     skr::Arc<fg::Scene> mScene;
     skr::Arc<EditorPreferences> mPreferences;
-    skr::Arc<fra::RenderTarget> mTarget;
+    fg::ViewportTarget mViewport;
 
-    VkDescriptorSet mTextureId   = VK_NULL_HANDLE;
-    std::uint32_t mWidth         = 0;
-    std::uint32_t mHeight        = 0;
-    std::uint32_t mPendingWidth  = 1280;
-    std::uint32_t mPendingHeight = 720;
-    bool mClaimOutput            = true;
-    bool mViewportHovered        = false;
+    std::uint32_t mPendingWidth    = 1280;
+    std::uint32_t mPendingHeight   = 720;
+    bool mClaimOutput              = true;
+    bool mViewportHovered          = false;
 
     fr::Entity mFramedEntity = SelectionContext::Invalid;
     glm::vec3 mPivot {0.0f, 0.0f, 0.0f};

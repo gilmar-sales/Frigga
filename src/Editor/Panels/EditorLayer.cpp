@@ -39,24 +39,18 @@ EditorLayer::EditorLayer(skr::Arc<fra::Renderer> renderer, skr::Arc<fr::Registry
       mPrimitives(std::move(primitives)), mSelection(std::move(selection)),
       mScene(std::move(scene)), mSimulation(std::move(simulation)),
       mUserComponents(std::move(userComponents)),
-      mPreferences(std::move(preferences))
+      mPreferences(std::move(preferences)),
+      mViewport(mRenderer)
 {
 }
 
 void EditorLayer::onAttach()
 {
-    ensureTarget(mPendingWidth, mPendingHeight);
 }
 
 void EditorLayer::onDettach()
 {
-    releaseTexture();
-    if(mRenderer->GetOutputTarget() == mTarget)
-    {
-        mRenderer->ClearOutputTarget();
-        recreateUiPipeline();
-    }
-    mTarget.reset();
+    mViewport.Release();
     mWidth  = 0;
     mHeight = 0;
 }
@@ -77,10 +71,16 @@ void EditorLayer::onUpdate()
            EditorViewport::ApplyQualityPreferences(*mRenderer,
                                                    mPreferences->graphics.editorViewport))
         {
-            recreateUiPipeline();
+            fg::GuiLayer::RecreateMainPipeline(mRenderer);
         }
         mScene->PreferEditorCamera();
-        ensureTarget(mPendingWidth, mPendingHeight);
+        mViewport.Claim(mPendingWidth, mPendingHeight);
+        mWidth  = mPendingWidth;
+        mHeight = mPendingHeight;
+    }
+    else
+    {
+        mViewport.Release();
     }
 }
 
@@ -118,36 +118,34 @@ void EditorLayer::onGui()
         EditorViewport::ContentSizeToRenderPixels(avail, mPendingWidth, mPendingHeight);
 
         const ImVec2 imageMin = ImGui::GetCursorScreenPos();
-        if(mTextureId != VK_NULL_HANDLE)
+        mViewport.present(avail);
+        if(mViewport.IsActive())
         {
-            ImGui::Image(static_cast<ImTextureID>(reinterpret_cast<std::uintptr_t>(mTextureId)),
-                         avail);
             mViewportHovered = ImGui::IsItemHovered();
             handleNavigation();
+
+            glm::mat4 view;
+            glm::mat4 projection;
+            const bool hasCamera = computeActiveCamera(view, projection);
 
             const bool navigating = mNavMode != NavMode::None;
             ImGuizmo::Enable(!navigating);
             drawGizmos(imageMin, avail, !navigating);
+            if(hasCamera)
             {
-                const auto &projectionUbo = mRenderer->GetCurrentProjection();
                 const fr::Entity selected = mSelection->HasSelection()
                                                 ? mSelection->Get()
                                                 : SelectionContext::Invalid;
-                fg::LightDebugDraw::Draw(ImGui::GetWindowDrawList(), mRegistry, projectionUbo.view,
-                                         projectionUbo.projection, imageMin, avail, selected);
-                fg::CameraDebugDraw::Draw(ImGui::GetWindowDrawList(), mRegistry, projectionUbo.view,
-                                          projectionUbo.projection, imageMin, avail, selected,
-                                          mScene->GetMainCameraEntity());
-            }
-            if(mSimulation->GetShowColliders())
-            {
-                const auto &projectionUbo = mRenderer->GetCurrentProjection();
-                const fr::Entity selected = mSelection->HasSelection()
-                                                ? mSelection->Get()
-                                                : SelectionContext::Invalid;
-                fg::ColliderDebugDraw::Draw(ImGui::GetWindowDrawList(), mRegistry, mPrimitives,
-                                            projectionUbo.view, projectionUbo.projection, imageMin,
-                                            avail, selected, {}, false, mUserComponents);
+                fg::LightDebugDraw::Draw(ImGui::GetWindowDrawList(), mRegistry, view, projection,
+                                         imageMin, avail, selected);
+                fg::CameraDebugDraw::Draw(ImGui::GetWindowDrawList(), mRegistry, view, projection,
+                                          imageMin, avail, selected, mScene->GetMainCameraEntity());
+                if(mSimulation->GetShowColliders())
+                {
+                    fg::ColliderDebugDraw::Draw(ImGui::GetWindowDrawList(), mRegistry, mPrimitives,
+                                                view, projection, imageMin, avail, selected, {},
+                                                false, mUserComponents);
+                }
             }
             handlePicking(imageMin, avail);
         }
@@ -298,16 +296,18 @@ void EditorLayer::handlePicking(const ImVec2 &imageMin, const ImVec2 &imageSize)
     }
 
     // Prefer light/camera gizmos (screen-space) over GPU mesh pick.
+    glm::mat4 view;
+    glm::mat4 projection;
+    if(computeActiveCamera(view, projection))
     {
-        const auto &projectionUbo = mRenderer->GetCurrentProjection();
         if(const auto cameraHit = fg::CameraDebugDraw::HitTest(
-               mRegistry, projectionUbo.view, projectionUbo.projection, imageMin, imageSize, mouse))
+               mRegistry, view, projection, imageMin, imageSize, mouse))
         {
             mSelection->Select(*cameraHit);
             return;
         }
         if(const auto lightHit = fg::LightDebugDraw::HitTest(
-               mRegistry, projectionUbo.view, projectionUbo.projection, imageMin, imageSize, mouse))
+               mRegistry, view, projection, imageMin, imageSize, mouse))
         {
             mSelection->Select(*lightHit);
             return;
@@ -546,11 +546,16 @@ void EditorLayer::drawGizmos(const ImVec2 &imageMin, const ImVec2 &imageSize, bo
         return;
     }
 
-    const auto &projectionUbo = mRenderer->GetCurrentProjection();
+    glm::mat4 viewVulkan;
+    glm::mat4 projectionVulkan;
+    if(!computeActiveCamera(viewVulkan, projectionVulkan))
+    {
+        return;
+    }
     // Match Freya view; undo Vulkan Y-flip so ImGuizmo's OpenGL NDC mapping lines up
     // with the ImGui image (see ImGuizmo::worldToPos `trans.y = 1.f - trans.y`).
-    const glm::mat4 view = projectionUbo.view;
-    const glm::mat4 proj = gizmoProjection(projectionUbo.projection);
+    const glm::mat4 view = viewVulkan;
+    const glm::mat4 proj = gizmoProjection(projectionVulkan);
 
     ImGuizmo::SetOrthographic(false);
     ImGuizmo::SetDrawlist(ImGui::GetWindowDrawList());
@@ -559,7 +564,7 @@ void EditorLayer::drawGizmos(const ImVec2 &imageMin, const ImVec2 &imageSize, bo
     if(mDrawGrid)
     {
         // Infinite Y=0 grid clipped to the visible ground region (soft contrast).
-        fg::InfiniteGridDraw::Draw(ImGui::GetWindowDrawList(), view, projectionUbo.projection,
+        fg::InfiniteGridDraw::Draw(ImGui::GetWindowDrawList(), view, projectionVulkan,
                                    imageMin, imageSize);
     }
 
@@ -595,42 +600,18 @@ glm::mat4 EditorLayer::gizmoProjection(const glm::mat4 &vulkanProjection)
     return projection;
 }
 
-void EditorLayer::ensureTarget(std::uint32_t width, std::uint32_t height)
+bool EditorLayer::computeActiveCamera(glm::mat4 &viewOut, glm::mat4 &projectionOut) const
 {
-    if(mTarget && mWidth == width && mHeight == height)
-    {
-        if(mRenderer->GetOutputTarget() != mTarget)
-        {
-            mRenderer->SetOutputTarget(mTarget);
-            recreateUiPipeline();
-        }
-        return;
-    }
+    const fg::EditorCamera &camera =
+        mScene->IsUsingPreviewCamera() ? mScene->GetPreviewCamera() : mScene->GetEditorCamera();
 
-    releaseTexture();
+    const float aspect = mHeight > 0 ? static_cast<float>(mWidth) / static_cast<float>(mHeight)
+                                     : 16.0f / 9.0f;
 
-    mTarget = mRenderer->GetRenderTargetBuilder().SetWidth(width).SetHeight(height).Build();
-    mRenderer->SetOutputTarget(mTarget);
-    recreateUiPipeline();
-
-    mTextureId = ImGui_ImplVulkan_AddTexture(
-        mTarget->GetSampler(), mTarget->GetColorImageView(),
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-    mWidth  = width;
-    mHeight = height;
-}
-
-void EditorLayer::releaseTexture()
-{
-    if(mTextureId != VK_NULL_HANDLE)
-    {
-        ImGui_ImplVulkan_RemoveTexture(mTextureId);
-        mTextureId = VK_NULL_HANDLE;
-    }
-}
-
-void EditorLayer::recreateUiPipeline()
-{
-    fg::GuiLayer::RecreateMainPipeline(mRenderer);
+    const auto matrices = fg::ViewportTarget::Compute(
+        mRenderer, camera.transform.position, camera.transform.rotation, camera.fovDegrees,
+        camera.nearPlane, camera.farPlane, aspect);
+    viewOut       = matrices.view;
+    projectionOut = matrices.projection;
+    return true;
 }

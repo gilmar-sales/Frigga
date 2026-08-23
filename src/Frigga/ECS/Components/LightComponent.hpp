@@ -2,7 +2,7 @@
 
 #include <Frigga/Macro.hpp>
 
-#include <Freya/Core/UniformBuffer.hpp>
+#include <Freya/Freya.hpp>
 #include <Freyr/Freyr.hpp>
 
 namespace FRIGGA_NAMESPACE

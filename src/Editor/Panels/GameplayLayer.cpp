@@ -9,6 +9,9 @@
 #include <Frigga/Gui/GuiLayer.hpp>
 #include <Frigga/Input/Input.hpp>
 #include <Frigga/Physics/ColliderDebugDraw.hpp>
+#include <Frigga/ECS/Components/CameraComponent.hpp>
+#include <Frigga/ECS/Components/TransformComponent.hpp>
+#include <Frigga/ECS/TransformUtil.hpp>
 
 #include <algorithm>
 #include <cstdint>
@@ -28,7 +31,8 @@ GameplayLayer::GameplayLayer(skr::Arc<fra::Renderer> renderer, skr::Arc<fr::Regi
       mSimulation(std::move(simulation)), mSelection(std::move(selection)),
       mPhysicsWorld(std::move(physicsWorld)), mUserComponents(std::move(userComponents)),
       mPreferences(std::move(preferences)),
-      mInput(std::move(input))
+      mInput(std::move(input)),
+      mViewport(mRenderer)
 {
 }
 
@@ -39,15 +43,7 @@ void GameplayLayer::onAttach()
 
 void GameplayLayer::onDettach()
 {
-    releaseTexture();
-    if(mRenderer->GetOutputTarget() == mTarget)
-    {
-        mRenderer->ClearOutputTarget();
-        recreateUiPipeline();
-    }
-    mTarget.reset();
-    mWidth  = 0;
-    mHeight = 0;
+    mViewport.Release();
 }
 
 void GameplayLayer::onUpdate()
@@ -59,6 +55,7 @@ void GameplayLayer::onUpdate()
         {
             mInput->SetGameplayViewportHovered(false);
         }
+        mViewport.Release();
         return;
     }
 
@@ -67,10 +64,10 @@ void GameplayLayer::onUpdate()
        EditorViewport::ApplyQualityPreferences(*mRenderer,
                                                mPreferences->graphics.gameplayViewport))
     {
-        recreateUiPipeline();
+        fg::GuiLayer::RecreateMainPipeline(mRenderer);
     }
     mScene->PreferGameplayCamera();
-    ensureTarget(mPendingWidth, mPendingHeight);
+    mViewport.Claim(mPendingWidth, mPendingHeight);
 }
 
 void GameplayLayer::drawToolbar()
@@ -142,13 +139,62 @@ void GameplayLayer::drawColliders(const ImVec2 &imageMin, const ImVec2 &imageSiz
         return;
     }
 
-    const auto &projectionUbo = mRenderer->GetCurrentProjection();
+    const fr::Entity camera = mScene->GetMainCameraEntity();
+    glm::mat4        view;
+    glm::mat4        projection;
+    if(!computeActiveCamera(view, projection))
+    {
+        return;
+    }
+    (void)camera;
+
     const fr::Entity selected =
         mSelection->HasSelection() ? mSelection->Get() : SelectionContext::Invalid;
-    fg::ColliderDebugDraw::Draw(ImGui::GetWindowDrawList(), mRegistry, mPrimitives,
-                                projectionUbo.view, projectionUbo.projection, imageMin, imageSize,
-                                selected, mPhysicsWorld, /*dimInactiveBodies=*/true,
-                                mUserComponents);
+    fg::ColliderDebugDraw::Draw(ImGui::GetWindowDrawList(), mRegistry, mPrimitives, view,
+                                projection, imageMin, imageSize, selected, mPhysicsWorld,
+                                /*dimInactiveBodies=*/true, mUserComponents);
+}
+
+bool GameplayLayer::computeActiveCamera(glm::mat4 &viewOut, glm::mat4 &projectionOut)
+{
+    const fr::Entity camera = mScene->GetMainCameraEntity();
+
+    glm::vec3 position {0.0f};
+    glm::quat rotation {1.0f, 0.0f, 0.0f, 0.0f};
+    float      fovDegrees = 60.0f;
+    float      nearPlane  = 0.1f;
+    float      farPlane   = 1000.0f;
+    bool       found      = false;
+
+    mRegistry->TryGetComponents<fg::TransformComponent>(
+        camera, [&](const fg::TransformComponent &transform) {
+            const auto pose = fg::TransformUtil::WorldPose(*mRegistry, camera);
+            position        = pose.position;
+            rotation        = pose.rotation;
+            (void)transform;
+        });
+    mRegistry->TryGetComponents<fg::CameraComponent>(
+        camera, [&](const fg::CameraComponent &cam) {
+            fovDegrees = cam.fovDegrees;
+            nearPlane  = cam.nearPlane;
+            farPlane   = cam.farPlane;
+            found      = true;
+        });
+    if(!found)
+    {
+        return false;
+    }
+
+    const float aspect = mPendingHeight > 0
+                             ? static_cast<float>(mPendingWidth) /
+                                   static_cast<float>(mPendingHeight)
+                             : 16.0f / 9.0f;
+
+    const auto matrices = fg::ViewportTarget::Compute(mRenderer, position, rotation, fovDegrees,
+                                                      nearPlane, farPlane, aspect);
+    viewOut       = matrices.view;
+    projectionOut = matrices.projection;
+    return true;
 }
 
 void GameplayLayer::onGui()
@@ -184,10 +230,9 @@ void GameplayLayer::onGui()
         EditorViewport::ContentSizeToRenderPixels(avail, mPendingWidth, mPendingHeight);
 
         const ImVec2 imageMin = ImGui::GetCursorScreenPos();
-        if(mTextureId != VK_NULL_HANDLE)
+        mViewport.present(avail);
+        if(mViewport.IsActive())
         {
-            ImGui::Image(static_cast<ImTextureID>(reinterpret_cast<std::uintptr_t>(mTextureId)),
-                         avail);
             drawColliders(imageMin, avail);
         }
     }
@@ -197,44 +242,4 @@ void GameplayLayer::onGui()
     }
     ImGui::End();
     ImGui::PopStyleVar();
-}
-
-void GameplayLayer::ensureTarget(std::uint32_t width, std::uint32_t height)
-{
-    if(mTarget && mWidth == width && mHeight == height)
-    {
-        if(mRenderer->GetOutputTarget() != mTarget)
-        {
-            mRenderer->SetOutputTarget(mTarget);
-            recreateUiPipeline();
-        }
-        return;
-    }
-
-    releaseTexture();
-
-    mTarget = mRenderer->GetRenderTargetBuilder().SetWidth(width).SetHeight(height).Build();
-    mRenderer->SetOutputTarget(mTarget);
-    recreateUiPipeline();
-
-    mTextureId = ImGui_ImplVulkan_AddTexture(
-        mTarget->GetSampler(), mTarget->GetColorImageView(),
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-    mWidth  = width;
-    mHeight = height;
-}
-
-void GameplayLayer::releaseTexture()
-{
-    if(mTextureId != VK_NULL_HANDLE)
-    {
-        ImGui_ImplVulkan_RemoveTexture(mTextureId);
-        mTextureId = VK_NULL_HANDLE;
-    }
-}
-
-void GameplayLayer::recreateUiPipeline()
-{
-    fg::GuiLayer::RecreateMainPipeline(mRenderer);
 }

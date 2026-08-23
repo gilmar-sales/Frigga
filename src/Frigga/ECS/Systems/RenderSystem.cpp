@@ -16,11 +16,11 @@
 #include "Frigga/Scene/Scene.hpp"
 
 #include <Freya/Asset/FontAtlas.hpp>
-#include <Freya/Asset/MaterialDescriptorResources.hpp>
 #include <Freya/Core/LightService.hpp>
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <format>
 #include <unordered_set>
 #include <vector>
@@ -30,6 +30,20 @@ namespace FRIGGA_NAMESPACE
 
     namespace
     {
+        /// Push constants for Shaders/Cell/cell.frag (std430). Matches the
+        /// layout previously exposed by Freya's fullscreen-effect builder.
+        struct CellPushConstants
+        {
+            float     bands           = 4.0f;
+            float     edgeDepthScale  = 80.0f;
+            float     edgeNormalScale = 2.0f;
+            float     strength        = 1.0f;
+            glm::vec4 edgeColor {0.02f, 0.02f, 0.04f, 1.0f};
+            float     reverseZ   = 0.0f;
+            float     shadowLift = 0.22f;
+            float     edgeWidth  = 1.0f;
+        };
+
         fra::Light MakeGpuLight(const TransformUtil::Pose &pose, const LightComponent &light)
         {
             // Match Freya/OpenGL: entity local -Z is the aimed light direction / area normal.
@@ -71,7 +85,7 @@ namespace FRIGGA_NAMESPACE
                                const skr::Arc<Scene> &scene, const skr::Arc<AssetRegistry> &assets,
                                const skr::Arc<fra::FreyaOptions> &freyaOptions,
                                const skr::Arc<fra::TexturePool> &textures,
-                               const skr::Arc<fra::FullscreenEffectBuilder> &effectBuilder)
+                               const skr::Arc<fra::PostProcessBuilder> &effectBuilder)
         : System(registry), mRenderer(renderer), mWindow(window), mLightService(lightService),
           mScene(scene), mAssets(assets), mFreyaOptions(freyaOptions), mTextures(textures),
           mEffectBuilder(effectBuilder)
@@ -92,29 +106,9 @@ namespace FRIGGA_NAMESPACE
     void RenderSystem::applyCameraPose(const glm::vec3 &position, const glm::quat &rotation,
                                        float fovDegrees, float nearPlane, float farPlane)
     {
-        float aspect = 16.0f / 9.0f;
-        if(const auto target = mRenderer->GetOutputTarget())
-        {
-            const auto extent = target->GetExtent();
-            if(extent.width > 0 && extent.height > 0)
-            {
-                aspect = static_cast<float>(extent.width) / static_cast<float>(extent.height);
-            }
-        }
-        else if(mWindow->GetWidth() > 0 && mWindow->GetHeight() > 0)
-        {
-            aspect = static_cast<float>(mWindow->GetWidth()) /
-                     static_cast<float>(mWindow->GetHeight());
-        }
-
-        auto projection       = mRenderer->GetCurrentProjection();
-        projection.projection =
-            mRenderer->MakeProjection(glm::radians(fovDegrees), aspect, nearPlane, farPlane);
-        if(projection.ambientLight.w <= 0.0f)
-        {
-            projection.ambientLight = glm::vec4(0.0f, 1.0f, 0.0f, 0.35f);
-        }
-        mRenderer->UpdateProjection(projection);
+        (void)fovDegrees;
+        (void)nearPlane;
+        (void)farPlane;
 
         // Freya/OpenGL convention: camera looks along local -Z.
         const glm::vec3 forward =
@@ -126,6 +120,13 @@ namespace FRIGGA_NAMESPACE
         }
 
         mRenderer->UpdateCamera(position, position + forward, up);
+
+        // Feed ambient from options so the deferred pass keeps its intensity.
+        if(mFreyaOptions)
+        {
+            mRenderer->SetAmbient(mFreyaOptions->ambientColor,
+                                  mFreyaOptions->ambientIntensity);
+        }
     }
 
     void RenderSystem::updateCamera()
@@ -287,7 +288,9 @@ namespace FRIGGA_NAMESPACE
         {
             return 0;
         }
-        return fra::MaterialDescriptorResources::TextureHeapIndex(*textureId);
+        // Bindless heap slots 0/1 are reserved (white/black); TexturePool ids
+        // start at 2, so the heap index is simply the texture id.
+        return *textureId + 2;
     }
 
     const fra::FontAtlas *RenderSystem::fontFor(const std::string &relativePath)
@@ -430,14 +433,14 @@ namespace FRIGGA_NAMESPACE
                     if(cell)
                     {
                         builder
-                            .SetInputs({fra::EffectInput::SceneColor, fra::EffectInput::Depth,
-                                        fra::EffectInput::Normal})
+                            .SetInputs({fra::PostProcessInput::SceneColor, fra::PostProcessInput::Depth,
+                                        fra::PostProcessInput::Normal})
                             .SetPushConstantSize(
-                                static_cast<std::uint32_t>(sizeof(fra::CellPushConstants)));
+                                static_cast<std::uint32_t>(sizeof(CellPushConstants)));
                     }
                     else
                     {
-                        builder.SetInputs({fra::EffectInput::SceneColor}).SetPushConstantSize(0);
+                        builder.SetInputs({fra::PostProcessInput::SceneColor}).SetPushConstantSize(0);
                     }
 
                     runtime.effect    = builder.Build();
@@ -464,7 +467,7 @@ namespace FRIGGA_NAMESPACE
                 runtime.effect->SetEnabled(comp.enabled);
                 if(comp.fragment.find("cell.frag") != std::string::npos)
                 {
-                    fra::CellPushConstants cell {};
+                    CellPushConstants cell {};
                     cell.bands           = comp.bands;
                     cell.edgeDepthScale  = comp.edgeDepthScale;
                     cell.edgeNormalScale = comp.edgeNormalScale;

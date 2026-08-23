@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Freya/Vulkan.hpp>
+#include <Freya/Freya.hpp>
 #include <Freyr/Freyr.hpp>
 #include <Skirnir/Skirnir.hpp>
 

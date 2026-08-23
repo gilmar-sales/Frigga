@@ -1,7 +1,8 @@
 #pragma once
 
 #include "Backends/imgui_impl_sdl3.h"
-#include <Freya/Vulkan.hpp>
+#include "Backends/imgui_impl_vulkan.h"
+#include <Freya/Freya.hpp>
 
 #include "Frigga/Core/Layer.hpp"
 

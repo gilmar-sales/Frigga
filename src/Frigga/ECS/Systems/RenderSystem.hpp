@@ -2,7 +2,7 @@
 
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 
-#include <Freya/Vulkan.hpp>
+#include <Freya/Freya.hpp>
 #include <Freya/Asset/FontAtlas.hpp>
 #include <Freyr/Freyr.hpp>
 #include <glm/glm.hpp>
@@ -28,7 +28,7 @@ namespace FRIGGA_NAMESPACE
                      const skr::Arc<Scene> &scene, const skr::Arc<AssetRegistry> &assets,
                      const skr::Arc<fra::FreyaOptions> &freyaOptions,
                      const skr::Arc<fra::TexturePool> &textures,
-                     const skr::Arc<fra::FullscreenEffectBuilder> &effectBuilder);
+                     const skr::Arc<fra::PostProcessBuilder> &effectBuilder);
 
         ~RenderSystem() override = default;
 
@@ -37,9 +37,9 @@ namespace FRIGGA_NAMESPACE
       private:
         struct EffectRuntime
         {
-            skr::Arc<fra::FullscreenEffect> effect;
-            std::string                     fragment;
-            std::string                     stageName;
+            skr::Arc<fra::PostProcess> effect;
+            std::string                fragment;
+            std::string                stageName;
         };
 
         void updateCamera();
@@ -60,7 +60,7 @@ namespace FRIGGA_NAMESPACE
         skr::Arc<AssetRegistry> mAssets;
         skr::Arc<fra::FreyaOptions> mFreyaOptions;
         skr::Arc<fra::TexturePool> mTextures;
-        skr::Arc<fra::FullscreenEffectBuilder> mEffectBuilder;
+        skr::Arc<fra::PostProcessBuilder> mEffectBuilder;
         std::vector<fra::SceneInstanceUpload> mSceneInstances;
         std::unordered_map<fr::Entity, fra::ParticleEmitter> mEmitters;
         std::unordered_map<fr::Entity, EffectRuntime> mEffects;

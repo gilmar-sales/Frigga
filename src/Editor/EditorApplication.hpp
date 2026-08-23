@@ -31,12 +31,6 @@ class EditorApplication final: public fg::AbstractApplication
 
         EditorUiScale::Sync(mWindow->GetScale());
 
-        mWindow->AddEventPollCallback([window = mWindow](SDL_Event event) {
-            if(EditorUiScale::IsDisplayTopologyEvent(event))
-            {
-                EditorUiScale::Sync(window->GetScale());
-            }
-        });
         ImGuiIO &io = ImGui::GetIO();
         io.Fonts->AddFontFromFileTTF("Resources/OpenSans.ttf", 18);
 
