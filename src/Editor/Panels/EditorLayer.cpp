@@ -110,7 +110,7 @@ void EditorLayer::onGui()
     {
         mViewportFocused =
             ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
-        mClaimOutput = mViewportFocused || ImGui::IsWindowHovered();
+        mClaimOutput = true;
 
         drawToolbar();
 
