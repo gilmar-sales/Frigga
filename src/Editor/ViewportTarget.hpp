@@ -137,9 +137,14 @@ namespace fg
             const fra::ImGuiViewportImage img = mRenderer->GetViewportImage();
             if(!img.valid || img.imageView == nullptr)
             {
+                releaseTexture();
                 return;
             }
-            if(mTextureId != VK_NULL_HANDLE && mLastImageView == img.imageView)
+            
+            const auto imageView = static_cast<const void *>(img.imageView);
+            const auto sampler   = static_cast<const void *>(img.sampler);
+            if(mTextureId != VK_NULL_HANDLE && mLastImageView == imageView &&
+               mLastSampler == sampler)
             {
                 return;
             }
@@ -149,7 +154,8 @@ namespace fg
                 static_cast<VkSampler>(img.sampler),
                 static_cast<VkImageView>(img.imageView),
                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-            mLastImageView = img.imageView;
+            mLastImageView = imageView;
+            mLastSampler   = sampler;
         }
 
         void releaseTexture()
@@ -160,11 +166,13 @@ namespace fg
             }
             mTextureId     = VK_NULL_HANDLE;
             mLastImageView = nullptr;
+            mLastSampler   = nullptr;
         }
 
         skr::Arc<fra::Renderer> mRenderer;
         VkDescriptorSet mTextureId     = VK_NULL_HANDLE;
         const void *mLastImageView     = nullptr;
+        const void *mLastSampler       = nullptr;
         std::uint32_t mWidth           = 0;
         std::uint32_t mHeight          = 0;
         bool mClaimed                  = false;
