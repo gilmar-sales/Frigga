@@ -29,7 +29,6 @@ class EditorLayer: public fg::Layer
     void onAttach() override;
     void onDettach() override;
     void onSuspend() override;
-    void onProcessDeferredReleases() override;
     void onUpdate() override;
     void onGui() override;
 

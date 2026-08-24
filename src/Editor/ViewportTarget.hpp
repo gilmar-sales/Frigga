@@ -21,6 +21,10 @@ namespace fg
     /// `SetViewportTarget` / `GetViewportImage`. Each editor viewport panel
     /// claims the shared target while it is the active view and displays the
     /// composite through a Dear ImGui descriptor.
+    ///
+    /// Tab / play-mode switches call Suspend() so the shared Freya target stays
+    /// allocated. Only the ImGui descriptor is dropped; Release() tears down GPU
+    /// resources on panel detach.
     class ViewportTarget
     {
       public:
@@ -45,9 +49,11 @@ namespace fg
 
             if(width == 0 || height == 0)
             {
-                Release();
+                Suspend();
                 return;
             }
+
+            const bool reactivating = !mClaimed;
 
             if(mClaimed)
             {
@@ -73,56 +79,51 @@ namespace fg
                 mImageValid = true;
             }
 
-            refreshTexture();
+            refreshTexture(reactivating || mWidth != width || mHeight != height);
 
             mWidth  = width;
             mHeight = height;
         }
 
-        /// Schedule GPU teardown for the next safe point (start of onUpdate).
-        /// Use from onGui / onSuspend instead of Release() to avoid destroying
-        /// Vulkan objects while a command buffer is still recording.
-        void RequestRelease()
+        /// Stop routing renders through this panel without freeing the shared
+        /// Freya target. Drops the ImGui descriptor so stale handles cannot be
+        /// sampled after another panel reuses the target.
+        void Suspend()
         {
-            if(mClaimed)
-            {
-                mPendingRelease = true;
-            }
+            mClaimed    = false;
+            mImageValid = false;
+            releaseTexture();
         }
 
-        /// Apply a pending RequestRelease(). Safe to call before BeginFrame.
-        void ProcessPendingRelease()
-        {
-            if(!mPendingRelease)
-            {
-                return;
-            }
-            mPendingRelease = false;
-            releaseGpuTarget();
-        }
-
-        /// Restore direct presentation to the swapchain. The renderer's
-        /// ClearOutputTarget() waits for the GPU to idle first, so it is safe to
-        /// free the Dear ImGui descriptor afterwards.
+        /// Restore direct presentation to the swapchain. Use only on panel detach.
         void Release()
         {
-            mPendingRelease = false;
-            releaseGpuTarget();
+            releaseTexture();
+            if(mRenderer && mClaimed)
+            {
+                mRenderer->ClearOutputTarget();
+            }
+            mClaimed    = false;
+            mImageValid = false;
+            mWidth      = 0;
+            mHeight     = 0;
         }
 
         /// Present the offscreen composite into an ImGui rectangle.
         void present(const ImVec2 &size) const
         {
-            if(mTextureId != VK_NULL_HANDLE && size.x > 0.0f && size.y > 0.0f)
+            if(!IsActive() || mTextureId == VK_NULL_HANDLE || size.x <= 0.0f || size.y <= 0.0f)
             {
-                ImGui::Image(static_cast<ImTextureID>(reinterpret_cast<std::uintptr_t>(mTextureId)),
-                             size);
+                return;
             }
+
+            ImGui::Image(static_cast<ImTextureID>(reinterpret_cast<std::uintptr_t>(mTextureId)),
+                         size);
         }
 
         [[nodiscard]] bool IsActive() const
         {
-            return mClaimed && mImageValid;
+            return mClaimed && mImageValid && mTextureId != VK_NULL_HANDLE;
         }
 
         /// Compute view/projection for a camera pose using the renderer's
@@ -150,40 +151,17 @@ namespace fg
         }
 
       private:
-        void releaseGpuTarget()
-        {
-            if(mClaimed && mRenderer)
-            {
-                mRenderer->ClearOutputTarget();
-                releaseTexture();
-            }
-            mClaimed    = false;
-            mImageValid = false;
-            mWidth      = 0;
-            mHeight     = 0;
-        }
-
-        void refreshTexture()
+        void refreshTexture(bool forceRebind)
         {
             const fra::ImGuiViewportImage img = mRenderer->GetViewportImage();
             if(!img.valid || img.imageView == nullptr)
             {
                 releaseTexture();
+                mImageValid = false;
                 return;
             }
 
-            // ImGui_ImplVulkan_RemoveTexture() frees the descriptor set
-            // immediately (vkFreeDescriptorSets), which is illegal while the
-            // set may still be referenced by an in-flight frame. Only rebind
-            // when the underlying VkImageView / VkSampler actually change so
-            // we never tear down a descriptor on the hot path each frame.
-            //
-            // The renderer may destroy and recreate the offscreen target and
-            // the driver can reuse the same handle values afterwards. That is
-            // safe to cache here: a descriptor that was written with those
-            // handle values still aliases the same logical object, so skipping
-            // when the handles match cannot produce a stale texture.
-            if(mTextureId != VK_NULL_HANDLE && mBoundView == img.imageView &&
+            if(!forceRebind && mTextureId != VK_NULL_HANDLE && mBoundView == img.imageView &&
                mBoundSampler == img.sampler)
             {
                 return;
@@ -216,6 +194,5 @@ namespace fg
         std::uint32_t mHeight      = 0;
         bool mClaimed              = false;
         bool mImageValid           = false;
-        bool mPendingRelease       = false;
     };
 } // namespace fg

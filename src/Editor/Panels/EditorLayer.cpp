@@ -61,14 +61,9 @@ void EditorLayer::onSuspend()
     mViewportHovered = false;
     mViewportFocused = false;
     mNavMode         = NavMode::None;
-    mViewport.RequestRelease();
+    mViewport.Suspend();
     mWidth  = 0;
     mHeight = 0;
-}
-
-void EditorLayer::onProcessDeferredReleases()
-{
-    mViewport.ProcessPendingRelease();
 }
 
 void EditorLayer::onUpdate()
@@ -81,7 +76,7 @@ void EditorLayer::onUpdate()
         mViewportHovered = false;
         mViewportFocused = false;
         mNavMode         = NavMode::None;
-        mViewport.Release();
+        mViewport.Suspend();
         return;
     }
 
@@ -100,7 +95,7 @@ void EditorLayer::onUpdate()
     }
     else
     {
-        mViewport.Release();
+        mViewport.Suspend();
     }
 }
 
@@ -138,9 +133,9 @@ void EditorLayer::onGui()
         EditorViewport::ContentSizeToRenderPixels(avail, mPendingWidth, mPendingHeight);
 
         const ImVec2 imageMin = ImGui::GetCursorScreenPos();
-        mViewport.present(avail);
         if(mViewport.IsActive())
         {
+            mViewport.present(avail);
             mViewportHovered = ImGui::IsItemHovered();
             handleNavigation();
 

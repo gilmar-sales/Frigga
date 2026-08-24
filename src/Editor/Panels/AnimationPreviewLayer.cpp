@@ -49,13 +49,8 @@ void AnimationPreviewLayer::onSuspend()
 {
     mClaimOutput     = false;
     mViewportHovered = false;
-    mViewport.RequestRelease();
+    mViewport.Suspend();
     mScene->ClearRenderIsolation();
-}
-
-void AnimationPreviewLayer::onProcessDeferredReleases()
-{
-    mViewport.ProcessPendingRelease();
 }
 
 void AnimationPreviewLayer::onUpdate()
@@ -65,14 +60,14 @@ void AnimationPreviewLayer::onUpdate()
         mClaimOutput = false;
         mViewportHovered = false;
         mScene->ClearRenderIsolation();
-        mViewport.Release();
+        mViewport.Suspend();
         return;
     }
 
     if(!mClaimOutput)
     {
         mScene->ClearRenderIsolation();
-        mViewport.Release();
+        mViewport.Suspend();
         return;
     }
 
@@ -127,9 +122,9 @@ void AnimationPreviewLayer::onGui()
             ImGui::TextDisabled("%s", hint);
             mViewportHovered = false;
         }
-        mViewport.present(avail);
         if(mViewport.IsActive())
         {
+            mViewport.present(avail);
             mViewportHovered = ImGui::IsItemHovered();
             handleOrbit();
         }

@@ -70,12 +70,7 @@ void GameplayLayer::onSuspend()
         mWindow->SetMouseGrab(false);
         mMouseGrabbed = false;
     }
-    mViewport.RequestRelease();
-}
-
-void GameplayLayer::onProcessDeferredReleases()
-{
-    mViewport.ProcessPendingRelease();
+    mViewport.Suspend();
 }
 
 void GameplayLayer::onUpdate()
@@ -92,7 +87,7 @@ void GameplayLayer::onUpdate()
             mWindow->SetMouseGrab(false);
             mMouseGrabbed = false;
         }
-        mViewport.Release();
+        mViewport.Suspend();
         return;
     }
 
@@ -310,9 +305,9 @@ void GameplayLayer::onGui()
         EditorViewport::ContentSizeToRenderPixels(avail, mPendingWidth, mPendingHeight);
 
         const ImVec2 imageMin = ImGui::GetCursorScreenPos();
-        mViewport.present(avail);
         if(mViewport.IsActive())
         {
+            mViewport.present(avail);
             mViewportHovered = ImGui::IsItemHovered();
             if(mInput)
             {

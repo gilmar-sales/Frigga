@@ -52,7 +52,6 @@ class MainLayer: public fg::Layer
     void ensureGameplayWorkflowDuringPlay();
     void activateWorkflowTab(const char *tabName);
     void applyPendingTabSwitch();
-    void flushDeferredViewportReleases();
 
     static void onOpenSceneDialog(void *userdata, const char *const *filelist, int filter);
     static void onSaveSceneDialog(void *userdata, const char *const *filelist, int filter);

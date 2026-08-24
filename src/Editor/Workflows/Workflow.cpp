@@ -34,14 +34,6 @@ void Workflow::onSuspend()
     }
 }
 
-void Workflow::onProcessDeferredReleases()
-{
-    for(auto layer: m_layerStack)
-    {
-        layer->onProcessDeferredReleases();
-    }
-}
-
 void Workflow::onEvent(fg::Event &event)
 {
     for(auto layer: m_layerStack)

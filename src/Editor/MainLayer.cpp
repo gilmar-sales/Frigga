@@ -83,7 +83,6 @@ void MainLayer::onUpdate()
     processPendingSceneActions();
     handleShortcuts();
     applyPendingTabSwitch();
-    flushDeferredViewportReleases();
     ensureGameplayWorkflowDuringPlay();
 
     if(m_activeTab)
@@ -205,7 +204,6 @@ void MainLayer::activateWorkflowTab(const char *tabName)
             }
             m_activeTab     = tabPair.second;
             m_activeTabName = tabPair.first;
-            flushDeferredViewportReleases();
         }
         return;
     }
@@ -227,14 +225,6 @@ void MainLayer::applyPendingTabSwitch()
     m_activeTabName = m_pendingTabName;
     m_pendingTab.reset();
     m_pendingTabName = nullptr;
-}
-
-void MainLayer::flushDeferredViewportReleases()
-{
-    for(auto &tabPair: m_tabIds)
-    {
-        tabPair.second->onProcessDeferredReleases();
-    }
 }
 
 void MainLayer::ensureGameplayWorkflowDuringPlay()
