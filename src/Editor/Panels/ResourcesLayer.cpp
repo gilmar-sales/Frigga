@@ -1460,17 +1460,32 @@ void ResourcesLayer::onGui()
     drawBreadcrumbs();
     ImGui::Separator();
 
-    const float inspectorHeight = EditorUiScale::S(128.0f);
-    if(ImGui::BeginChild("##resource_browser", ImVec2(0.0f, -inspectorHeight),
-                         ImGuiChildFlags_Borders))
+    const ImVec2 avail = ImGui::GetContentRegionAvail();
+    if(ImGui::BeginTable("##resource_split", 2,
+                         ImGuiTableFlags_Resizable | ImGuiTableFlags_BordersInnerV))
     {
-        drawBrowser();
-    }
-    ImGui::EndChild();
-    acceptHierarchyPrefabDrop(currentRelativePath());
+        ImGui::TableSetupColumn("Browser", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn("Inspector", ImGuiTableColumnFlags_WidthFixed,
+                                EditorUiScale::S(280.0f));
+        ImGui::TableNextRow(0, avail.y);
 
-    ImGui::Separator();
-    drawInspector();
+        ImGui::TableSetColumnIndex(0);
+        if(ImGui::BeginChild("##resource_browser", ImVec2(0.0f, 0.0f), ImGuiChildFlags_Borders))
+        {
+            drawBrowser();
+        }
+        ImGui::EndChild();
+        acceptHierarchyPrefabDrop(currentRelativePath());
+
+        ImGui::TableSetColumnIndex(1);
+        if(ImGui::BeginChild("##resource_inspector", ImVec2(0.0f, 0.0f), ImGuiChildFlags_Borders))
+        {
+            drawInspector();
+        }
+        ImGui::EndChild();
+
+        ImGui::EndTable();
+    }
 
     ImGui::End();
 }
