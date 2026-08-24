@@ -16,6 +16,7 @@ class Workflow: public fg::Layer
     void onGui() override;
     void onUpdate() override;
     void onSuspend() override;
+    void onProcessDeferredReleases() override;
     void onEvent(fg::Event &event) override;
 
     // Builds a default dock tree for this workflow into the given dockspace.

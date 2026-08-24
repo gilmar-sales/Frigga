@@ -79,20 +79,35 @@ namespace fg
             mHeight = height;
         }
 
+        /// Schedule GPU teardown for the next safe point (start of onUpdate).
+        /// Use from onGui / onSuspend instead of Release() to avoid destroying
+        /// Vulkan objects while a command buffer is still recording.
+        void RequestRelease()
+        {
+            if(mClaimed)
+            {
+                mPendingRelease = true;
+            }
+        }
+
+        /// Apply a pending RequestRelease(). Safe to call before BeginFrame.
+        void ProcessPendingRelease()
+        {
+            if(!mPendingRelease)
+            {
+                return;
+            }
+            mPendingRelease = false;
+            releaseGpuTarget();
+        }
+
         /// Restore direct presentation to the swapchain. The renderer's
         /// ClearOutputTarget() waits for the GPU to idle first, so it is safe to
         /// free the Dear ImGui descriptor afterwards.
         void Release()
         {
-            if(mClaimed && mRenderer)
-            {
-                mRenderer->ClearOutputTarget();
-                releaseTexture();
-            }
-            mClaimed    = false;
-            mImageValid = false;
-            mWidth      = 0;
-            mHeight     = 0;
+            mPendingRelease = false;
+            releaseGpuTarget();
         }
 
         /// Present the offscreen composite into an ImGui rectangle.
@@ -135,6 +150,19 @@ namespace fg
         }
 
       private:
+        void releaseGpuTarget()
+        {
+            if(mClaimed && mRenderer)
+            {
+                mRenderer->ClearOutputTarget();
+                releaseTexture();
+            }
+            mClaimed    = false;
+            mImageValid = false;
+            mWidth      = 0;
+            mHeight     = 0;
+        }
+
         void refreshTexture()
         {
             const fra::ImGuiViewportImage img = mRenderer->GetViewportImage();
@@ -188,5 +216,6 @@ namespace fg
         std::uint32_t mHeight      = 0;
         bool mClaimed              = false;
         bool mImageValid           = false;
+        bool mPendingRelease       = false;
     };
 } // namespace fg

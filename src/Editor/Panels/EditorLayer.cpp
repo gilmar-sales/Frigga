@@ -61,9 +61,14 @@ void EditorLayer::onSuspend()
     mViewportHovered = false;
     mViewportFocused = false;
     mNavMode         = NavMode::None;
-    mViewport.Release();
+    mViewport.RequestRelease();
     mWidth  = 0;
     mHeight = 0;
+}
+
+void EditorLayer::onProcessDeferredReleases()
+{
+    mViewport.ProcessPendingRelease();
 }
 
 void EditorLayer::onUpdate()

@@ -70,7 +70,12 @@ void GameplayLayer::onSuspend()
         mWindow->SetMouseGrab(false);
         mMouseGrabbed = false;
     }
-    mViewport.Release();
+    mViewport.RequestRelease();
+}
+
+void GameplayLayer::onProcessDeferredReleases()
+{
+    mViewport.ProcessPendingRelease();
 }
 
 void GameplayLayer::onUpdate()

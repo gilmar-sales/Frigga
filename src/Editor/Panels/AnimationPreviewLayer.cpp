@@ -47,10 +47,15 @@ void AnimationPreviewLayer::onDettach()
 
 void AnimationPreviewLayer::onSuspend()
 {
-    mClaimOutput = false;
+    mClaimOutput     = false;
     mViewportHovered = false;
-    mViewport.Release();
+    mViewport.RequestRelease();
     mScene->ClearRenderIsolation();
+}
+
+void AnimationPreviewLayer::onProcessDeferredReleases()
+{
+    mViewport.ProcessPendingRelease();
 }
 
 void AnimationPreviewLayer::onUpdate()

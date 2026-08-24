@@ -51,13 +51,17 @@ class MainLayer: public fg::Layer
     void ensureEditMode();
     void ensureGameplayWorkflowDuringPlay();
     void activateWorkflowTab(const char *tabName);
+    void applyPendingTabSwitch();
+    void flushDeferredViewportReleases();
 
     static void onOpenSceneDialog(void *userdata, const char *const *filelist, int filter);
     static void onSaveSceneDialog(void *userdata, const char *const *filelist, int filter);
 
     std::vector<std::pair<const char *, skr::Arc<Workflow>>> m_tabIds;
     skr::Arc<Workflow> m_activeTab;
+    skr::Arc<Workflow> m_pendingTab;
     const char *m_activeTabName = "Gameplay";
+    const char *m_pendingTabName = nullptr;
     bool m_resetDockLayout      = false;
 
     skr::Arc<fg::Scene> mScene;
