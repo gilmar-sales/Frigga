@@ -1,6 +1,7 @@
 #include "PipelinesLayer.hpp"
 
 #include "Editor/DockLayout.hpp"
+#include "Editor/UiScale.hpp"
 #include "Frigga/ECS/EcsLayout.hpp"
 #include "Frigga/ECS/Systems/AnimationSystem.hpp"
 #include "Frigga/ECS/Systems/PhysicsSystem.hpp"
@@ -257,7 +258,7 @@ void PipelinesLayer::drawSystemRow(fr::SystemId systemId, std::string_view label
     ImGui::EndDisabled();
 
     ImGui::SameLine();
-    ImGui::SetNextItemWidth(140.0f);
+    ImGui::SetNextItemWidth(EditorUiScale::S(140.0f));
     if(ImGui::BeginCombo("##MoveTo", "Move to…"))
     {
         mRegistry->ForEachPipeline([&](const fr::PipelineView &pipe) {
@@ -517,10 +518,10 @@ void PipelinesLayer::onGui()
     }
 
     ImGui::SeparatorText("Add pipeline");
-    ImGui::SetNextItemWidth(180.0f);
+    ImGui::SetNextItemWidth(EditorUiScale::S(180.0f));
     ImGui::InputText("##NewPipeline", mNewName, sizeof(mNewName));
     ImGui::SameLine();
-    ImGui::SetNextItemWidth(80.0f);
+    ImGui::SetNextItemWidth(EditorUiScale::S(80.0f));
     ImGui::DragFloat("Hz##New", &mNewHz, 1.0f, 0.0f, 1000.0f,
                      mNewHz <= 0.0f ? "every frame" : "%.1f");
     ImGui::SameLine();

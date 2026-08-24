@@ -695,12 +695,15 @@ void ResourcesLayer::drawGridView(const AssetFolder &folder)
                               min.y + EditorUiScale::S(28.0f)};
         draw->AddText(ImGui::GetFont(), ImGui::GetFontSize() * 1.8f, iconPos, ImGui::GetColorU32(color),
                       icon);
-        const ImVec2 textSize = ImGui::CalcTextSize(label.c_str(), nullptr, false, size.x - 8.0f);
-        const ImVec2 textPos {min.x + (size.x - std::min(textSize.x, size.x - 8.0f)) * 0.5f,
-                              max.y - EditorUiScale::S(28.0f)};
-        const ImVec2 clipMax {max.x - 4.0f, max.y - 4.0f};
+        const ImVec2 textSize =
+            ImGui::CalcTextSize(label.c_str(), nullptr, false,
+                                size.x - EditorUiScale::S(8.0f));
+        const ImVec2 textPos {
+            min.x + (size.x - std::min(textSize.x, size.x - EditorUiScale::S(8.0f))) * 0.5f,
+            max.y - EditorUiScale::S(28.0f)};
+        const ImVec2 clipMax {max.x - EditorUiScale::S(4.0f), max.y - EditorUiScale::S(4.0f)};
         draw->AddText(ImGui::GetFont(), ImGui::GetFontSize(), textPos, ImGui::GetColorU32(ImGuiCol_Text),
-                      label.c_str(), nullptr, size.x - 8.0f, nullptr);
+                      label.c_str(), nullptr, size.x - EditorUiScale::S(8.0f), nullptr);
         (void)clipMax;
         ImGui::EndGroup();
         ImGui::PopID();
@@ -778,9 +781,9 @@ void ResourcesLayer::drawGridView(const AssetFolder &folder)
         draw->AddText(ImGui::GetFont(), ImGui::GetFontSize() * 1.8f, iconPos,
                       ImGui::GetColorU32(KindColor(entry.kind)), icon);
         draw->AddText(ImGui::GetFont(), ImGui::GetFontSize(),
-                      ImVec2(min.x + 6.0f, max.y - EditorUiScale::S(26.0f)),
+                      ImVec2(min.x + EditorUiScale::S(6.0f), max.y - EditorUiScale::S(26.0f)),
                       ImGui::GetColorU32(ImGuiCol_Text), entry.label.c_str(), nullptr,
-                      size.x - 12.0f);
+                      size.x - EditorUiScale::S(12.0f));
         ImGui::EndGroup();
         ImGui::PopID();
         column = (column + 1) % columns;

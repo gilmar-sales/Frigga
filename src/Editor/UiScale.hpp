@@ -83,4 +83,15 @@ namespace EditorUiScale
         const float scale = LayoutScale();
         return {x * scale, y * scale};
     }
+
+    /// Readable aliases for layout sizes that track the work-area scale.
+    [[nodiscard]] inline float DpiAware(float value)
+    {
+        return S(value);
+    }
+
+    [[nodiscard]] inline ImVec2 DpiAware(float x, float y)
+    {
+        return V(x, y);
+    }
 } // namespace EditorUiScale

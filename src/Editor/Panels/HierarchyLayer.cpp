@@ -4,6 +4,7 @@
 #include "Editor/DockLayout.hpp"
 #include "Editor/Panels/ResourcesLayer.hpp"
 #include "Editor/Ui/ComponentClipboard.hpp"
+#include "Editor/UiScale.hpp"
 #include "Frigga/ECS/Components/CameraComponent.hpp"
 #include "Frigga/ECS/Components/LightComponent.hpp"
 #include "Frigga/ECS/Components/MaterialComponent.hpp"
@@ -1090,7 +1091,7 @@ void HierarchyLayer::onGui()
         });
 
     ImGui::Dummy(ImVec2(ImGui::GetContentRegionAvail().x,
-                        std::max(24.0f, ImGui::GetContentRegionAvail().y)));
+                        std::max(EditorUiScale::S(24.0f), ImGui::GetContentRegionAvail().y)));
     if(ImGui::BeginDragDropTarget())
     {
         if(const ImGuiPayload *payload = ImGui::AcceptDragDropPayload(kDragPayloadId))
@@ -1581,7 +1582,7 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
             std::max(0.0f, (rowHeight - ImGui::GetFontSize()) * 0.5f);
 
         ImGui::SetCursorScreenPos(ImVec2(labelX, rowMin.y));
-        ImGui::PushItemWidth(std::max(24.0f, rowMax.x - labelX));
+        ImGui::PushItemWidth(std::max(EditorUiScale::S(24.0f), rowMax.x - labelX));
         ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0.0f, framePadY));
         ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
 

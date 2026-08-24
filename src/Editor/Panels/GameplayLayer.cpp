@@ -2,6 +2,7 @@
 
 #include "Editor/BoostrapIconsFont.hpp"
 #include "Editor/DockLayout.hpp"
+#include "Editor/UiScale.hpp"
 #include "Editor/ViewportDpi.hpp"
 #include "Editor/ViewportQuality.hpp"
 
@@ -104,8 +105,9 @@ void GameplayLayer::onUpdate()
 
 void GameplayLayer::drawToolbar()
 {
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.0f, 6.0f));
-    ImGui::SetCursorPos(ImVec2(8.0f, ImGui::GetCursorPosY() + 6.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, EditorUiScale::V(8.0f, 6.0f));
+    ImGui::SetCursorPos(
+        ImVec2(EditorUiScale::S(8.0f), ImGui::GetCursorPosY() + EditorUiScale::S(6.0f)));
 
     if(mSimulation->IsPaused())
     {
@@ -161,7 +163,7 @@ void GameplayLayer::drawToolbar()
     ImGui::TextDisabled(mSimulation->IsPaused() ? "Paused" : "Playing");
 
     ImGui::PopStyleVar();
-    ImGui::Dummy(ImVec2(0.0f, 4.0f));
+    ImGui::Dummy(EditorUiScale::V(0.0f, 4.0f));
 }
 
 void GameplayLayer::drawColliders(const ImVec2 &imageMin, const ImVec2 &imageSize)

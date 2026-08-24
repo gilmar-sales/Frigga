@@ -1,6 +1,7 @@
 #include "AnimGraphEditorLayer.hpp"
 
 #include "Editor/DockLayout.hpp"
+#include "Editor/UiScale.hpp"
 #include "Frigga/Animation/AnimGraphDefinition.hpp"
 #include "Frigga/ECS/Components/AnimatorComponent.hpp"
 
@@ -95,7 +96,7 @@ AnimGraphEditorLayer::AnimGraphEditorLayer(skr::Arc<fg::AssetRegistry> assets,
 
 ImVec2 AnimGraphEditorLayer::nodeSize() const
 {
-    return {kNodeWidth * mZoom, kNodeHeight * mZoom};
+    return {EditorUiScale::S(kNodeWidth) * mZoom, EditorUiScale::S(kNodeHeight) * mZoom};
 }
 
 ImVec2 AnimGraphEditorLayer::worldToScreen(const ImVec2 &origin, float x, float y) const
@@ -181,10 +182,13 @@ void AnimGraphEditorLayer::onGui()
             }
 
             ImGui::Separator();
-            const float inspectorWidth = 280.0f;
+            const float inspectorWidth = EditorUiScale::S(280.0f);
+            const float panelGap       = EditorUiScale::S(8.0f);
+            const float minCanvasWidth = EditorUiScale::S(80.0f);
             const ImVec2 avail         = ImGui::GetContentRegionAvail();
-            ImGui::BeginChild("##graphCanvas", ImVec2(std::max(80.0f, avail.x - inspectorWidth - 8.0f),
-                                                      avail.y),
+            ImGui::BeginChild("##graphCanvas",
+                              ImVec2(std::max(minCanvasWidth, avail.x - inspectorWidth - panelGap),
+                                     avail.y),
                               true, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
                                         ImGuiWindowFlags_NoMove);
             drawCanvas(animator, model);
@@ -216,8 +220,8 @@ void AnimGraphEditorLayer::drawCanvas(fg::AnimatorComponent &animator, const fg:
     const auto &style = ImGui::GetStyle();
     drawList->AddRectFilled(canvasMin, canvasMax, ColorU32(style.Colors[ImGuiCol_WindowBg]));
 
-    const float grid = kGrid * mZoom;
-    if(grid >= 8.0f)
+    const float grid = EditorUiScale::S(kGrid) * mZoom;
+    if(grid >= EditorUiScale::S(8.0f))
     {
         const ImU32 gridColor = ColorU32(style.Colors[ImGuiCol_Border], 0.25f);
         const float ox        = std::fmod(mPan.x, grid);
@@ -348,23 +352,26 @@ void AnimGraphEditorLayer::drawStateNode(ImDrawList *drawList, const ImVec2 &ori
         border = IM_COL32(90, 180, 255, 255);
     }
 
-    drawList->AddRectFilled(p0, p1, fill, 8.0f * mZoom);
-    drawList->AddRect(p0, p1, border, 8.0f * mZoom, 0, 1.5f * mZoom);
+    drawList->AddRectFilled(p0, p1, fill, EditorUiScale::S(8.0f) * mZoom);
+    drawList->AddRect(p0, p1, border, EditorUiScale::S(8.0f) * mZoom, 0,
+                      EditorUiScale::S(1.5f) * mZoom);
 
     const ImVec2 in  = inPinPos(origin, state);
     const ImVec2 out = outPinPos(origin, state);
-    drawList->AddCircleFilled(in, kPinRadius * mZoom, IM_COL32(90, 180, 255, 255));
-    drawList->AddCircleFilled(out, kPinRadius * mZoom, IM_COL32(255, 170, 70, 255));
+    const float pinRadius = EditorUiScale::S(kPinRadius) * mZoom;
+    drawList->AddCircleFilled(in, pinRadius, IM_COL32(90, 180, 255, 255));
+    drawList->AddCircleFilled(out, pinRadius, IM_COL32(255, 170, 70, 255));
 
     char title[128];
     std::snprintf(title, sizeof(title), "%s", state.name.c_str());
-    const ImVec2 textPos {p0.x + 14.0f * mZoom, p0.y + 10.0f * mZoom};
+    const ImVec2 textPos {p0.x + EditorUiScale::S(14.0f) * mZoom,
+                          p0.y + EditorUiScale::S(10.0f) * mZoom};
     drawList->AddText(textPos, ColorU32(style.Colors[ImGuiCol_Text]), title);
 
     const char *kindLabel = state.kind == "Blend1D"   ? "Blend1D"
                             : state.kind == "Blend2D" ? "Blend2D"
                                                       : "Clip";
-    drawList->AddText({textPos.x, textPos.y + 22.0f * mZoom},
+    drawList->AddText({textPos.x, textPos.y + EditorUiScale::S(22.0f) * mZoom},
                       ColorU32(style.Colors[ImGuiCol_TextDisabled]), kindLabel);
 }
 
@@ -382,7 +389,7 @@ void AnimGraphEditorLayer::handleCanvasInput(fg::AnimatorComponent &animator, co
     }
 
     const bool playing = mSimulation->IsPlaying();
-    const float pinHit = (kPinRadius + 4.0f) * mZoom;
+    const float pinHit = (EditorUiScale::S(kPinRadius) + EditorUiScale::S(4.0f)) * mZoom;
     const auto nodeSz  = nodeSize();
 
     auto hitPinOut = [&]() -> int {

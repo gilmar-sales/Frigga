@@ -1,4 +1,5 @@
 #include "EditorApplication.hpp"
+#include "EditorTheme.hpp"
 #include "HomeLayer.hpp"
 #include "Panels/ArchetypesLayer.hpp"
 #include "Panels/EditorLayer.hpp"
@@ -22,37 +23,11 @@
 #include "Workflows/ShadingWorkflow.hpp"
 
 #include <Frigga/Frigga.hpp>
-#include <Frigga/Gui/Styles/Styles.hpp>
 
 #include <algorithm>
 
 namespace
 {
-    void ApplyTheme(int themeIndex)
-    {
-        switch(themeIndex)
-        {
-        case 0:
-            fg::StylePhantomDark();
-            break;
-        case 1:
-            fg::StylePhantomLight();
-            break;
-        case 2:
-            ImGui::StyleColorsDark();
-            break;
-        case 3:
-            ImGui::StyleColorsLight();
-            break;
-        case 4:
-            ImGui::StyleColorsClassic();
-            break;
-        default:
-            fg::StylePhantomDark();
-            break;
-        }
-    }
-
     void ApplyGraphicsPreferences(fra::FreyaOptionsBuilder &builder,
                                   const GraphicsPreferences &graphics)
     {
@@ -158,7 +133,7 @@ int main(int argc, char *argv[])
 
     auto app = appBuilder.Build<EditorApplication>();
 
-    ApplyTheme(startupPreferences->appearance.themeIndex);
+    EditorTheme::Apply(startupPreferences->appearance.themeIndex);
 
     app->Run();
 

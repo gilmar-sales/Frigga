@@ -106,7 +106,7 @@ void StatusBar::drawMiniProgress(float width)
         ImGui::SameLine();
     }
 
-    const float barW = std::max(40.0f, width - EditorUiScale::S(28.0f));
+    const float barW = std::max(EditorUiScale::S(40.0f), width - EditorUiScale::S(28.0f));
     ImGui::PushStyleColor(ImGuiCol_PlotHistogram, tint);
     if(running && !determinate)
     {

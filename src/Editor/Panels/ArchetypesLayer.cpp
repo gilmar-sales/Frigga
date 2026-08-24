@@ -1,6 +1,7 @@
 #include "ArchetypesLayer.hpp"
 
 #include "Editor/DockLayout.hpp"
+#include "Editor/UiScale.hpp"
 #include "Frigga/ECS/Components/NameComponent.hpp"
 #include "Frigga/ECS/EcsLayout.hpp"
 
@@ -34,8 +35,10 @@ void ArchetypesLayer::onGui()
                              ImGuiTableFlags_Resizable | ImGuiTableFlags_ScrollY))
     {
         ImGui::TableSetupColumn("Archetype", ImGuiTableColumnFlags_WidthStretch);
-        ImGui::TableSetupColumn("Entities", ImGuiTableColumnFlags_WidthFixed, 80.0f);
-        ImGui::TableSetupColumn("Chunks", ImGuiTableColumnFlags_WidthFixed, 70.0f);
+        ImGui::TableSetupColumn("Entities", ImGuiTableColumnFlags_WidthFixed,
+                                EditorUiScale::S(80.0f));
+        ImGui::TableSetupColumn("Chunks", ImGuiTableColumnFlags_WidthFixed,
+                                EditorUiScale::S(70.0f));
         ImGui::TableSetupColumn("Components", ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableSetupScrollFreeze(0, 1);
         ImGui::TableHeadersRow();

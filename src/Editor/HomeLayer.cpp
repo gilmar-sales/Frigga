@@ -54,7 +54,7 @@ void HomeLayer::onGui()
         ImGui::PopStyleVar();
 
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.92f, 0.93f, 0.96f, 1.0f));
-        ImGui::SetWindowFontScale(2.2f);
+        ImGui::SetWindowFontScale(2.2f * EditorUiScale::LayoutScale());
         ImGui::TextUnformatted("Frigga");
         ImGui::SetWindowFontScale(1.0f);
         ImGui::PopStyleColor();

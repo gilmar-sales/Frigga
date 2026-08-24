@@ -13,6 +13,7 @@
 #include "Workflows/ShadingWorkflow.hpp"
 
 #include "Ui/StatusBar.hpp"
+#include "UiScale.hpp"
 
 #include <Frigga/Asset/AssetRegistry.hpp>
 #include <Frigga/Asset/PrimitiveMeshFactory.hpp>
@@ -21,6 +22,7 @@
 
 #include <SDL3/SDL_dialog.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -43,6 +45,19 @@ namespace
             path += ".json";
         }
         return path;
+    }
+
+    float WorkflowTabBarWidth(
+        const std::vector<std::pair<const char *, skr::Arc<Workflow>>> &tabs)
+    {
+        const ImGuiStyle &style   = ImGui::GetStyle();
+        const float       tabPadX = style.FramePadding.x * 2.0f + EditorUiScale::S(14.0f);
+        float             width   = 0.0f;
+        for(const auto &tabPair : tabs)
+        {
+            width += ImGui::CalcTextSize(tabPair.first).x + tabPadX;
+        }
+        return std::max(width, EditorUiScale::S(350.0f));
     }
 } // namespace
 
@@ -735,7 +750,8 @@ void MainLayer::drawMenuBar()
             ImGui::EndMenu();
         }
 
-        ImGui::SetCursorPosX(ImGui::GetWindowContentRegionMax().x * 0.5f - 150);
+        ImGui::SetCursorPosX(ImGui::GetWindowContentRegionMax().x * 0.5f -
+                             EditorUiScale::S(150.0f));
 
         ImGui::Text("%s", mScene->GetDisplayName().c_str());
         if(mSimulation->IsPlaying())
@@ -751,9 +767,10 @@ void MainLayer::drawMenuBar()
             }
         }
 
-        ImGui::SetCursorPosX(ImGui::GetWindowContentRegionMax().x - 350);
+        ImGui::SetCursorPosX(ImGui::GetWindowContentRegionMax().x -
+                             WorkflowTabBarWidth(m_tabIds));
 
-        ImGui::BeginTabBar("##GamePlayTabs");
+        ImGui::BeginTabBar("##GamePlayTabs", ImGuiTabBarFlags_FittingPolicyScroll);
 
         const bool playLocked = mSimulation->IsPlaying();
         if(playLocked)

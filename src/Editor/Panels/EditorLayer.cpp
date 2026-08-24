@@ -2,6 +2,7 @@
 
 #include "Editor/BoostrapIconsFont.hpp"
 #include "Editor/DockLayout.hpp"
+#include "Editor/UiScale.hpp"
 #include "Editor/ViewportDpi.hpp"
 #include "Editor/ViewportQuality.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
@@ -205,8 +206,9 @@ void EditorLayer::onGui()
 
 void EditorLayer::drawToolbar()
 {
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.0f, 6.0f));
-    ImGui::SetCursorPos(ImVec2(8.0f, ImGui::GetCursorPosY() + 6.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, EditorUiScale::V(8.0f, 6.0f));
+    ImGui::SetCursorPos(
+        ImVec2(EditorUiScale::S(8.0f), ImGui::GetCursorPosY() + EditorUiScale::S(6.0f)));
 
     if(ImGui::Button(ICON_BTSP_PLAY " Play"))
     {
@@ -265,7 +267,7 @@ void EditorLayer::drawToolbar()
     ImGui::Checkbox("Grid", &mDrawGrid);
 
     ImGui::PopStyleVar();
-    ImGui::Dummy(ImVec2(0.0f, 4.0f));
+    ImGui::Dummy(EditorUiScale::V(0.0f, 4.0f));
 }
 
 void EditorLayer::consumePickResult()

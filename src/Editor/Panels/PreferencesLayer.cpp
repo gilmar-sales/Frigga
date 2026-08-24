@@ -1,9 +1,10 @@
 #include "PreferencesLayer.hpp"
 
+#include "../EditorTheme.hpp"
 #include "../Preferences/PreferencesStore.hpp"
+#include "../UiScale.hpp"
 
 #include <Frigga/Gui/GuiLayer.hpp>
-#include <Frigga/Gui/Styles/Styles.hpp>
 #include <imgui.h>
 
 #include <algorithm>
@@ -63,27 +64,7 @@ void PreferencesLayer::syncSsaoFinePrefsFromRenderer()
 
 void PreferencesLayer::applyTheme(int themeIndex) const
 {
-    switch(themeIndex)
-    {
-    case 0:
-        fg::StylePhantomDark();
-        break;
-    case 1:
-        fg::StylePhantomLight();
-        break;
-    case 2:
-        ImGui::StyleColorsDark();
-        break;
-    case 3:
-        ImGui::StyleColorsLight();
-        break;
-    case 4:
-        ImGui::StyleColorsClassic();
-        break;
-    default:
-        fg::StylePhantomDark();
-        break;
-    }
+    EditorTheme::Apply(themeIndex);
 }
 
 void PreferencesLayer::applyPendingGraphics()
@@ -441,7 +422,7 @@ void PreferencesLayer::onGui()
         return;
     }
 
-    ImGui::SetNextWindowSize(ImVec2(520, 640), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(EditorUiScale::V(520.0f, 640.0f), ImGuiCond_FirstUseEver);
     if(ImGui::Begin("Preferences", &IsOpen, ImGuiWindowFlags_NoCollapse))
     {
         if(ImGui::BeginTabBar("PreferencesTabs"))
