@@ -72,6 +72,11 @@ elseif(DEFINED Freya_SOURCE_DIR)
     set(_FRIGGA_SDK_FREYA "${Freya_SOURCE_DIR}")
 endif()
 file(MAKE_DIRECTORY "${FRIGGA_SDK_DIR}/_deps/freya-src/include/Freya/Events")
+if(NOT EXISTS "${_FRIGGA_SDK_FREYA}/include/Freya/Config.hpp")
+    message(FATAL_ERROR "PackFriggaSdk: missing Freya/Config.hpp at ${_FRIGGA_SDK_FREYA}/include/Freya/Config.hpp")
+endif()
+file(COPY "${_FRIGGA_SDK_FREYA}/include/Freya/Config.hpp"
+     DESTINATION "${FRIGGA_SDK_DIR}/_deps/freya-src/include/Freya")
 file(WRITE "${FRIGGA_SDK_DIR}/_deps/freya-src/include/Freya/Pch.hpp"
      "#pragma once\n#ifndef FREYA_NAMESPACE\n#define FREYA_NAMESPACE fra\n#endif\n#include <cstdint>\n#include <type_traits>\n")
 file(COPY "${_FRIGGA_SDK_FREYA}/include/Freya/Events"
