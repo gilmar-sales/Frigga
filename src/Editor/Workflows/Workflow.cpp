@@ -26,6 +26,14 @@ void Workflow::onUpdate()
     }
 }
 
+void Workflow::onSuspend()
+{
+    for(auto layer: m_layerStack)
+    {
+        layer->onSuspend();
+    }
+}
+
 void Workflow::onEvent(fg::Event &event)
 {
     for(auto layer: m_layerStack)

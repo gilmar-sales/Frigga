@@ -21,17 +21,21 @@ class GameplayLayer: public fg::Layer
                   skr::Arc<SelectionContext> selection,
                   skr::Arc<fg::IPhysicsWorld> physicsWorld,
                   skr::Arc<fg::UserComponentRegistry> userComponents,
-                  skr::Arc<EditorPreferences> preferences, skr::Arc<fg::Input> input);
+                  skr::Arc<EditorPreferences> preferences, skr::Arc<fg::Input> input,
+                  skr::Arc<fra::Window> window);
     ~GameplayLayer() override = default;
 
     void onAttach() override;
     void onDettach() override;
+    void onSuspend() override;
     void onUpdate() override;
     void onGui() override;
 
   private:
     void drawToolbar();
     void drawColliders(const ImVec2 &imageMin, const ImVec2 &imageSize);
+    void drawDebugOverlays(const ImVec2 &imageMin, const ImVec2 &imageSize);
+    void syncMouseCapture();
     bool computeActiveCamera(glm::mat4 &viewOut, glm::mat4 &projectionOut);
 
     skr::Arc<fra::Renderer> mRenderer;
@@ -44,8 +48,11 @@ class GameplayLayer: public fg::Layer
     skr::Arc<fg::UserComponentRegistry> mUserComponents;
     skr::Arc<EditorPreferences> mPreferences;
     skr::Arc<fg::Input> mInput;
+    skr::Arc<fra::Window> mWindow;
     fg::ViewportTarget mViewport;
     std::uint32_t mPendingWidth    = 1280;
     std::uint32_t mPendingHeight   = 720;
     bool mClaimOutput              = false;
+    bool mViewportHovered          = false;
+    bool mMouseGrabbed             = false;
 };

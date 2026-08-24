@@ -4,6 +4,7 @@
 #include "Editor/Preferences/EditorPreferences.hpp"
 #include "Editor/ViewportTarget.hpp"
 #include "Frigga/Scene/Scene.hpp"
+#include "Frigga/Scene/SceneSimulationState.hpp"
 
 #include <Frigga/Frigga.hpp>
 
@@ -14,11 +15,13 @@ class AnimationPreviewLayer: public fg::Layer
   public:
     AnimationPreviewLayer(skr::Arc<fra::Renderer> renderer, skr::Arc<fr::Registry> registry,
                           skr::Arc<fra::MeshPool> meshPool, skr::Arc<SelectionContext> selection,
-                          skr::Arc<fg::Scene> scene, skr::Arc<EditorPreferences> preferences);
+                          skr::Arc<fg::Scene> scene, skr::Arc<EditorPreferences> preferences,
+                          skr::Arc<fg::SceneSimulationState> simulation);
     ~AnimationPreviewLayer() override = default;
 
     void onAttach() override;
     void onDettach() override;
+    void onSuspend() override;
     void onUpdate() override;
     void onGui() override;
 
@@ -41,6 +44,7 @@ class AnimationPreviewLayer: public fg::Layer
     skr::Arc<SelectionContext> mSelection;
     skr::Arc<fg::Scene> mScene;
     skr::Arc<EditorPreferences> mPreferences;
+    skr::Arc<fg::SceneSimulationState> mSimulation;
     fg::ViewportTarget mViewport;
 
     std::uint32_t mPendingWidth    = 1280;

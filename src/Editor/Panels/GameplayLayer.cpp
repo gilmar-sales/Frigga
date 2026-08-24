@@ -5,6 +5,8 @@
 #include "Editor/ViewportDpi.hpp"
 #include "Editor/ViewportQuality.hpp"
 
+#include <Frigga/Editor/CameraDebugDraw.hpp>
+#include <Frigga/Editor/LightDebugDraw.hpp>
 #include <Frigga/Gui/Backends/imgui_impl_vulkan.h>
 #include <Frigga/Gui/GuiLayer.hpp>
 #include <Frigga/Input/Input.hpp>
@@ -25,13 +27,13 @@ GameplayLayer::GameplayLayer(skr::Arc<fra::Renderer> renderer, skr::Arc<fr::Regi
                              skr::Arc<fg::IPhysicsWorld> physicsWorld,
                              skr::Arc<fg::UserComponentRegistry> userComponents,
                              skr::Arc<EditorPreferences> preferences,
-                             skr::Arc<fg::Input> input)
+                             skr::Arc<fg::Input> input, skr::Arc<fra::Window> window)
     : fg::Layer("Gameplay"), mRenderer(std::move(renderer)), mRegistry(std::move(registry)),
       mScene(std::move(scene)), mPrimitives(std::move(primitives)),
       mSimulation(std::move(simulation)), mSelection(std::move(selection)),
       mPhysicsWorld(std::move(physicsWorld)), mUserComponents(std::move(userComponents)),
       mPreferences(std::move(preferences)),
-      mInput(std::move(input)),
+      mInput(std::move(input)), mWindow(std::move(window)),
       mViewport(mRenderer)
 {
 }
@@ -43,6 +45,31 @@ void GameplayLayer::onAttach()
 
 void GameplayLayer::onDettach()
 {
+    if(mWindow && mMouseGrabbed)
+    {
+        mWindow->SetMouseGrab(false);
+        mMouseGrabbed = false;
+    }
+    if(mInput)
+    {
+        mInput->SetGameplayViewportHovered(false);
+    }
+    mViewport.Release();
+}
+
+void GameplayLayer::onSuspend()
+{
+    mClaimOutput     = false;
+    mViewportHovered = false;
+    if(mInput)
+    {
+        mInput->SetGameplayViewportHovered(false);
+    }
+    if(mWindow && mMouseGrabbed)
+    {
+        mWindow->SetMouseGrab(false);
+        mMouseGrabbed = false;
+    }
     mViewport.Release();
 }
 
@@ -54,6 +81,11 @@ void GameplayLayer::onUpdate()
         if(mInput)
         {
             mInput->SetGameplayViewportHovered(false);
+        }
+        if(mWindow && mMouseGrabbed)
+        {
+            mWindow->SetMouseGrab(false);
+            mMouseGrabbed = false;
         }
         mViewport.Release();
         return;
@@ -83,7 +115,7 @@ void GameplayLayer::drawToolbar()
         }
         if(ImGui::IsItemHovered())
         {
-            ImGui::SetTooltip("Resume simulation (Ctrl+P)");
+            ImGui::SetTooltip("Resume play (Ctrl+P)");
         }
     }
     else
@@ -94,7 +126,7 @@ void GameplayLayer::drawToolbar()
         }
         if(ImGui::IsItemHovered())
         {
-            ImGui::SetTooltip("Pause simulation (Ctrl+P)");
+            ImGui::SetTooltip("Pause play (Ctrl+P)");
         }
     }
 
@@ -139,20 +171,35 @@ void GameplayLayer::drawColliders(const ImVec2 &imageMin, const ImVec2 &imageSiz
         return;
     }
 
-    const fr::Entity camera = mScene->GetMainCameraEntity();
-    glm::mat4        view;
-    glm::mat4        projection;
+    glm::mat4 view;
+    glm::mat4 projection;
     if(!computeActiveCamera(view, projection))
     {
         return;
     }
-    (void)camera;
 
     const fr::Entity selected =
         mSelection->HasSelection() ? mSelection->Get() : SelectionContext::Invalid;
     fg::ColliderDebugDraw::Draw(ImGui::GetWindowDrawList(), mRegistry, mPrimitives, view,
                                 projection, imageMin, imageSize, selected, mPhysicsWorld,
                                 /*dimInactiveBodies=*/true, mUserComponents);
+}
+
+void GameplayLayer::drawDebugOverlays(const ImVec2 &imageMin, const ImVec2 &imageSize)
+{
+    glm::mat4 view;
+    glm::mat4 projection;
+    if(!computeActiveCamera(view, projection))
+    {
+        return;
+    }
+
+    const fr::Entity selected =
+        mSelection->HasSelection() ? mSelection->Get() : SelectionContext::Invalid;
+    fg::LightDebugDraw::Draw(ImGui::GetWindowDrawList(), mRegistry, view, projection, imageMin,
+                             imageSize, selected);
+    fg::CameraDebugDraw::Draw(ImGui::GetWindowDrawList(), mRegistry, view, projection, imageMin,
+                              imageSize, selected, mScene->GetMainCameraEntity());
 }
 
 bool GameplayLayer::computeActiveCamera(glm::mat4 &viewOut, glm::mat4 &projectionOut)
@@ -197,12 +244,46 @@ bool GameplayLayer::computeActiveCamera(glm::mat4 &viewOut, glm::mat4 &projectio
     return true;
 }
 
+void GameplayLayer::syncMouseCapture()
+{
+    if(!mWindow)
+    {
+        return;
+    }
+
+    const bool wantGrab =
+        mSimulation->IsPlaying() && mSimulation->IsRunning() && mViewportHovered &&
+        ImGui::IsMouseDown(ImGuiMouseButton_Right) &&
+        !ImGui::IsAnyItemActive();
+
+    if(wantGrab && !mMouseGrabbed)
+    {
+        mWindow->SetMouseGrab(true);
+        mMouseGrabbed = true;
+    }
+    else if(!wantGrab && mMouseGrabbed)
+    {
+        mWindow->SetMouseGrab(false);
+        mMouseGrabbed = false;
+    }
+}
+
 void GameplayLayer::onGui()
 {
     // Exclusive with Editor: Gameplay is only visible while playing.
     if(!mSimulation->IsPlaying())
     {
-        mClaimOutput = false;
+        mClaimOutput     = false;
+        mViewportHovered = false;
+        if(mInput)
+        {
+            mInput->SetGameplayViewportHovered(false);
+        }
+        if(mWindow && mMouseGrabbed)
+        {
+            mWindow->SetMouseGrab(false);
+            mMouseGrabbed = false;
+        }
         return;
     }
 
@@ -218,12 +299,6 @@ void GameplayLayer::onGui()
     {
         mClaimOutput = true;
 
-        if(mInput)
-        {
-            mInput->SetGameplayViewportHovered(
-                ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup));
-        }
-
         drawToolbar();
 
         const ImVec2 avail = ImGui::GetContentRegionAvail();
@@ -233,12 +308,37 @@ void GameplayLayer::onGui()
         mViewport.present(avail);
         if(mViewport.IsActive())
         {
+            mViewportHovered = ImGui::IsItemHovered();
+            if(mInput)
+            {
+                mInput->SetGameplayViewportHovered(mViewportHovered);
+            }
+            syncMouseCapture();
+            drawDebugOverlays(imageMin, avail);
             drawColliders(imageMin, avail);
+        }
+        else
+        {
+            mViewportHovered = false;
+            if(mInput)
+            {
+                mInput->SetGameplayViewportHovered(false);
+            }
         }
     }
     else
     {
-        mClaimOutput = true;
+        mClaimOutput     = false;
+        mViewportHovered = false;
+        if(mInput)
+        {
+            mInput->SetGameplayViewportHovered(false);
+        }
+        if(mWindow && mMouseGrabbed)
+        {
+            mWindow->SetMouseGrab(false);
+            mMouseGrabbed = false;
+        }
     }
     ImGui::End();
     ImGui::PopStyleVar();

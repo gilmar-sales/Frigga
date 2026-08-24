@@ -26,10 +26,11 @@ AnimationPreviewLayer::AnimationPreviewLayer(skr::Arc<fra::Renderer> renderer,
                                              skr::Arc<fra::MeshPool> meshPool,
                                              skr::Arc<SelectionContext> selection,
                                              skr::Arc<fg::Scene> scene,
-                                             skr::Arc<EditorPreferences> preferences)
+                                             skr::Arc<EditorPreferences> preferences,
+                                             skr::Arc<fg::SceneSimulationState> simulation)
     : fg::Layer("Preview"), mRenderer(std::move(renderer)), mRegistry(std::move(registry)),
       mMeshPool(std::move(meshPool)), mSelection(std::move(selection)), mScene(std::move(scene)),
-      mPreferences(std::move(preferences)),
+      mPreferences(std::move(preferences)), mSimulation(std::move(simulation)),
       mViewport(mRenderer)
 {
 }
@@ -44,8 +45,25 @@ void AnimationPreviewLayer::onDettach()
     mScene->ClearRenderIsolation();
 }
 
+void AnimationPreviewLayer::onSuspend()
+{
+    mClaimOutput = false;
+    mViewportHovered = false;
+    mViewport.Release();
+    mScene->ClearRenderIsolation();
+}
+
 void AnimationPreviewLayer::onUpdate()
 {
+    if(mSimulation && mSimulation->IsPlaying())
+    {
+        mClaimOutput = false;
+        mViewportHovered = false;
+        mScene->ClearRenderIsolation();
+        mViewport.Release();
+        return;
+    }
+
     if(!mClaimOutput)
     {
         mScene->ClearRenderIsolation();
@@ -77,6 +95,13 @@ void AnimationPreviewLayer::onUpdate()
 
 void AnimationPreviewLayer::onGui()
 {
+    if(mSimulation && mSimulation->IsPlaying())
+    {
+        mClaimOutput     = false;
+        mViewportHovered = false;
+        return;
+    }
+
     const auto title = EditorDock::WindowId("Preview");
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));

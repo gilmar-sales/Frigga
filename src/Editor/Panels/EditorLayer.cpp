@@ -55,13 +55,28 @@ void EditorLayer::onDettach()
     mHeight = 0;
 }
 
+void EditorLayer::onSuspend()
+{
+    mClaimOutput     = false;
+    mViewportHovered = false;
+    mViewportFocused = false;
+    mNavMode         = NavMode::None;
+    mViewport.Release();
+    mWidth  = 0;
+    mHeight = 0;
+}
+
 void EditorLayer::onUpdate()
 {
     consumePickResult();
 
     if(mSimulation->IsPlaying())
     {
-        mClaimOutput = false;
+        mClaimOutput     = false;
+        mViewportHovered = false;
+        mViewportFocused = false;
+        mNavMode         = NavMode::None;
+        mViewport.Release();
         return;
     }
 

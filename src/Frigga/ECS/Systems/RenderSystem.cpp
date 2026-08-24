@@ -106,10 +106,6 @@ namespace FRIGGA_NAMESPACE
     void RenderSystem::applyCameraPose(const glm::vec3 &position, const glm::quat &rotation,
                                        float fovDegrees, float nearPlane, float farPlane)
     {
-        (void)fovDegrees;
-        (void)nearPlane;
-        (void)farPlane;
-
         // Freya/OpenGL convention: camera looks along local -Z.
         const glm::vec3 forward =
             glm::normalize(rotation * glm::vec3(0.0f, 0.0f, -1.0f));
@@ -119,7 +115,12 @@ namespace FRIGGA_NAMESPACE
             return;
         }
 
-        mRenderer->UpdateCamera(position, position + forward, up);
+        const float safeNear = std::max(nearPlane, 1.0e-3f);
+        const float safeFar  = std::max(farPlane, safeNear + 1.0e-2f);
+        const float safeFov  = std::clamp(fovDegrees, 1.0f, 179.0f);
+
+        mRenderer->UpdateCamera(position, position + forward, up, glm::radians(safeFov),
+                                safeNear, safeFar);
 
         // Feed ambient from options so the deferred pass keeps its intensity.
         if(mFreyaOptions)
@@ -223,11 +224,9 @@ namespace FRIGGA_NAMESPACE
             }
         }
 
-        fra::Light off {};
-        current = mLightService->GetLightCount();
-        for(std::uint32_t i = static_cast<std::uint32_t>(wanted.size()); i < current; ++i)
+        while(mLightService->GetLightCount() > wanted.size())
         {
-            mLightService->UpdateLight(i, off);
+            mLightService->RemoveLight(mLightService->GetLightCount() - 1U);
         }
     }
 

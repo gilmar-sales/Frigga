@@ -22,7 +22,7 @@ AnimationWorkflow::AnimationWorkflow(skr::Arc<HierarchyLayer> hierarchy,
                {
                    hierarchy,
                    skr::MakeArc<AnimationPreviewLayer>(renderer, registry, meshPool, selection,
-                                                       scene, preferences),
+                                                       scene, preferences, simulation),
                    skr::MakeArc<AnimationTimelineLayer>(assets, selection, registry),
                    skr::MakeArc<AnimatorPanelLayer>(assets, selection, registry, simulation),
                    skr::MakeArc<AnimGraphEditorLayer>(assets, selection, registry, simulation,

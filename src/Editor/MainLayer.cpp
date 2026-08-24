@@ -82,6 +82,7 @@ void MainLayer::onUpdate()
 
     processPendingSceneActions();
     handleShortcuts();
+    ensureGameplayWorkflowDuringPlay();
 
     if(m_activeTab)
     {
@@ -183,6 +184,38 @@ void MainLayer::ensureEditMode()
         mSimulation->Stop();
         mSimulation->FlushPending();
     }
+}
+
+void MainLayer::activateWorkflowTab(const char *tabName)
+{
+    for(auto &tabPair: m_tabIds)
+    {
+        if(std::strcmp(tabPair.first, tabName) != 0)
+        {
+            continue;
+        }
+
+        if(m_activeTab != tabPair.second)
+        {
+            if(m_activeTab)
+            {
+                m_activeTab->onSuspend();
+            }
+            m_activeTab     = tabPair.second;
+            m_activeTabName = tabPair.first;
+        }
+        return;
+    }
+}
+
+void MainLayer::ensureGameplayWorkflowDuringPlay()
+{
+    if(!mSimulation->IsPlaying())
+    {
+        return;
+    }
+
+    activateWorkflowTab("Gameplay");
 }
 
 void MainLayer::processPendingSceneActions()
@@ -703,14 +736,32 @@ void MainLayer::drawMenuBar()
 
         ImGui::BeginTabBar("##GamePlayTabs");
 
+        const bool playLocked = mSimulation->IsPlaying();
+        if(playLocked)
+        {
+            ImGui::BeginDisabled();
+        }
+
         for(auto &tabPair: m_tabIds)
         {
             if(ImGui::BeginTabItem(tabPair.first))
             {
-                m_activeTab     = tabPair.second;
-                m_activeTabName = tabPair.first;
+                if(m_activeTab != tabPair.second)
+                {
+                    if(m_activeTab)
+                    {
+                        m_activeTab->onSuspend();
+                    }
+                    m_activeTab     = tabPair.second;
+                    m_activeTabName = tabPair.first;
+                }
                 ImGui::EndTabItem();
             }
+        }
+
+        if(playLocked)
+        {
+            ImGui::EndDisabled();
         }
 
         ImGui::EndTabBar();
