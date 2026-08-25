@@ -3,8 +3,12 @@
 #include "Animation/AnimationController.hpp"
 #include "Asset/AssetRegistry.hpp"
 #include "Asset/PrimitiveMeshFactory.hpp"
+#include "Audio/AudioController.hpp"
+#include "Audio/IAudioEngine.hpp"
+#include "Audio/MiniaudioEngine.hpp"
 #include "Core/LayerStack.hpp"
 #include "ECS/Components/AnimatorComponent.hpp"
+#include "ECS/Components/AudioSourceComponent.hpp"
 #include "ECS/Components/BillboardComponent.hpp"
 #include "ECS/Components/BillboardTextComponent.hpp"
 #include "ECS/Components/CameraComponent.hpp"
@@ -20,6 +24,7 @@
 #include "ECS/Components/RigidBodyComponent.hpp"
 #include "ECS/Components/TransformComponent.hpp"
 #include "ECS/Systems/AnimationSystem.hpp"
+#include "ECS/Systems/AudioSystem.hpp"
 #include "ECS/Systems/PhysicsSystem.hpp"
 #include "ECS/Systems/RenderSystem.hpp"
 #include "ECS/UserComponentRegistry.hpp"
@@ -52,6 +57,8 @@ namespace FRIGGA_NAMESPACE
                     .WithComponent<ParticleEmitterComponent>()
                     .WithComponent<FullscreenEffectComponent>()
                     .WithComponent<AnimatorComponent>()
+                    .WithComponent<AudioSourceComponent>()
+                    .WithComponent<AudioListenerComponent>()
                     .WithComponent<PrefabComponent>()
                     .WithPipeline([](fr::PipelineBuilder &pipeline) {
                         // Play mode only (Editor disables this pipeline while editing).
@@ -62,8 +69,8 @@ namespace FRIGGA_NAMESPACE
                             .WithSystem<PhysicsSystem>();
                     })
                     .WithPipeline([](fr::PipelineBuilder &pipeline) {
-                        // Play mode only, display rate (e.g. third-person camera).
-                        pipeline.WithName("Main");
+                        // Play mode only, display rate (e.g. third-person camera, audio).
+                        pipeline.WithName("Main").WithSystem<AudioSystem>();
                     })
                     .WithPipeline([](fr::PipelineBuilder &pipeline) {
                         // Always: pose preview then draw. Animation stays here so Edit
@@ -89,6 +96,8 @@ namespace FRIGGA_NAMESPACE
         services.AddSingleton<fg::PrimitiveMeshFactory>();
         services.AddSingleton<fg::AssetRegistry>();
         services.AddSingleton<fg::AnimationController>();
+        services.AddSingleton<fg::IAudioEngine, fg::MiniaudioEngine>();
+        services.AddSingleton<fg::AudioController>();
         services.AddSingleton<fg::IPhysicsWorld, fg::JoltPhysicsWorld>();
         services.AddSingleton<fg::Physics>();
         services.AddSingleton<fg::Scene>();

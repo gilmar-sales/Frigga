@@ -1,22 +1,28 @@
 #include "AudioWorkflow.hpp"
 
 #include "Editor/DockLayout.hpp"
-#include "Editor/Panels/PlaceholderLayer.hpp"
+#include "Editor/Panels/AudioAssetsLayer.hpp"
+#include "Editor/Panels/AudioInspectorLayer.hpp"
+#include "Editor/Panels/AudioMixerLayer.hpp"
+#include "Editor/Panels/AudioWaveformLayer.hpp"
 
 #include <imgui_internal.h>
 
-AudioWorkflow::AudioWorkflow(skr::Arc<HierarchyLayer> hierarchy)
+AudioWorkflow::AudioWorkflow(skr::Arc<HierarchyLayer> hierarchy,
+                             skr::Arc<fg::AssetRegistry> assets,
+                             skr::Arc<SelectionContext> selection, skr::Arc<fr::Registry> registry,
+                             skr::Arc<fg::SceneSimulationState> simulation,
+                             skr::Arc<fg::IAudioEngine> audioEngine,
+                             skr::Arc<fg::AudioController> controller,
+                             skr::Arc<fra::Window> window)
     : Workflow("Audio",
                {
                    hierarchy,
-                   skr::MakeArc<PlaceholderLayer>(
-                       "Mixer", "Mix buses, groups, and master levels."),
-                   skr::MakeArc<PlaceholderLayer>(
-                       "Waveform", "Preview and trim audio waveforms."),
-                   skr::MakeArc<PlaceholderLayer>(
-                       "Audio Assets", "Browse clips, music, and sound banks."),
-                   skr::MakeArc<PlaceholderLayer>(
-                       "Audio Inspector", "Source parameters, attenuation, and spatialize."),
+                   skr::MakeArc<AudioMixerLayer>(audioEngine),
+                   skr::MakeArc<AudioWaveformLayer>(assets, audioEngine),
+                   skr::MakeArc<AudioAssetsLayer>(assets, selection, registry, simulation, window),
+                   skr::MakeArc<AudioInspectorLayer>(assets, selection, registry, simulation,
+                                                     controller),
                })
 {
 }

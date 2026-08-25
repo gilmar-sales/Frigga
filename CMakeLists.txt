@@ -79,6 +79,14 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(JoltPhysics)
 
+FetchContent_Declare(
+        miniaudio
+        GIT_REPOSITORY "https://github.com/mackron/miniaudio.git"
+        GIT_TAG "0.11.22"
+        GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(miniaudio)
+
 # Headers needed to scaffold/build gameplay plugins from a published Editor.
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/PackFriggaSdk.cmake")
 
@@ -114,6 +122,16 @@ target_link_libraries(frigga PUBLIC
         SDL3::SDL3
         ${CMAKE_DL_LIBS}
 )
+
+target_include_directories(frigga PRIVATE ${miniaudio_SOURCE_DIR})
+set_source_files_properties(
+        src/Frigga/Audio/MiniaudioEngine.cpp
+        PROPERTIES
+        SKIP_PRECOMPILE_HEADERS ON
+)
+if(UNIX AND NOT APPLE)
+    target_link_libraries(frigga PRIVATE pthread m)
+endif()
 
 set_source_files_properties(
         src/Frigga/Physics/JoltPhysicsWorld.cpp

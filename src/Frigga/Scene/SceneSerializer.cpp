@@ -1,6 +1,7 @@
 #include "SceneSerializer.hpp"
 
 #include "Frigga/ECS/Components/AnimatorComponent.hpp"
+#include "Frigga/ECS/Components/AudioSourceComponent.hpp"
 #include "Frigga/ECS/Components/BillboardComponent.hpp"
 #include "Frigga/ECS/Components/BillboardTextComponent.hpp"
 #include "Frigga/ECS/Components/CameraComponent.hpp"
@@ -192,6 +193,23 @@ namespace FRIGGA_NAMESPACE
             std::optional<AnimGraphDefinition> animGraph;
         };
 
+        struct SceneAudioSourceDto
+        {
+            std::string eventPath;
+            float       volume       = 1.0f;
+            float       pitch        = 1.0f;
+            bool        playOnAwake  = false;
+            bool        loop         = false;
+            bool        is3D         = true;
+            float       minDistance  = 1.0f;
+            float       maxDistance  = 50.0f;
+        };
+
+        struct SceneAudioListenerDto
+        {
+            bool active = true;
+        };
+
         struct ScenePropertyDto
         {
             std::string                name;
@@ -219,6 +237,8 @@ namespace FRIGGA_NAMESPACE
             std::optional<SceneLightDto>       light;
             std::optional<SceneRigidBodyDto>   rigidBody;
             std::optional<SceneAnimatorDto>    animator;
+            std::optional<SceneAudioSourceDto> audioSource;
+            std::optional<SceneAudioListenerDto> audioListener;
             std::optional<SceneBillboardDto>   billboard;
             std::optional<SceneParticleEmitterDto> particles;
             std::optional<SceneHealthBarDto>   healthBar;
@@ -949,6 +969,23 @@ namespace FRIGGA_NAMESPACE
                 };
             });
 
+            registry.TryGetComponents<AudioSourceComponent>(entity, [&](AudioSourceComponent &audio) {
+                dto.audioSource = SceneAudioSourceDto {
+                    .eventPath    = audio.eventPath,
+                    .volume       = audio.volume,
+                    .pitch        = audio.pitch,
+                    .playOnAwake  = audio.playOnAwake,
+                    .loop         = audio.loop,
+                    .is3D         = audio.is3D,
+                    .minDistance  = audio.minDistance,
+                    .maxDistance  = audio.maxDistance,
+                };
+            });
+
+            registry.TryGetComponents<AudioListenerComponent>(entity, [&](AudioListenerComponent &listener) {
+                dto.audioListener = SceneAudioListenerDto {.active = listener.active};
+            });
+
             registry.TryGetComponents<BillboardComponent>(entity, [&](BillboardComponent &bb) {
                 dto.billboard = SceneBillboardDto {
                     .size        = {bb.size.x, bb.size.y},
@@ -1435,6 +1472,28 @@ namespace FRIGGA_NAMESPACE
                 };
             }
 
+            std::optional<AudioSourceComponent> audioSource;
+            if(entityDto.audioSource)
+            {
+                const auto &audioDto = *entityDto.audioSource;
+                audioSource = AudioSourceComponent {
+                    .eventPath   = audioDto.eventPath,
+                    .volume      = audioDto.volume,
+                    .pitch       = audioDto.pitch,
+                    .playOnAwake = audioDto.playOnAwake,
+                    .loop        = audioDto.loop,
+                    .is3D        = audioDto.is3D,
+                    .minDistance = audioDto.minDistance,
+                    .maxDistance = audioDto.maxDistance,
+                };
+            }
+
+            std::optional<AudioListenerComponent> audioListener;
+            if(entityDto.audioListener)
+            {
+                audioListener = AudioListenerComponent {.active = entityDto.audioListener->active};
+            }
+
             auto loadOptionalTexture = [&](const std::optional<std::string> &path,
                                            std::optional<std::uint32_t> &outId) {
                 if(!path || path->empty())
@@ -1743,6 +1802,17 @@ namespace FRIGGA_NAMESPACE
 
             scene.FlushEcs();
 
+            if(audioSource)
+            {
+                registry->AddComponents(entity, *audioSource);
+                scene.FlushEcs();
+            }
+            if(audioListener)
+            {
+                registry->AddComponents(entity, *audioListener);
+                scene.FlushEcs();
+            }
+
             if(entityDto.prefabSource && !entityDto.prefabSource->empty())
             {
                 registry->AddComponents(entity,
@@ -1887,6 +1957,8 @@ namespace FRIGGA_NAMESPACE
             std::optional<SceneMaterialDto>    material;
             std::optional<SceneRigidBodyDto>   rigidBody;
             std::optional<SceneAnimatorDto>    animator;
+            std::optional<SceneAudioSourceDto> audioSource;
+            std::optional<SceneAudioListenerDto> audioListener;
             std::optional<SceneBillboardDto>   billboard;
             std::optional<SceneParticleEmitterDto> particles;
             std::optional<SceneHealthBarDto>   healthBar;
@@ -2112,6 +2184,40 @@ namespace FRIGGA_NAMESPACE
                 };
                 found = true;
             });
+            if(!found)
+            {
+                return false;
+            }
+        }
+        else if(kind == "audioSource")
+        {
+            bool found = false;
+            registry->TryGetComponents<AudioSourceComponent>(entity, [&](AudioSourceComponent &audio) {
+                document.audioSource = SceneAudioSourceDto {
+                    .eventPath   = audio.eventPath,
+                    .volume      = audio.volume,
+                    .pitch       = audio.pitch,
+                    .playOnAwake = audio.playOnAwake,
+                    .loop        = audio.loop,
+                    .is3D        = audio.is3D,
+                    .minDistance = audio.minDistance,
+                    .maxDistance = audio.maxDistance,
+                };
+                found = true;
+            });
+            if(!found)
+            {
+                return false;
+            }
+        }
+        else if(kind == "audioListener")
+        {
+            bool found = false;
+            registry->TryGetComponents<AudioListenerComponent>(
+                entity, [&](AudioListenerComponent &listener) {
+                    document.audioListener = SceneAudioListenerDto {.active = listener.active};
+                    found = true;
+                });
             if(!found)
             {
                 return false;
@@ -2537,6 +2643,32 @@ namespace FRIGGA_NAMESPACE
                 .animGraph     = animDto.animGraph.value_or(AnimGraphDefinition {}),
             };
             UpsertComponent(*registry, entity, animator);
+            scene.FlushEcs();
+            return true;
+        }
+
+        if(document.kind == "audioSource" && document.audioSource)
+        {
+            const auto &audioDto = *document.audioSource;
+            AudioSourceComponent audio {
+                .eventPath   = audioDto.eventPath,
+                .volume      = audioDto.volume,
+                .pitch       = audioDto.pitch,
+                .playOnAwake = audioDto.playOnAwake,
+                .loop        = audioDto.loop,
+                .is3D        = audioDto.is3D,
+                .minDistance = audioDto.minDistance,
+                .maxDistance = audioDto.maxDistance,
+            };
+            UpsertComponent(*registry, entity, audio);
+            scene.FlushEcs();
+            return true;
+        }
+
+        if(document.kind == "audioListener" && document.audioListener)
+        {
+            AudioListenerComponent listener {.active = document.audioListener->active};
+            UpsertComponent(*registry, entity, listener);
             scene.FlushEcs();
             return true;
         }

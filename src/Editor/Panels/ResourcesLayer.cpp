@@ -78,13 +78,17 @@ namespace
         {
             return 4;
         }
-        if(name == "Materials")
+        if(name == "Audio")
         {
             return 5;
         }
-        if(name == "Environments")
+        if(name == "Materials")
         {
             return 6;
+        }
+        if(name == "Environments")
+        {
+            return 7;
         }
         if(name == "Shaders")
         {
@@ -100,7 +104,8 @@ namespace
 
     bool IsStandardProjectFolder(std::string_view name)
     {
-        return name == "Models" || name == "Textures" || name == "Prefabs" || name == "Fonts";
+        return name == "Models" || name == "Textures" || name == "Prefabs" || name == "Fonts" ||
+               name == "Audio";
     }
 
     const char *KindLabel(ResourcesLayer::EntryKind kind)
@@ -117,6 +122,10 @@ namespace
             return "Material";
         case ResourcesLayer::EntryKind::Prefab:
             return "Prefab";
+        case ResourcesLayer::EntryKind::Bank:
+            return "Bank";
+        case ResourcesLayer::EntryKind::AudioClip:
+            return "Audio Clip";
         case ResourcesLayer::EntryKind::File:
             return "File";
         }
@@ -137,6 +146,10 @@ namespace
             return ICON_BTSP_LAYERS;
         case ResourcesLayer::EntryKind::Prefab:
             return ICON_BTSP_COLLECTION;
+        case ResourcesLayer::EntryKind::Bank:
+            return ICON_BTSP_MUSICNOTE;
+        case ResourcesLayer::EntryKind::AudioClip:
+            return ICON_BTSP_VOLUMEUP;
         case ResourcesLayer::EntryKind::File:
             return ICON_BTSP_FILE;
         }
@@ -346,6 +359,14 @@ void ResourcesLayer::scanDirectory(const std::filesystem::path &absoluteDir,
         {
             asset.kind  = EntryKind::Prefab;
             asset.label = relativePath.stem().string();
+        }
+        else if(fg::AssetRegistry::IsBankExtension(ext))
+        {
+            asset.kind = EntryKind::Bank;
+        }
+        else if(fg::AssetRegistry::IsAudioClipExtension(ext))
+        {
+            asset.kind = EntryKind::AudioClip;
         }
 
         folder.entries.push_back(std::move(asset));
@@ -1414,6 +1435,24 @@ void ResourcesLayer::drawInspector()
         }
         ImGui::EndDisabled();
         break;
+    case EntryKind::Bank:
+    {
+        ImGui::TextWrapped("Path: Resources/%s", mSelected->relativePath.string().c_str());
+        if(const auto bank = mAssets->LoadBank(mSelected->relativePath))
+        {
+            ImGui::Text("Events: %zu", bank->eventPaths.size());
+        }
+        break;
+    }
+    case EntryKind::AudioClip:
+    {
+        ImGui::TextWrapped("Path: Resources/%s", mSelected->relativePath.string().c_str());
+        if(const auto clip = mAssets->LoadAudioClip(mSelected->relativePath))
+        {
+            ImGui::Text("Duration: %.2f s", clip->durationSec);
+        }
+        break;
+    }
     case EntryKind::File:
         ImGui::TextWrapped("Path: Resources/%s", mSelected->relativePath.string().c_str());
         break;

@@ -26,6 +26,8 @@ class ResourcesLayer: public fg::Layer
         Texture,
         Material,
         Prefab,
+        Bank,
+        AudioClip,
         File,
     };
 

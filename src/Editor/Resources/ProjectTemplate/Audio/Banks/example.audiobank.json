@@ -1,0 +1,12 @@
+{
+  "events": [
+    {
+      "path": "event:/SFX/Example",
+      "clip": "Audio/Clips/example.wav",
+      "volume": 1.0,
+      "pitch": 1.0,
+      "loop": false,
+      "bus": "bus:/SFX"
+    }
+  ]
+}

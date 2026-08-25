@@ -2,7 +2,7 @@
 
 Personal C++ game engine and ImGui editor built on [Freyr](https://github.com/gilmar-sales/Freyr) (ECS), [Freya](https://github.com/gilmar-sales/Freya) (Vulkan renderer / windowing), and [Jolt Physics](https://github.com/jrouwe/JoltPhysics).
 
-**Status:** early prototype (v0.2.0). The Gameplay workflow is usable: author scenes of primitives, lights, and cameras; save/load JSON; run a play/edit physics simulation. Animation, Audio, and Shading workflows are dock-layout placeholders. Gameplay code is edited in VS Code (Ctrl+Shift+E) and debugged by attaching GDB to the running Editor.
+**Status:** early prototype (v0.10.0). The Gameplay workflow is usable: author scenes of primitives, lights, and cameras; save/load JSON; run a play/edit physics simulation. Animation workflow supports clip preview and anim graphs. **Audio workflow** uses [miniaudio](https://github.com/mackron/miniaudio) (JSON event banks, clips, mixer, waveform preview). Shading workflow remains a dock-layout placeholder. Gameplay code is edited in VS Code (Ctrl+Shift+E) and debugged by attaching GDB to the running Editor.
 
 ## Features
 
@@ -24,6 +24,27 @@ Personal C++ game engine and ImGui editor built on [Freyr](https://github.com/gi
 | **Vulkan SDK** | Headers + loader; `glslc` on `PATH` (Freya compiles shaders) |
 | **Git + network** | First configure pulls Freyr, Freya, ImGui, ImGuizmo, Jolt, and Freya’s transitive deps (SDL3, glm, Assimp, Skirnir, simdjson, …) via FetchContent |
 | **GPU / drivers** | Vulkan-capable GPU and up-to-date drivers |
+
+### Audio workflow (miniaudio)
+
+1. Place `.wav` / `.ogg` clips under `Resources/Audio/Clips/`.
+2. Define events in a JSON bank (`.audiobank.json`) under `Resources/Audio/Banks/`:
+
+```json
+{
+  "events": [
+    {
+      "path": "event:/SFX/Explosion",
+      "clip": "Audio/Clips/explosion.wav",
+      "volume": 1.0,
+      "bus": "bus:/SFX"
+    }
+  ]
+}
+```
+
+3. In the Editor **Audio** workflow: **Import Bank** → assign events to entities via **Audio Assets** / **Audio Inspector**.
+4. Mixer buses: `bus:/Master`, `bus:/SFX`, `bus:/Music`.
 
 On Arch Linux (example):
 

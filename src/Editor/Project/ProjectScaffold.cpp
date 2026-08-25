@@ -582,8 +582,8 @@ bool ProjectScaffold::EnsureProjectResources(const std::filesystem::path &projec
                                              std::string &error,
                                              const std::filesystem::path &friggaRoot)
 {
-    static constexpr std::array<std::string_view, 4> kFolders = {
-        "Models", "Textures", "Prefabs", "Fonts"};
+    static constexpr std::array<std::string_view, 7> kFolders = {
+        "Models", "Textures", "Prefabs", "Fonts", "Audio", "Audio/Banks", "Audio/Clips"};
 
     const auto destRoot = projectRoot / ProjectDescriptor::ResourcesDirName;
     std::error_code ec;

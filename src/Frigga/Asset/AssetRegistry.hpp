@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Frigga/Audio/AudioTypes.hpp"
+
 #include <Freya/Freya.hpp>
 
 #include <cstdint>
@@ -12,6 +14,8 @@
 
 namespace FRIGGA_NAMESPACE
 {
+
+    class IAudioEngine;
 
     struct ModelAsset
     {
@@ -34,6 +38,21 @@ namespace FRIGGA_NAMESPACE
     {
         std::string name;
         std::uint32_t materialId = 0;
+    };
+
+    struct BankAsset
+    {
+        std::string relativePath;
+        std::string label;
+        std::vector<std::string> eventPaths;
+    };
+
+    struct AudioClipAsset
+    {
+        std::string relativePath;
+        std::string label;
+        float       durationSec = 0.0f;
+        AudioClipTrim trim {};
     };
 
     class AssetRegistry
@@ -67,6 +86,30 @@ namespace FRIGGA_NAMESPACE
         /// Load a texture already stored under the project Resources/.
         [[nodiscard]] std::optional<TextureAsset> LoadTexture(
             const std::filesystem::path &relativePath);
+
+        [[nodiscard]] std::optional<BankAsset> ImportBank(const std::filesystem::path &sourcePath);
+        [[nodiscard]] std::optional<BankAsset> LoadBank(const std::filesystem::path &relativePath);
+        [[nodiscard]] std::optional<AudioClipAsset> ImportAudioClip(
+            const std::filesystem::path &sourcePath);
+        [[nodiscard]] std::optional<AudioClipAsset> LoadAudioClip(
+            const std::filesystem::path &relativePath);
+
+        [[nodiscard]] const std::vector<BankAsset> &GetBanks() const
+        {
+            return mBanks;
+        }
+
+        [[nodiscard]] const std::vector<AudioClipAsset> &GetAudioClips() const
+        {
+            return mAudioClips;
+        }
+
+        [[nodiscard]] const BankAsset *FindBank(std::string_view relativePath) const;
+        [[nodiscard]] const AudioClipAsset *FindAudioClip(std::string_view relativePath) const;
+
+        [[nodiscard]] std::vector<std::string> GetAllEventPaths() const;
+
+        void SetAudioEngine(const skr::Arc<IAudioEngine> &audioEngine);
 
         [[nodiscard]] std::uint32_t CreateMaterial(const fra::MaterialCreateInfo &createInfo,
                                                    std::string name = "Material",
@@ -115,6 +158,8 @@ namespace FRIGGA_NAMESPACE
         [[nodiscard]] static bool IsModelExtension(std::string_view extension);
         [[nodiscard]] static bool IsTextureExtension(std::string_view extension);
         [[nodiscard]] static bool IsPrefabExtension(std::string_view extension);
+        [[nodiscard]] static bool IsBankExtension(std::string_view extension);
+        [[nodiscard]] static bool IsAudioClipExtension(std::string_view extension);
 
         /// Editor/install tree beside the binary (`Resources/` in the process CWD).
         /// Shaders, UI fonts, bundled plugins, and engine default textures live here.
@@ -150,19 +195,32 @@ namespace FRIGGA_NAMESPACE
             const std::filesystem::path &absolutePath,
             const std::filesystem::path &relativePath);
 
+        [[nodiscard]] std::optional<BankAsset> loadBankAbsolute(
+            const std::filesystem::path &absolutePath,
+            const std::filesystem::path &relativePath);
+
+        [[nodiscard]] std::optional<AudioClipAsset> loadAudioClipAbsolute(
+            const std::filesystem::path &absolutePath,
+            const std::filesystem::path &relativePath);
+
         [[nodiscard]] static std::string normalizeRelativeKey(const std::filesystem::path &relative);
 
         skr::Arc<fra::MeshPool> mMeshPool;
         skr::Arc<fra::TexturePool> mTexturePool;
         skr::Arc<fra::MaterialPool> mMaterialPool;
         skr::Arc<skr::Logger<AssetRegistry>> mLogger;
+        skr::Arc<IAudioEngine> mAudioEngine;
 
         std::vector<ModelAsset> mModels;
         std::vector<TextureAsset> mTextures;
         std::vector<MaterialAsset> mMaterials;
+        std::vector<BankAsset> mBanks;
+        std::vector<AudioClipAsset> mAudioClips;
 
         std::unordered_map<std::string, std::size_t> mModelIndexByPath;
         std::unordered_map<std::string, std::size_t> mTextureIndexByPath;
+        std::unordered_map<std::string, std::size_t> mBankIndexByPath;
+        std::unordered_map<std::string, std::size_t> mAudioClipIndexByPath;
         std::unordered_map<std::uint32_t, std::string> mTexturePathById;
 
         std::uint32_t mCatalogMeshSeq     = 1000;

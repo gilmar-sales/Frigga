@@ -1,5 +1,7 @@
 #include "AssetRegistry.hpp"
 
+#include "Frigga/Audio/IAudioEngine.hpp"
+
 #include <algorithm>
 #include <cctype>
 #include <format>
@@ -74,9 +76,18 @@ namespace FRIGGA_NAMESPACE
         mModels.clear();
         mTextures.clear();
         mMaterials.clear();
+        mBanks.clear();
+        mAudioClips.clear();
         mModelIndexByPath.clear();
         mTextureIndexByPath.clear();
+        mBankIndexByPath.clear();
+        mAudioClipIndexByPath.clear();
         mTexturePathById.clear();
+    }
+
+    void AssetRegistry::SetAudioEngine(const skr::Arc<IAudioEngine> &audioEngine)
+    {
+        mAudioEngine = audioEngine;
     }
 
     std::filesystem::path AssetRegistry::ToAbsoluteResourcePath(
@@ -133,6 +144,18 @@ namespace FRIGGA_NAMESPACE
     {
         const auto ext = ToLower(std::string(extension));
         return ext == ".prefab";
+    }
+
+    bool AssetRegistry::IsBankExtension(std::string_view extension)
+    {
+        const auto ext = ToLower(std::string(extension));
+        return ext == ".audiobank.json";
+    }
+
+    bool AssetRegistry::IsAudioClipExtension(std::string_view extension)
+    {
+        const auto ext = ToLower(std::string(extension));
+        return ext == ".wav" || ext == ".ogg";
     }
 
     std::filesystem::path AssetRegistry::copyIntoResources(const std::filesystem::path &sourcePath,
@@ -407,6 +430,199 @@ namespace FRIGGA_NAMESPACE
         }
 
         return loadTextureAbsolute(absolute, key);
+    }
+
+    std::optional<BankAsset> AssetRegistry::loadBankAbsolute(
+        const std::filesystem::path &absolutePath, const std::filesystem::path &relativePath)
+    {
+        const auto key = normalizeRelativeKey(relativePath);
+        if(const auto it = mBankIndexByPath.find(key); it != mBankIndexByPath.end())
+        {
+            return mBanks[it->second];
+        }
+
+        BankAsset asset {.relativePath = key, .label = relativePath.filename().string()};
+
+        if(mAudioEngine != nullptr)
+        {
+            if(!mAudioEngine->IsInitialized())
+            {
+                (void)mAudioEngine->Initialize();
+            }
+            std::vector<std::string> events;
+            if(!mAudioEngine->LoadBank(absolutePath, events))
+            {
+                if(mLogger)
+                {
+                    mLogger->LogError("Failed to load audio bank '{}'", absolutePath.string());
+                }
+                return std::nullopt;
+            }
+            asset.eventPaths = std::move(events);
+        }
+
+        mBankIndexByPath.emplace(key, mBanks.size());
+        mBanks.push_back(std::move(asset));
+
+        if(mLogger)
+        {
+            const auto &stored = mBanks.back();
+            mLogger->LogInformation("Loaded bank '{}' ({} events)", key, stored.eventPaths.size());
+        }
+
+        return mBanks.back();
+    }
+
+    std::optional<AudioClipAsset> AssetRegistry::loadAudioClipAbsolute(
+        const std::filesystem::path &absolutePath, const std::filesystem::path &relativePath)
+    {
+        const auto key = normalizeRelativeKey(relativePath);
+        if(const auto it = mAudioClipIndexByPath.find(key); it != mAudioClipIndexByPath.end())
+        {
+            return mAudioClips[it->second];
+        }
+
+        AudioClipAsset asset {.relativePath = key, .label = relativePath.filename().string()};
+
+        if(mAudioEngine != nullptr)
+        {
+            if(!mAudioEngine->IsInitialized())
+            {
+                (void)mAudioEngine->Initialize();
+            }
+            if(const auto waveform = mAudioEngine->DecodeWaveform(absolutePath))
+            {
+                asset.durationSec = waveform->durationSec;
+            }
+        }
+
+        mAudioClipIndexByPath.emplace(key, mAudioClips.size());
+        mAudioClips.push_back(std::move(asset));
+
+        if(mLogger)
+        {
+            mLogger->LogInformation("Loaded audio clip '{}'", key);
+        }
+
+        return mAudioClips.back();
+    }
+
+    std::optional<BankAsset> AssetRegistry::ImportBank(const std::filesystem::path &sourcePath)
+    {
+        if(!std::filesystem::is_regular_file(sourcePath))
+        {
+            if(mLogger)
+            {
+                mLogger->LogError("Bank path is not a file: {}", sourcePath.string());
+            }
+            return std::nullopt;
+        }
+
+        const auto relative = copyIntoResources(sourcePath, "Audio/Banks");
+        if(relative.empty())
+        {
+            return std::nullopt;
+        }
+
+        return loadBankAbsolute(ToAbsoluteResourcePath(relative), relative);
+    }
+
+    std::optional<BankAsset> AssetRegistry::LoadBank(const std::filesystem::path &relativePath)
+    {
+        const auto key = normalizeRelativeKey(relativePath);
+        if(const auto it = mBankIndexByPath.find(key); it != mBankIndexByPath.end())
+        {
+            return mBanks[it->second];
+        }
+
+        const auto absolute = ToAbsoluteResourcePath(key);
+        if(!std::filesystem::is_regular_file(absolute))
+        {
+            if(mLogger)
+            {
+                mLogger->LogError("Bank resource not found: {}", absolute.string());
+            }
+            return std::nullopt;
+        }
+
+        return loadBankAbsolute(absolute, key);
+    }
+
+    std::optional<AudioClipAsset> AssetRegistry::ImportAudioClip(
+        const std::filesystem::path &sourcePath)
+    {
+        if(!std::filesystem::is_regular_file(sourcePath))
+        {
+            if(mLogger)
+            {
+                mLogger->LogError("Audio clip path is not a file: {}", sourcePath.string());
+            }
+            return std::nullopt;
+        }
+
+        const auto relative = copyIntoResources(sourcePath, "Audio/Clips");
+        if(relative.empty())
+        {
+            return std::nullopt;
+        }
+
+        return loadAudioClipAbsolute(ToAbsoluteResourcePath(relative), relative);
+    }
+
+    std::optional<AudioClipAsset> AssetRegistry::LoadAudioClip(
+        const std::filesystem::path &relativePath)
+    {
+        const auto key = normalizeRelativeKey(relativePath);
+        if(const auto it = mAudioClipIndexByPath.find(key); it != mAudioClipIndexByPath.end())
+        {
+            return mAudioClips[it->second];
+        }
+
+        const auto absolute = ToAbsoluteResourcePath(key);
+        if(!std::filesystem::is_regular_file(absolute))
+        {
+            if(mLogger)
+            {
+                mLogger->LogError("Audio clip resource not found: {}", absolute.string());
+            }
+            return std::nullopt;
+        }
+
+        return loadAudioClipAbsolute(absolute, key);
+    }
+
+    const BankAsset *AssetRegistry::FindBank(std::string_view relativePath) const
+    {
+        const auto key = normalizeRelativeKey(relativePath);
+        const auto it  = mBankIndexByPath.find(key);
+        if(it == mBankIndexByPath.end())
+        {
+            return nullptr;
+        }
+        return &mBanks[it->second];
+    }
+
+    const AudioClipAsset *AssetRegistry::FindAudioClip(std::string_view relativePath) const
+    {
+        const auto key = normalizeRelativeKey(relativePath);
+        const auto it  = mAudioClipIndexByPath.find(key);
+        if(it == mAudioClipIndexByPath.end())
+        {
+            return nullptr;
+        }
+        return &mAudioClips[it->second];
+    }
+
+    std::vector<std::string> AssetRegistry::GetAllEventPaths() const
+    {
+        std::vector<std::string> events;
+        for(const auto &bank : mBanks)
+        {
+            events.insert(events.end(), bank.eventPaths.begin(), bank.eventPaths.end());
+        }
+        std::ranges::sort(events);
+        events.erase(std::unique(events.begin(), events.end()), events.end());
+        return events;
     }
 
     std::uint32_t AssetRegistry::CreateMaterial(const fra::MaterialCreateInfo &createInfo,

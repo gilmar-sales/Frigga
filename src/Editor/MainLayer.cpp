@@ -17,6 +17,7 @@
 
 #include <Frigga/Asset/AssetRegistry.hpp>
 #include <Frigga/Asset/PrimitiveMeshFactory.hpp>
+#include <Frigga/Audio/IAudioEngine.hpp>
 #include <Frigga/Gui/Extensions/Extensions.hpp>
 #include <Frigga/Plugin/GameplayPluginHost.hpp>
 
@@ -84,6 +85,11 @@ MainLayer::MainLayer(skr::Arc<fg::Scene> scene, skr::Arc<fg::LayerStack> layerSt
     mStatusBar = std::make_unique<StatusBar>(
         mSession, mScene, serviceProvider->GetService<fg::AssetRegistry>(),
         serviceProvider->GetService<fg::GameplayPluginHost>(), mSimulation);
+
+    if(auto assets = serviceProvider->GetService<fg::AssetRegistry>())
+    {
+        assets->SetAudioEngine(serviceProvider->GetService<fg::IAudioEngine>());
+    }
 }
 
 void MainLayer::onUpdate()

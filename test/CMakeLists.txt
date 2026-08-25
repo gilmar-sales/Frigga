@@ -25,6 +25,7 @@ add_executable(frigga_tests
         EcsLayoutSpec.cpp
         PhysicsSpec.cpp
         SceneSerializerSpec.cpp
+        SceneSerializerAudioSpec.cpp
         AnimGraphDefinitionSpec.cpp
         PrefabSpec.cpp
 )
