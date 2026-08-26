@@ -7,6 +7,7 @@
 #include "Editor/UiScale.hpp"
 #include "Frigga/ECS/Components/CameraComponent.hpp"
 #include "Frigga/ECS/Components/LightComponent.hpp"
+#include "Frigga/ECS/Components/AudioSourceComponent.hpp"
 #include "Frigga/ECS/Components/MaterialComponent.hpp"
 #include "Frigga/ECS/Components/AnimatorComponent.hpp"
 #include "Frigga/ECS/Components/BillboardComponent.hpp"
@@ -269,6 +270,14 @@ const char *HierarchyLayer::resolveEntityIcon(fr::Entity entity) const
     if(mRegistry->HasComponent<fg::CameraComponent>(entity))
     {
         return ICON_BTSP_CAMERAVIDEO;
+    }
+    if(mRegistry->HasComponent<fg::AudioListenerComponent>(entity))
+    {
+        return ICON_BTSP_MIC;
+    }
+    if(mRegistry->HasComponent<fg::AudioSourceComponent>(entity))
+    {
+        return ICON_BTSP_VOLUMEUP;
     }
     if(mRegistry->HasComponent<fg::FullscreenEffectComponent>(entity))
     {

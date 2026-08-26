@@ -7,6 +7,7 @@
 #include "Editor/ViewportQuality.hpp"
 
 #include <Frigga/Editor/CameraDebugDraw.hpp>
+#include <Frigga/Editor/AudioDebugDraw.hpp>
 #include <Frigga/Editor/LightDebugDraw.hpp>
 #include <Frigga/Gui/Backends/imgui_impl_vulkan.h>
 #include <Frigga/Gui/GuiLayer.hpp>
@@ -202,6 +203,8 @@ void GameplayLayer::drawDebugOverlays(const ImVec2 &imageMin, const ImVec2 &imag
                              imageSize, selected);
     fg::CameraDebugDraw::Draw(ImGui::GetWindowDrawList(), mRegistry, view, projection, imageMin,
                               imageSize, selected, mScene->GetMainCameraEntity());
+    fg::AudioDebugDraw::Draw(ImGui::GetWindowDrawList(), mRegistry, view, projection, imageMin,
+                             imageSize, selected);
 }
 
 bool GameplayLayer::computeActiveCamera(glm::mat4 &viewOut, glm::mat4 &projectionOut)

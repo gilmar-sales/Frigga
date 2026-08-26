@@ -3,6 +3,7 @@
 #include "Frigga/ECS/Components/LightComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/ECS/TransformUtil.hpp"
+#include "Frigga/Editor/EditorIconBillboard.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -166,7 +167,9 @@ namespace FRIGGA_NAMESPACE
                 ImVec2 screen {};
                 if(Project(pos, viewProj, imageMin, imageSize, screen))
                 {
-                    drawList->AddCircle(screen, 10.0f, IM_COL32(255, 220, 80, 220), 16, 1.5f);
+                    drawList->AddCircle(screen, EditorIconBillboard::Dpi(10.0f),
+                                        IM_COL32(255, 220, 80, 220), 16,
+                                        EditorIconBillboard::Dpi(1.5f));
                 }
             }
 
@@ -240,7 +243,8 @@ namespace FRIGGA_NAMESPACE
         }
 
         const glm::mat4 viewProj = FlipYProjection(vulkanProjection) * view;
-        const float radiusSq     = pixelRadius * pixelRadius;
+        const float scaledRadius = EditorIconBillboard::Dpi(pixelRadius);
+        const float radiusSq     = scaledRadius * scaledRadius;
 
         fr::Entity bestEntity {};
         float bestDistSq = std::numeric_limits<float>::max();

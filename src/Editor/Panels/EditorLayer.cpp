@@ -12,6 +12,7 @@
 #include "Frigga/Physics/ColliderDebugDraw.hpp"
 #include "Frigga/Editor/LightDebugDraw.hpp"
 #include "Frigga/Editor/CameraDebugDraw.hpp"
+#include "Frigga/Editor/AudioDebugDraw.hpp"
 #include "Frigga/Editor/InfiniteGridDraw.hpp"
 
 #include <algorithm>
@@ -156,6 +157,8 @@ void EditorLayer::onGui()
                                          imageMin, avail, selected);
                 fg::CameraDebugDraw::Draw(ImGui::GetWindowDrawList(), mRegistry, view, projection,
                                           imageMin, avail, selected, mScene->GetMainCameraEntity());
+                fg::AudioDebugDraw::Draw(ImGui::GetWindowDrawList(), mRegistry, view, projection,
+                                         imageMin, avail, selected);
                 if(mSimulation->GetShowColliders())
                 {
                     fg::ColliderDebugDraw::Draw(ImGui::GetWindowDrawList(), mRegistry, mPrimitives,
@@ -321,6 +324,12 @@ void EditorLayer::handlePicking(const ImVec2 &imageMin, const ImVec2 &imageSize)
                mRegistry, view, projection, imageMin, imageSize, mouse))
         {
             mSelection->Select(*cameraHit);
+            return;
+        }
+        if(const auto audioHit = fg::AudioDebugDraw::HitTest(
+               mRegistry, view, projection, imageMin, imageSize, mouse))
+        {
+            mSelection->Select(*audioHit);
             return;
         }
         if(const auto lightHit = fg::LightDebugDraw::HitTest(

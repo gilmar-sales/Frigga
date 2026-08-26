@@ -3,6 +3,7 @@
 #include "Frigga/ECS/Components/CameraComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/ECS/TransformUtil.hpp"
+#include "Frigga/Editor/EditorIconBillboard.hpp"
 
 #include <algorithm>
 #include <array>
@@ -157,6 +158,16 @@ namespace FRIGGA_NAMESPACE
                 }
                 DrawFrustum(drawList, viewProj, imageMin, imageSize, worldXf, camera, aspect,
                             color, thickness);
+
+                ImVec2 screen {};
+                if(Project(worldXf.position, viewProj, imageMin, imageSize, screen))
+                {
+                    EditorIconBillboard::Draw(drawList, screen, EditorIconBillboard::kCameraVideo,
+                                              selected ? IM_COL32(120, 210, 255, 255)
+                                                       : (isMain ? IM_COL32(140, 180, 220, 230)
+                                                                 : IM_COL32(110, 150, 190, 210)),
+                                              selected);
+                }
             });
     }
 
@@ -173,7 +184,8 @@ namespace FRIGGA_NAMESPACE
         }
 
         const glm::mat4 viewProj = FlipYProjection(vulkanProjection) * view;
-        const float radiusSq     = pixelRadius * pixelRadius;
+        const float scaledRadius = EditorIconBillboard::Dpi(pixelRadius);
+        const float radiusSq     = scaledRadius * scaledRadius;
 
         fr::Entity bestEntity {};
         float bestDistSq = std::numeric_limits<float>::max();
