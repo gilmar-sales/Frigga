@@ -388,12 +388,14 @@ struct Health: fr::Component
         out << "Inherit `fr::System` and register with `plugin.System<MySystem>()` "
                "(defaults to the **Simulation** pipeline).\n";
         out << "Optional DI: `plugin.Singleton<T>()`, `.Scoped<T>()`, `.Transient<T>()`.\n";
-        out << "Host exposes `fg::Input` and `fg::Physics` — inject them in system ctors "
-               "(`IsDown`/`WasPressed`/`GetAxis`, `MoveCharacter`/`SetLinearVelocity`).\n";
+        out << "Host exposes `fg::Input`, `fg::Physics`, and `fg::AudioController` — inject them "
+               "in system ctors "
+               "(`IsDown`/`WasPressed`/`GetAxis`, `MoveCharacter`/`SetLinearVelocity`, "
+               "`Play`/`Stop` on entities with `AudioSourceComponent`).\n";
         out << "Host placement: new plugin systems append to **Simulation** (60 Hz, Play only); "
                "known labels are restored from `ecs.json` after attach. Edit pipelines in the "
                "**ECS** workflow.\n";
-        out << "Tick order: **Simulation** (gameplay + physics) → **Main** (camera) → "
+        out << "Tick order: **Simulation** (gameplay + physics) → **Main** (audio + camera) → "
                "**Render** (animation preview + draw, always last). Edit mode keeps only "
                "Render; Simulation and Main tick in Play.\n\n";
         out << "## Build the plugin\n\n";

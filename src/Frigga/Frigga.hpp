@@ -5,6 +5,7 @@
 #include <Skirnir/Skirnir.hpp>
 
 #include "Frigga/Animation/AnimationController.hpp"
+#include "Frigga/Audio/AudioController.hpp"
 #include "Frigga/Core/AbstractApplication.hpp"
 
 namespace FRIGGA_NAMESPACE

@@ -159,6 +159,7 @@ namespace FRIGGA_NAMESPACE
         [[nodiscard]] static bool IsTextureExtension(std::string_view extension);
         [[nodiscard]] static bool IsPrefabExtension(std::string_view extension);
         [[nodiscard]] static bool IsBankExtension(std::string_view extension);
+        [[nodiscard]] static bool IsBankFilename(std::string_view filename);
         [[nodiscard]] static bool IsAudioClipExtension(std::string_view extension);
 
         /// Editor/install tree beside the binary (`Resources/` in the process CWD).

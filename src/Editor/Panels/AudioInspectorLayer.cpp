@@ -1,9 +1,9 @@
 #include "AudioInspectorLayer.hpp"
 
 #include "Editor/DockLayout.hpp"
+#include "Editor/Ui/AudioComponentInspector.hpp"
 #include "Frigga/ECS/Components/AudioSourceComponent.hpp"
-
-#include <cstdio>
+#include "Frigga/ECS/Components/TransformComponent.hpp"
 
 AudioInspectorLayer::AudioInspectorLayer(skr::Arc<fg::AssetRegistry> assets,
                                          skr::Arc<SelectionContext> selection,
@@ -35,17 +35,26 @@ void AudioInspectorLayer::onGui()
 
     const bool hasSource   = mRegistry->HasComponent<fg::AudioSourceComponent>(selection);
     const bool hasListener = mRegistry->HasComponent<fg::AudioListenerComponent>(selection);
+    const bool editingLocked = mSimulation->IsPlaying();
 
     if(!hasSource && !hasListener)
     {
         ImGui::TextWrapped("Selected entity has no audio components.");
-        ImGui::BeginDisabled(mSimulation->IsPlaying());
+        ImGui::BeginDisabled(editingLocked);
         if(ImGui::Button("Add Audio Source"))
         {
+            if(!mRegistry->HasComponent<fg::TransformComponent>(selection))
+            {
+                mRegistry->AddComponents(selection, fg::TransformComponent {});
+            }
             mRegistry->AddComponents(selection, fg::AudioSourceComponent {});
         }
         if(ImGui::Button("Add Audio Listener"))
         {
+            if(!mRegistry->HasComponent<fg::TransformComponent>(selection))
+            {
+                mRegistry->AddComponents(selection, fg::TransformComponent {});
+            }
             mRegistry->AddComponents(selection, fg::AudioListenerComponent {});
         }
         ImGui::EndDisabled();
@@ -58,9 +67,7 @@ void AudioInspectorLayer::onGui()
         mRegistry->TryGetComponents<fg::AudioListenerComponent>(
             selection, [&](fg::AudioListenerComponent &listener) {
                 ImGui::SeparatorText("Listener");
-                ImGui::BeginDisabled(mSimulation->IsPlaying());
-                ImGui::Checkbox("Active", &listener.active);
-                ImGui::EndDisabled();
+                EditorAudioUi::DrawListenerFields(listener, editingLocked);
             });
     }
 
@@ -69,55 +76,8 @@ void AudioInspectorLayer::onGui()
         mRegistry->TryGetComponents<fg::AudioSourceComponent>(
             selection, [&](fg::AudioSourceComponent &source) {
                 ImGui::SeparatorText("Source");
-                ImGui::BeginDisabled(mSimulation->IsPlaying());
-
-                const auto events = mAssets->GetAllEventPaths();
-                if(ImGui::BeginCombo(
-                       "Event", source.eventPath.empty() ? "(select event)" : source.eventPath.c_str()))
-                {
-                    for(const auto &eventPath : events)
-                    {
-                        const bool selected = source.eventPath == eventPath;
-                        if(ImGui::Selectable(eventPath.c_str(), selected))
-                        {
-                            source.eventPath = eventPath;
-                        }
-                    }
-                    ImGui::EndCombo();
-                }
-
-                ImGui::DragFloat("Volume", &source.volume, 0.01f, 0.0f, 2.0f, "%.2f");
-                ImGui::DragFloat("Pitch", &source.pitch, 0.01f, 0.1f, 4.0f, "%.2f");
-                ImGui::Checkbox("Play On Awake", &source.playOnAwake);
-                ImGui::Checkbox("Loop", &source.loop);
-                ImGui::Checkbox("3D", &source.is3D);
-                if(source.is3D)
-                {
-                    ImGui::DragFloat("Min Distance", &source.minDistance, 0.1f, 0.1f, 100.0f,
-                                     "%.1f");
-                    ImGui::DragFloat("Max Distance", &source.maxDistance, 0.5f, 1.0f, 500.0f,
-                                     "%.1f");
-                }
-
-                ImGui::EndDisabled();
-
-                if(!source.eventPath.empty())
-                {
-                    if(ImGui::Button("Preview"))
-                    {
-                        (void)mController->PreviewEvent(source.eventPath, source.volume);
-                    }
-                    ImGui::SameLine();
-                    if(ImGui::Button("Play"))
-                    {
-                        (void)mController->Play(selection, source.eventPath);
-                    }
-                    ImGui::SameLine();
-                    if(ImGui::Button("Stop"))
-                    {
-                        mController->Stop(selection);
-                    }
-                }
+                EditorAudioUi::DrawSourceFields(source, mAssets, mController, selection,
+                                                editingLocked, true);
             });
     }
 

@@ -20,7 +20,7 @@ namespace FRIGGA_NAMESPACE
             return false;
         }
 
-        bool started = false;
+        bool ok = false;
         mRegistry->TryGetComponents<AudioSourceComponent>(
             entity, [&](AudioSourceComponent &source) {
                 if(!eventPath.empty())
@@ -32,47 +32,29 @@ namespace FRIGGA_NAMESPACE
                     return;
                 }
 
-                source.userPlaying = !oneShot;
-                source.playOnAwake = oneShot;
-
-                if(!source.instance.IsValid())
-                {
-                    source.instance = mAudioEngine->CreateEventInstance(source.eventPath);
-                }
-                if(source.instance.IsValid())
-                {
-                    mAudioEngine->SetEventVolume(source.instance, source.volume);
-                    mAudioEngine->SetEventPitch(source.instance, source.pitch);
-                    started = mAudioEngine->StartEvent(source.instance);
-                    source.started = started;
-                }
+                source.desired = AudioPlaybackState::Playing;
+                source.oneShot = oneShot;
+                ok             = true;
             });
-        return started;
+        return ok;
     }
 
     void AudioController::Stop(fr::Entity entity)
     {
         mRegistry->TryGetComponents<AudioSourceComponent>(
-            entity, [&](AudioSourceComponent &source) {
-                source.userPlaying = false;
-                source.playOnAwake = false;
-                if(source.instance.IsValid())
-                {
-                    mAudioEngine->StopEvent(source.instance, true);
-                    mAudioEngine->ReleaseEventInstance(source.instance);
-                    source.instance = {};
-                }
-                source.started = false;
+            entity, [](AudioSourceComponent &source) {
+                source.desired = AudioPlaybackState::Stopped;
+                source.oneShot = false;
             });
     }
 
     void AudioController::Pause(fr::Entity entity)
     {
         mRegistry->TryGetComponents<AudioSourceComponent>(
-            entity, [&](AudioSourceComponent &source) {
-                if(source.instance.IsValid())
+            entity, [](AudioSourceComponent &source) {
+                if(source.desired == AudioPlaybackState::Playing)
                 {
-                    mAudioEngine->PauseEvent(source.instance, true);
+                    source.desired = AudioPlaybackState::Paused;
                 }
             });
     }
@@ -80,10 +62,10 @@ namespace FRIGGA_NAMESPACE
     void AudioController::Resume(fr::Entity entity)
     {
         mRegistry->TryGetComponents<AudioSourceComponent>(
-            entity, [&](AudioSourceComponent &source) {
-                if(source.instance.IsValid())
+            entity, [](AudioSourceComponent &source) {
+                if(source.desired == AudioPlaybackState::Paused)
                 {
-                    mAudioEngine->PauseEvent(source.instance, false);
+                    source.desired = AudioPlaybackState::Playing;
                 }
             });
     }
@@ -91,50 +73,34 @@ namespace FRIGGA_NAMESPACE
     void AudioController::SetVolume(fr::Entity entity, float volume)
     {
         mRegistry->TryGetComponents<AudioSourceComponent>(
-            entity, [&](AudioSourceComponent &source) {
-                source.volume = volume;
-                if(source.instance.IsValid())
-                {
-                    mAudioEngine->SetEventVolume(source.instance, volume);
-                }
-            });
+            entity, [volume](AudioSourceComponent &source) { source.volume = volume; });
     }
 
     void AudioController::SetPitch(fr::Entity entity, float pitch)
     {
         mRegistry->TryGetComponents<AudioSourceComponent>(
-            entity, [&](AudioSourceComponent &source) {
-                source.pitch = pitch;
-                if(source.instance.IsValid())
-                {
-                    mAudioEngine->SetEventPitch(source.instance, pitch);
-                }
-            });
+            entity, [pitch](AudioSourceComponent &source) { source.pitch = pitch; });
     }
 
     bool AudioController::SetParameter(fr::Entity entity, std::string_view name, float value)
     {
+        if(name.empty())
+        {
+            return false;
+        }
+
         bool ok = false;
         mRegistry->TryGetComponents<AudioSourceComponent>(
             entity, [&](AudioSourceComponent &source) {
-                if(source.instance.IsValid())
-                {
-                    ok = mAudioEngine->SetEventParameter(source.instance, name, value);
-                }
+                source.parameters[std::string(name)] = value;
+                ok                                   = true;
             });
         return ok;
     }
 
-    void AudioController::SetGlobalParameter(std::string_view name, float value)
+    void AudioController::SetGlobalParameter(std::string_view /*name*/, float /*value*/)
     {
-        if(!mAudioEngine->IsInitialized())
-        {
-            return;
-        }
-        // Global parameters are not wired yet for miniaudio event banks.
-        // For now, callers should use per-entity parameters; global routing can be extended later.
-        (void)name;
-        (void)value;
+        // Global routing is mixer-bus driven for miniaudio; reserved for future banks.
     }
 
     bool AudioController::IsPlaying(fr::Entity entity) const
@@ -142,10 +108,7 @@ namespace FRIGGA_NAMESPACE
         bool playing = false;
         mRegistry->TryGetComponents<AudioSourceComponent>(
             entity, [&](AudioSourceComponent &source) {
-                if(source.instance.IsValid())
-                {
-                    playing = mAudioEngine->IsEventPlaying(source.instance);
-                }
+                playing = source.desired == AudioPlaybackState::Playing;
             });
         return playing;
     }
@@ -157,12 +120,7 @@ namespace FRIGGA_NAMESPACE
             return false;
         }
 
-        if(mPreview.instance.IsValid())
-        {
-            mAudioEngine->StopEvent(mPreview.instance, true);
-            mAudioEngine->ReleaseEventInstance(mPreview.instance);
-            mPreview.instance = {};
-        }
+        StopPreview();
 
         mPreview.instance = mAudioEngine->CreateEventInstance(eventPath);
         if(!mPreview.instance.IsValid())
@@ -171,7 +129,19 @@ namespace FRIGGA_NAMESPACE
         }
 
         mAudioEngine->SetEventVolume(mPreview.instance, volume);
+        mAudioEngine->SetEventSpatialization(mPreview.instance, false);
         return mAudioEngine->StartEvent(mPreview.instance);
+    }
+
+    void AudioController::StopPreview()
+    {
+        if(!mPreview.instance.IsValid())
+        {
+            return;
+        }
+        mAudioEngine->StopEvent(mPreview.instance, true);
+        mAudioEngine->ReleaseEventInstance(mPreview.instance);
+        mPreview.instance = {};
     }
 
 } // namespace FRIGGA_NAMESPACE

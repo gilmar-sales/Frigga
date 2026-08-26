@@ -30,13 +30,16 @@ class HierarchyLayer: public fg::Layer
                    skr::Arc<fg::AssetRegistry> assets, skr::Arc<SelectionContext> selection,
                    skr::Arc<fg::SceneSimulationState> simulation, skr::Arc<fra::Window> window,
                    skr::Arc<fg::UserComponentRegistry> userComponents,
-                   skr::Arc<ResourcesLayer> resources);
+                   skr::Arc<ResourcesLayer> resources,
+                   skr::Arc<fg::AudioController> audioController);
     ~HierarchyLayer() override = default;
 
     void createEmptyEntity();
     void createPrimitiveEntity(fg::PrimitiveType type);
     void createCameraEntity();
     void createLightEntity(fra::LightType type);
+    void createAudioSourceEntity();
+    void createAudioListenerEntity();
     void createBillboardEntity();
     void createParticleEntity();
     void createFullscreenEffectEntity();
@@ -48,6 +51,8 @@ class HierarchyLayer: public fg::Layer
     void addHealthBarToSelection();
     void addBillboardTextToSelection();
     void addFullscreenEffectToSelection();
+    void addAudioSourceToSelection();
+    void addAudioListenerToSelection();
     void addLightToSelection(fra::LightType type);
     void addLightToEntity(fr::Entity entity, fra::LightType type);
     void addUserComponentToSelection(std::string_view typeId);
@@ -119,6 +124,7 @@ class HierarchyLayer: public fg::Layer
     skr::Arc<fra::Window> mWindow;
     skr::Arc<fg::UserComponentRegistry> mUserComponents;
     skr::Arc<ResourcesLayer> mResources;
+    skr::Arc<fg::AudioController> mAudioController;
     fr::Entity nodeToRename;
     std::string mActiveComponentKind;
 

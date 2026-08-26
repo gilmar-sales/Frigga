@@ -5,13 +5,17 @@
 
 #include <Freyr/Freyr.hpp>
 
-#include <string>
 #include <string_view>
-#include <unordered_map>
 
 namespace FRIGGA_NAMESPACE
 {
 
+    /**
+     * @brief Gameplay-facing audio API (Play / Stop / params).
+     *
+     * Mutates AudioSourceComponent intents; AudioSystem syncs to IAudioEngine in Play.
+     * PreviewEvent is the only direct engine path (edit-mode tooling).
+     */
     class AudioController
     {
       public:
@@ -32,6 +36,7 @@ namespace FRIGGA_NAMESPACE
 
         /// Preview in edit mode (does not require play session).
         bool PreviewEvent(std::string_view eventPath, float volume = 1.0f);
+        void StopPreview();
 
       private:
         struct PreviewRuntime

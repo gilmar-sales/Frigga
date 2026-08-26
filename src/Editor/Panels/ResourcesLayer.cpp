@@ -38,6 +38,13 @@ namespace
         {"All files", "*"},
     };
 
+    const SDL_DialogFileFilter kAudioFilters[] = {
+        {"Audio", "audiobank.json;json;wav;ogg;mp3;flac"},
+        {"Audio Banks", "audiobank.json;json"},
+        {"Audio Clips", "wav;ogg;mp3;flac"},
+        {"All files", "*"},
+    };
+
     bool ContainsIgnoreCase(std::string_view haystack, std::string_view needle)
     {
         if(needle.empty())
@@ -360,7 +367,8 @@ void ResourcesLayer::scanDirectory(const std::filesystem::path &absoluteDir,
             asset.kind  = EntryKind::Prefab;
             asset.label = relativePath.stem().string();
         }
-        else if(fg::AssetRegistry::IsBankExtension(ext))
+        else if(fg::AssetRegistry::IsBankFilename(name) ||
+                fg::AssetRegistry::IsBankExtension(ext))
         {
             asset.kind = EntryKind::Bank;
         }
@@ -1019,6 +1027,19 @@ void ResourcesLayer::onImportTextureDialog(void *userdata, const char *const *fi
     self->mPendingPath   = filelist[0];
 }
 
+void ResourcesLayer::onImportAudioDialog(void *userdata, const char *const *filelist, int)
+{
+    auto *self = static_cast<ResourcesLayer *>(userdata);
+    if(filelist == nullptr || filelist[0] == nullptr)
+    {
+        return;
+    }
+
+    std::lock_guard lock(self->mDialogMutex);
+    self->mPendingImport = PendingImport::Audio;
+    self->mPendingPath   = filelist[0];
+}
+
 void ResourcesLayer::requestImportModel()
 {
     SDL_ShowOpenFileDialog(onImportModelDialog, this,
@@ -1031,6 +1052,13 @@ void ResourcesLayer::requestImportTexture()
     SDL_ShowOpenFileDialog(onImportTextureDialog, this,
                            static_cast<SDL_Window *>(mWindow->NativeWindow()), kTextureFilters,
                            static_cast<int>(std::size(kTextureFilters)), nullptr, false);
+}
+
+void ResourcesLayer::requestImportAudio()
+{
+    SDL_ShowOpenFileDialog(onImportAudioDialog, this,
+                           static_cast<SDL_Window *>(mWindow->NativeWindow()), kAudioFilters,
+                           static_cast<int>(std::size(kAudioFilters)), nullptr, false);
 }
 
 void ResourcesLayer::processPendingImports()
@@ -1083,6 +1111,50 @@ void ResourcesLayer::processPendingImports()
         else
         {
             mStatus = std::format("Failed to import texture '{}'", path.string());
+        }
+    }
+    else if(action == PendingImport::Audio)
+    {
+        const auto ext = path.extension().string();
+        if(fg::AssetRegistry::IsBankFilename(path.filename().string()) ||
+           fg::AssetRegistry::IsBankExtension(ext))
+        {
+            if(const auto bank = mAssets->ImportBank(path))
+            {
+                mStatus   = std::format("Imported bank '{}' ({} events)", bank->relativePath,
+                                        bank->eventPaths.size());
+                mSelected = AssetEntry {
+                    .kind         = EntryKind::Bank,
+                    .label        = bank->label,
+                    .relativePath = bank->relativePath,
+                };
+                mNeedsRefresh = true;
+            }
+            else
+            {
+                mStatus = std::format("Failed to import bank '{}'", path.string());
+            }
+        }
+        else if(fg::AssetRegistry::IsAudioClipExtension(ext))
+        {
+            if(const auto clip = mAssets->ImportAudioClip(path))
+            {
+                mStatus   = std::format("Imported audio clip '{}'", clip->relativePath);
+                mSelected = AssetEntry {
+                    .kind         = EntryKind::AudioClip,
+                    .label        = clip->label,
+                    .relativePath = clip->relativePath,
+                };
+                mNeedsRefresh = true;
+            }
+            else
+            {
+                mStatus = std::format("Failed to import audio clip '{}'", path.string());
+            }
+        }
+        else
+        {
+            mStatus = std::format("Unsupported audio file '{}'", path.string());
         }
     }
 }
@@ -1317,6 +1389,11 @@ void ResourcesLayer::drawToolbar()
     if(ImGui::Button(ICON_BTSP_IMAGE " Import Texture"))
     {
         requestImportTexture();
+    }
+    ImGui::SameLine();
+    if(ImGui::Button(ICON_BTSP_VOLUMEUP " Import Audio"))
+    {
+        requestImportAudio();
     }
     ImGui::SameLine();
     if(ImGui::Button(ICON_BTSP_LAYERS " New Material"))

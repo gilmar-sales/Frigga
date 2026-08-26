@@ -149,13 +149,19 @@ namespace FRIGGA_NAMESPACE
     bool AssetRegistry::IsBankExtension(std::string_view extension)
     {
         const auto ext = ToLower(std::string(extension));
+        // Prefer IsBankFilename: path.extension() for *.audiobank.json is ".json".
         return ext == ".audiobank.json";
+    }
+
+    bool AssetRegistry::IsBankFilename(std::string_view filename)
+    {
+        return ToLower(std::string(filename)).ends_with(".audiobank.json");
     }
 
     bool AssetRegistry::IsAudioClipExtension(std::string_view extension)
     {
         const auto ext = ToLower(std::string(extension));
-        return ext == ".wav" || ext == ".ogg";
+        return ext == ".wav" || ext == ".ogg" || ext == ".mp3" || ext == ".flac";
     }
 
     std::filesystem::path AssetRegistry::copyIntoResources(const std::filesystem::path &sourcePath,

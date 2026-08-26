@@ -370,6 +370,7 @@ namespace FRIGGA_NAMESPACE
         }
 
         entry.soundReady = true;
+        entry.spatial    = true;
         ma_sound_set_spatialization_enabled(&entry.sound, MA_TRUE);
         ApplyBusGain(entry);
 
@@ -468,6 +469,42 @@ namespace FRIGGA_NAMESPACE
         }
         entry->userPitch = pitch;
         ApplyBusGain(*entry);
+    }
+
+    void MiniaudioEngine::SetEventLoop(AudioEventInstance instance, bool loop)
+    {
+        auto *entry = TryGetInstance(instance);
+        if(entry == nullptr || !entry->soundReady)
+        {
+            return;
+        }
+        entry->def.loop = loop;
+        ma_sound_set_looping(&entry->sound, loop ? MA_TRUE : MA_FALSE);
+    }
+
+    void MiniaudioEngine::SetEventSpatialization(AudioEventInstance instance, bool enabled)
+    {
+        auto *entry = TryGetInstance(instance);
+        if(entry == nullptr || !entry->soundReady)
+        {
+            return;
+        }
+        entry->spatial = enabled;
+        ma_sound_set_spatialization_enabled(&entry->sound, enabled ? MA_TRUE : MA_FALSE);
+    }
+
+    void MiniaudioEngine::SetEventMinMaxDistance(AudioEventInstance instance, float minDistance,
+                                                 float maxDistance)
+    {
+        auto *entry = TryGetInstance(instance);
+        if(entry == nullptr || !entry->soundReady)
+        {
+            return;
+        }
+        const float minD = std::max(minDistance, 0.01f);
+        const float maxD = std::max(maxDistance, minD);
+        ma_sound_set_min_distance(&entry->sound, minD);
+        ma_sound_set_max_distance(&entry->sound, maxD);
     }
 
     bool MiniaudioEngine::SetEventParameter(AudioEventInstance instance, std::string_view name,

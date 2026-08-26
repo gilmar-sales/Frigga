@@ -10,8 +10,11 @@ namespace FRIGGA_NAMESPACE
 
     AudioSystem::AudioSystem(const skr::Arc<fr::Registry> &registry,
                              const skr::Arc<IAudioEngine> &audioEngine,
-                             const skr::Arc<SceneSimulationState> &simulation)
-        : System(registry), mAudioEngine(audioEngine), mSimulation(simulation)
+                             const skr::Arc<SceneSimulationState> &simulation,
+                             const skr::Arc<Scene> &scene,
+                             const skr::Arc<AudioController> &controller)
+        : System(registry), mAudioEngine(audioEngine), mSimulation(simulation), mScene(scene),
+          mController(controller)
     {
         if(!mAudioEngine->IsInitialized())
         {
@@ -19,19 +22,50 @@ namespace FRIGGA_NAMESPACE
         }
     }
 
+    void AudioSystem::releaseSource(AudioSourceComponent &source)
+    {
+        if(source.instance.IsValid())
+        {
+            mAudioEngine->StopEvent(source.instance, true);
+            mAudioEngine->ReleaseEventInstance(source.instance);
+            source.instance = {};
+        }
+        source.engineStarted = false;
+    }
+
     void AudioSystem::stopAllSources()
     {
         mRegistry->CreateMutation()->Each<AudioSourceComponent>(
             [&](auto /*entity*/, AudioSourceComponent &source) {
-                if(source.instance.IsValid())
-                {
-                    mAudioEngine->StopEvent(source.instance, true);
-                    mAudioEngine->ReleaseEventInstance(source.instance);
-                    source.instance = {};
-                }
-                source.started     = false;
-                source.userPlaying = false;
+                releaseSource(source);
+                source.desired       = AudioPlaybackState::Stopped;
+                source.oneShot       = false;
+                source.awakeApplied  = false;
+                source.engineStarted = false;
             });
+    }
+
+    void AudioSystem::applySourceProperties(AudioSourceComponent &source)
+    {
+        if(!source.instance.IsValid())
+        {
+            return;
+        }
+
+        mAudioEngine->SetEventVolume(source.instance, source.volume);
+        mAudioEngine->SetEventPitch(source.instance, source.pitch);
+        mAudioEngine->SetEventLoop(source.instance, source.loop);
+        mAudioEngine->SetEventSpatialization(source.instance, source.is3D);
+        if(source.is3D)
+        {
+            mAudioEngine->SetEventMinMaxDistance(source.instance, source.minDistance,
+                                                 source.maxDistance);
+        }
+
+        for(const auto &[name, value] : source.parameters)
+        {
+            (void)mAudioEngine->SetEventParameter(source.instance, name, value);
+        }
     }
 
     void AudioSystem::syncListener()
@@ -45,6 +79,16 @@ namespace FRIGGA_NAMESPACE
                 }
             });
 
+        if(listenerEntity == kInvalidEntity && mScene)
+        {
+            listenerEntity = mScene->GetMainCameraEntity();
+            if(listenerEntity != kInvalidEntity &&
+               !mRegistry->HasComponent<TransformComponent>(listenerEntity))
+            {
+                listenerEntity = kInvalidEntity;
+            }
+        }
+
         if(listenerEntity == kInvalidEntity)
         {
             return;
@@ -54,41 +98,91 @@ namespace FRIGGA_NAMESPACE
         mAudioEngine->SetListenerTransform(pose.position, pose.rotation);
     }
 
-    void AudioSystem::syncSources(float /*deltaTime*/)
+    void AudioSystem::syncSources()
     {
         mRegistry->CreateMutation()->Each<AudioSourceComponent, TransformComponent>(
             [&](auto entity, AudioSourceComponent &source, TransformComponent &) {
                 if(source.eventPath.empty())
                 {
+                    releaseSource(source);
                     return;
                 }
 
-                const bool shouldPlay =
-                    source.userPlaying || (source.playOnAwake && !source.started);
+                if(source.playOnAwake && !source.awakeApplied &&
+                   source.desired == AudioPlaybackState::Stopped)
+                {
+                    source.desired      = AudioPlaybackState::Playing;
+                    source.awakeApplied = true;
+                }
 
-                if(!source.instance.IsValid() && shouldPlay)
+                if(source.desired == AudioPlaybackState::Stopped)
+                {
+                    releaseSource(source);
+                    return;
+                }
+
+                if(!source.instance.IsValid())
                 {
                     source.instance = mAudioEngine->CreateEventInstance(source.eventPath);
-                    if(source.instance.IsValid())
+                    if(!source.instance.IsValid())
                     {
-                        mAudioEngine->SetEventVolume(source.instance, source.volume);
-                        mAudioEngine->SetEventPitch(source.instance, source.pitch);
-                        (void)mAudioEngine->StartEvent(source.instance);
-                        source.started = true;
+                        source.desired = AudioPlaybackState::Stopped;
+                        source.oneShot = false;
+                        return;
+                    }
+                    applySourceProperties(source);
+                    if(source.desired == AudioPlaybackState::Playing)
+                    {
+                        if(!mAudioEngine->StartEvent(source.instance))
+                        {
+                            releaseSource(source);
+                            source.desired       = AudioPlaybackState::Stopped;
+                            source.oneShot       = false;
+                            source.engineStarted = false;
+                            return;
+                        }
+                        source.engineStarted = true;
+                    }
+                    else if(source.desired == AudioPlaybackState::Paused)
+                    {
+                        if(mAudioEngine->StartEvent(source.instance))
+                        {
+                            source.engineStarted = true;
+                            mAudioEngine->PauseEvent(source.instance, true);
+                        }
                     }
                 }
-                else if(source.instance.IsValid())
+                else
                 {
-                    mAudioEngine->SetEventVolume(source.instance, source.volume);
-                    mAudioEngine->SetEventPitch(source.instance, source.pitch);
+                    applySourceProperties(source);
 
-                    if(shouldPlay && !mAudioEngine->IsEventPlaying(source.instance))
+                    const bool enginePlaying = mAudioEngine->IsEventPlaying(source.instance);
+                    if(source.desired == AudioPlaybackState::Playing)
                     {
-                        (void)mAudioEngine->StartEvent(source.instance);
+                        if(!enginePlaying)
+                        {
+                            if(source.oneShot && !source.loop && source.engineStarted)
+                            {
+                                releaseSource(source);
+                                source.desired       = AudioPlaybackState::Stopped;
+                                source.oneShot       = false;
+                                source.engineStarted = false;
+                                return;
+                            }
+                            if(mAudioEngine->StartEvent(source.instance))
+                            {
+                                source.engineStarted = true;
+                            }
+                        }
+                        else
+                        {
+                            source.engineStarted = true;
+                            mAudioEngine->PauseEvent(source.instance, false);
+                        }
                     }
-                    else if(!shouldPlay && mAudioEngine->IsEventPlaying(source.instance))
+                    else if(source.desired == AudioPlaybackState::Paused)
                     {
-                        mAudioEngine->StopEvent(source.instance, true);
+                        mAudioEngine->PauseEvent(source.instance, true);
                     }
                 }
 
@@ -98,14 +192,20 @@ namespace FRIGGA_NAMESPACE
                     mAudioEngine->SetEvent3DAttributes(source.instance, pose.position,
                                                        glm::vec3(0.0f));
                 }
-
-                (void)entity;
             });
     }
 
     void AudioSystem::Update(float deltaTime)
     {
         const bool playing = mSimulation->IsPlaying();
+
+        if(!mWasPlaying && playing)
+        {
+            if(mController)
+            {
+                mController->StopPreview();
+            }
+        }
 
         if(mWasPlaying && !playing)
         {
@@ -119,9 +219,22 @@ namespace FRIGGA_NAMESPACE
             return;
         }
 
+        if(!mSimulation->IsRunning())
+        {
+            // Simulation paused: keep instances but pause playback.
+            mRegistry->CreateMutation()->Each<AudioSourceComponent>(
+                [&](auto /*entity*/, AudioSourceComponent &source) {
+                    if(source.instance.IsValid())
+                    {
+                        mAudioEngine->PauseEvent(source.instance, true);
+                    }
+                });
+            return;
+        }
+
         mAudioEngine->Update(deltaTime);
         syncListener();
-        syncSources(deltaTime);
+        syncSources();
     }
 
 } // namespace FRIGGA_NAMESPACE

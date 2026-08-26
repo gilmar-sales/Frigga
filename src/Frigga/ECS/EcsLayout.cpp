@@ -70,7 +70,7 @@ namespace FRIGGA_NAMESPACE
     bool IsEngineSystemLabel(std::string_view label)
     {
         return LabelEndsWith(label, "AnimationSystem") || LabelEndsWith(label, "RenderSystem") ||
-               LabelEndsWith(label, "PhysicsSystem") ||
+               LabelEndsWith(label, "PhysicsSystem") || LabelEndsWith(label, "AudioSystem") ||
                LabelEndsWith(label, "GameplayPluginBridge");
     }
 
@@ -79,6 +79,10 @@ namespace FRIGGA_NAMESPACE
         if(LabelEndsWith(label, "RenderSystem") || LabelEndsWith(label, "AnimationSystem"))
         {
             return kRenderPipelineName.data();
+        }
+        if(LabelEndsWith(label, "AudioSystem"))
+        {
+            return kMainPipelineName.data();
         }
         return kDefaultEcsPipelineName.data();
     }

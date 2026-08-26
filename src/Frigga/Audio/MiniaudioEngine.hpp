@@ -44,6 +44,10 @@ namespace FRIGGA_NAMESPACE
 
         void SetEventVolume(AudioEventInstance instance, float volume) override;
         void SetEventPitch(AudioEventInstance instance, float pitch) override;
+        void SetEventLoop(AudioEventInstance instance, bool loop) override;
+        void SetEventSpatialization(AudioEventInstance instance, bool enabled) override;
+        void SetEventMinMaxDistance(AudioEventInstance instance, float minDistance,
+                                    float maxDistance) override;
         bool SetEventParameter(AudioEventInstance instance, std::string_view name,
                                float value) override;
         void SetEvent3DAttributes(AudioEventInstance instance, const glm::vec3 &position,

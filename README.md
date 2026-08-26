@@ -27,6 +27,16 @@ Personal C++ game engine and ImGui editor built on [Freyr](https://github.com/gi
 
 ### Audio workflow (miniaudio)
 
+Audio is an ECS domain (like Physics / Animation):
+
+- **Components:** `AudioSourceComponent`, `AudioListenerComponent` (Create / Add Component in Hierarchy).
+- **Gameplay API:** inject `fg::AudioController` and call `Play` / `Stop` / `Pause` on entities — it only sets component intents.
+- **Runtime:** `AudioSystem` (pipeline **Main**, Play mode) is the sole owner of `IAudioEngine` sync (instances, listener pose, 3D).
+- **Edit preview:** `AudioController::PreviewEvent` for tooling; stopped automatically when entering Play.
+- Without an active listener, the system falls back to the main camera transform.
+
+Authoring clips / banks:
+
 1. Place `.wav` / `.ogg` clips under `Resources/Audio/Clips/`.
 2. Define events in a JSON bank (`.audiobank.json`) under `Resources/Audio/Banks/`:
 
@@ -43,7 +53,7 @@ Personal C++ game engine and ImGui editor built on [Freyr](https://github.com/gi
 }
 ```
 
-3. In the Editor **Audio** workflow: **Import Bank** → assign events to entities via **Audio Assets** / **Audio Inspector**.
+3. In the Editor: **Import Bank** (Audio workflow) → assign events on the entity **Audio Source** component (Hierarchy or Audio Inspector).
 4. Mixer buses: `bus:/Master`, `bus:/SFX`, `bus:/Music`.
 
 On Arch Linux (example):

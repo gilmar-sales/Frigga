@@ -616,6 +616,14 @@ void MainLayer::drawMenuBar()
             {
                 mHierarchy->createCameraEntity();
             }
+            if(ImGui::MenuItem(ICON_BTSP_VOLUMEUP " Create Audio Source"))
+            {
+                mHierarchy->createAudioSourceEntity();
+            }
+            if(ImGui::MenuItem(ICON_BTSP_MIC " Create Audio Listener"))
+            {
+                mHierarchy->createAudioListenerEntity();
+            }
             if(ImGui::MenuItem(ICON_BTSP_IMAGE " Create Billboard"))
             {
                 mHierarchy->createBillboardEntity();
@@ -676,6 +684,14 @@ void MainLayer::drawMenuBar()
                 if(ImGui::MenuItem("Fullscreen Effect"))
                 {
                     mHierarchy->addFullscreenEffectToSelection();
+                }
+                if(ImGui::MenuItem(ICON_BTSP_VOLUMEUP " Audio Source"))
+                {
+                    mHierarchy->addAudioSourceToSelection();
+                }
+                if(ImGui::MenuItem(ICON_BTSP_MIC " Audio Listener"))
+                {
+                    mHierarchy->addAudioListenerToSelection();
                 }
                 if(ImGui::BeginMenu(ICON_BTSP_LIGHT " Light"))
                 {

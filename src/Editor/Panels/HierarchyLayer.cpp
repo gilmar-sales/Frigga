@@ -3,6 +3,7 @@
 #include "Editor/BoostrapIconsFont.hpp"
 #include "Editor/DockLayout.hpp"
 #include "Editor/Panels/ResourcesLayer.hpp"
+#include "Editor/Ui/AudioComponentInspector.hpp"
 #include "Editor/Ui/ComponentClipboard.hpp"
 #include "Editor/UiScale.hpp"
 #include "Frigga/ECS/Components/CameraComponent.hpp"
@@ -113,12 +114,13 @@ HierarchyLayer::HierarchyLayer(skr::Arc<fr::Registry> registry, skr::Arc<fg::Sce
                                skr::Arc<fg::SceneSimulationState> simulation,
                                skr::Arc<fra::Window> window,
                                skr::Arc<fg::UserComponentRegistry> userComponents,
-                               skr::Arc<ResourcesLayer> resources)
+                               skr::Arc<ResourcesLayer> resources,
+                               skr::Arc<fg::AudioController> audioController)
     : mRegistry(std::move(registry)), mScene(std::move(scene)),
       mPrimitives(std::move(primitives)), mAssets(std::move(assets)),
       mSelection(std::move(selection)), mSimulation(std::move(simulation)),
       mWindow(std::move(window)), mUserComponents(std::move(userComponents)),
-      mResources(std::move(resources)),
+      mResources(std::move(resources)), mAudioController(std::move(audioController)),
       nodeToRename(SelectionContext::Invalid)
 {
 }
@@ -467,6 +469,32 @@ void HierarchyLayer::createCameraEntity()
     parentNewEntity(entity);
 }
 
+void HierarchyLayer::createAudioSourceEntity()
+{
+    if(mSimulation->IsPlaying())
+    {
+        return;
+    }
+
+    const auto entity = mRegistry->CreateEntity(fg::NameComponent {.name = "Audio Source"},
+                                                fg::TransformComponent {},
+                                                fg::AudioSourceComponent {});
+    parentNewEntity(entity);
+}
+
+void HierarchyLayer::createAudioListenerEntity()
+{
+    if(mSimulation->IsPlaying())
+    {
+        return;
+    }
+
+    const auto entity = mRegistry->CreateEntity(fg::NameComponent {.name = "Audio Listener"},
+                                                fg::TransformComponent {},
+                                                fg::AudioListenerComponent {});
+    parentNewEntity(entity);
+}
+
 void HierarchyLayer::createLightEntity(fra::LightType type)
 {
     if(mSimulation->IsPlaying())
@@ -667,6 +695,40 @@ void HierarchyLayer::addFullscreenEffectToSelection()
     if(!mRegistry->HasComponent<fg::FullscreenEffectComponent>(entity))
     {
         mRegistry->AddComponents(entity, fg::FullscreenEffectComponent {});
+    }
+}
+
+void HierarchyLayer::addAudioSourceToSelection()
+{
+    if(!mSelection->HasSelection() || mSimulation->IsPlaying())
+    {
+        return;
+    }
+    const auto entity = mSelection->Get();
+    if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
+    {
+        mRegistry->AddComponents(entity, fg::TransformComponent {});
+    }
+    if(!mRegistry->HasComponent<fg::AudioSourceComponent>(entity))
+    {
+        mRegistry->AddComponents(entity, fg::AudioSourceComponent {});
+    }
+}
+
+void HierarchyLayer::addAudioListenerToSelection()
+{
+    if(!mSelection->HasSelection() || mSimulation->IsPlaying())
+    {
+        return;
+    }
+    const auto entity = mSelection->Get();
+    if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
+    {
+        mRegistry->AddComponents(entity, fg::TransformComponent {});
+    }
+    if(!mRegistry->HasComponent<fg::AudioListenerComponent>(entity))
+    {
+        mRegistry->AddComponents(entity, fg::AudioListenerComponent {});
     }
 }
 
@@ -1047,6 +1109,14 @@ void HierarchyLayer::onGui()
         {
             createCameraEntity();
         }
+        if(ImGui::MenuItem(ICON_BTSP_VOLUMEUP " Audio Source"))
+        {
+            createAudioSourceEntity();
+        }
+        if(ImGui::MenuItem(ICON_BTSP_MIC " Audio Listener"))
+        {
+            createAudioListenerEntity();
+        }
         if(ImGui::MenuItem(ICON_BTSP_IMAGE " Billboard"))
         {
             createBillboardEntity();
@@ -1226,7 +1296,9 @@ bool HierarchyLayer::entityHasVisibleComponents(fr::Entity entity) const
        mRegistry->HasComponent<fg::HealthBarComponent>(entity) ||
        mRegistry->HasComponent<fg::BillboardTextComponent>(entity) ||
        mRegistry->HasComponent<fg::FullscreenEffectComponent>(entity) ||
-       mRegistry->HasComponent<fg::PrefabComponent>(entity))
+       mRegistry->HasComponent<fg::PrefabComponent>(entity) ||
+       mRegistry->HasComponent<fg::AudioSourceComponent>(entity) ||
+       mRegistry->HasComponent<fg::AudioListenerComponent>(entity))
     {
         return true;
     }
@@ -1546,6 +1618,29 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
             }
         }
 
+        if(ImGui::MenuItem(ICON_BTSP_VOLUMEUP " Add audio source"))
+        {
+            if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
+            {
+                mRegistry->AddComponents(entity, fg::TransformComponent {});
+            }
+            if(!mRegistry->HasComponent<fg::AudioSourceComponent>(entity))
+            {
+                mRegistry->AddComponents(entity, fg::AudioSourceComponent {});
+            }
+        }
+        if(ImGui::MenuItem(ICON_BTSP_MIC " Add audio listener"))
+        {
+            if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
+            {
+                mRegistry->AddComponents(entity, fg::TransformComponent {});
+            }
+            if(!mRegistry->HasComponent<fg::AudioListenerComponent>(entity))
+            {
+                mRegistry->AddComponents(entity, fg::AudioListenerComponent {});
+            }
+        }
+
         drawPluginAddComponentMenus(entity);
         ImGui::EndDisabled();
 
@@ -1720,6 +1815,33 @@ void HierarchyLayer::drawComponents()
                 {
                     ImGui::TextDisabled("Locked (Main Camera)");
                 }
+            }
+        });
+
+    mRegistry->TryGetComponents<fg::AudioListenerComponent>(
+        selection, [this, selection](fg::AudioListenerComponent &listener) {
+            bool open = true;
+            if(drawComponentHeader("Audio Listener", "audioListener", &open))
+            {
+                EditorAudioUi::DrawListenerFields(listener, mSimulation->IsPlaying());
+            }
+            if(!open && !mSimulation->IsPlaying())
+            {
+                mRegistry->RemoveComponent<fg::AudioListenerComponent>(selection);
+            }
+        });
+
+    mRegistry->TryGetComponents<fg::AudioSourceComponent>(
+        selection, [this, selection](fg::AudioSourceComponent &source) {
+            bool open = true;
+            if(drawComponentHeader("Audio Source", "audioSource", &open))
+            {
+                EditorAudioUi::DrawSourceFields(source, mAssets, mAudioController, selection,
+                                                mSimulation->IsPlaying(), true);
+            }
+            if(!open && !mSimulation->IsPlaying())
+            {
+                mRegistry->RemoveComponent<fg::AudioSourceComponent>(selection);
             }
         });
 

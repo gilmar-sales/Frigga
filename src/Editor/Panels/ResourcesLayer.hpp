@@ -89,6 +89,7 @@ class ResourcesLayer: public fg::Layer
         None,
         Model,
         Texture,
+        Audio,
     };
 
     void refresh();
@@ -122,6 +123,7 @@ class ResourcesLayer: public fg::Layer
 
     void requestImportModel();
     void requestImportTexture();
+    void requestImportAudio();
     void processPendingImports();
     void spawnSelected();
     void spawnPrimitive(fg::PrimitiveType type);
@@ -133,6 +135,7 @@ class ResourcesLayer: public fg::Layer
 
     static void onImportModelDialog(void *userdata, const char *const *filelist, int filter);
     static void onImportTextureDialog(void *userdata, const char *const *filelist, int filter);
+    static void onImportAudioDialog(void *userdata, const char *const *filelist, int filter);
 
     skr::Arc<fg::PrimitiveMeshFactory> mPrimitives;
     skr::Arc<fg::AssetRegistry> mAssets;
