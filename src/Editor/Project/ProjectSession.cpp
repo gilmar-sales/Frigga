@@ -1,5 +1,6 @@
 #include "ProjectSession.hpp"
 
+#include "../EditorWindowLayout.hpp"
 #include "../Preferences/PreferencesStore.hpp"
 #include "ProjectFile.hpp"
 #include "ProjectMigrator.hpp"
@@ -226,10 +227,12 @@ ProjectSession::ProjectSession(skr::Arc<fg::Scene> scene,
                                skr::Arc<fg::AssetRegistry> assets,
                                skr::Arc<fr::Registry> registry,
                                skr::Arc<EditorPreferences> preferences,
+                               skr::Arc<fra::Window> window,
                                skr::Arc<skr::Logger<ProjectSession>> logger)
     : mScene(std::move(scene)), mPluginHost(std::move(pluginHost)),
       mSimulation(std::move(simulation)), mInput(std::move(input)), mAssets(std::move(assets)),
-      mRegistry(std::move(registry)), mPreferences(std::move(preferences)), mLogger(std::move(logger))
+      mRegistry(std::move(registry)), mPreferences(std::move(preferences)),
+      mWindow(std::move(window)), mLogger(std::move(logger))
 {
 }
 
@@ -475,6 +478,10 @@ void ProjectSession::Poll()
         {
             mBuildPhase.store(PluginBuildPhase::Succeeded, std::memory_order_release);
             mBuildProgress.store(1.0f, std::memory_order_release);
+            if(mPendingStartupScene && !tryLoadPendingStartupScene())
+            {
+                mBuildPhase.store(PluginBuildPhase::Failed, std::memory_order_release);
+            }
             // ReloadPlugin already set mStatusMessage with the registered type list.
         }
         else
@@ -602,7 +609,15 @@ bool ProjectSession::CreateProject(const std::filesystem::path &parentDir, std::
 
     mDescriptor = *loaded;
     bindProjectResources(result.projectFile.parent_path());
-    return enterEditor(result.projectFile, std::move(*loaded));
+    if(!enterEditor(result.projectFile, std::move(*loaded)))
+    {
+        return false;
+    }
+    if(anyEnabledPluginMissing())
+    {
+        BuildPlugin();
+    }
+    return true;
 }
 
 bool ProjectSession::OpenProject(const std::filesystem::path &projectFile)
@@ -625,19 +640,41 @@ bool ProjectSession::OpenProject(const std::filesystem::path &projectFile)
     }
 
     // Register gameplay types before scene deserialize so userComponents apply immediately.
-    // If the .so is missing, deserialize stashes them until the first successful plugin load.
     mProjectFile = projectFile;
     mDescriptor  = *loaded;
     mDescriptor.EnsureGameplayPlugin();
+
+    const auto root      = projectFile.parent_path();
+    const auto scenePath = root / loaded->sceneRelativePath;
+    bindProjectResources(root);
+
+    if(anyEnabledPluginMissing())
+    {
+        mPendingStartupScene = scenePath;
+        mScene->NewScene();
+        if(!enterEditor(projectFile, std::move(*loaded), /*loadPlugin=*/false))
+        {
+            mPendingStartupScene.reset();
+            mPluginHost->Unload();
+            unbindProjectResources();
+            mProjectFile.reset();
+            mDescriptor = {};
+            return false;
+        }
+        BuildPlugin();
+        {
+            std::lock_guard lock(mMutex);
+            mStatusMessage = "Building plugins before loading scene…";
+        }
+        return true;
+    }
+
     if(!loadEnabledPlugins())
     {
         mLogger->LogWarning("Plugins missing or failed to load before scene: {}",
                             mPluginHost->GetLastError());
     }
 
-    const auto root      = projectFile.parent_path();
-    bindProjectResources(root);
-    const auto scenePath = root / loaded->sceneRelativePath;
     if(!mScene->LoadScene(scenePath))
     {
         mPluginHost->Unload();
@@ -744,6 +781,8 @@ void ProjectSession::CloseToHome()
     UnloadPlugin();
     unbindProjectResources();
     clearEditorSessionMarker();
+    mPendingStartupScene.reset();
+    EditorWindowLayout::RestoreForHome(*mWindow);
     mProjectFile.reset();
     mDescriptor = {};
     mMode       = EditorSessionMode::Home;
@@ -1320,6 +1359,7 @@ bool ProjectSession::enterEditor(const std::filesystem::path &projectFile, Proje
     mProjectFile = projectFile;
     mDescriptor  = std::move(desc);
     mMode        = EditorSessionMode::Editor;
+    EditorWindowLayout::PrepareForEditor(*mWindow);
     touchRecent();
     loadProjectInputBindings(projectFile.parent_path());
 
@@ -1444,6 +1484,52 @@ std::filesystem::path ProjectSession::pluginLibraryAbsolute(const ProjectPluginE
         }
     }
     return configured;
+}
+
+bool ProjectSession::anyEnabledPluginMissing() const
+{
+    if(!mProjectFile)
+    {
+        return false;
+    }
+
+    ProjectDescriptor desc = mDescriptor;
+    desc.EnsureGameplayPlugin();
+    for(const auto &entry : desc.LoadOrder())
+    {
+        const auto lib = pluginLibraryAbsolute(entry);
+        if(!std::filesystem::exists(lib))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool ProjectSession::tryLoadPendingStartupScene()
+{
+    if(!mPendingStartupScene)
+    {
+        return true;
+    }
+
+    const auto scenePath = *mPendingStartupScene;
+    if(!mScene->LoadScene(scenePath))
+    {
+        std::lock_guard lock(mMutex);
+        mLastError     = "Failed to load scene after plugin build: " + scenePath.string();
+        mStatusMessage = mLastError;
+        mLogger->LogError("{}", mLastError);
+        return false;
+    }
+
+    mPendingStartupScene.reset();
+    SyncEcsLayout();
+    {
+        std::lock_guard lock(mMutex);
+        mStatusMessage = "Opened " + mDescriptor.name;
+    }
+    return true;
 }
 
 bool ProjectSession::loadEnabledPlugins()

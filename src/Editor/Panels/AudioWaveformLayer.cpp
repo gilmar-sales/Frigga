@@ -6,8 +6,10 @@
 #include <cmath>
 
 AudioWaveformLayer::AudioWaveformLayer(skr::Arc<fg::AssetRegistry> assets,
-                                       skr::Arc<fg::IAudioEngine> audioEngine)
-    : Layer("Waveform"), mAssets(std::move(assets)), mAudioEngine(std::move(audioEngine))
+                                       skr::Arc<fg::IAudioEngine> audioEngine,
+                                       skr::Arc<fg::AudioController> controller)
+    : Layer("Waveform"), mAssets(std::move(assets)), mAudioEngine(std::move(audioEngine)),
+      mController(std::move(controller))
 {
 }
 
@@ -117,12 +119,19 @@ void AudioWaveformLayer::onGui()
     ImGui::SliderFloat("Trim Start", &mTrimStartSec, 0.0f, mWaveform.durationSec, "%.3f s");
     ImGui::SliderFloat("Trim End", &mTrimEndSec, mTrimStartSec, mWaveform.durationSec, "%.3f s");
 
-    if(ImGui::Button("Preview Trim Region"))
+    if(ImGui::Button("Preview Clip"))
     {
-        if(const auto *clip = mAssets->FindAudioClip(mSelectedClip))
+        if(mController)
         {
-            (void)clip;
-            // Trim markers are stored locally for now; sidecar metadata can be added later.
+            (void)mController->PreviewEvent(mSelectedClip, 1.0f);
+        }
+    }
+    ImGui::SameLine();
+    if(ImGui::Button("Stop"))
+    {
+        if(mController)
+        {
+            mController->StopPreview();
         }
     }
 

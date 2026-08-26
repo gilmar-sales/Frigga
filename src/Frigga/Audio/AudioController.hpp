@@ -35,7 +35,7 @@ namespace FRIGGA_NAMESPACE
         [[nodiscard]] bool IsPlaying(fr::Entity entity) const;
 
         /// Preview in edit mode (does not require play session).
-        bool PreviewEvent(std::string_view eventPath, float volume = 1.0f);
+        bool PreviewEvent(std::string_view eventPath, float volume = 1.0f, bool loop = false);
         void StopPreview();
 
       private:

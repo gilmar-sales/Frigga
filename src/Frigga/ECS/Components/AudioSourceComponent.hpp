@@ -28,7 +28,7 @@ namespace FRIGGA_NAMESPACE
         float       pitch       = 1.0f;
         bool        playOnAwake = false;
         bool        loop        = false;
-        bool        is3D        = true;
+        bool        is3D        = false;
         float       minDistance = 1.0f;
         float       maxDistance = 50.0f;
 

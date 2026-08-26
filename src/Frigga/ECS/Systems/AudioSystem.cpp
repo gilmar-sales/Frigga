@@ -161,7 +161,10 @@ namespace FRIGGA_NAMESPACE
                     {
                         if(!enginePlaying)
                         {
-                            if(source.oneShot && !source.loop && source.engineStarted)
+                            // Non-looping clip finished: stop. Looping: restart from start.
+                            // Mid-clip stop (pause) is not at end — StartEvent resumes/restarts.
+                            if(source.engineStarted && !source.loop &&
+                               mAudioEngine->IsEventAtEnd(source.instance))
                             {
                                 releaseSource(source);
                                 source.desired       = AudioPlaybackState::Stopped;
@@ -177,7 +180,6 @@ namespace FRIGGA_NAMESPACE
                         else
                         {
                             source.engineStarted = true;
-                            mAudioEngine->PauseEvent(source.instance, false);
                         }
                     }
                     else if(source.desired == AudioPlaybackState::Paused)

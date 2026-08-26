@@ -71,6 +71,7 @@ class ProjectSession
                    skr::Arc<fg::AssetRegistry> assets,
                    skr::Arc<fr::Registry> registry,
                    skr::Arc<EditorPreferences> preferences,
+                   skr::Arc<fra::Window> window,
                    skr::Arc<skr::Logger<ProjectSession>> logger);
     ~ProjectSession();
 
@@ -184,6 +185,8 @@ class ProjectSession
     void clearEditorSessionMarker();
     [[nodiscard]] std::filesystem::path pluginLibraryAbsolute() const;
     [[nodiscard]] std::filesystem::path pluginLibraryAbsolute(const ProjectPluginEntry &entry) const;
+    [[nodiscard]] bool anyEnabledPluginMissing() const;
+    bool tryLoadPendingStartupScene();
     bool loadEnabledPlugins();
     [[nodiscard]] static std::filesystem::path projectRootFromPath(
         const std::filesystem::path &projectFileOrRoot);
@@ -195,10 +198,12 @@ class ProjectSession
     skr::Arc<fg::AssetRegistry> mAssets;
     skr::Arc<fr::Registry> mRegistry;
     skr::Arc<EditorPreferences> mPreferences;
+    skr::Arc<fra::Window> mWindow;
     skr::Arc<skr::Logger<ProjectSession>> mLogger;
 
     EditorSessionMode mMode = EditorSessionMode::Home;
     std::optional<std::filesystem::path> mProjectFile;
+    std::optional<std::filesystem::path> mPendingStartupScene;
     ProjectDescriptor mDescriptor {};
 
     mutable std::mutex mMutex;

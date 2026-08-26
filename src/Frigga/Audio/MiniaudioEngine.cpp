@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cmath>
 #include <fstream>
+#include <memory>
 #include <sstream>
 
 namespace FRIGGA_NAMESPACE
@@ -58,17 +59,24 @@ namespace FRIGGA_NAMESPACE
             return lower.ends_with(".wav") || lower.ends_with(".ogg") || lower.ends_with(".mp3") ||
                    lower.ends_with(".flac");
         }
+
+        /// miniaudio keeps internal pointers to objects — addresses must stay stable.
+        [[nodiscard]] std::string PathForMiniaudio(const std::filesystem::path &path)
+        {
+            const auto u8 = path.u8string();
+            return std::string(u8.begin(), u8.end());
+        }
     } // namespace
 
     struct MiniaudioEngine::InstanceEntry
     {
-        ma_sound    sound {};
-        bool          soundReady = false;
-        std::string   eventPath;
-        EventDef      def {};
-        float         userVolume = 1.0f;
-        float         userPitch  = 1.0f;
-        bool          spatial    = true;
+        std::unique_ptr<ma_sound> sound;
+        bool                      soundReady = false;
+        std::string               eventPath;
+        EventDef                  def {};
+        float                     userVolume = 1.0f;
+        float                     userPitch  = 1.0f;
+        bool                      spatial    = false;
     };
 
     MiniaudioEngine::MiniaudioEngine(const skr::Arc<skr::Logger<MiniaudioEngine>> &logger)
@@ -122,11 +130,12 @@ namespace FRIGGA_NAMESPACE
     {
         for(auto &[id, entry] : mInstances)
         {
-            if(entry.soundReady)
+            if(entry.soundReady && entry.sound)
             {
-                ma_sound_uninit(&entry.sound);
+                ma_sound_uninit(entry.sound.get());
                 entry.soundReady = false;
             }
+            entry.sound.reset();
             (void)id;
         }
         mInstances.clear();
@@ -155,25 +164,25 @@ namespace FRIGGA_NAMESPACE
         {
             return 0.0f;
         }
-        const auto masterIt = mBusVolumes.find("bus:/Master");
-        const float master  = masterIt != mBusVolumes.end() ? masterIt->second : 1.0f;
-        if(busPath == "bus:/" || busPath == "bus:/Master")
+        const auto masterMute = mBusMuted.find("bus:/Master");
+        if(masterMute != mBusMuted.end() && masterMute->second)
         {
-            return it->second * master;
+            return 0.0f;
         }
-        return it->second * master;
+        // Master fader is applied via ma_engine_set_volume — only return this bus's gain.
+        return it->second;
     }
 
     void MiniaudioEngine::ApplyBusGain(InstanceEntry &entry) const
     {
-        if(!entry.soundReady)
+        if(!entry.soundReady || !entry.sound)
         {
             return;
         }
         const float gain =
             entry.def.volume * entry.userVolume * BusGain(entry.def.bus);
-        ma_sound_set_volume(&entry.sound, gain);
-        ma_sound_set_pitch(&entry.sound, entry.def.pitch * entry.userPitch);
+        ma_sound_set_volume(entry.sound.get(), gain);
+        ma_sound_set_pitch(entry.sound.get(), entry.def.pitch * entry.userPitch);
     }
 
     bool MiniaudioEngine::LoadBank(const std::filesystem::path &absolutePath,
@@ -321,7 +330,8 @@ namespace FRIGGA_NAMESPACE
         AudioEventInfo info {.path = std::string(eventPath)};
 
         ma_decoder decoder {};
-        if(ma_decoder_init_file(def->clipAbsolute.string().c_str(), nullptr, &decoder) == MA_SUCCESS)
+        const auto clipPath = PathForMiniaudio(def->clipAbsolute);
+        if(ma_decoder_init_file(clipPath.c_str(), nullptr, &decoder) == MA_SUCCESS)
         {
             ma_uint64 lengthFrames = 0;
             if(ma_decoder_get_length_in_pcm_frames(&decoder, &lengthFrames) == MA_SUCCESS &&
@@ -355,30 +365,33 @@ namespace FRIGGA_NAMESPACE
         }
 
         auto *engine = static_cast<ma_engine *>(mEngine);
-        InstanceEntry entry {
-            .eventPath = std::string(eventPath),
-            .def       = *def,
-        };
+        auto  sound  = std::make_unique<ma_sound>();
 
         const ma_uint32 flags = def->loop ? MA_SOUND_FLAG_LOOPING : 0;
-        if(ma_sound_init_from_file(engine, def->clipAbsolute.string().c_str(),
-                                   flags | MA_SOUND_FLAG_DECODE, nullptr, nullptr,
-                                   &entry.sound) != MA_SUCCESS)
+        const auto      clipPath = PathForMiniaudio(def->clipAbsolute);
+        if(ma_sound_init_from_file(engine, clipPath.c_str(), flags | MA_SOUND_FLAG_DECODE, nullptr,
+                                   nullptr, sound.get()) != MA_SUCCESS)
         {
             if(mLogger)
             {
                 mLogger->LogError("Failed to load clip '{}' for event '{}'",
-                                    def->clipAbsolute.string(), eventPath);
+                                  def->clipAbsolute.string(), eventPath);
             }
             return {};
         }
 
-        entry.soundReady = true;
-        entry.spatial    = true;
-        ma_sound_set_spatialization_enabled(&entry.sound, MA_TRUE);
+        // Heap-allocate the sound first so relocating InstanceEntry never moves ma_sound.
+        const std::uint64_t id = mNextInstanceId++;
+        InstanceEntry       entry {
+                  .sound      = std::move(sound),
+                  .soundReady = true,
+                  .eventPath  = std::string(eventPath),
+                  .def        = *def,
+                  .spatial    = false,
+        };
+        ma_sound_set_spatialization_enabled(entry.sound.get(), MA_FALSE);
         ApplyBusGain(entry);
 
-        const std::uint64_t id = mNextInstanceId++;
         mInstances.emplace(id, std::move(entry));
         return AudioEventInstance {.id = id};
     }
@@ -403,53 +416,56 @@ namespace FRIGGA_NAMESPACE
         {
             return;
         }
-        if(it->second.soundReady)
+        if(it->second.soundReady && it->second.sound)
         {
-            ma_sound_uninit(&it->second.sound);
+            ma_sound_uninit(it->second.sound.get());
+            it->second.soundReady = false;
         }
+        it->second.sound.reset();
         mInstances.erase(it);
     }
 
     bool MiniaudioEngine::StartEvent(AudioEventInstance instance)
     {
         auto *entry = TryGetInstance(instance);
-        if(entry == nullptr || !entry->soundReady)
+        if(entry == nullptr || !entry->soundReady || !entry->sound)
         {
             return false;
         }
         ApplyBusGain(*entry);
-        return ma_sound_start(&entry->sound) == MA_SUCCESS;
+        (void)ma_sound_seek_to_pcm_frame(entry->sound.get(), 0);
+        return ma_sound_start(entry->sound.get()) == MA_SUCCESS;
     }
 
     void MiniaudioEngine::StopEvent(AudioEventInstance instance, bool allowFadeOut)
     {
         auto *entry = TryGetInstance(instance);
-        if(entry == nullptr || !entry->soundReady)
+        if(entry == nullptr || !entry->soundReady || !entry->sound)
         {
             return;
         }
         if(allowFadeOut)
         {
-            ma_sound_set_fade_in_milliseconds(&entry->sound, ma_sound_get_volume(&entry->sound), 0.0f,
-                                              120);
+            ma_sound_set_fade_in_milliseconds(entry->sound.get(),
+                                              ma_sound_get_volume(entry->sound.get()), 0.0f, 120);
         }
-        ma_sound_stop(&entry->sound);
+        ma_sound_stop(entry->sound.get());
     }
 
     void MiniaudioEngine::PauseEvent(AudioEventInstance instance, bool paused)
     {
         auto *entry = TryGetInstance(instance);
-        if(entry == nullptr || !entry->soundReady)
+        if(entry == nullptr || !entry->soundReady || !entry->sound)
         {
             return;
         }
         if(paused)
         {
-            ma_sound_stop(&entry->sound);
+            ma_sound_stop(entry->sound.get());
         }
         else
         {
-            (void)ma_sound_start(&entry->sound);
+            (void)ma_sound_start(entry->sound.get());
         }
     }
 
@@ -478,37 +494,37 @@ namespace FRIGGA_NAMESPACE
     void MiniaudioEngine::SetEventLoop(AudioEventInstance instance, bool loop)
     {
         auto *entry = TryGetInstance(instance);
-        if(entry == nullptr || !entry->soundReady)
+        if(entry == nullptr || !entry->soundReady || !entry->sound)
         {
             return;
         }
         entry->def.loop = loop;
-        ma_sound_set_looping(&entry->sound, loop ? MA_TRUE : MA_FALSE);
+        ma_sound_set_looping(entry->sound.get(), loop ? MA_TRUE : MA_FALSE);
     }
 
     void MiniaudioEngine::SetEventSpatialization(AudioEventInstance instance, bool enabled)
     {
         auto *entry = TryGetInstance(instance);
-        if(entry == nullptr || !entry->soundReady)
+        if(entry == nullptr || !entry->soundReady || !entry->sound)
         {
             return;
         }
         entry->spatial = enabled;
-        ma_sound_set_spatialization_enabled(&entry->sound, enabled ? MA_TRUE : MA_FALSE);
+        ma_sound_set_spatialization_enabled(entry->sound.get(), enabled ? MA_TRUE : MA_FALSE);
     }
 
     void MiniaudioEngine::SetEventMinMaxDistance(AudioEventInstance instance, float minDistance,
                                                  float maxDistance)
     {
         auto *entry = TryGetInstance(instance);
-        if(entry == nullptr || !entry->soundReady)
+        if(entry == nullptr || !entry->soundReady || !entry->sound)
         {
             return;
         }
         const float minD = std::max(minDistance, 0.01f);
         const float maxD = std::max(maxDistance, minD);
-        ma_sound_set_min_distance(&entry->sound, minD);
-        ma_sound_set_max_distance(&entry->sound, maxD);
+        ma_sound_set_min_distance(entry->sound.get(), minD);
+        ma_sound_set_max_distance(entry->sound.get(), maxD);
     }
 
     bool MiniaudioEngine::SetEventParameter(AudioEventInstance instance, std::string_view name,
@@ -537,21 +553,45 @@ namespace FRIGGA_NAMESPACE
                                                const glm::vec3 & /*velocity*/)
     {
         auto *entry = TryGetInstance(instance);
-        if(entry == nullptr || !entry->soundReady)
+        if(entry == nullptr || !entry->soundReady || !entry->sound)
         {
             return;
         }
-        ma_sound_set_position(&entry->sound, position.x, position.y, position.z);
+        ma_sound_set_position(entry->sound.get(), position.x, position.y, position.z);
     }
 
     bool MiniaudioEngine::IsEventPlaying(AudioEventInstance instance) const
     {
         const auto *entry = TryGetInstance(instance);
-        if(entry == nullptr || !entry->soundReady)
+        if(entry == nullptr || !entry->soundReady || !entry->sound)
         {
             return false;
         }
-        return ma_sound_is_playing(&entry->sound) == MA_TRUE;
+        return ma_sound_is_playing(entry->sound.get()) == MA_TRUE;
+    }
+
+    bool MiniaudioEngine::IsEventAtEnd(AudioEventInstance instance) const
+    {
+        const auto *entry = TryGetInstance(instance);
+        if(entry == nullptr || !entry->soundReady || !entry->sound)
+        {
+            return true;
+        }
+        if(ma_sound_is_playing(entry->sound.get()) == MA_TRUE)
+        {
+            return false;
+        }
+
+        ma_uint64 cursor = 0;
+        ma_uint64 length = 0;
+        (void)ma_sound_get_cursor_in_pcm_frames(entry->sound.get(), &cursor);
+        (void)ma_sound_get_length_in_pcm_frames(entry->sound.get(), &length);
+        if(length == 0)
+        {
+            // Unknown length: treat a previously started, now-stopped sound as finished.
+            return true;
+        }
+        return cursor + 1 >= length;
     }
 
     void MiniaudioEngine::SetListenerTransform(const glm::vec3 &position,
@@ -618,7 +658,7 @@ namespace FRIGGA_NAMESPACE
         mBusMuted[std::string(busPath)] = muted;
         for(auto &[id, entry] : mInstances)
         {
-            if(entry.def.bus == busPath)
+            if(entry.def.bus == busPath || busPath == "bus:/Master" || busPath == "bus:/")
             {
                 ApplyBusGain(entry);
             }
@@ -640,7 +680,8 @@ namespace FRIGGA_NAMESPACE
 
         ma_decoder decoder {};
         ma_decoder_config config = ma_decoder_config_init(ma_format_f32, 0, 0);
-        if(ma_decoder_init_file(absolutePath.string().c_str(), &config, &decoder) != MA_SUCCESS)
+        const auto        clipPath = PathForMiniaudio(absolutePath);
+        if(ma_decoder_init_file(clipPath.c_str(), &config, &decoder) != MA_SUCCESS)
         {
             return std::nullopt;
         }

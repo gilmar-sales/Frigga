@@ -113,7 +113,7 @@ namespace FRIGGA_NAMESPACE
         return playing;
     }
 
-    bool AudioController::PreviewEvent(std::string_view eventPath, float volume)
+    bool AudioController::PreviewEvent(std::string_view eventPath, float volume, bool loop)
     {
         if(eventPath.empty())
         {
@@ -129,6 +129,7 @@ namespace FRIGGA_NAMESPACE
         }
 
         mAudioEngine->SetEventVolume(mPreview.instance, volume);
+        mAudioEngine->SetEventLoop(mPreview.instance, loop);
         mAudioEngine->SetEventSpatialization(mPreview.instance, false);
         return mAudioEngine->StartEvent(mPreview.instance);
     }

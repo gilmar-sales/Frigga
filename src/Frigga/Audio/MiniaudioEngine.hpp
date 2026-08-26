@@ -53,6 +53,7 @@ namespace FRIGGA_NAMESPACE
         void SetEvent3DAttributes(AudioEventInstance instance, const glm::vec3 &position,
                                   const glm::vec3 &velocity) override;
         [[nodiscard]] bool IsEventPlaying(AudioEventInstance instance) const override;
+        [[nodiscard]] bool IsEventAtEnd(AudioEventInstance instance) const override;
 
         void SetListenerTransform(const glm::vec3 &position,
                                   const glm::quat &rotation) override;

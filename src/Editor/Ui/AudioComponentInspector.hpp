@@ -124,12 +124,21 @@ namespace EditorAudioUi
 
         if(ImGui::Button("Preview"))
         {
-            (void)controller->PreviewEvent(source.eventPath, source.volume);
+            (void)controller->PreviewEvent(source.eventPath, source.volume, source.loop);
         }
         ImGui::SameLine();
         if(ImGui::Button("Play"))
         {
-            (void)controller->Play(entity, source.eventPath);
+            // Edit mode: PreviewEvent is the only live engine path.
+            // Play mode: set intent for AudioSystem.
+            if(editingLocked)
+            {
+                (void)controller->Play(entity, source.eventPath);
+            }
+            else
+            {
+                (void)controller->PreviewEvent(source.eventPath, source.volume, source.loop);
+            }
         }
         ImGui::SameLine();
         if(ImGui::Button("Stop"))

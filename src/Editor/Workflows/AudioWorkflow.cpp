@@ -19,7 +19,7 @@ AudioWorkflow::AudioWorkflow(skr::Arc<HierarchyLayer> hierarchy,
                {
                    hierarchy,
                    skr::MakeArc<AudioMixerLayer>(audioEngine),
-                   skr::MakeArc<AudioWaveformLayer>(assets, audioEngine),
+                   skr::MakeArc<AudioWaveformLayer>(assets, audioEngine, controller),
                    skr::MakeArc<AudioAssetsLayer>(assets, selection, registry, simulation, window),
                    skr::MakeArc<AudioInspectorLayer>(assets, selection, registry, simulation,
                                                      controller),
