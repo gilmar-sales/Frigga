@@ -48,6 +48,8 @@ class EditorApplication final: public fg::AbstractApplication
   protected:
     void RenderScene() override;
     void Update() override;
+    void OnAfterGuiLayout() override;
+    [[nodiscard]] bool ShouldBootstrapViewportFallback() const override;
 
   private:
     void syncPlayPipelines();

@@ -13,7 +13,8 @@ class Workflow: public fg::Layer
 
     ~Workflow() = default;
 
-    void onGui() override;
+    void onGuiBegin() override;
+    void onGuiEnd() override;
     void onUpdate() override;
     void onSuspend() override;
     void onEvent(fg::Event &event) override;

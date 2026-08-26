@@ -12,6 +12,8 @@
 #include <Frigga/Scene/Scene.hpp>
 #include <Frigga/Scene/SceneSimulationState.hpp>
 
+#include <imgui.h>
+
 class GameplayLayer: public fg::Layer
 {
   public:
@@ -29,7 +31,8 @@ class GameplayLayer: public fg::Layer
     void onDettach() override;
     void onSuspend() override;
     void onUpdate() override;
-    void onGui() override;
+    void onGuiBegin() override;
+    void onGuiEnd() override;
 
   private:
     void drawToolbar();
@@ -53,6 +56,9 @@ class GameplayLayer: public fg::Layer
     std::uint32_t mPendingWidth    = 1280;
     std::uint32_t mPendingHeight   = 720;
     bool mClaimOutput              = false;
+    bool mGameplayWindowOpen       = false;
+    ImVec2 mLayoutAvail {};
+    ImVec2 mLayoutImageMin {};
     bool mViewportHovered          = false;
     bool mMouseGrabbed             = false;
 };

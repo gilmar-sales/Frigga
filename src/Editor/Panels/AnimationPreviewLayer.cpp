@@ -1,6 +1,7 @@
 #include "AnimationPreviewLayer.hpp"
 
 #include "Editor/DockLayout.hpp"
+#include "Editor/EditorViewportHost.hpp"
 #include "Editor/ViewportDpi.hpp"
 #include "Editor/ViewportQuality.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"
@@ -57,17 +58,15 @@ void AnimationPreviewLayer::onUpdate()
 {
     if(mSimulation && mSimulation->IsPlaying())
     {
-        mClaimOutput = false;
+        mClaimOutput     = false;
         mViewportHovered = false;
         mScene->ClearRenderIsolation();
-        mViewport.Suspend();
         return;
     }
 
     if(!mClaimOutput)
     {
         mScene->ClearRenderIsolation();
-        mViewport.Suspend();
         return;
     }
 
@@ -90,41 +89,64 @@ void AnimationPreviewLayer::onUpdate()
     }
 
     syncCameraToSelection();
-    mViewport.Claim(mPendingWidth, mPendingHeight);
 }
 
-void AnimationPreviewLayer::onGui()
+void AnimationPreviewLayer::onGuiBegin()
 {
     if(mSimulation && mSimulation->IsPlaying())
     {
-        mClaimOutput     = false;
-        mViewportHovered = false;
+        mClaimOutput        = false;
+        mPreviewWindowOpen  = false;
+        mViewportHovered    = false;
+        EditorViewportHost::Request({&mViewport, 0, 0, false});
         return;
     }
 
     const auto title = EditorDock::WindowId("Preview");
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-    if(ImGui::Begin(title.c_str()))
+    mPreviewWindowOpen = ImGui::Begin(title.c_str());
+    if(mPreviewWindowOpen)
     {
-        // Keep live while Timeline / Animator have keyboard focus.
         mClaimOutput = true;
 
-        const ImVec2 avail = ImGui::GetContentRegionAvail();
-        EditorViewport::ContentSizeToRenderPixels(avail, mPendingWidth, mPendingHeight);
+        mLayoutAvail = ImGui::GetContentRegionAvail();
+        EditorViewport::ContentSizeToRenderPixels(mLayoutAvail, mPendingWidth, mPendingHeight);
 
+        EditorViewportHost::Request(
+            {&mViewport, mPendingWidth, mPendingHeight,
+             mClaimOutput && mSelection->HasSelection()});
+    }
+    else
+    {
+        mClaimOutput     = false;
+        mViewportHovered = false;
+        EditorViewportHost::Request({&mViewport, 0, 0, false});
+        ImGui::PopStyleVar();
+    }
+}
+
+void AnimationPreviewLayer::onGuiEnd()
+{
+    if(!mPreviewWindowOpen)
+    {
+        return;
+    }
+
+    if(!mSimulation || !mSimulation->IsPlaying())
+    {
         if(!mSelection->HasSelection())
         {
-            const char *hint = "Select an entity to preview";
+            const char *hint      = "Select an entity to preview";
             const ImVec2 textSize = ImGui::CalcTextSize(hint);
-            ImGui::SetCursorPosX((avail.x - textSize.x) * 0.5f);
-            ImGui::SetCursorPosY(ImGui::GetCursorPosY() + (avail.y - textSize.y) * 0.5f);
+            ImGui::SetCursorPosX((mLayoutAvail.x - textSize.x) * 0.5f);
+            ImGui::SetCursorPosY(ImGui::GetCursorPosY() + (mLayoutAvail.y - textSize.y) * 0.5f);
             ImGui::TextDisabled("%s", hint);
             mViewportHovered = false;
         }
-        if(mViewport.IsActive())
+        else if(mViewport.IsActive())
         {
-            mViewport.present(avail);
+            mViewport.present(mLayoutAvail);
             mViewportHovered = ImGui::IsItemHovered();
             handleOrbit();
         }
@@ -133,13 +155,10 @@ void AnimationPreviewLayer::onGui()
             mViewportHovered = false;
         }
     }
-    else
-    {
-        mClaimOutput     = false;
-        mViewportHovered = false;
-    }
+
     ImGui::End();
     ImGui::PopStyleVar();
+    mPreviewWindowOpen = false;
 }
 
 AnimationPreviewLayer::FrameBounds AnimationPreviewLayer::computeSelectionBounds(

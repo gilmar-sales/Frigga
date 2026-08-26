@@ -3,6 +3,9 @@
 #include <Frigga/Frigga.hpp>
 #include <Frigga/Gui/Backends/imgui_impl_vulkan.h>
 
+#include <algorithm>
+#include <cmath>
+#include <cstdlib>
 #include <glm/glm.hpp>
 
 namespace fg
@@ -28,6 +31,8 @@ namespace fg
     class ViewportTarget
     {
       public:
+        static constexpr std::uint32_t kResizeThreshold = 2;
+
         explicit ViewportTarget(skr::Arc<fra::Renderer> renderer): mRenderer(std::move(renderer)) {}
 
         ~ViewportTarget()
@@ -54,10 +59,11 @@ namespace fg
             }
 
             const bool reactivating = !mClaimed;
+            const bool resizeNeeded = reactivating || !mImageValid || SizeChanged(width, height);
 
             if(mClaimed)
             {
-                if(mWidth != width || mHeight != height || !mImageValid)
+                if(resizeNeeded)
                 {
                     if(!mRenderer->SetViewportTarget(width, height))
                     {
@@ -79,7 +85,7 @@ namespace fg
                 mImageValid = true;
             }
 
-            refreshTexture(reactivating || mWidth != width || mHeight != height);
+            refreshTexture(reactivating || resizeNeeded);
 
             mWidth  = width;
             mHeight = height;
@@ -117,13 +123,50 @@ namespace fg
                 return;
             }
 
+            ImVec2 uv0 {0.0f, 0.0f};
+            ImVec2 uv1 {1.0f, 1.0f};
+            ImVec2 displaySize = size;
+
+            if(mWidth > 0 && mHeight > 0)
+            {
+                const float texAspect   = static_cast<float>(mWidth) / static_cast<float>(mHeight);
+                const float availAspect = size.x / size.y;
+                if(std::abs(texAspect - availAspect) > 1.0e-3f)
+                {
+                    if(texAspect > availAspect)
+                    {
+                        const float visibleFraction = availAspect / texAspect;
+                        const float crop            = (1.0f - visibleFraction) * 0.5f;
+                        uv0.x                       = crop;
+                        uv1.x                       = 1.0f - crop;
+                    }
+                    else
+                    {
+                        const float visibleFraction = texAspect / availAspect;
+                        const float crop            = (1.0f - visibleFraction) * 0.5f;
+                        uv0.y                       = crop;
+                        uv1.y                       = 1.0f - crop;
+                    }
+                }
+            }
+
             ImGui::Image(static_cast<ImTextureID>(reinterpret_cast<std::uintptr_t>(mTextureId)),
-                         size);
+                         displaySize, uv0, uv1);
         }
 
         [[nodiscard]] bool IsActive() const
         {
             return mClaimed && mImageValid && mTextureId != VK_NULL_HANDLE;
+        }
+
+        [[nodiscard]] std::uint32_t Width() const
+        {
+            return mWidth;
+        }
+
+        [[nodiscard]] std::uint32_t Height() const
+        {
+            return mHeight;
         }
 
         /// Compute view/projection for a camera pose using the renderer's
@@ -151,6 +194,15 @@ namespace fg
         }
 
       private:
+        [[nodiscard]] bool SizeChanged(std::uint32_t width, std::uint32_t height) const
+        {
+            const auto delta = [](std::uint32_t a, std::uint32_t b) {
+                return static_cast<std::uint32_t>(std::abs(static_cast<int>(a) - static_cast<int>(b)));
+            };
+            return delta(mWidth, width) >= kResizeThreshold ||
+                   delta(mHeight, height) >= kResizeThreshold;
+        }
+
         void refreshTexture(bool forceRebind)
         {
             const fra::ImGuiViewportImage img = mRenderer->GetViewportImage();
@@ -167,12 +219,26 @@ namespace fg
                 return;
             }
 
-            releaseTexture();
-            mTextureId    = ImGui_ImplVulkan_AddTexture(static_cast<VkSampler>(img.sampler),
-                                                        static_cast<VkImageView>(img.imageView),
-                                                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-            mBoundView    = static_cast<const void *>(img.imageView);
-            mBoundSampler = static_cast<const void *>(img.sampler);
+            const VkDescriptorSet newTextureId =
+                ImGui_ImplVulkan_AddTexture(static_cast<VkSampler>(img.sampler),
+                                            static_cast<VkImageView>(img.imageView),
+                                            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+            if(newTextureId == VK_NULL_HANDLE)
+            {
+                releaseTexture();
+                mImageValid = false;
+                return;
+            }
+
+            const VkDescriptorSet oldTextureId = mTextureId;
+            mTextureId                           = newTextureId;
+            mBoundView                           = static_cast<const void *>(img.imageView);
+            mBoundSampler                        = static_cast<const void *>(img.sampler);
+
+            if(oldTextureId != VK_NULL_HANDLE)
+            {
+                ImGui_ImplVulkan_RemoveTexture(oldTextureId);
+            }
         }
 
         void releaseTexture()

@@ -26,7 +26,8 @@ class MainLayer: public fg::Layer
     ~MainLayer() = default;
 
     void onUpdate() override;
-    void onGui() override;
+    void onGuiBegin() override;
+    void onGuiEnd() override;
 
     float drawTitleBar();
     void drawMenuBar();
@@ -62,6 +63,7 @@ class MainLayer: public fg::Layer
     const char *m_activeTabName = "Gameplay";
     const char *m_pendingTabName = nullptr;
     bool m_resetDockLayout      = false;
+    bool m_dockBegun            = false;
 
     skr::Arc<fg::Scene> mScene;
     skr::Arc<fg::LayerStack> mLayerStack;

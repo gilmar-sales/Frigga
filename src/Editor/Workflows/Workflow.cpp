@@ -10,11 +10,19 @@ Workflow::Workflow(std::string name, std::vector<skr::Arc<fg::Layer>> layers): f
     }
 }
 
-void Workflow::onGui()
+void Workflow::onGuiBegin()
 {
     for(auto layer: m_layerStack)
     {
-        layer->onGui();
+        layer->onGuiBegin();
+    }
+}
+
+void Workflow::onGuiEnd()
+{
+    for(auto layer: m_layerStack)
+    {
+        layer->onGuiEnd();
     }
 }
 

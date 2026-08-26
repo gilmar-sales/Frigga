@@ -203,7 +203,7 @@ namespace FRIGGA_NAMESPACE
             static_cast<VkQueue>(native.graphicsQueue);
         imguiSdl3VulkanInitInfo.ImageCount         = static_cast<std::uint32_t>(4);
         imguiSdl3VulkanInitInfo.MinImageCount      = native.minImageCount;
-        imguiSdl3VulkanInitInfo.DescriptorPoolSize = 32;
+        imguiSdl3VulkanInitInfo.DescriptorPoolSize = 64;
         imguiSdl3VulkanInitInfo.PipelineInfoMain.RenderPass =
             static_cast<VkRenderPass>(native.renderPass);
 

@@ -12,6 +12,18 @@ namespace EditorViewport
     /// do not reuse DisplayFramebufferScale as FontGlobalScale.
     [[nodiscard]] inline ImVec2 FramebufferScale()
     {
+        if(ImGui::GetCurrentContext() == nullptr)
+        {
+            return {1.0f, 1.0f};
+        }
+
+        const ImGuiViewport *main = ImGui::GetMainViewport();
+        if(main != nullptr)
+        {
+            return {std::max(main->FramebufferScale.x, 1.0f),
+                    std::max(main->FramebufferScale.y, 1.0f)};
+        }
+
         const ImVec2 scale = ImGui::GetIO().DisplayFramebufferScale;
         return {std::max(scale.x, 1.0f), std::max(scale.y, 1.0f)};
     }

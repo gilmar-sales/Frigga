@@ -2,6 +2,7 @@
 
 #include "Editor/BoostrapIconsFont.hpp"
 #include "Editor/DockLayout.hpp"
+#include "Editor/EditorViewportHost.hpp"
 #include "Editor/UiScale.hpp"
 #include "Editor/ViewportDpi.hpp"
 #include "Editor/ViewportQuality.hpp"
@@ -78,40 +79,31 @@ void EditorLayer::onUpdate()
         mViewportHovered = false;
         mViewportFocused = false;
         mNavMode         = NavMode::None;
-        mViewport.Suspend();
         return;
     }
 
-    if(mClaimOutput)
+    if(mPreferences &&
+       EditorViewport::ApplyQualityPreferences(*mRenderer,
+                                               mPreferences->graphics.editorViewport))
     {
-        if(mPreferences &&
-           EditorViewport::ApplyQualityPreferences(*mRenderer,
-                                                   mPreferences->graphics.editorViewport))
-        {
-            fg::GuiLayer::RecreateMainPipeline(mRenderer);
-        }
-        mScene->PreferEditorCamera();
-        mViewport.Claim(mPendingWidth, mPendingHeight);
-        mWidth  = mPendingWidth;
-        mHeight = mPendingHeight;
+        fg::GuiLayer::RecreateMainPipeline(mRenderer);
     }
-    else
-    {
-        mViewport.Suspend();
-    }
+
+    mScene->PreferEditorCamera();
 }
 
-void EditorLayer::onGui()
+void EditorLayer::onGuiBegin()
 {
     ImGuizmo::BeginFrame();
 
-    // Exclusive with Gameplay: Editor is only visible while editing.
     if(mSimulation->IsPlaying())
     {
-        mClaimOutput     = false;
-        mViewportHovered = false;
-        mViewportFocused = false;
-        mNavMode         = NavMode::None;
+        mClaimOutput       = false;
+        mEditorWindowOpen  = false;
+        mViewportHovered   = false;
+        mViewportFocused   = false;
+        mNavMode           = NavMode::None;
+        EditorViewportHost::Request({&mViewport, 0, 0, false});
         return;
     }
 
@@ -123,7 +115,8 @@ void EditorLayer::onGui()
     }
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-    if(ImGui::Begin(title.c_str()))
+    mEditorWindowOpen = ImGui::Begin(title.c_str());
+    if(mEditorWindowOpen)
     {
         mViewportFocused =
             ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
@@ -131,13 +124,39 @@ void EditorLayer::onGui()
 
         drawToolbar();
 
-        const ImVec2 avail = ImGui::GetContentRegionAvail();
-        EditorViewport::ContentSizeToRenderPixels(avail, mPendingWidth, mPendingHeight);
+        mLayoutAvail = ImGui::GetContentRegionAvail();
+        EditorViewport::ContentSizeToRenderPixels(mLayoutAvail, mPendingWidth, mPendingHeight);
+        mLayoutImageMin = ImGui::GetCursorScreenPos();
 
-        const ImVec2 imageMin = ImGui::GetCursorScreenPos();
+        EditorViewportHost::Request({&mViewport, mPendingWidth, mPendingHeight,
+                                     mClaimOutput && !mSimulation->IsPlaying()});
+    }
+    else
+    {
+        mClaimOutput     = false;
+        mViewportHovered = false;
+        mViewportFocused = false;
+        mNavMode         = NavMode::None;
+        EditorViewportHost::Request({&mViewport, 0, 0, false});
+        ImGui::PopStyleVar();
+    }
+}
+
+void EditorLayer::onGuiEnd()
+{
+    if(!mEditorWindowOpen)
+    {
+        return;
+    }
+
+    if(!mSimulation->IsPlaying())
+    {
+        mWidth  = mPendingWidth;
+        mHeight = mPendingHeight;
+
         if(mViewport.IsActive())
         {
-            mViewport.present(avail);
+            mViewport.present(mLayoutAvail);
             mViewportHovered = ImGui::IsItemHovered();
             handleNavigation();
 
@@ -147,26 +166,26 @@ void EditorLayer::onGui()
 
             const bool navigating = mNavMode != NavMode::None;
             ImGuizmo::Enable(!navigating);
-            drawGizmos(imageMin, avail, !navigating);
+            drawGizmos(mLayoutImageMin, mLayoutAvail, !navigating);
             if(hasCamera)
             {
-                const fr::Entity selected = mSelection->HasSelection()
-                                                ? mSelection->Get()
-                                                : SelectionContext::Invalid;
+                const fr::Entity selected = mSelection->HasSelection() ? mSelection->Get()
+                                                                       : SelectionContext::Invalid;
                 fg::LightDebugDraw::Draw(ImGui::GetWindowDrawList(), mRegistry, view, projection,
-                                         imageMin, avail, selected);
+                                         mLayoutImageMin, mLayoutAvail, selected);
                 fg::CameraDebugDraw::Draw(ImGui::GetWindowDrawList(), mRegistry, view, projection,
-                                          imageMin, avail, selected, mScene->GetMainCameraEntity());
+                                          mLayoutImageMin, mLayoutAvail, selected,
+                                          mScene->GetMainCameraEntity());
                 fg::AudioDebugDraw::Draw(ImGui::GetWindowDrawList(), mRegistry, view, projection,
-                                         imageMin, avail, selected);
+                                         mLayoutImageMin, mLayoutAvail, selected);
                 if(mSimulation->GetShowColliders())
                 {
                     fg::ColliderDebugDraw::Draw(ImGui::GetWindowDrawList(), mRegistry, mPrimitives,
-                                                view, projection, imageMin, avail, selected, {},
-                                                false, mUserComponents);
+                                                view, projection, mLayoutImageMin, mLayoutAvail,
+                                                selected, {}, false, mUserComponents);
                 }
             }
-            handlePicking(imageMin, avail);
+            handlePicking(mLayoutImageMin, mLayoutAvail);
         }
         else
         {
@@ -174,7 +193,6 @@ void EditorLayer::onGui()
             mNavMode         = NavMode::None;
         }
 
-        // Tool / view hotkeys only when not flying (RMB holds WASD for movement).
         if((mViewportHovered || mViewportFocused) && mNavMode == NavMode::None &&
            !ImGuizmo::IsUsing())
         {
@@ -196,15 +214,10 @@ void EditorLayer::onGui()
             }
         }
     }
-    else
-    {
-        mClaimOutput     = false;
-        mViewportHovered = false;
-        mViewportFocused = false;
-        mNavMode         = NavMode::None;
-    }
+
     ImGui::End();
     ImGui::PopStyleVar();
+    mEditorWindowOpen = false;
 }
 
 void EditorLayer::drawToolbar()

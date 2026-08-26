@@ -384,7 +384,7 @@ void MainLayer::saveSceneDialog()
                            mDialogDefaultLocation.c_str());
 }
 
-void MainLayer::onGui()
+void MainLayer::onGuiBegin()
 {
     if(!mSession->IsInEditor())
     {
@@ -407,10 +407,10 @@ void MainLayer::onGui()
     static ImGuiIO &io = ImGui::GetIO();
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {0.0f, 0.0f});
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-    const bool dockOpen = ImGui::Begin("DockSpace", nullptr, window_flags);
+    m_dockBegun = ImGui::Begin("DockSpace", nullptr, window_flags);
     ImGui::PopStyleVar();
     ImGui::PopStyleVar();
-    if(dockOpen)
+    if(m_dockBegun)
     {
         if(io.ConfigFlags & ImGuiConfigFlags_DockingEnable)
         {
@@ -429,17 +429,35 @@ void MainLayer::onGui()
             ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), dockspace_flags);
         }
 
-        m_activeTab->onGui();
+        m_activeTab->onGuiBegin();
+    }
+}
+
+void MainLayer::onGuiEnd()
+{
+    if(!mSession->IsInEditor())
+    {
+        return;
+    }
+
+    if(m_dockBegun)
+    {
+        m_activeTab->onGuiEnd();
 
         drawTitleBar();
 
         drawMenuBar();
     }
-    ImGui::End();
+
+    if(m_dockBegun)
+    {
+        ImGui::End();
+    }
+    m_dockBegun = false;
 
     if(mStatusBar)
     {
-        mStatusBar->Draw(viewport);
+        mStatusBar->Draw(ImGui::GetMainViewport());
     }
 }
 

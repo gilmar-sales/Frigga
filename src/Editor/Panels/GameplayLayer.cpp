@@ -2,6 +2,7 @@
 
 #include "Editor/BoostrapIconsFont.hpp"
 #include "Editor/DockLayout.hpp"
+#include "Editor/EditorViewportHost.hpp"
 #include "Editor/UiScale.hpp"
 #include "Editor/ViewportDpi.hpp"
 #include "Editor/ViewportQuality.hpp"
@@ -89,7 +90,6 @@ void GameplayLayer::onUpdate()
             mWindow->SetMouseGrab(false);
             mMouseGrabbed = false;
         }
-        mViewport.Suspend();
         return;
     }
 
@@ -101,7 +101,102 @@ void GameplayLayer::onUpdate()
         fg::GuiLayer::RecreateMainPipeline(mRenderer);
     }
     mScene->PreferGameplayCamera();
-    mViewport.Claim(mPendingWidth, mPendingHeight);
+}
+
+void GameplayLayer::onGuiBegin()
+{
+    if(!mSimulation->IsPlaying())
+    {
+        mClaimOutput     = false;
+        mGameplayWindowOpen = false;
+        mViewportHovered = false;
+        if(mInput)
+        {
+            mInput->SetGameplayViewportHovered(false);
+        }
+        if(mWindow && mMouseGrabbed)
+        {
+            mWindow->SetMouseGrab(false);
+            mMouseGrabbed = false;
+        }
+        EditorViewportHost::Request({&mViewport, 0, 0, false});
+        return;
+    }
+
+    const auto title = EditorDock::WindowId("Gameplay");
+
+    if(mSimulation->ConsumeFocusGameplayRequest())
+    {
+        ImGui::SetNextWindowFocus();
+    }
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+    mGameplayWindowOpen = ImGui::Begin(title.c_str());
+    if(mGameplayWindowOpen)
+    {
+        mClaimOutput = true;
+
+        drawToolbar();
+
+        mLayoutAvail = ImGui::GetContentRegionAvail();
+        EditorViewport::ContentSizeToRenderPixels(mLayoutAvail, mPendingWidth, mPendingHeight);
+        mLayoutImageMin = ImGui::GetCursorScreenPos();
+
+        EditorViewportHost::Request({&mViewport, mPendingWidth, mPendingHeight,
+                                     mClaimOutput && mSimulation->IsPlaying()});
+    }
+    else
+    {
+        mClaimOutput     = false;
+        mViewportHovered = false;
+        if(mInput)
+        {
+            mInput->SetGameplayViewportHovered(false);
+        }
+        if(mWindow && mMouseGrabbed)
+        {
+            mWindow->SetMouseGrab(false);
+            mMouseGrabbed = false;
+        }
+        EditorViewportHost::Request({&mViewport, 0, 0, false});
+        ImGui::PopStyleVar();
+    }
+}
+
+void GameplayLayer::onGuiEnd()
+{
+    if(!mGameplayWindowOpen)
+    {
+        return;
+    }
+
+    if(mSimulation->IsPlaying())
+    {
+        if(mViewport.IsActive())
+        {
+            mViewport.present(mLayoutAvail);
+            mViewportHovered = ImGui::IsItemHovered();
+            if(mInput)
+            {
+                mInput->SetGameplayViewportHovered(mViewportHovered);
+            }
+            syncMouseCapture();
+            drawDebugOverlays(mLayoutImageMin, mLayoutAvail);
+            drawColliders(mLayoutImageMin, mLayoutAvail);
+        }
+        else
+        {
+            mViewportHovered = false;
+            if(mInput)
+            {
+                mInput->SetGameplayViewportHovered(false);
+            }
+        }
+    }
+
+    ImGui::End();
+    ImGui::PopStyleVar();
+    mGameplayWindowOpen = false;
 }
 
 void GameplayLayer::drawToolbar()
@@ -271,80 +366,4 @@ void GameplayLayer::syncMouseCapture()
         mWindow->SetMouseGrab(false);
         mMouseGrabbed = false;
     }
-}
-
-void GameplayLayer::onGui()
-{
-    // Exclusive with Editor: Gameplay is only visible while playing.
-    if(!mSimulation->IsPlaying())
-    {
-        mClaimOutput     = false;
-        mViewportHovered = false;
-        if(mInput)
-        {
-            mInput->SetGameplayViewportHovered(false);
-        }
-        if(mWindow && mMouseGrabbed)
-        {
-            mWindow->SetMouseGrab(false);
-            mMouseGrabbed = false;
-        }
-        return;
-    }
-
-    const auto title = EditorDock::WindowId("Gameplay");
-
-    if(mSimulation->ConsumeFocusGameplayRequest())
-    {
-        ImGui::SetNextWindowFocus();
-    }
-
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-    if(ImGui::Begin(title.c_str()))
-    {
-        mClaimOutput = true;
-
-        drawToolbar();
-
-        const ImVec2 avail = ImGui::GetContentRegionAvail();
-        EditorViewport::ContentSizeToRenderPixels(avail, mPendingWidth, mPendingHeight);
-
-        const ImVec2 imageMin = ImGui::GetCursorScreenPos();
-        if(mViewport.IsActive())
-        {
-            mViewport.present(avail);
-            mViewportHovered = ImGui::IsItemHovered();
-            if(mInput)
-            {
-                mInput->SetGameplayViewportHovered(mViewportHovered);
-            }
-            syncMouseCapture();
-            drawDebugOverlays(imageMin, avail);
-            drawColliders(imageMin, avail);
-        }
-        else
-        {
-            mViewportHovered = false;
-            if(mInput)
-            {
-                mInput->SetGameplayViewportHovered(false);
-            }
-        }
-    }
-    else
-    {
-        mClaimOutput     = false;
-        mViewportHovered = false;
-        if(mInput)
-        {
-            mInput->SetGameplayViewportHovered(false);
-        }
-        if(mWindow && mMouseGrabbed)
-        {
-            mWindow->SetMouseGrab(false);
-            mMouseGrabbed = false;
-        }
-    }
-    ImGui::End();
-    ImGui::PopStyleVar();
 }

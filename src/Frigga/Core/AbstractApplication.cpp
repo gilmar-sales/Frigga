@@ -34,26 +34,34 @@ namespace FRIGGA_NAMESPACE
             layer->onUpdate();
         }
 
-        if(!mRenderer->GetViewportImage().valid && mWindow)
-        {
-            mRenderer->SetViewportTarget(mWindow->GetWidth(), mWindow->GetHeight());
-        }
-
-        mRenderer->BeginFrame();
-
-        RenderScene();
-        
-        mRenderer->EndScene();
-
         auto guiLayer = mGuiLayer;
         if(guiLayer == nullptr)
         {
             guiLayer = mScope->GetServiceProvider()->GetService<GuiLayer>();
         }
+
         guiLayer->begin();
         for(const auto &layer : *layerStack)
         {
-            layer->onGui();
+            layer->onGuiBegin();
+        }
+
+        OnAfterGuiLayout();
+
+        if(!mRenderer->GetViewportImage().valid && mWindow && ShouldBootstrapViewportFallback())
+        {
+            (void)mRenderer->SetViewportTarget(mWindow->GetWidth(), mWindow->GetHeight());
+        }
+
+        mRenderer->BeginFrame();
+
+        RenderScene();
+
+        mRenderer->EndScene();
+
+        for(const auto &layer : *layerStack)
+        {
+            layer->onGuiEnd();
         }
         guiLayer->end();
 

@@ -33,6 +33,15 @@ namespace FRIGGA_NAMESPACE
         /// Called between BeginFrame and EndScene to queue scene draw commands.
         virtual void RenderScene() {}
 
+        /// Called after onGuiBegin and before BeginFrame (editor: apply viewport claims).
+        virtual void OnAfterGuiLayout() {}
+
+        /// When false, skip bootstrapping a full-window viewport if the offscreen image is invalid.
+        [[nodiscard]] virtual bool ShouldBootstrapViewportFallback() const
+        {
+            return true;
+        }
+
         void createScope()
         {
             mScope = mRootServiceProvider->CreateServiceScope();

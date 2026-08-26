@@ -8,6 +8,8 @@
 
 #include <Frigga/Frigga.hpp>
 
+#include <imgui.h>
+
 #include <cstdint>
 
 class AnimationPreviewLayer: public fg::Layer
@@ -23,7 +25,8 @@ class AnimationPreviewLayer: public fg::Layer
     void onDettach() override;
     void onSuspend() override;
     void onUpdate() override;
-    void onGui() override;
+    void onGuiBegin() override;
+    void onGuiEnd() override;
 
   private:
     struct FrameBounds
@@ -50,6 +53,8 @@ class AnimationPreviewLayer: public fg::Layer
     std::uint32_t mPendingWidth    = 1280;
     std::uint32_t mPendingHeight   = 720;
     bool mClaimOutput              = true;
+    bool mPreviewWindowOpen        = false;
+    ImVec2 mLayoutAvail {};
     bool mViewportHovered          = false;
 
     fr::Entity mFramedEntity = SelectionContext::Invalid;

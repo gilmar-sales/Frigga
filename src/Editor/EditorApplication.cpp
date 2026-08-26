@@ -1,5 +1,6 @@
 #include "EditorApplication.hpp"
 
+#include "EditorViewportHost.hpp"
 #include "UiScale.hpp"
 
 #include <Freyr/Core/SystemManager.hpp>
@@ -46,6 +47,8 @@ void EditorApplication::Update()
     // Poll every frame: monitor moves often skip DISPLAY_SCALE_CHANGED until resize.
     EditorUiScale::Sync(mWindow->GetScale());
 
+    EditorViewportHost::BeginFrame();
+
     if(mSimulation)
     {
         mSimulation->SetDeferModeChanges(true);
@@ -57,4 +60,14 @@ void EditorApplication::Update()
     }
     // Flush entities created from Hierarchy/menus during onGui this frame.
     mRegistry->ExecuteTasks();
+}
+
+void EditorApplication::OnAfterGuiLayout()
+{
+    EditorViewportHost::ApplyClaims();
+}
+
+bool EditorApplication::ShouldBootstrapViewportFallback() const
+{
+    return !EditorViewportHost::HasActiveClaim();
 }

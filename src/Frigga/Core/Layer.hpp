@@ -17,6 +17,11 @@ namespace FRIGGA_NAMESPACE
         virtual void onAttach() {}
         virtual void onDettach() {}
         virtual void onSuspend() {}
+        virtual void onGuiBegin() {}
+        virtual void onGuiEnd()
+        {
+            onGui();
+        }
         virtual void onGui() {}
         virtual void onEvent(Event &event) {}
         virtual void onUpdate() {}
