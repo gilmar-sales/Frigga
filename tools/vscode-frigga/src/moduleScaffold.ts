@@ -195,15 +195,19 @@ export async function installModule(
   registerModuleEntry(desc, {
     id: source.id,
     target: source.target,
-    libraryRelative: source.libraryRelative || defaultLibraryRelative(source.target),
+    libraryRelative: defaultLibraryRelative(source.target),
     enabled: true,
     source: "user",
   });
+  await writeTextFile(
+    vscode.Uri.joinPath(destRoot, "module.json"),
+    makeModuleJson(source.id, source.name, source.target)
+  );
   await syncManagedModuleSubdirs(project, desc);
   await saveProjectDescriptor(project.projectFile, desc);
 
   vscode.window.showInformationMessage(
-    `Installed module "${source.name}". Build modules and reload in the Editor (Ctrl+R).`
+    `Installed module "${source.name}". Build modules (Frigga: Build All Modules), then Reload in the Editor (Ctrl+R).`
   );
 }
 

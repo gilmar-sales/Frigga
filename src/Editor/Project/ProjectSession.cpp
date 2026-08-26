@@ -1301,6 +1301,13 @@ bool ProjectSession::ReloadModule()
         return false;
     }
 
+    if(const auto loaded = ProjectFile::Load(*mProjectFile))
+    {
+        auto desc = *loaded;
+        desc.EnsureGameplayModule();
+        mDescriptor = std::move(desc);
+    }
+
     if(!loadEnabledModules())
     {
         std::lock_guard lock(mMutex);
