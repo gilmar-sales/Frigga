@@ -218,8 +218,8 @@ namespace FRIGGA_NAMESPACE
 
         const glm::mat4 viewProj = FlipYProjection(vulkanProjection) * view;
 
-        registry->CreateMutation()->Each<TransformComponent, LightComponent>(
-            [&](auto entity, TransformComponent &transform, LightComponent &light) {
+        registry->CreateMutation()->Each(
+            [&](fr::Entity entity, TransformComponent &transform, LightComponent &light) {
                 const auto pose = TransformUtil::WorldPose(*registry, entity);
                 TransformComponent worldXf = transform;
                 worldXf.position           = pose.position;
@@ -250,8 +250,8 @@ namespace FRIGGA_NAMESPACE
         float bestDistSq = std::numeric_limits<float>::max();
         bool found       = false;
 
-        registry->CreateMutation()->Each<TransformComponent, LightComponent>(
-            [&](auto entity, TransformComponent &, LightComponent &) {
+        registry->CreateMutation()->Each(
+            [&](fr::Entity entity, TransformComponent &, LightComponent &) {
                 ImVec2 screen {};
                 if(!Project(TransformUtil::WorldPose(*registry, entity).position, viewProj,
                             imageMin, imageSize, screen))

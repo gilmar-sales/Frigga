@@ -17,13 +17,13 @@ Personal C++ game engine and ImGui editor built on [Freyr](https://github.com/gi
 
 ## Requirements
 
-| Tool | Notes |
-|------|--------|
-| **CMake** | ≥ 3.29 |
-| **C++26 compiler** | Reflection support required — **GCC 16+** or **Clang 22+** |
-| **Vulkan SDK** | Headers + loader; `glslc` on `PATH` (Freya compiles shaders) |
-| **Git + network** | First configure pulls Freyr, Freya, ImGui, ImGuizmo, Jolt, and Freya’s transitive deps (SDL3, glm, Assimp, Skirnir, simdjson, …) via FetchContent |
-| **GPU / drivers** | Vulkan-capable GPU and up-to-date drivers |
+| Tool               | Notes                                                                                                                                             |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **CMake**          | ≥ 3.29                                                                                                                                            |
+| **C++26 compiler** | Reflection support required — **GCC 16+** or **Clang 22+**                                                                                        |
+| **Vulkan SDK**     | Headers + loader; `glslc` on `PATH` (Freya compiles shaders)                                                                                      |
+| **Git + network**  | First configure pulls Freyr, Freya, ImGui, ImGuizmo, Jolt, and Freya’s transitive deps (SDL3, glm, Assimp, Skirnir, simdjson, …) via FetchContent |
+| **GPU / drivers**  | Vulkan-capable GPU and up-to-date drivers                                                                                                         |
 
 ### Audio workflow (miniaudio)
 
@@ -53,8 +53,8 @@ Authoring clips / banks:
 }
 ```
 
-3. In the Editor: **Import Bank** (Audio workflow) → assign events on the entity **Audio Source** component (Hierarchy or Audio Inspector).
-4. Mixer buses: `bus:/Master`, `bus:/SFX`, `bus:/Music`.
+1. In the Editor: **Import Bank** (Audio workflow) → assign events on the entity **Audio Source** component (Hierarchy or Audio Inspector).
+2. Mixer buses: `bus:/Master`, `bus:/SFX`, `bus:/Music`.
 
 On Arch Linux (example):
 
@@ -74,13 +74,13 @@ cmake --build build
 
 Targets:
 
-| Target | Description |
-|--------|-------------|
-| `frigga` | Engine library |
-| `Editor` | Editor executable |
+| Target         | Description                                               |
+| -------------- | --------------------------------------------------------- |
+| `frigga`       | Engine library                                            |
+| `Editor`       | Editor executable                                         |
 | `frigga_tests` | GoogleTest suite (SceneSerializer round-trips / fixtures) |
-| `Shaders` | Freya SPIR-V compile (built as a Freya dependency) |
-| `package` | CPack archive (`cpack` / `ninja package`) |
+| `Shaders`      | Freya SPIR-V compile (built as a Freya dependency)        |
+| `package`      | CPack archive (`cpack` / `ninja package`)                 |
 
 CMake copies `src/Editor/Resources` into the build tree (`build/Resources`). That tree is the **engine** pack (UI fonts, shaders, bundled modules, default textures). Freya also deposits compiled shaders under it. **Run the editor from the build directory** so engine resource paths resolve:
 
@@ -129,21 +129,21 @@ cd build-release && ./Editor
 
 ## Editor cheat sheet
 
-| Action | Shortcut |
-|--------|----------|
-| New scene | Ctrl+N |
-| Open scene | Ctrl+O |
-| Save | Ctrl+S |
-| Save as | Ctrl+Shift+S |
-| Build modules | Ctrl+B |
-| Reload modules | Ctrl+R |
-| Open project in code editor | Ctrl+Shift+E |
-| Play / pause / resume | Ctrl+P |
-| Step one physics tick | Ctrl+. |
-| Stop play (restore edit scene) | Ctrl+Shift+P |
-| Toggle collider overlays | Ctrl+Shift+C |
+| Action                           | Shortcut                            |
+| -------------------------------- | ----------------------------------- |
+| New scene                        | Ctrl+N                              |
+| Open scene                       | Ctrl+O                              |
+| Save                             | Ctrl+S                              |
+| Save as                          | Ctrl+Shift+S                        |
+| Build modules                    | Ctrl+B                              |
+| Reload modules                   | Ctrl+R                              |
+| Open project in code editor      | Ctrl+Shift+E                        |
+| Play / pause / resume            | Ctrl+P                              |
+| Step one physics tick            | Ctrl+.                              |
+| Stop play (restore edit scene)   | Ctrl+Shift+P                        |
+| Toggle collider overlays         | Ctrl+Shift+C                        |
 | Gizmo translate / rotate / scale | W / E / R (editor viewport focused) |
-| Frame selection | F (editor viewport) |
+| Frame selection                  | F (editor viewport)                 |
 
 The Editor starts on a **home screen**: create a 2D/3D project (scaffolds CMake + Freyr gameplay module stubs + `Resources/` + scene), open an existing `frigga.project`, or pick a recent project. Opening a project refreshes managed scaffold files when needed (`CMakeLists.txt`, module header, `GameplaySystem` when still marked managed). Gameplay CMake does not bake machine paths: the Editor passes `-DFRIGGA_SDK` (packaged `Sdk/` next to the binary, or the engine tree), and CLI builds can use the same flag, the `FRIGGA_SDK` environment variable, or local `CMakeUserPresets.json`. Use **File → Migrate Project Files** to force-refresh managed files, then **Build Modules** (Ctrl+B) and **Reload** (Ctrl+R). Each project has a `gameplay` module plus optional extras under `modules/` (combat, camera, movement, …). Share extras by exporting to `~/Frigga/Modules`. Modules use `FRI_MODULE` to register components/systems/DI. Host `fg::Input` loads `input.json` Actions/Axes; inject it into Freyr systems. Pipeline layout lives in `ecs.json` (ECS workflow editor). **Play** enables the Freyr **Simulation** pipeline at 60 Hz (physics + gameplay). **Main** runs animation (and optional third-person camera module) every frame; **Render** always ticks last.
 
@@ -163,7 +163,7 @@ Default environment map path in preferences may point at a missing HDR under `Re
 
 ## Layout
 
-```
+```plain
 src/
   Frigga/          Engine library (ECS, scene I/O, physics, modules, GUI, render systems)
   Editor/          Editor app (home, projects, workflows, panels, preferences)
@@ -173,7 +173,7 @@ CMakeLists.txt
 
 Gameplay assets (models, textures, prefabs, fonts) live in each project's `Resources/`, not in the engine tree.
 
-Pinned FetchContent tags (see root `CMakeLists.txt`): Freyr `v0.29.0`, Freya `v0.42.0`, Jolt `v5.3.0`, ImGui `docking` fork.
+Pinned FetchContent tags (see root `CMakeLists.txt`): Freyr `v0.36.0`, Freya `v0.42.4`, Jolt `v5.3.0`, ImGui `docking` fork.
 
 ## License
 

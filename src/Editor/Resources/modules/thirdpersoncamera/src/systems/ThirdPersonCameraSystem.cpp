@@ -27,13 +27,13 @@ void ThirdPersonCameraSystem::Update(float)
     }
 
     std::unordered_map<std::string, glm::vec3> namedPositions;
-    mRegistry->CreateMutation()->Each<fg::NameComponent, fg::TransformComponent>(
-        [&](auto entity, fg::NameComponent &name, fg::TransformComponent &) {
+    mRegistry->CreateMutation()->Each(
+        [&](fr::Entity entity, fg::NameComponent &name, fg::TransformComponent &) {
             namedPositions[name.name] = fg::TransformUtil::WorldPose(*mRegistry, entity).position;
         });
 
-    mRegistry->CreateMutation()->Each<fg::TransformComponent, ThirdPersonCameraComponent>(
-        [&](auto entity, fg::TransformComponent &, ThirdPersonCameraComponent &orbit) {
+    mRegistry->CreateMutation()->Each(
+        [&](fr::Entity entity, fg::TransformComponent &, ThirdPersonCameraComponent &orbit) {
             orbit.yaw -= mInput->GetAxis(orbit.lookXAxis);
             orbit.pitch += mInput->GetAxis(orbit.lookYAxis);
             orbit.pitch = std::clamp(orbit.pitch, orbit.minPitch, orbit.maxPitch);

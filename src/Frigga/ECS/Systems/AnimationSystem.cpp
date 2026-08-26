@@ -112,8 +112,8 @@ namespace FRIGGA_NAMESPACE
         mRenderer->SetGpuAnimEnabled(false);
 
         std::unordered_map<std::string, std::uint32_t> gpuVotes;
-        mRegistry->CreateMutation()->Each<AnimatorComponent>(
-            [&](auto, AnimatorComponent &animator) {
+        mRegistry->CreateMutation()->Each(
+            [&](AnimatorComponent &animator) {
                 animator.boneOffset = fra::kNoSkin;
                 animator.boneCount  = 0;
                 if(!animator.useGpu || animator.modelSource.empty())
@@ -163,8 +163,8 @@ namespace FRIGGA_NAMESPACE
             mRenderer->SetGpuAnimCopyPrevBones(true);
         }
 
-        mRegistry->CreateMutation()->Each<TransformComponent, MeshComponent, AnimatorComponent>(
-            [&](auto entity, TransformComponent &, MeshComponent &,
+        mRegistry->CreateMutation()->Each(
+            [&](fr::Entity entity, TransformComponent &, MeshComponent &,
                 AnimatorComponent &animator) {
                 if(animator.modelSource.empty())
                 {

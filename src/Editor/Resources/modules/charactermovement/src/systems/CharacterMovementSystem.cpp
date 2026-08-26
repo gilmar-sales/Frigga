@@ -31,7 +31,7 @@ void CharacterMovementSystem::Update(float)
 
     glm::quat cameraRotation {1.0f, 0.0f, 0.0f, 0.0f};
     bool      hasCamera = false;
-    mRegistry->CreateMutation()->Each<fg::NameComponent, fg::TransformComponent>(
+    mRegistry->CreateMutation()->Each(
         [&](fr::Entity entity, fg::NameComponent &name, fg::TransformComponent &) {
             if(name.name != "Main Camera")
             {
@@ -41,7 +41,7 @@ void CharacterMovementSystem::Update(float)
             hasCamera      = true;
         });
 
-    mRegistry->CreateMutation()->Each<fg::NameComponent, CharacterControllerComponent>(
+    mRegistry->CreateMutation()->Each(
         [&](fr::Entity entity, fg::NameComponent &name, CharacterControllerComponent &) {
             if(name.name != "Player")
             {

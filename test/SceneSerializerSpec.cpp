@@ -90,8 +90,8 @@ namespace
         registry->ExecuteTasks();
 
         std::vector<EntitySnapshot> entities;
-        registry->CreateMutation()->Each<fg::NameComponent>(
-            [&](auto entity, fg::NameComponent &name) {
+        registry->CreateMutation()->Each(
+            [&](fr::Entity entity, fg::NameComponent &name) {
                 EntitySnapshot snap {.name = name.name};
 
                 registry->TryGetComponents<fg::TransformComponent>(
@@ -353,8 +353,8 @@ TEST_F(SceneSerializerSpec, LoadFixture_RichScene)
     EXPECT_TRUE(camera.camera.primary);
 
     fr::Entity mainCameraEntity = {};
-    mRegistry->CreateMutation()->Each<fg::NameComponent, fg::CameraComponent>(
-        [&](auto entity, fg::NameComponent &name, fg::CameraComponent &) {
+    mRegistry->CreateMutation()->Each(
+        [&](fr::Entity entity, fg::NameComponent &name, fg::CameraComponent &) {
             if(name.name == "Main Camera")
             {
                 mainCameraEntity = entity;
@@ -458,8 +458,8 @@ TEST_F(SceneSerializerSpec, RoundTrip_UserComponents)
     ASSERT_TRUE(mScene->RestoreSnapshot(json));
 
     bool found = false;
-    mRegistry->CreateMutation()->Each<fg::NameComponent, SpecHealth>(
-        [&](auto, fg::NameComponent &name, SpecHealth &comp) {
+    mRegistry->CreateMutation()->Each(
+        [&](fg::NameComponent &name, SpecHealth &comp) {
             if(name.name != "WithHealth")
             {
                 return;
@@ -526,8 +526,8 @@ TEST_F(SceneSerializerSpec, CaptureRestore_PreservesUserComponentsAcrossDetach)
 
     bool foundHealth = false;
     bool foundPlayer = false;
-    mRegistry->CreateMutation()->Each<fg::NameComponent, SpecHealth>(
-        [&](auto, fg::NameComponent &name, SpecHealth &comp) {
+    mRegistry->CreateMutation()->Each(
+        [&](fg::NameComponent &name, SpecHealth &comp) {
             if(name.name != "Hero")
             {
                 return;
@@ -536,8 +536,8 @@ TEST_F(SceneSerializerSpec, CaptureRestore_PreservesUserComponentsAcrossDetach)
             EXPECT_NEAR(comp.current, 42.5f, kEpsilon);
             EXPECT_NEAR(comp.max, 100.0f, kEpsilon);
         });
-    mRegistry->CreateMutation()->Each<fg::NameComponent, SpecEmptyTag>(
-        [&](auto, fg::NameComponent &name, SpecEmptyTag &) {
+    mRegistry->CreateMutation()->Each(
+        [&](fg::NameComponent &name, SpecEmptyTag &) {
             if(name.name == "Hero")
             {
                 foundPlayer = true;
@@ -575,8 +575,8 @@ TEST_F(SceneSerializerSpec, DeferredUserComponents_ApplyWhenTypesRegister)
     EXPECT_TRUE(mUserComponents->GetDeferred().empty());
 
     bool found = false;
-    mRegistry->CreateMutation()->Each<fg::NameComponent, SpecHealth>(
-        [&](auto, fg::NameComponent &name, SpecHealth &comp) {
+    mRegistry->CreateMutation()->Each(
+        [&](fg::NameComponent &name, SpecHealth &comp) {
             if(name.name != "WithHealth")
             {
                 return;
@@ -612,7 +612,7 @@ TEST_F(SceneSerializerSpec, RoundTrip_ThirdPersonCamera)
                                             "ThirdPersonCameraComponent", "Third Person Camera");
 
     bool attached = false;
-    mRegistry->CreateMutation()->Each<fg::NameComponent>([&](auto entity, fg::NameComponent &name) {
+    mRegistry->CreateMutation()->Each([&](fr::Entity entity, fg::NameComponent &name) {
         if(name.name != "Main Camera" || attached)
         {
             return;
@@ -625,8 +625,8 @@ TEST_F(SceneSerializerSpec, RoundTrip_ThirdPersonCamera)
     mRegistry->ExecuteTasks();
 
     bool found = false;
-    mRegistry->CreateMutation()->Each<fg::NameComponent, SpecOrbit>(
-        [&](auto, fg::NameComponent &name, SpecOrbit &orbit) {
+    mRegistry->CreateMutation()->Each(
+        [&](fg::NameComponent &name, SpecOrbit &orbit) {
             if(name.name != "Main Camera")
             {
                 return;
@@ -646,8 +646,8 @@ TEST_F(SceneSerializerSpec, RoundTrip_ThirdPersonCamera)
     ASSERT_TRUE(mScene->RestoreSnapshot(json));
 
     found = false;
-    mRegistry->CreateMutation()->Each<fg::NameComponent, SpecOrbit>(
-        [&](auto, fg::NameComponent &name, SpecOrbit &orbit) {
+    mRegistry->CreateMutation()->Each(
+        [&](fg::NameComponent &name, SpecOrbit &orbit) {
             if(name.name != "Main Camera")
             {
                 return;
@@ -686,8 +686,8 @@ TEST_F(SceneSerializerSpec, RoundTrip_BillboardParticlesAndCellEffect)
     bool foundBillboard = false;
     bool foundParticles = false;
     bool foundEffect    = false;
-    mRegistry->CreateMutation()->Each<fg::NameComponent, fg::BillboardComponent>(
-        [&](auto, fg::NameComponent &name, fg::BillboardComponent &billboard) {
+    mRegistry->CreateMutation()->Each(
+        [&](fg::NameComponent &name, fg::BillboardComponent &billboard) {
             if(name.name != "Vfx Quad")
             {
                 return;
@@ -698,8 +698,8 @@ TEST_F(SceneSerializerSpec, RoundTrip_BillboardParticlesAndCellEffect)
             EXPECT_EQ(billboard.blend, fra::BillboardBlend::Additive);
             EXPECT_EQ(billboard.layer, fra::BillboardLayer::Ui);
         });
-    mRegistry->CreateMutation()->Each<fg::NameComponent, fg::ParticleEmitterComponent>(
-        [&](auto, fg::NameComponent &name, fg::ParticleEmitterComponent &particles) {
+    mRegistry->CreateMutation()->Each(
+        [&](fg::NameComponent &name, fg::ParticleEmitterComponent &particles) {
             if(name.name != "Magic")
             {
                 return;
@@ -708,8 +708,8 @@ TEST_F(SceneSerializerSpec, RoundTrip_BillboardParticlesAndCellEffect)
             EXPECT_NEAR(particles.spawnRate, 32.0f, kEpsilon);
             EXPECT_NEAR(particles.lifetime, 1.25f, kEpsilon);
         });
-    mRegistry->CreateMutation()->Each<fg::NameComponent, fg::FullscreenEffectComponent>(
-        [&](auto, fg::NameComponent &name, fg::FullscreenEffectComponent &fx) {
+    mRegistry->CreateMutation()->Each(
+        [&](fg::NameComponent &name, fg::FullscreenEffectComponent &fx) {
             if(name.name != "Toon")
             {
                 return;
@@ -741,8 +741,8 @@ TEST_F(SceneSerializerSpec, RoundTrip_ParentChildPreservesLocalTransform)
 
     fr::Entity restoredParent = fg::kInvalidEntity;
     fr::Entity restoredChild  = fg::kInvalidEntity;
-    mRegistry->CreateMutation()->Each<fg::NameComponent>(
-        [&](auto entity, fg::NameComponent &name) {
+    mRegistry->CreateMutation()->Each(
+        [&](fr::Entity entity, fg::NameComponent &name) {
             if(name.name == "Parent")
             {
                 restoredParent = entity;

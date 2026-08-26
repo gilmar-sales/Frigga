@@ -28,8 +28,8 @@ namespace FRIGGA_NAMESPACE
         }
 
         // Push kinematic transforms authored by gameplay / editor into the world.
-        mRegistry->CreateMutation()->Each<TransformComponent, RigidBodyComponent>(
-            [&](auto entity, TransformComponent &, RigidBodyComponent &rigidBody) {
+        mRegistry->CreateMutation()->Each(
+            [&](fr::Entity entity, TransformComponent &, RigidBodyComponent &rigidBody) {
                 if(!rigidBody.body.IsValid())
                 {
                     return;
@@ -51,8 +51,8 @@ namespace FRIGGA_NAMESPACE
         }
 
         // Write dynamic simulation poses back to ECS transforms.
-        mRegistry->CreateMutation()->Each<TransformComponent, RigidBodyComponent>(
-            [&](auto entity, TransformComponent &, RigidBodyComponent &rigidBody) {
+        mRegistry->CreateMutation()->Each(
+            [&](fr::Entity entity, TransformComponent &, RigidBodyComponent &rigidBody) {
                 if(mPhysicsWorld->FindCharacter(static_cast<std::uint64_t>(entity)).IsValid())
                 {
                     return;

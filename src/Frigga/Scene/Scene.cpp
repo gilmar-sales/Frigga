@@ -59,8 +59,8 @@ namespace FRIGGA_NAMESPACE
         }
 
         std::vector<fr::Entity> entities;
-        mEcsRegistry->CreateMutation()->Each<NameComponent>(
-            [&](auto entity, NameComponent &) { entities.push_back(entity); });
+        mEcsRegistry->CreateMutation()->Each(
+            [&](fr::Entity entity, NameComponent &) { entities.push_back(entity); });
 
         for(const auto entity : entities)
         {

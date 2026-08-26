@@ -320,7 +320,7 @@ namespace FRIGGA_NAMESPACE
             };
         ops.forEachEntity =
             [](fr::Registry &reg, const std::function<void(fr::Entity)> &visit) {
-                reg.CreateMutation()->Each<T>(
+                reg.CreateMutation()->Each(
                     [&](fr::Entity entity, T &) { visit(entity); });
             };
         if(detach == UserComponentDetachPolicy::Keep)
@@ -332,7 +332,7 @@ namespace FRIGGA_NAMESPACE
         {
             ops.removeFromAllEntities = [](fr::Registry &reg) {
                 std::vector<fr::Entity> toStrip;
-                reg.CreateMutation()->Each<T>(
+                reg.CreateMutation()->Each(
                     [&](fr::Entity entity, T &) { toStrip.push_back(entity); });
                 for(const auto entity : toStrip)
                 {

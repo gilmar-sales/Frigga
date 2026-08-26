@@ -269,8 +269,8 @@ namespace FRIGGA_NAMESPACE
         const glm::mat4 proj     = FlipYProjection(vulkanProjection);
         const glm::mat4 viewProj = proj * view;
 
-        registry->CreateMutation()->Each<TransformComponent, RigidBodyComponent>(
-            [&](auto entity, TransformComponent &, RigidBodyComponent &rigidBody) {
+        registry->CreateMutation()->Each(
+            [&](fr::Entity entity, TransformComponent &, RigidBodyComponent &rigidBody) {
                 const bool selected = entity == selectedEntity;
                 // Static/Kinematic are never "active" in Jolt — only dim sleeping Dynamics.
                 bool inactive = false;

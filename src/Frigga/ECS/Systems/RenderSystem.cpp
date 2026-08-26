@@ -165,8 +165,8 @@ namespace FRIGGA_NAMESPACE
         };
 
         // Prefer an explicitly marked primary camera.
-        mRegistry->CreateMutation()->Each<TransformComponent, CameraComponent>(
-            [&applyCamera](auto entity, TransformComponent &, CameraComponent &camera) {
+        mRegistry->CreateMutation()->Each(
+            [&applyCamera](fr::Entity entity, TransformComponent &, CameraComponent &camera) {
                 if(camera.primary)
                 {
                     applyCamera(entity, camera);
@@ -176,8 +176,8 @@ namespace FRIGGA_NAMESPACE
         // Fallback: locked Main Camera, then any camera.
         if(!updated)
         {
-            mRegistry->CreateMutation()->Each<TransformComponent, CameraComponent>(
-                [&applyCamera](auto entity, TransformComponent &, CameraComponent &camera) {
+            mRegistry->CreateMutation()->Each(
+                [&applyCamera](fr::Entity entity, TransformComponent &, CameraComponent &camera) {
                     if(camera.locked)
                     {
                         applyCamera(entity, camera);
@@ -187,8 +187,8 @@ namespace FRIGGA_NAMESPACE
 
         if(!updated)
         {
-            mRegistry->CreateMutation()->Each<TransformComponent, CameraComponent>(
-                [&applyCamera](auto entity, TransformComponent &, CameraComponent &camera) {
+            mRegistry->CreateMutation()->Each(
+                [&applyCamera](fr::Entity entity, TransformComponent &, CameraComponent &camera) {
                     applyCamera(entity, camera);
                 });
         }
@@ -200,8 +200,8 @@ namespace FRIGGA_NAMESPACE
         // empty UBO into every in-flight ring slot, so the GPU lighting pass
         // often samples zeros. Click/pick waitIdle then shows one correct frame.
         std::vector<fra::Light> wanted;
-        mRegistry->CreateMutation()->Each<TransformComponent, LightComponent>(
-            [&](auto entity, TransformComponent &, LightComponent &light) {
+        mRegistry->CreateMutation()->Each(
+            [&](fr::Entity entity, TransformComponent &, LightComponent &light) {
                 wanted.push_back(MakeGpuLight(TransformUtil::WorldPose(*mRegistry, entity), light));
             });
 
@@ -238,8 +238,8 @@ namespace FRIGGA_NAMESPACE
         const fr::Entity isolatedEntity = isolate ? mScene->GetRenderIsolation()
                                                   : static_cast<fr::Entity>(-1);
 
-        mRegistry->CreateMutation()->Each<TransformComponent, MeshComponent, MaterialComponent>(
-            [this, isolate, isolatedEntity](auto entity, TransformComponent &,
+        mRegistry->CreateMutation()->Each(
+            [this, isolate, isolatedEntity](fr::Entity entity, TransformComponent &,
                                             MeshComponent &mesh, MaterialComponent &material) {
                 if(isolate && entity != isolatedEntity)
                 {
@@ -324,8 +324,8 @@ namespace FRIGGA_NAMESPACE
             return isolate && entity != isolatedEntity;
         };
 
-        mRegistry->CreateMutation()->Each<TransformComponent, BillboardComponent>(
-            [&](auto entity, TransformComponent &, BillboardComponent &billboard) {
+        mRegistry->CreateMutation()->Each(
+            [&](fr::Entity entity, TransformComponent &, BillboardComponent &billboard) {
                 if(skip(entity))
                 {
                     return;
@@ -348,8 +348,8 @@ namespace FRIGGA_NAMESPACE
                 draw.Quad(quad);
             });
 
-        mRegistry->CreateMutation()->Each<TransformComponent, HealthBarComponent>(
-            [&](auto entity, TransformComponent &, HealthBarComponent &bar) {
+        mRegistry->CreateMutation()->Each(
+            [&](fr::Entity entity, TransformComponent &, HealthBarComponent &bar) {
                 if(skip(entity))
                 {
                     return;
@@ -359,8 +359,8 @@ namespace FRIGGA_NAMESPACE
                                std::clamp(bar.fill, 0.0f, 1.0f), bar.background, bar.foreground);
             });
 
-        mRegistry->CreateMutation()->Each<TransformComponent, BillboardTextComponent>(
-            [&](auto entity, TransformComponent &, BillboardTextComponent &label) {
+        mRegistry->CreateMutation()->Each(
+            [&](fr::Entity entity, TransformComponent &, BillboardTextComponent &label) {
                 if(skip(entity) || label.text.empty())
                 {
                     return;
@@ -377,8 +377,8 @@ namespace FRIGGA_NAMESPACE
             });
 
         std::unordered_set<fr::Entity> liveEmitters;
-        mRegistry->CreateMutation()->Each<TransformComponent, ParticleEmitterComponent>(
-            [&](auto entity, TransformComponent &, ParticleEmitterComponent &source) {
+        mRegistry->CreateMutation()->Each(
+            [&](fr::Entity entity, TransformComponent &, ParticleEmitterComponent &source) {
                 if(skip(entity))
                 {
                     return;
@@ -412,8 +412,8 @@ namespace FRIGGA_NAMESPACE
         }
 
         std::unordered_set<fr::Entity> live;
-        mRegistry->CreateMutation()->Each<FullscreenEffectComponent>(
-            [&](auto entity, FullscreenEffectComponent &comp) {
+        mRegistry->CreateMutation()->Each(
+            [&](fr::Entity entity, FullscreenEffectComponent &comp) {
                 live.insert(entity);
 
                 const auto stageName =

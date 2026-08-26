@@ -73,8 +73,8 @@ TEST_F(SceneSerializerAudioSpec, RoundTripsAudioComponents)
     bool foundSource   = false;
     bool foundListener = false;
 
-    mRegistry->CreateMutation()->Each<fg::NameComponent>(
-        [&](auto entity, fg::NameComponent &name) {
+    mRegistry->CreateMutation()->Each(
+        [&](fr::Entity entity, fg::NameComponent &name) {
             if(name.name == "SFX Source")
             {
                 mRegistry->TryGetComponents<fg::AudioSourceComponent>(

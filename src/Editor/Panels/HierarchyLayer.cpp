@@ -902,8 +902,8 @@ bool HierarchyLayer::isEntityLocked(fr::Entity entity) const
 
 void HierarchyLayer::setPrimaryCamera(fr::Entity entity)
 {
-    mRegistry->CreateMutation()->Each<fg::CameraComponent>(
-        [entity](auto candidate, fg::CameraComponent &camera) {
+    mRegistry->CreateMutation()->Each(
+        [entity](fr::Entity candidate, fg::CameraComponent &camera) {
             camera.primary = (candidate == entity);
         });
 }
@@ -1154,15 +1154,15 @@ void HierarchyLayer::onGui()
     }
 
     std::unordered_set<fr::Entity> nested;
-    mRegistry->CreateMutation()->Each<fg::NameComponent>(
-        [this, &nested](auto entity, fg::NameComponent &) {
+    mRegistry->CreateMutation()->Each(
+        [this, &nested](fr::Entity entity, fg::NameComponent &) {
             if(fg::TransformUtil::ParentOf(*mRegistry, entity) != fg::kInvalidEntity)
             {
                 nested.insert(entity);
             }
         });
-    mRegistry->CreateMutation()->Each<fg::NameComponent>(
-        [this, &nested](auto entity, fg::NameComponent &name) {
+    mRegistry->CreateMutation()->Each(
+        [this, &nested](fr::Entity entity, fg::NameComponent &name) {
             if(!nested.contains(entity))
             {
                 drawEntityNode(entity, name);

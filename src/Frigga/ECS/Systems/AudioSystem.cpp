@@ -35,8 +35,8 @@ namespace FRIGGA_NAMESPACE
 
     void AudioSystem::stopAllSources()
     {
-        mRegistry->CreateMutation()->Each<AudioSourceComponent>(
-            [&](auto /*entity*/, AudioSourceComponent &source) {
+        mRegistry->CreateMutation()->Each(
+            [&](fr::Entity /*entity*/, AudioSourceComponent &source) {
                 releaseSource(source);
                 source.desired       = AudioPlaybackState::Stopped;
                 source.oneShot       = false;
@@ -71,8 +71,8 @@ namespace FRIGGA_NAMESPACE
     void AudioSystem::syncListener()
     {
         fr::Entity listenerEntity = kInvalidEntity;
-        mRegistry->CreateMutation()->Each<AudioListenerComponent, TransformComponent>(
-            [&](auto entity, AudioListenerComponent &listener, TransformComponent &) {
+        mRegistry->CreateMutation()->Each(
+            [&](fr::Entity entity, AudioListenerComponent &listener, TransformComponent &) {
                 if(listener.active && listenerEntity == kInvalidEntity)
                 {
                     listenerEntity = entity;
@@ -100,8 +100,8 @@ namespace FRIGGA_NAMESPACE
 
     void AudioSystem::syncSources()
     {
-        mRegistry->CreateMutation()->Each<AudioSourceComponent, TransformComponent>(
-            [&](auto entity, AudioSourceComponent &source, TransformComponent &) {
+        mRegistry->CreateMutation()->Each(
+            [&](fr::Entity entity, AudioSourceComponent &source, TransformComponent &) {
                 if(source.eventPath.empty())
                 {
                     releaseSource(source);
@@ -224,8 +224,8 @@ namespace FRIGGA_NAMESPACE
         if(!mSimulation->IsRunning())
         {
             // Simulation paused: keep instances but pause playback.
-            mRegistry->CreateMutation()->Each<AudioSourceComponent>(
-                [&](auto /*entity*/, AudioSourceComponent &source) {
+            mRegistry->CreateMutation()->Each(
+                [&](fr::Entity /*entity*/, AudioSourceComponent &source) {
                     if(source.instance.IsValid())
                     {
                         mAudioEngine->PauseEvent(source.instance, true);

@@ -135,8 +135,8 @@ namespace FRIGGA_NAMESPACE
         const float aspect       = imageSize.x / imageSize.y;
 
         // Draw every scene camera so gizmos are visible and pickable; highlight selection.
-        registry->CreateMutation()->Each<TransformComponent, CameraComponent>(
-            [&](auto entity, TransformComponent &transform, CameraComponent &camera) {
+        registry->CreateMutation()->Each(
+            [&](fr::Entity entity, TransformComponent &transform, CameraComponent &camera) {
                 const auto pose = TransformUtil::WorldPose(*registry, entity);
                 TransformComponent worldXf = transform;
                 worldXf.position           = pose.position;
@@ -191,8 +191,8 @@ namespace FRIGGA_NAMESPACE
         float bestDistSq = std::numeric_limits<float>::max();
         bool found       = false;
 
-        registry->CreateMutation()->Each<TransformComponent, CameraComponent>(
-            [&](auto entity, TransformComponent &transform, CameraComponent &camera) {
+        registry->CreateMutation()->Each(
+            [&](fr::Entity entity, TransformComponent &transform, CameraComponent &camera) {
                 const auto pose = TransformUtil::WorldPose(*registry, entity);
                 TransformComponent worldXf = transform;
                 worldXf.position           = pose.position;

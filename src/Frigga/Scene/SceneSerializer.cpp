@@ -1178,7 +1178,7 @@ namespace FRIGGA_NAMESPACE
         auto registry = scene.mEcsRegistry;
 
         std::vector<fr::Entity> serializedEntities;
-        registry->CreateMutation()->Each<NameComponent>([&](auto entity, NameComponent &name) {
+        registry->CreateMutation()->Each([&](fr::Entity entity, NameComponent &name) {
             document.entities.push_back(FillEntityDto(*registry, scene.mPrimitives, scene.mAssets,
                                                        scene.mLogger, scene.mUserComponents,
                                                        entity, name.name));
@@ -2498,8 +2498,8 @@ namespace FRIGGA_NAMESPACE
 
             if(!preserveFlags && camera.primary)
             {
-                registry->CreateMutation()->Each<CameraComponent>(
-                    [entity](auto candidate, CameraComponent &cam) {
+                registry->CreateMutation()->Each(
+                    [entity](fr::Entity candidate, CameraComponent &cam) {
                         cam.primary = (candidate == entity);
                     });
             }
@@ -2940,8 +2940,8 @@ namespace FRIGGA_NAMESPACE
         }
 
         std::unordered_set<fr::Entity> before;
-        scene.mEcsRegistry->CreateMutation()->Each<NameComponent>(
-            [&](auto entity, NameComponent &) { before.insert(entity); });
+        scene.mEcsRegistry->CreateMutation()->Each(
+            [&](fr::Entity entity, NameComponent &) { before.insert(entity); });
 
         if(!Deserialize(scene, wrapped))
         {
@@ -2954,8 +2954,8 @@ namespace FRIGGA_NAMESPACE
         scene.mMainCameraEntity = savedMain;
 
         std::vector<fr::Entity> created;
-        scene.mEcsRegistry->CreateMutation()->Each<NameComponent>(
-            [&](auto entity, NameComponent &) {
+        scene.mEcsRegistry->CreateMutation()->Each(
+            [&](fr::Entity entity, NameComponent &) {
                 if(!before.contains(entity))
                 {
                     created.push_back(entity);

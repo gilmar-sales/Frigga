@@ -265,8 +265,8 @@ namespace FRIGGA_NAMESPACE
     {
         mPhysicsWorld->Clear();
 
-        mRegistry->CreateMutation()->Each<TransformComponent, RigidBodyComponent>(
-            [&](auto entity, TransformComponent &transform, RigidBodyComponent &rigidBody) {
+        mRegistry->CreateMutation()->Each(
+            [&](fr::Entity entity, TransformComponent &transform, RigidBodyComponent &rigidBody) {
                 if(mUserComponents &&
                    EntityHasCharacterController(*mRegistry, *mUserComponents, entity))
                 {
@@ -330,8 +330,8 @@ namespace FRIGGA_NAMESPACE
                     mPhysicsWorld->DestroyCharacter(handle);
                 }
             });
-        mRegistry->CreateMutation()->Each<RigidBodyComponent>(
-            [&](auto, RigidBodyComponent &rigidBody) {
+        mRegistry->CreateMutation()->Each(
+            [&](RigidBodyComponent &rigidBody) {
                 if(rigidBody.body.IsValid())
                 {
                     mPhysicsWorld->DestroyBody(rigidBody.body);

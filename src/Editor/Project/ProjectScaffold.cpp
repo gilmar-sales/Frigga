@@ -292,7 +292,7 @@ GameplaySystem::GameplaySystem(const skr::Arc<fr::Registry> &registry) : fr::Sys
 
 void GameplaySystem::Update(float)
 {
-    mRegistry->CreateMutation()->Each<fg::NameComponent, Health>(
+    mRegistry->CreateMutation()->Each(
         [](fr::Entity, fg::NameComponent &name, Health &health) {
             if(name.name != "Player" && name.name != "Cube")
             {
@@ -383,7 +383,7 @@ struct Health: fr::Component
         out << "2. In `FRI_MODULE`: `module.Component<Foo>()`\n";
         out << "3. Build + **Reload Gameplay Module**.\n";
         out << "4. In the Editor: Entity → Add Component → Gameplay → Foo.\n";
-        out << "5. In a Freyr `System::Update`: `CreateMutation()->Each<Foo>(...)` "
+        out << "5. In a Freyr `System::Update`: `CreateMutation()->Each([](fr::Entity, Foo& foo) { ... })` "
                "(Simulation pipeline — Play mode only).\n\n";
         out << "## Gameplay systems\n\n";
         out << "Inherit `fr::System` and register with `module.System<MySystem>()` "

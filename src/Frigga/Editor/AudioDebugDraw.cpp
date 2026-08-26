@@ -69,8 +69,8 @@ namespace FRIGGA_NAMESPACE
 
         const glm::mat4 viewProj = FlipYProjection(vulkanProjection) * view;
 
-        registry->CreateMutation()->Each<TransformComponent, AudioSourceComponent>(
-            [&](auto entity, TransformComponent &, AudioSourceComponent &) {
+        registry->CreateMutation()->Each(
+            [&](fr::Entity entity, TransformComponent &, AudioSourceComponent &) {
                 ImVec2 screen {};
                 if(!Project(TransformUtil::WorldPose(*registry, entity).position, viewProj,
                             imageMin, imageSize, screen))
@@ -85,8 +85,8 @@ namespace FRIGGA_NAMESPACE
                                           selected);
             });
 
-        registry->CreateMutation()->Each<TransformComponent, AudioListenerComponent>(
-            [&](auto entity, TransformComponent &, AudioListenerComponent &) {
+        registry->CreateMutation()->Each(
+            [&](fr::Entity entity, TransformComponent &, AudioListenerComponent &) {
                 ImVec2 screen {};
                 if(!Project(TransformUtil::WorldPose(*registry, entity).position, viewProj,
                             imageMin, imageSize, screen))
@@ -122,14 +122,14 @@ namespace FRIGGA_NAMESPACE
         float bestDistSq = std::numeric_limits<float>::max();
         bool found       = false;
 
-        registry->CreateMutation()->Each<TransformComponent, AudioSourceComponent>(
-            [&](auto entity, TransformComponent &, AudioSourceComponent &) {
+        registry->CreateMutation()->Each(
+            [&](fr::Entity entity, TransformComponent &, AudioSourceComponent &) {
                 ConsiderHit(entity, TransformUtil::WorldPose(*registry, entity).position, viewProj,
                             imageMin, imageSize, mouse, radiusSq, bestEntity, bestDistSq, found);
             });
 
-        registry->CreateMutation()->Each<TransformComponent, AudioListenerComponent>(
-            [&](auto entity, TransformComponent &, AudioListenerComponent &) {
+        registry->CreateMutation()->Each(
+            [&](fr::Entity entity, TransformComponent &, AudioListenerComponent &) {
                 ConsiderHit(entity, TransformUtil::WorldPose(*registry, entity).position, viewProj,
                             imageMin, imageSize, mouse, radiusSq, bestEntity, bestDistSq, found);
             });
