@@ -1,7 +1,7 @@
 #include "EmptyApp.hpp"
 
 #include <Frigga/ECS/UserComponentRegistry.hpp>
-#include <Frigga/Plugin/FriPluginModule.hpp>
+#include <Frigga/Module/FriModule.hpp>
 
 #include <Freyr/Core/SystemManager.hpp>
 #include <Freyr/Freyr.hpp>
@@ -45,7 +45,7 @@ namespace
     };
 } // namespace
 
-TEST(FriPluginModule, BuilderRegistersComponentSystemAndDiLifetimes_ThenDetachClears)
+TEST(FriModule, BuilderRegistersComponentSystemAndDiLifetimes_ThenDetachClears)
 {
     gProbeTicks = 0;
 
@@ -68,17 +68,17 @@ TEST(FriPluginModule, BuilderRegistersComponentSystemAndDiLifetimes_ThenDetachCl
 
     auto userComponents = skr::MakeArc<fg::UserComponentRegistry>();
 
-    FriPlugin plugin {};
+    FriModule module {};
     const FriHost host {
         .registry         = registry.get(),
         .user_components  = userComponents.get(),
         .system_manager   = systemManager.get(),
         .services         = services.get(),
-        .plugin_id        = "probe",
-        .plugin_name      = "Probe Plugin",
+        .module_id        = "probe",
+        .module_name      = "Probe Module",
     };
 
-    fg::FriPluginBuilder builder(plugin, host);
+    fg::FriModuleBuilder builder(module, host);
     ASSERT_TRUE(builder.IsValid());
 
     builder.Component<ProbeComponent>()
@@ -98,7 +98,7 @@ TEST(FriPluginModule, BuilderRegistersComponentSystemAndDiLifetimes_ThenDetachCl
     EXPECT_GE(gProbeTicks, 1u);
 
     const auto ticksAfterRun = gProbeTicks;
-    plugin.runtime.Detach();
+    module.runtime.Detach();
 
     EXPECT_FALSE(systemManager->IsSystemRegistered<ProbeSystem>());
     EXPECT_FALSE(services->Contains<ProbeSystem>());

@@ -1,15 +1,15 @@
 #pragma once
 
 /**
- * @file FriPluginModule.hpp
- * @brief Fluent registration helpers for Frigga gameplay plugins.
+ * @file FriModule.hpp
+ * @brief Fluent registration helpers for Frigga gameplay modules.
  *
- * Define the plugin with FRI_PLUGIN_MODULE:
+ * Define the module with FRI_MODULE:
  *
  * @code
- * FRI_PLUGIN_MODULE(plugin)
+ * FRI_MODULE(module)
  * {
- *     plugin.Component<Health>()
+ *     module.Component<Health>()
  *           .Component<CharacterControllerComponent>(
  *               "CharacterControllerComponent", "Character Controller",
  *               DrawCharacterController)
@@ -21,9 +21,9 @@
  * A draw callback is optional. Without one, the Editor falls back to reflection.
  */
 
-#include "frigga_plugin.h"
-#include "Frigga/Plugin/FriPluginSdk.hpp"
-#include "Frigga/Plugin/FriComponentInspector.hpp"
+#include "frigga_module.h"
+#include "Frigga/Module/FriPluginSdk.hpp"
+#include "Frigga/Module/FriComponentInspector.hpp"
 
 #include "Frigga/ECS/UserComponentReflection.hpp"
 
@@ -39,7 +39,7 @@
 
 namespace FRIGGA_NAMESPACE
 {
-    namespace fri_plugin_detail
+    namespace fri_module_detail
     {
         [[nodiscard]] inline std::string ShortTypeName(std::string_view full)
         {
@@ -50,9 +50,9 @@ namespace FRIGGA_NAMESPACE
             }
             return std::string(full.substr(pos + 1));
         }
-    } // namespace fri_plugin_detail
+    } // namespace fri_module_detail
 
-    struct FriPluginRuntime
+    struct FriModuleRuntime
     {
         fr::SystemManager *systemManager = nullptr;
         skr::ServiceProvider *services   = nullptr;
@@ -71,26 +71,26 @@ namespace FRIGGA_NAMESPACE
     };
 } // namespace FRIGGA_NAMESPACE
 
-struct FriPlugin
+struct FriModule
 {
-    fg::FriPluginRuntime runtime;
+    fg::FriModuleRuntime runtime;
 };
 
 namespace FRIGGA_NAMESPACE
 {
-    class FriPluginBuilder
+    class FriModuleBuilder
     {
       public:
-        FriPluginBuilder(FriPlugin &plugin, const FriHost &host)
-            : mPlugin(&plugin),
+        FriModuleBuilder(FriModule &module, const FriHost &host)
+            : mModule(&module),
               mRegistry(static_cast<fr::Registry *>(host.registry)),
               mUserComponents(static_cast<UserComponentRegistry *>(host.user_components)),
               mSystemManager(static_cast<fr::SystemManager *>(host.system_manager)),
               mServices(static_cast<skr::ServiceProvider *>(host.services)),
-              mPluginId(host.plugin_id ? host.plugin_id : ""),
-              mPluginName(host.plugin_name && host.plugin_name[0] != '\0'
-                              ? host.plugin_name
-                              : mPluginId)
+              mModuleId(host.module_id ? host.module_id : ""),
+              mModuleName(host.module_name && host.module_name[0] != '\0'
+                              ? host.module_name
+                              : mModuleId)
         {
         }
 
@@ -101,7 +101,7 @@ namespace FRIGGA_NAMESPACE
 
         template <typename T>
             requires fr::IsComponent<T>
-        FriPluginBuilder &Component(std::string_view typeId = {},
+        FriModuleBuilder &Component(std::string_view typeId = {},
                                     std::string_view displayName = {},
                                     UserComponentDetachPolicy detach =
                                         UserComponentDetachPolicy::Unregister)
@@ -111,7 +111,7 @@ namespace FRIGGA_NAMESPACE
 
         template <typename T>
             requires fr::IsComponent<T>
-        FriPluginBuilder &Component(std::string_view typeId, std::string_view displayName,
+        FriModuleBuilder &Component(std::string_view typeId, std::string_view displayName,
                                     FriDrawComponent<T> draw,
                                     UserComponentDetachPolicy detach =
                                         UserComponentDetachPolicy::Unregister)
@@ -122,17 +122,17 @@ namespace FRIGGA_NAMESPACE
             }
 
             const std::string id =
-                typeId.empty() ? fri_plugin_detail::ShortTypeName(refl::type_name<T>())
+                typeId.empty() ? fri_module_detail::ShortTypeName(refl::type_name<T>())
                                : std::string(typeId);
             FriRegisterUserComponent<T>(*mRegistry, *mUserComponents, id, displayName, detach,
-                                        draw, mPluginId, mPluginName);
+                                        draw, mModuleId, mModuleName);
             return *this;
         }
 
         /// Registers T as a Freyr system (host Singleton + pipeline). Default: Simulation.
         template <typename T>
             requires fr::IsSystem<T>
-        FriPluginBuilder &System(std::string_view pipeline = "Simulation")
+        FriModuleBuilder &System(std::string_view pipeline = "Simulation")
         {
             if(!IsValid())
             {
@@ -148,9 +148,9 @@ namespace FRIGGA_NAMESPACE
             }
 
             mSystemManager->RegisterSystem<T>(*pipelineId);
-            mPlugin->runtime.systemManager = mSystemManager;
-            mPlugin->runtime.services      = mServices;
-            mPlugin->runtime.detachOps.push_back([sm = mSystemManager, svc = mServices]() {
+            mModule->runtime.systemManager = mSystemManager;
+            mModule->runtime.services      = mServices;
+            mModule->runtime.detachOps.push_back([sm = mSystemManager, svc = mServices]() {
                 (void)sm->UnregisterSystem<T>();
                 (void)svc->Remove<T>();
             });
@@ -158,26 +158,26 @@ namespace FRIGGA_NAMESPACE
         }
 
         template <typename T>
-        FriPluginBuilder &Singleton()
+        FriModuleBuilder &Singleton()
         {
             return addService<T>([](skr::ServiceProvider &svc) { svc.AddSingleton<T>(); });
         }
 
         template <typename T>
-        FriPluginBuilder &Scoped()
+        FriModuleBuilder &Scoped()
         {
             return addService<T>([](skr::ServiceProvider &svc) { svc.AddScoped<T>(); });
         }
 
         template <typename T>
-        FriPluginBuilder &Transient()
+        FriModuleBuilder &Transient()
         {
             return addService<T>([](skr::ServiceProvider &svc) { svc.AddTransient<T>(); });
         }
 
       private:
         template <typename T, typename AddFn>
-        FriPluginBuilder &addService(AddFn &&add)
+        FriModuleBuilder &addService(AddFn &&add)
         {
             if(!IsValid())
             {
@@ -185,79 +185,79 @@ namespace FRIGGA_NAMESPACE
             }
 
             add(*mServices);
-            mPlugin->runtime.services = mServices;
-            mPlugin->runtime.detachOps.push_back([svc = mServices]() { (void)svc->Remove<T>(); });
+            mModule->runtime.services = mServices;
+            mModule->runtime.detachOps.push_back([svc = mServices]() { (void)svc->Remove<T>(); });
             return *this;
         }
 
-        FriPlugin *mPlugin                     = nullptr;
+        FriModule *mModule                     = nullptr;
         fr::Registry *mRegistry                = nullptr;
         UserComponentRegistry *mUserComponents = nullptr;
         fr::SystemManager *mSystemManager      = nullptr;
         skr::ServiceProvider *mServices        = nullptr;
-        std::string mPluginId;
-        std::string mPluginName;
+        std::string mModuleId;
+        std::string mModuleName;
     };
 } // namespace FRIGGA_NAMESPACE
 
 /**
- * Declares the plugin export and opens the fluent configure block.
- * @param name Identifier for the FriPluginBuilder parameter.
+ * Declares the module export and opens the fluent configure block.
+ * @param name Identifier for the FriModuleBuilder parameter.
  */
-#define FRI_PLUGIN_MODULE(name)                                                                    \
-    static void fri_plugin_configure(fg::FriPluginBuilder &name);                                  \
+#define FRI_MODULE(name)                                                                           \
+    static void fri_module_configure(fg::FriModuleBuilder &name);                                   \
                                                                                                    \
-    static FriPlugin *fri_plugin_create(void)                                                      \
+    static FriModule *fri_module_create(void)                                                      \
     {                                                                                              \
-        return new FriPlugin();                                                                    \
+        return new FriModule();                                                                    \
     }                                                                                              \
                                                                                                    \
-    static void fri_plugin_destroy(FriPlugin *plugin)                                              \
+    static void fri_module_destroy(FriModule *module)                                              \
     {                                                                                              \
-        if(plugin)                                                                                 \
+        if(module)                                                                                 \
         {                                                                                          \
-            plugin->runtime.Detach();                                                              \
-            delete plugin;                                                                         \
+            module->runtime.Detach();                                                              \
+            delete module;                                                                         \
         }                                                                                          \
     }                                                                                              \
                                                                                                    \
-    static void fri_plugin_on_attach(FriPlugin *plugin, const FriHost *host)                       \
+    static void fri_module_on_attach(FriModule *module, const FriHost *host)                       \
     {                                                                                              \
-        if(!plugin || !host)                                                                       \
+        if(!module || !host)                                                                       \
         {                                                                                          \
             return;                                                                                \
         }                                                                                          \
-        plugin->runtime.Detach();                                                                  \
-        fg::FriPluginBuilder builder(*plugin, *host);                                              \
+        module->runtime.Detach();                                                                  \
+        fg::FriModuleBuilder builder(*module, *host);                                              \
         if(!builder.IsValid())                                                                     \
         {                                                                                          \
             return;                                                                                \
         }                                                                                          \
-        fri_plugin_configure(builder);                                                             \
+        fri_module_configure(builder);                                                             \
     }                                                                                              \
                                                                                                    \
-    static void fri_plugin_on_detach(FriPlugin *plugin)                                            \
+    static void fri_module_on_detach(FriModule *module)                                            \
     {                                                                                              \
-        if(plugin)                                                                                 \
+        if(module)                                                                                 \
         {                                                                                          \
-            plugin->runtime.Detach();                                                              \
+            module->runtime.Detach();                                                              \
         }                                                                                          \
     }                                                                                              \
                                                                                                    \
-    static void fri_plugin_on_update(FriPlugin *, float)                                           \
+    static void fri_module_on_update(FriModule *, float)                                           \
     {                                                                                              \
     }                                                                                              \
                                                                                                    \
-    extern "C" FRI_PLUGIN_API const FriPluginApi *fri_plugin_api(void)                             \
+    extern "C" FRI_MODULE_API const FriModuleApi *fri_module_api(void)                             \
     {                                                                                              \
-        static const FriPluginApi api {                                                            \
-            .create    = fri_plugin_create,                                                        \
-            .destroy   = fri_plugin_destroy,                                                       \
-            .on_attach = fri_plugin_on_attach,                                                     \
-            .on_detach = fri_plugin_on_detach,                                                     \
-            .on_update = fri_plugin_on_update,                                                     \
+        static const FriModuleApi api {                                                            \
+            .create    = fri_module_create,                                                        \
+            .destroy   = fri_module_destroy,                                                       \
+            .on_attach = fri_module_on_attach,                                                     \
+            .on_detach = fri_module_on_detach,                                                     \
+            .on_update = fri_module_on_update,                                                     \
         };                                                                                         \
         return &api;                                                                               \
     }                                                                                              \
                                                                                                    \
-    static void fri_plugin_configure(fg::FriPluginBuilder &name)
+    static void fri_module_configure(fg::FriModuleBuilder &name)

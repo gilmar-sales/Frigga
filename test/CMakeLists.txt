@@ -19,7 +19,7 @@ include(GoogleTest)
 
 add_executable(frigga_tests
         EmptyApp.hpp
-        FriPluginModuleSpec.cpp
+        FriModuleSpec.cpp
         InputSpec.cpp
         LateSystemRegistrationSpec.cpp
         EcsLayoutSpec.cpp

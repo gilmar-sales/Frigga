@@ -19,7 +19,7 @@
 #include <Frigga/Asset/PrimitiveMeshFactory.hpp>
 #include <Frigga/Audio/IAudioEngine.hpp>
 #include <Frigga/Gui/Extensions/Extensions.hpp>
-#include <Frigga/Plugin/GameplayPluginHost.hpp>
+#include <Frigga/Module/GameplayModuleHost.hpp>
 
 #include <SDL3/SDL_dialog.h>
 
@@ -84,7 +84,7 @@ MainLayer::MainLayer(skr::Arc<fg::Scene> scene, skr::Arc<fg::LayerStack> layerSt
 
     mStatusBar = std::make_unique<StatusBar>(
         mSession, mScene, serviceProvider->GetService<fg::AssetRegistry>(),
-        serviceProvider->GetService<fg::GameplayPluginHost>(), mSimulation);
+        serviceProvider->GetService<fg::GameplayModuleHost>(), mSimulation);
 
     if(auto assets = serviceProvider->GetService<fg::AssetRegistry>())
     {
@@ -133,7 +133,7 @@ void MainLayer::handleShortcuts()
     {
         if(mSession->HasProject() && !mSession->IsBuilding() && !mSimulation->IsPlaying())
         {
-            mSession->BuildPlugin();
+            mSession->BuildModule();
         }
         return;
     }
@@ -142,7 +142,7 @@ void MainLayer::handleShortcuts()
     {
         if(!mSession->IsBuilding())
         {
-            mSession->ReloadPlugin();
+            mSession->ReloadModule();
         }
         return;
     }
@@ -514,17 +514,17 @@ void MainLayer::drawMenuBar()
             {
                 mSession->OpenInCodeEditor();
             }
-            if(ImGui::MenuItem("Build Plugins", "Ctrl+B"))
+            if(ImGui::MenuItem("Build Modules", "Ctrl+B"))
             {
-                mSession->BuildPlugin();
+                mSession->BuildModule();
             }
             if(ImGui::MenuItem("Migrate Project Files"))
             {
                 mSession->MigrateOpenProject(true);
             }
-            if(ImGui::MenuItem("Reload Plugins", "Ctrl+R"))
+            if(ImGui::MenuItem("Reload Modules", "Ctrl+R"))
             {
-                mSession->ReloadPlugin();
+                mSession->ReloadModule();
             }
             ImGui::EndDisabled();
             {
@@ -710,7 +710,7 @@ void MainLayer::drawMenuBar()
                 }
                 if(mSelection->HasSelection())
                 {
-                    mHierarchy->drawPluginAddComponentMenus(mSelection->Get());
+                    mHierarchy->drawModuleAddComponentMenus(mSelection->Get());
                 }
                 ImGui::EndDisabled();
                 ImGui::EndMenu();

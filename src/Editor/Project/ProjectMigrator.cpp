@@ -28,7 +28,7 @@ namespace
             return false;
         }
 
-        if(!ProjectScaffold::MaybeRewriteManagedPluginEntry(projectRoot, error))
+        if(!ProjectScaffold::MaybeRewriteManagedModuleEntry(projectRoot, error))
         {
             return false;
         }
@@ -85,7 +85,7 @@ ProjectMigrationResult ProjectMigrator::Migrate(const std::filesystem::path &pro
         return result;
     }
 
-    // v1: plugins/ (lowercase) with gameplay + extras; src/components + src/systems.
+    // v1: modules/ (lowercase) with gameplay + extras; src/components + src/systems.
     std::string stepError;
     if(!ApplyManagedLayout(projectFile.parent_path(), desc, stepError))
     {
@@ -109,9 +109,9 @@ ProjectMigrationResult ProjectMigrator::Migrate(const std::filesystem::path &pro
     else
     {
         msg << "Applied project format v" << result.toVersion
-            << " (plugins/ layout, FRI_PLUGIN_MODULE)";
+            << " (modules/ layout, FRI_MODULE)";
     }
-    msg << ". Rebuild the gameplay plugin.";
+    msg << ". Rebuild the gameplay module.";
     result.message = msg.str();
     return result;
 }

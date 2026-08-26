@@ -11,10 +11,10 @@
 
 StatusBar::StatusBar(skr::Arc<ProjectSession> session, skr::Arc<fg::Scene> scene,
                      skr::Arc<fg::AssetRegistry> assets,
-                     skr::Arc<fg::GameplayPluginHost> pluginHost,
+                     skr::Arc<fg::GameplayModuleHost> moduleHost,
                      skr::Arc<fg::SceneSimulationState> simulation)
     : mSession(std::move(session)), mScene(std::move(scene)), mAssets(std::move(assets)),
-      mPluginHost(std::move(pluginHost)), mSimulation(std::move(simulation))
+      mModuleHost(std::move(moduleHost)), mSimulation(std::move(simulation))
 {
 }
 
@@ -173,15 +173,15 @@ void StatusBar::drawStrip(const ImGuiViewport *viewport, float barHeight)
     const std::size_t models    = mAssets->GetModels().size();
     const std::size_t textures  = mAssets->GetTextures().size();
     const std::size_t materials = mAssets->GetMaterials().size();
-    const bool pluginLoaded     = mPluginHost->IsLoaded();
+    const bool moduleLoaded     = mModuleHost->IsLoaded();
     const std::size_t typeCount =
-        pluginLoaded ? mPluginHost->GetRegisteredTypeIds().size() : 0;
+        moduleLoaded ? mModuleHost->GetRegisteredTypeIds().size() : 0;
 
     const std::string stats = std::format(
-        "{}  ·  {}  ·  {} models  ·  {} textures  ·  {} mats  ·  plugin {}  ·  ",
+        "{}  ·  {}  ·  {} models  ·  {} textures  ·  {} mats  ·  module {}  ·  ",
         desc.name.empty() ? "Project" : desc.name, mScene->GetDisplayName(), models, textures,
         materials,
-        pluginLoaded ? std::format("{} plugins, {} types", mPluginHost->LoadedCount(), typeCount)
+        moduleLoaded ? std::format("{} modules, {} types", mModuleHost->LoadedCount(), typeCount)
                      : "unloaded");
 
     ImGui::AlignTextToFramePadding();
@@ -196,12 +196,12 @@ void StatusBar::drawStrip(const ImGuiViewport *viewport, float barHeight)
         ImGui::TextDisabled("%s", status.c_str());
     }
 
-    // Dedicated gameplay plugin actions (always on the editor status strip).
+    // Dedicated gameplay module actions (always on the editor status strip).
     const float progressWidth = EditorUiScale::S(140.0f);
-    const float pluginGroupWidth =
+    const float moduleGroupWidth =
         EditorUiScale::S(8.0f) + EditorUiScale::S(72.0f) + EditorUiScale::S(6.0f) +
         EditorUiScale::S(74.0f) + EditorUiScale::S(12.0f);
-    ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - progressWidth - pluginGroupWidth);
+    ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - progressWidth - moduleGroupWidth);
     ImGui::SetCursorPosY(ImGui::GetCursorPosY());
 
     {
@@ -212,12 +212,12 @@ void StatusBar::drawStrip(const ImGuiViewport *viewport, float barHeight)
         ImGui::BeginDisabled(busy || playing || !mSession->HasProject());
         if(ImGui::SmallButton(ICON_BTSP_HAMMER " Build##statusBuild"))
         {
-            mSession->BuildPlugin();
+            mSession->BuildModule();
             mTasksExpanded = true;
         }
         if(ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
         {
-            ImGui::SetTooltip("Build plugins (Ctrl+B)");
+            ImGui::SetTooltip("Build modules (Ctrl+B)");
         }
         ImGui::EndDisabled();
 
@@ -225,11 +225,11 @@ void StatusBar::drawStrip(const ImGuiViewport *viewport, float barHeight)
         ImGui::BeginDisabled(busy || !mSession->HasProject());
         if(ImGui::SmallButton(ICON_BTSP_RELOAD " Reload##statusReload"))
         {
-            mSession->ReloadPlugin();
+            mSession->ReloadModule();
         }
         if(ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
         {
-            ImGui::SetTooltip("Reload plugins (Ctrl+R)");
+            ImGui::SetTooltip("Reload modules (Ctrl+R)");
         }
         ImGui::EndDisabled();
         ImGui::PopStyleVar();

@@ -8,7 +8,7 @@
 #include <string_view>
 #include <vector>
 
-struct DiscoveredPlugin
+struct DiscoveredModule
 {
     std::string id;
     std::string name;
@@ -18,27 +18,27 @@ struct DiscoveredPlugin
     bool bundled = false;
 };
 
-class PluginCatalog
+class ModuleCatalog
 {
   public:
-    static constexpr const char *ManifestFileName = "plugin.json";
+    static constexpr const char *ManifestFileName = "module.json";
 
     [[nodiscard]] static std::string SanitizeId(std::string_view raw);
-    [[nodiscard]] static std::optional<DiscoveredPlugin> ReadManifest(
-        const std::filesystem::path &pluginRoot);
-    static bool WriteManifest(const std::filesystem::path &pluginRoot, const DiscoveredPlugin &plugin);
+    [[nodiscard]] static std::optional<DiscoveredModule> ReadManifest(
+        const std::filesystem::path &moduleRoot);
+    static bool WriteManifest(const std::filesystem::path &moduleRoot, const DiscoveredModule &module);
 
-    [[nodiscard]] static std::vector<DiscoveredPlugin> ScanDirectory(
+    [[nodiscard]] static std::vector<DiscoveredModule> ScanDirectory(
         const std::filesystem::path &dir, bool bundled = false);
 
-    [[nodiscard]] static std::vector<std::filesystem::path> BundledPluginSearchDirs(
+    [[nodiscard]] static std::vector<std::filesystem::path> BundledModuleSearchDirs(
         const std::filesystem::path &friggaSdk, const std::filesystem::path &friggaRoot,
         const std::filesystem::path &executableDir);
 
-    [[nodiscard]] static std::vector<DiscoveredPlugin> ScanBundled(
+    [[nodiscard]] static std::vector<DiscoveredModule> ScanBundled(
         const std::filesystem::path &friggaSdk, const std::filesystem::path &friggaRoot,
         const std::filesystem::path &executableDir);
 
-    static bool CopyPluginTree(const std::filesystem::path &from, const std::filesystem::path &to,
+    static bool CopyModuleTree(const std::filesystem::path &from, const std::filesystem::path &to,
                                std::string &error);
 };

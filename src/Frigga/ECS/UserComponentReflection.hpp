@@ -2,7 +2,7 @@
 
 #include "Frigga/ECS/Components/UserDataComponent.hpp"
 #include "Frigga/ECS/UserComponentRegistry.hpp"
-#include "Frigga/Plugin/FriComponentInspector.hpp"
+#include "Frigga/Module/FriComponentInspector.hpp"
 
 #include <Freyr/Freyr.hpp>
 
@@ -252,16 +252,16 @@ namespace FRIGGA_NAMESPACE
                                   UserComponentDetachPolicy detach =
                                       UserComponentDetachPolicy::Unregister,
                                   FriDrawComponent<T> draw = nullptr,
-                                  std::string_view pluginId = {},
-                                  std::string_view pluginName = {})
+                                  std::string_view moduleId = {},
+                                  std::string_view moduleName = {})
     {
         registry.RegisterComponent<T>();
 
         RuntimeComponentOps ops;
         ops.typeId      = std::string(typeId);
         ops.displayName = displayName.empty() ? ops.typeId : std::string(displayName);
-        ops.pluginId    = std::string(pluginId);
-        ops.pluginName  = pluginName.empty() ? ops.pluginId : std::string(pluginName);
+        ops.moduleId    = std::string(moduleId);
+        ops.moduleName  = moduleName.empty() ? ops.moduleId : std::string(moduleName);
         ops.componentId = fr::GetComponentId<T>();
 
         T sample {};

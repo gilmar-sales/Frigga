@@ -49,7 +49,7 @@ TEST(EcsLayout, ParseSerializeRoundTrip)
         .name     = "Simulation",
         .hz       = 60.0f,
         .enabled  = true,
-        .systems  = {"GameplayPluginBridge", "PhysicsSystem"},
+        .systems  = {"GameplayModuleBridge", "PhysicsSystem"},
     });
 
     std::string json;
@@ -61,7 +61,7 @@ TEST(EcsLayout, ParseSerializeRoundTrip)
     ASSERT_EQ(parsed.pipelines.size(), 2u);
     EXPECT_EQ(parsed.pipelines[1].hz, 60.0f);
     ASSERT_EQ(parsed.pipelines[1].systems.size(), 2u);
-    EXPECT_EQ(parsed.pipelines[1].systems[0], "GameplayPluginBridge");
+    EXPECT_EQ(parsed.pipelines[1].systems[0], "GameplayModuleBridge");
 }
 
 TEST(EcsLayout, EnforceLocksSimulationAt60AndPinsRenderLast)
@@ -147,7 +147,7 @@ TEST(EcsLayout, ApplyMovesUnknownSystemsToSimulationLast)
 
     const auto result = fg::ApplyEcsLayout(*registry, layout);
     ASSERT_TRUE(result.ok);
-    EXPECT_TRUE(result.addedPluginSystems);
+    EXPECT_TRUE(result.addedModuleSystems);
 
     const auto sim = registry->GetPipeline(*simulationId);
     ASSERT_FALSE(sim.Systems.empty());

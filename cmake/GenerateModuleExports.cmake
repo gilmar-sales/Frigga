@@ -1,11 +1,11 @@
-# Dump every plugin-facing symbol from the runtime static libs into a PE .def.
+# Dump every module-facing symbol from the runtime static libs into a PE .def.
 # Editor.exe cannot --export-all-symbols (PE max 65535; the full link overflows).
 # These four archives are the gameplay ABI (frigga/freyr/skirnir/simdjson); new
 # fg::/fr::/skr:: APIs are exported automatically — no namespace allowlist.
 #
 # T = code, R/D/B/S/C = data (vtables, typeinfo, simdjson tables). Data must be
-# marked DATA or the plugin import thunk points at a JMP, not the object.
-# libstdc++ / Itanium std instantiations stay in the plugin's own CRT.
+# marked DATA or the module import thunk points at a JMP, not the object.
+# libstdc++ / Itanium std instantiations stay in the module's own CRT.
 #
 # Expected -D: NM, OUT, LIB0..LIB7 (optional missing ok)
 
@@ -13,7 +13,7 @@ if(NOT NM)
     set(NM nm)
 endif()
 if(NOT OUT)
-    message(FATAL_ERROR "GeneratePluginExports: OUT is required")
+    message(FATAL_ERROR "GenerateModuleExports: OUT is required")
 endif()
 
 set(_libs "")
@@ -23,7 +23,7 @@ foreach(_i RANGE 0 7)
     endif()
 endforeach()
 if(_libs STREQUAL "")
-    message(FATAL_ERROR "GeneratePluginExports: no archive libraries found")
+    message(FATAL_ERROR "GenerateModuleExports: no archive libraries found")
 endif()
 
 set(_std_or_crt
@@ -65,10 +65,10 @@ list(LENGTH _code_syms _n_code)
 list(LENGTH _data_syms _n_data)
 math(EXPR _count "${_n_code} + ${_n_data}")
 if(_count EQUAL 0)
-    message(FATAL_ERROR "GeneratePluginExports: no matching symbols")
+    message(FATAL_ERROR "GenerateModuleExports: no matching symbols")
 endif()
 if(_count GREATER 65000)
-    message(FATAL_ERROR "GeneratePluginExports: ${_count} symbols exceeds PE export limit")
+    message(FATAL_ERROR "GenerateModuleExports: ${_count} symbols exceeds PE export limit")
 endif()
 
 set(_body "EXPORTS\n")
@@ -81,4 +81,4 @@ if(_n_data GREATER 0)
     string(APPEND _body "    ${_data_body} DATA\n")
 endif()
 file(WRITE "${OUT}" "${_body}")
-message(STATUS "GeneratePluginExports: wrote ${_count} symbols (${_n_code} code, ${_n_data} data) to ${OUT}")
+message(STATUS "GenerateModuleExports: wrote ${_count} symbols (${_n_code} code, ${_n_data} data) to ${OUT}")

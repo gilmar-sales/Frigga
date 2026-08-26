@@ -34,7 +34,7 @@ namespace FRIGGA_NAMESPACE
     struct EcsLayoutApplyResult
     {
         bool ok                   = false;
-        bool addedPluginSystems   = false;
+        bool addedModuleSystems   = false;
         std::string error;
     };
 

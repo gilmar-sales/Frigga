@@ -5,7 +5,7 @@
 #include "ProjectFile.hpp"
 #include "ProjectMigrator.hpp"
 #include "ProjectScaffold.hpp"
-#include "PluginCatalog.hpp"
+#include "ModuleCatalog.hpp"
 #include "ProjectEnginePaths.hpp"
 
 #include <Frigga/Asset/AssetRegistry.hpp>
@@ -221,7 +221,7 @@ namespace
 } // namespace
 
 ProjectSession::ProjectSession(skr::Arc<fg::Scene> scene,
-                               skr::Arc<fg::GameplayPluginHost> pluginHost,
+                               skr::Arc<fg::GameplayModuleHost> moduleHost,
                                skr::Arc<fg::SceneSimulationState> simulation,
                                skr::Arc<fg::Input> input,
                                skr::Arc<fg::AssetRegistry> assets,
@@ -229,7 +229,7 @@ ProjectSession::ProjectSession(skr::Arc<fg::Scene> scene,
                                skr::Arc<EditorPreferences> preferences,
                                skr::Arc<fra::Window> window,
                                skr::Arc<skr::Logger<ProjectSession>> logger)
-    : mScene(std::move(scene)), mPluginHost(std::move(pluginHost)),
+    : mScene(std::move(scene)), mModuleHost(std::move(moduleHost)),
       mSimulation(std::move(simulation)), mInput(std::move(input)), mAssets(std::move(assets)),
       mRegistry(std::move(registry)), mPreferences(std::move(preferences)),
       mWindow(std::move(window)), mLogger(std::move(logger))
@@ -297,7 +297,7 @@ std::string ProjectSession::GetLastError() const
     return mLastError;
 }
 
-PluginBuildPhase ProjectSession::GetBuildPhase() const
+ModuleBuildPhase ProjectSession::GetBuildPhase() const
 {
     return mBuildPhase.load(std::memory_order_acquire);
 }
@@ -332,38 +332,38 @@ std::string ProjectSession::GetBuildLogTail() const
 std::vector<EditorBackgroundTask> ProjectSession::GetBackgroundTasks() const
 {
     const auto phase = GetBuildPhase();
-    if(phase == PluginBuildPhase::Idle)
+    if(phase == ModuleBuildPhase::Idle)
     {
         return {};
     }
 
     EditorBackgroundTask task;
-    task.id = "gameplay-plugin-build";
+    task.id = "gameplay-module-build";
 
     switch(phase)
     {
-    case PluginBuildPhase::Configuring:
-        task.title  = "Build gameplay plugin";
+    case ModuleBuildPhase::Configuring:
+        task.title  = "Build gameplay module";
         task.detail = "Configuring (CMake)…";
         task.state   = EditorBackgroundTaskState::Running;
         break;
-    case PluginBuildPhase::Building:
-        task.title  = "Build gameplay plugin";
+    case ModuleBuildPhase::Building:
+        task.title  = "Build gameplay module";
         task.detail = "Compiling…";
         task.state   = EditorBackgroundTaskState::Running;
         break;
-    case PluginBuildPhase::Reloading:
-        task.title  = "Build gameplay plugin";
-        task.detail = "Reloading plugin…";
+    case ModuleBuildPhase::Reloading:
+        task.title  = "Build gameplay module";
+        task.detail = "Reloading module…";
         task.state   = EditorBackgroundTaskState::Running;
         break;
-    case PluginBuildPhase::Succeeded:
-        task.title  = "Build gameplay plugin";
+    case ModuleBuildPhase::Succeeded:
+        task.title  = "Build gameplay module";
         task.detail = "Succeeded";
         task.state   = EditorBackgroundTaskState::Succeeded;
         break;
-    case PluginBuildPhase::Failed:
-        task.title  = "Build gameplay plugin";
+    case ModuleBuildPhase::Failed:
+        task.title  = "Build gameplay module";
         task.detail = GetLastError().empty() ? "Failed" : GetLastError();
         task.state   = EditorBackgroundTaskState::Failed;
         break;
@@ -373,8 +373,8 @@ std::vector<EditorBackgroundTask> ProjectSession::GetBackgroundTasks() const
 
     task.progress    = GetBuildProgress();
     task.determinate = IsBuildProgressDeterminate() ||
-                       phase == PluginBuildPhase::Succeeded || phase == PluginBuildPhase::Failed;
-    if(phase == PluginBuildPhase::Succeeded || phase == PluginBuildPhase::Failed)
+                       phase == ModuleBuildPhase::Succeeded || phase == ModuleBuildPhase::Failed;
+    if(phase == ModuleBuildPhase::Succeeded || phase == ModuleBuildPhase::Failed)
     {
         task.progress = 1.0f;
     }
@@ -385,7 +385,7 @@ std::vector<EditorBackgroundTask> ProjectSession::GetBackgroundTasks() const
 bool ProjectSession::HasRunningBackgroundTasks() const
 {
     const auto phase = GetBuildPhase();
-    return IsBuilding() || phase == PluginBuildPhase::Reloading;
+    return IsBuilding() || phase == ModuleBuildPhase::Reloading;
 }
 
 void ProjectSession::writeEditorSessionMarker()
@@ -409,7 +409,7 @@ void ProjectSession::writeEditorSessionMarker()
 
     const auto editorPath = ExecutablePath();
     const auto soSearch   = (projectRoot / "build").lexically_normal();
-    const auto pluginLib  = pluginLibraryAbsolute().lexically_normal();
+    const auto moduleLib  = moduleLibraryAbsolute().lexically_normal();
 
 #if defined(_WIN32)
     const auto pid = static_cast<unsigned long long>(GetCurrentProcessId());
@@ -422,7 +422,7 @@ void ProjectSession::writeEditorSessionMarker()
     json << "  \"pid\": " << pid << ",\n";
     json << "  \"editorPath\": \"" << EscapeJson(editorPath.generic_string()) << "\",\n";
     json << "  \"soSearchPath\": \"" << EscapeJson(soSearch.generic_string()) << "\",\n";
-    json << "  \"pluginLibrary\": \"" << EscapeJson(pluginLib.generic_string()) << "\",\n";
+    json << "  \"moduleLibrary\": \"" << EscapeJson(moduleLib.generic_string()) << "\",\n";
     json << "  \"projectRoot\": \"" << EscapeJson(projectRoot.generic_string()) << "\",\n";
     json << "  \"updatedAt\": \"" << FormatUtcTimestamp() << "\"\n";
     json << "}\n";
@@ -460,9 +460,9 @@ void ProjectSession::Poll()
     const int exitCode = mBuildExitCode.load(std::memory_order_acquire);
     if(exitCode != 0)
     {
-        mBuildPhase.store(PluginBuildPhase::Failed, std::memory_order_release);
+        mBuildPhase.store(ModuleBuildPhase::Failed, std::memory_order_release);
         std::lock_guard lock(mMutex);
-        mLastError     = "Plugin build failed (exit " + std::to_string(exitCode) + ")";
+        mLastError     = "Module build failed (exit " + std::to_string(exitCode) + ")";
         mStatusMessage = mLastError;
         mLogger->LogError("{}", mLastError);
         return;
@@ -470,28 +470,28 @@ void ProjectSession::Poll()
 
     if(mReloadAfterBuild)
     {
-        mBuildPhase.store(PluginBuildPhase::Reloading, std::memory_order_release);
+        mBuildPhase.store(ModuleBuildPhase::Reloading, std::memory_order_release);
         mBuildProgress.store(0.95f, std::memory_order_release);
         mBuildProgressDeterminate.store(true, std::memory_order_release);
 
-        if(ReloadPlugin())
+        if(ReloadModule())
         {
-            mBuildPhase.store(PluginBuildPhase::Succeeded, std::memory_order_release);
+            mBuildPhase.store(ModuleBuildPhase::Succeeded, std::memory_order_release);
             mBuildProgress.store(1.0f, std::memory_order_release);
             if(mPendingStartupScene && !tryLoadPendingStartupScene())
             {
-                mBuildPhase.store(PluginBuildPhase::Failed, std::memory_order_release);
+                mBuildPhase.store(ModuleBuildPhase::Failed, std::memory_order_release);
             }
-            // ReloadPlugin already set mStatusMessage with the registered type list.
+            // ReloadModule already set mStatusMessage with the registered type list.
         }
         else
         {
-            mBuildPhase.store(PluginBuildPhase::Failed, std::memory_order_release);
+            mBuildPhase.store(ModuleBuildPhase::Failed, std::memory_order_release);
         }
     }
     else
     {
-        mBuildPhase.store(PluginBuildPhase::Succeeded, std::memory_order_release);
+        mBuildPhase.store(ModuleBuildPhase::Succeeded, std::memory_order_release);
         mBuildProgress.store(1.0f, std::memory_order_release);
     }
 
@@ -582,13 +582,13 @@ bool ProjectSession::CreateProject(const std::filesystem::path &parentDir, std::
     desc.friggaBuild   = DiscoverFriggaBuild();
     desc.friggaSdk     = DiscoverFriggaSdk();
 #ifdef _WIN32
-    desc.pluginLibraryRelative = "build/" + desc.pluginTarget + ".dll";
+    desc.moduleLibraryRelative = "build/" + desc.moduleTarget + ".dll";
 #elif defined(__APPLE__)
-    desc.pluginLibraryRelative = "build/lib" + desc.pluginTarget + ".dylib";
+    desc.moduleLibraryRelative = "build/lib" + desc.moduleTarget + ".dylib";
 #else
-    desc.pluginLibraryRelative = "build/lib" + desc.pluginTarget + ".so";
+    desc.moduleLibraryRelative = "build/lib" + desc.moduleTarget + ".so";
 #endif
-    desc.EnsureGameplayPlugin();
+    desc.EnsureGameplayModule();
 
     const auto result = ProjectScaffold::Create(parentDir, desc, *mScene);
     if(!result.ok)
@@ -613,9 +613,9 @@ bool ProjectSession::CreateProject(const std::filesystem::path &parentDir, std::
     {
         return false;
     }
-    if(anyEnabledPluginMissing())
+    if(anyEnabledModuleMissing())
     {
-        BuildPlugin();
+        BuildModule();
     }
     return true;
 }
@@ -642,42 +642,42 @@ bool ProjectSession::OpenProject(const std::filesystem::path &projectFile)
     // Register gameplay types before scene deserialize so userComponents apply immediately.
     mProjectFile = projectFile;
     mDescriptor  = *loaded;
-    mDescriptor.EnsureGameplayPlugin();
+    mDescriptor.EnsureGameplayModule();
 
     const auto root      = projectFile.parent_path();
     const auto scenePath = root / loaded->sceneRelativePath;
     bindProjectResources(root);
 
-    if(anyEnabledPluginMissing())
+    if(anyEnabledModuleMissing())
     {
         mPendingStartupScene = scenePath;
         mScene->NewScene();
-        if(!enterEditor(projectFile, std::move(*loaded), /*loadPlugin=*/false))
+        if(!enterEditor(projectFile, std::move(*loaded), /*loadModule=*/false))
         {
             mPendingStartupScene.reset();
-            mPluginHost->Unload();
+            mModuleHost->Unload();
             unbindProjectResources();
             mProjectFile.reset();
             mDescriptor = {};
             return false;
         }
-        BuildPlugin();
+        BuildModule();
         {
             std::lock_guard lock(mMutex);
-            mStatusMessage = "Building plugins before loading scene…";
+            mStatusMessage = "Building modules before loading scene…";
         }
         return true;
     }
 
-    if(!loadEnabledPlugins())
+    if(!loadEnabledModules())
     {
-        mLogger->LogWarning("Plugins missing or failed to load before scene: {}",
-                            mPluginHost->GetLastError());
+        mLogger->LogWarning("Modules missing or failed to load before scene: {}",
+                            mModuleHost->GetLastError());
     }
 
     if(!mScene->LoadScene(scenePath))
     {
-        mPluginHost->Unload();
+        mModuleHost->Unload();
         unbindProjectResources();
         mProjectFile.reset();
         mDescriptor = {};
@@ -687,7 +687,7 @@ bool ProjectSession::OpenProject(const std::filesystem::path &projectFile)
         return false;
     }
 
-    return enterEditor(projectFile, std::move(*loaded), /*loadPlugin=*/false);
+    return enterEditor(projectFile, std::move(*loaded), /*loadModule=*/false);
 }
 
 void ProjectSession::loadProjectInputBindings(const std::filesystem::path &projectRoot)
@@ -745,7 +745,7 @@ bool ProjectSession::MigrateOpenProject(bool force)
     if(IsBuilding())
     {
         std::lock_guard lock(mMutex);
-        mLastError = "Wait for the plugin build to finish";
+        mLastError = "Wait for the module build to finish";
         return false;
     }
     if(!mProjectFile)
@@ -769,7 +769,7 @@ void ProjectSession::CloseToHome()
     if(IsBuilding())
     {
         std::lock_guard lock(mMutex);
-        mLastError = "Wait for the plugin build to finish";
+        mLastError = "Wait for the module build to finish";
         return;
     }
 
@@ -778,7 +778,7 @@ void ProjectSession::CloseToHome()
         mSimulation->Stop();
         mSimulation->FlushPending();
     }
-    UnloadPlugin();
+    UnloadModule();
     unbindProjectResources();
     clearEditorSessionMarker();
     mPendingStartupScene.reset();
@@ -905,9 +905,9 @@ void ProjectSession::SyncEcsLayout()
         mLogger->LogWarning("Failed to sync ecs.json ({}): {}", path.string(), result.error);
         return;
     }
-    if(result.addedPluginSystems)
+    if(result.addedModuleSystems)
     {
-        mLogger->LogInformation("Appended new plugin system(s) to {} in {}",
+        mLogger->LogInformation("Appended new module system(s) to {} in {}",
                                 fg::kDefaultEcsPipelineName, path.string());
     }
 }
@@ -1134,7 +1134,7 @@ bool ProjectSession::CreateScene(std::string name, fg::SceneTemplate sceneTempla
     return true;
 }
 
-bool ProjectSession::BuildPlugin(std::string cmakeTarget)
+bool ProjectSession::BuildModule(std::string cmakeTarget)
 {
     if(IsBuilding())
     {
@@ -1157,7 +1157,7 @@ bool ProjectSession::BuildPlugin(std::string cmakeTarget)
     mReloadAfterBuild = true;
     mBuildFinished.store(false, std::memory_order_release);
     mBuildExitCode.store(0, std::memory_order_release);
-    mBuildPhase.store(PluginBuildPhase::Configuring, std::memory_order_release);
+    mBuildPhase.store(ModuleBuildPhase::Configuring, std::memory_order_release);
     mBuildProgress.store(0.05f, std::memory_order_release);
     mBuildProgressDeterminate.store(false, std::memory_order_release);
     mBuildRunning.store(true, std::memory_order_release);
@@ -1165,11 +1165,11 @@ bool ProjectSession::BuildPlugin(std::string cmakeTarget)
         std::lock_guard lock(mMutex);
         mLastError.clear();
         mBuildLogTail.clear();
-        mStatusMessage = cmakeTarget.empty() ? "Building plugins…"
-                                             : "Building plugin " + cmakeTarget + "…";
+        mStatusMessage = cmakeTarget.empty() ? "Building modules…"
+                                             : "Building module " + cmakeTarget + "…";
     }
 
-    mLogger->LogInformation("Starting async plugin build for {} target={}", root.string(),
+    mLogger->LogInformation("Starting async module build for {} target={}", root.string(),
                             cmakeTarget.empty() ? "(all)" : cmakeTarget);
     mBuildThread =
         std::thread([this, root, buildDir, cmakeTarget = std::move(cmakeTarget)]() {
@@ -1242,7 +1242,7 @@ void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::pa
         configureCmd += " -DCMAKE_CXX_COMPILER=\"" + cxxCompiler + "\"";
     }
 
-    mBuildPhase.store(PluginBuildPhase::Configuring, std::memory_order_release);
+    mBuildPhase.store(ModuleBuildPhase::Configuring, std::memory_order_release);
     mBuildProgressDeterminate.store(false, std::memory_order_release);
     mBuildProgress.store(0.1f, std::memory_order_release);
 
@@ -1262,7 +1262,7 @@ void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::pa
     {
         buildCmd += " --target \"" + cmakeTarget + "\"";
     }
-    mBuildPhase.store(PluginBuildPhase::Building, std::memory_order_release);
+    mBuildPhase.store(ModuleBuildPhase::Building, std::memory_order_release);
     mBuildProgress.store(0.15f, std::memory_order_release);
     mBuildProgressDeterminate.store(false, std::memory_order_release);
 
@@ -1288,7 +1288,7 @@ void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::pa
     mBuildFinished.store(true, std::memory_order_release);
 }
 
-bool ProjectSession::ReloadPlugin()
+bool ProjectSession::ReloadModule()
 {
     {
         std::lock_guard lock(mMutex);
@@ -1301,18 +1301,18 @@ bool ProjectSession::ReloadPlugin()
         return false;
     }
 
-    if(!loadEnabledPlugins())
+    if(!loadEnabledModules())
     {
         std::lock_guard lock(mMutex);
-        mLastError     = mPluginHost->GetLastError();
-        mStatusMessage = mLastError.empty() ? "No plugin libraries found — build plugins first"
+        mLastError     = mModuleHost->GetLastError();
+        mStatusMessage = mLastError.empty() ? "No module libraries found — build modules first"
                                             : mLastError;
         return false;
     }
 
     {
         std::lock_guard lock(mMutex);
-        const auto typeIds = mPluginHost->GetRegisteredTypeIds();
+        const auto typeIds = mModuleHost->GetRegisteredTypeIds();
         std::string listed;
         for(const auto &id : typeIds)
         {
@@ -1322,8 +1322,8 @@ bool ProjectSession::ReloadPlugin()
             }
             listed += id;
         }
-        mStatusMessage = "Loaded " + std::to_string(mPluginHost->LoadedCount()) +
-                         " plugin(s) | components: " +
+        mStatusMessage = "Loaded " + std::to_string(mModuleHost->LoadedCount()) +
+                         " module(s) | components: " +
                          (listed.empty() ? "(none)" : listed);
     }
     SyncEcsLayout();
@@ -1331,9 +1331,9 @@ bool ProjectSession::ReloadPlugin()
     return true;
 }
 
-void ProjectSession::UnloadPlugin()
+void ProjectSession::UnloadModule()
 {
-    mPluginHost->Unload();
+    mModuleHost->Unload();
 }
 
 void ProjectSession::DismissBuildUi()
@@ -1342,13 +1342,13 @@ void ProjectSession::DismissBuildUi()
     {
         return;
     }
-    mBuildPhase.store(PluginBuildPhase::Idle, std::memory_order_release);
+    mBuildPhase.store(ModuleBuildPhase::Idle, std::memory_order_release);
     mBuildProgress.store(0.0f, std::memory_order_release);
     mBuildProgressDeterminate.store(false, std::memory_order_release);
 }
 
 bool ProjectSession::enterEditor(const std::filesystem::path &projectFile, ProjectDescriptor desc,
-                                 bool loadPlugin)
+                                 bool loadModule)
 {
     std::string pendingStatus;
     {
@@ -1364,33 +1364,33 @@ bool ProjectSession::enterEditor(const std::filesystem::path &projectFile, Proje
     loadProjectInputBindings(projectFile.parent_path());
 
     std::string opened;
-    if(loadPlugin)
+    if(loadModule)
     {
-        // Best-effort plugin load (may be missing until first build).
-        if(loadEnabledPlugins())
+        // Best-effort module load (may be missing until first build).
+        if(loadEnabledModules())
         {
             opened = "Opened " + mDescriptor.name;
         }
         else
         {
             opened = "Opened " + mDescriptor.name +
-                     " — build plugins to load gameplay code";
+                     " — build modules to load gameplay code";
         }
     }
-    else if(mPluginHost->IsLoaded())
+    else if(mModuleHost->IsLoaded())
     {
         opened = "Opened " + mDescriptor.name;
     }
     else
     {
-        const auto lib = pluginLibraryAbsolute();
+        const auto lib = moduleLibraryAbsolute();
         if(std::filesystem::exists(lib))
         {
-            opened = "Opened " + mDescriptor.name + " (plugin not loaded)";
+            opened = "Opened " + mDescriptor.name + " (module not loaded)";
         }
         else
         {
-            opened = "Opened " + mDescriptor.name + " — build the gameplay plugin to load code";
+            opened = "Opened " + mDescriptor.name + " — build the gameplay module to load code";
         }
     }
 
@@ -1422,16 +1422,16 @@ void ProjectSession::touchRecent()
     PreferencesStore::Save(*mPreferences);
 }
 
-std::filesystem::path ProjectSession::pluginLibraryAbsolute() const
+std::filesystem::path ProjectSession::moduleLibraryAbsolute() const
 {
-    ProjectPluginEntry gameplay;
+    ProjectModuleEntry gameplay;
     gameplay.id              = "gameplay";
-    gameplay.target          = mDescriptor.pluginTarget.empty() ? "gameplay" : mDescriptor.pluginTarget;
-    gameplay.libraryRelative = mDescriptor.pluginLibraryRelative;
-    return pluginLibraryAbsolute(gameplay);
+    gameplay.target          = mDescriptor.moduleTarget.empty() ? "gameplay" : mDescriptor.moduleTarget;
+    gameplay.libraryRelative = mDescriptor.moduleLibraryRelative;
+    return moduleLibraryAbsolute(gameplay);
 }
 
-std::filesystem::path ProjectSession::pluginLibraryAbsolute(const ProjectPluginEntry &entry) const
+std::filesystem::path ProjectSession::moduleLibraryAbsolute(const ProjectModuleEntry &entry) const
 {
     if(!mProjectFile)
     {
@@ -1486,7 +1486,7 @@ std::filesystem::path ProjectSession::pluginLibraryAbsolute(const ProjectPluginE
     return configured;
 }
 
-bool ProjectSession::anyEnabledPluginMissing() const
+bool ProjectSession::anyEnabledModuleMissing() const
 {
     if(!mProjectFile)
     {
@@ -1494,10 +1494,10 @@ bool ProjectSession::anyEnabledPluginMissing() const
     }
 
     ProjectDescriptor desc = mDescriptor;
-    desc.EnsureGameplayPlugin();
+    desc.EnsureGameplayModule();
     for(const auto &entry : desc.LoadOrder())
     {
-        const auto lib = pluginLibraryAbsolute(entry);
+        const auto lib = moduleLibraryAbsolute(entry);
         if(!std::filesystem::exists(lib))
         {
             return true;
@@ -1517,7 +1517,7 @@ bool ProjectSession::tryLoadPendingStartupScene()
     if(!mScene->LoadScene(scenePath))
     {
         std::lock_guard lock(mMutex);
-        mLastError     = "Failed to load scene after plugin build: " + scenePath.string();
+        mLastError     = "Failed to load scene after module build: " + scenePath.string();
         mStatusMessage = mLastError;
         mLogger->LogError("{}", mLastError);
         return false;
@@ -1532,34 +1532,34 @@ bool ProjectSession::tryLoadPendingStartupScene()
     return true;
 }
 
-bool ProjectSession::loadEnabledPlugins()
+bool ProjectSession::loadEnabledModules()
 {
-    mDescriptor.EnsureGameplayPlugin();
-    std::vector<fg::PluginLoadRequest> requests;
+    mDescriptor.EnsureGameplayModule();
+    std::vector<fg::ModuleLoadRequest> requests;
     for(const auto &entry : mDescriptor.LoadOrder())
     {
-        const auto lib = pluginLibraryAbsolute(entry);
+        const auto lib = moduleLibraryAbsolute(entry);
         if(!std::filesystem::exists(lib))
         {
             continue;
         }
         std::string name = entry.id;
-        const auto pluginRoot =
-            mProjectFile->parent_path() / ProjectDescriptor::PluginsDirName / entry.id;
-        if(const auto manifest = PluginCatalog::ReadManifest(pluginRoot); manifest &&
+        const auto moduleRoot =
+            mProjectFile->parent_path() / ProjectDescriptor::ModulesDirName / entry.id;
+        if(const auto manifest = ModuleCatalog::ReadManifest(moduleRoot); manifest &&
                                                                          !manifest->name.empty())
         {
             name = manifest->name;
         }
         requests.push_back(
-            fg::PluginLoadRequest {.id = entry.id, .name = std::move(name), .libraryPath = lib});
+            fg::ModuleLoadRequest {.id = entry.id, .name = std::move(name), .libraryPath = lib});
     }
     if(requests.empty())
     {
-        mPluginHost->Unload();
+        mModuleHost->Unload();
         return false;
     }
-    return mPluginHost->LoadAll(requests);
+    return mModuleHost->LoadAll(requests);
 }
 
 bool ProjectSession::SaveDescriptor()
@@ -1568,11 +1568,11 @@ bool ProjectSession::SaveDescriptor()
     {
         return false;
     }
-    mDescriptor.EnsureGameplayPlugin();
+    mDescriptor.EnsureGameplayModule();
     return ProjectFile::Save(*mProjectFile, mDescriptor);
 }
 
-bool ProjectSession::CreatePlugin(std::string name)
+bool ProjectSession::CreateModule(std::string name)
 {
     if(!mProjectFile)
     {
@@ -1581,7 +1581,7 @@ bool ProjectSession::CreatePlugin(std::string name)
         return false;
     }
     std::string error;
-    if(!ProjectScaffold::CreateExtraPlugin(mProjectFile->parent_path(), mDescriptor, std::move(name),
+    if(!ProjectScaffold::CreateExtraModule(mProjectFile->parent_path(), mDescriptor, std::move(name),
                                            error))
     {
         std::lock_guard lock(mMutex);
@@ -1595,11 +1595,11 @@ bool ProjectSession::CreatePlugin(std::string name)
         return false;
     }
     std::lock_guard lock(mMutex);
-    mStatusMessage = "Created plugin " + mDescriptor.plugins.back().id;
+    mStatusMessage = "Created module " + mDescriptor.modules.back().id;
     return true;
 }
 
-bool ProjectSession::InstallPluginFrom(const std::filesystem::path &sourceRoot)
+bool ProjectSession::InstallModuleFrom(const std::filesystem::path &sourceRoot)
 {
     if(!mProjectFile)
     {
@@ -1608,7 +1608,7 @@ bool ProjectSession::InstallPluginFrom(const std::filesystem::path &sourceRoot)
         return false;
     }
     std::string error;
-    if(!ProjectScaffold::InstallPlugin(mProjectFile->parent_path(), mDescriptor, sourceRoot, error))
+    if(!ProjectScaffold::InstallModule(mProjectFile->parent_path(), mDescriptor, sourceRoot, error))
     {
         std::lock_guard lock(mMutex);
         mLastError = error;
@@ -1621,11 +1621,11 @@ bool ProjectSession::InstallPluginFrom(const std::filesystem::path &sourceRoot)
         return false;
     }
     std::lock_guard lock(mMutex);
-    mStatusMessage = "Installed plugin from " + sourceRoot.filename().string();
+    mStatusMessage = "Installed module from " + sourceRoot.filename().string();
     return true;
 }
 
-bool ProjectSession::ExportPlugin(std::string_view pluginId)
+bool ProjectSession::ExportModule(std::string_view moduleId)
 {
     if(!mProjectFile)
     {
@@ -1634,41 +1634,41 @@ bool ProjectSession::ExportPlugin(std::string_view pluginId)
         return false;
     }
     const auto root = mProjectFile->parent_path();
-    const auto source = root / ProjectDescriptor::PluginsDirName / std::string(pluginId);
+    const auto source = root / ProjectDescriptor::ModulesDirName / std::string(moduleId);
     if(!std::filesystem::exists(source))
     {
         std::lock_guard lock(mMutex);
-        mLastError = "Plugin folder not found: " + source.string();
+        mLastError = "Module folder not found: " + source.string();
         return false;
     }
-    const auto dest = EditorPaths::DefaultPluginsDir() / std::string(pluginId);
+    const auto dest = EditorPaths::DefaultModulesDir() / std::string(moduleId);
     std::error_code ec;
     if(std::filesystem::exists(dest, ec))
     {
         std::filesystem::remove_all(dest, ec);
     }
     std::string error;
-    if(!PluginCatalog::CopyPluginTree(source, dest, error))
+    if(!ModuleCatalog::CopyModuleTree(source, dest, error))
     {
         std::lock_guard lock(mMutex);
         mLastError = error;
         return false;
     }
     std::lock_guard lock(mMutex);
-    mStatusMessage = "Exported plugin to " + dest.string();
+    mStatusMessage = "Exported module to " + dest.string();
     return true;
 }
 
-bool ProjectSession::SetPluginEnabled(std::string_view pluginId, bool enabled)
+bool ProjectSession::SetModuleEnabled(std::string_view moduleId, bool enabled)
 {
     if(!mProjectFile)
     {
         return false;
     }
     bool found = false;
-    for(auto &entry : mDescriptor.plugins)
+    for(auto &entry : mDescriptor.modules)
     {
-        if(entry.id == pluginId)
+        if(entry.id == moduleId)
         {
             entry.enabled = enabled;
             found         = true;
@@ -1678,14 +1678,14 @@ bool ProjectSession::SetPluginEnabled(std::string_view pluginId, bool enabled)
     if(!found)
     {
         std::lock_guard lock(mMutex);
-        mLastError = "Unknown plugin: " + std::string(pluginId);
+        mLastError = "Unknown module: " + std::string(moduleId);
         return false;
     }
     if(!SaveDescriptor())
     {
         return false;
     }
-    loadEnabledPlugins();
+    loadEnabledModules();
     SyncEcsLayout();
     return true;
 }

@@ -6,7 +6,8 @@ import {
   readTextFile,
   writeTextFile,
 } from "./project";
-import { insertFluentCall, pathExistsUri } from "./pluginModuleEdit";
+import { FriggaModule, resolveModule } from "./modules";
+import { entryFileName, insertFluentCall, pathExistsUri } from "./moduleModuleEdit";
 
 function systemBaseName(raw: string): string {
   const trimmed = raw.trim();
@@ -27,7 +28,7 @@ function systemHeader(className: string): string {
 #include <Skirnir/Skirnir.hpp>
 
 /**
- * Freyr system registered on the host via FRI_PLUGIN_MODULE (.System<${className}>()).
+ * Freyr system registered on the host via FRI_MODULE (.System<${className}>()).
  * Runs on the Simulation pipeline (Play mode).
  */
 class ${className}: public fr::System
@@ -48,9 +49,6 @@ ${className}::${className}(const skr::Arc<fr::Registry> &registry) : fr::System(
 void ${className}::Update(float deltaTime)
 {
     (void)deltaTime;
-    // Example:
-    // mRegistry->CreateMutation()->Each<YourComponent>(
-    //     [](fr::Entity, YourComponent &comp) { (void)comp; });
 }
 `;
 }
@@ -71,7 +69,7 @@ function ensureInclude(source: string, includeLine: string): string {
     return source.slice(0, insertAt) + includeLine + "\n" + source.slice(insertAt);
   }
 
-  const moduleInclude = "#include <Frigga/Plugin/FriPluginModule.hpp>";
+  const moduleInclude = "#include <Frigga/Module/FriModule.hpp>";
   const idx = source.indexOf(moduleInclude);
   if (idx >= 0) {
     return source.slice(0, idx) + includeLine + "\n" + source.slice(idx);
@@ -94,10 +92,10 @@ function ensureCmakeSource(cmake: string, relativeCpp: string): string {
   }
 
   const libraryBlock =
-    /(?:add_library\s*\(\s*\w+\s+SHARED|frigga_add_plugin\s*\(\s*\w+)\s*\n([\s\S]*?)\)/;
+    /(?:add_library\s*\(\s*\w+\s+SHARED|frigga_add_module\s*\(\s*\w+)\s*\n([\s\S]*?)\)/;
   const match = libraryBlock.exec(cmake);
   if (!match) {
-    throw new Error("Could not find frigga_add_plugin(...) in CMakeLists.txt");
+    throw new Error("Could not find frigga_add_module(...) in CMakeLists.txt");
   }
 
   const bodyStart = match.index + match[0].indexOf(match[1]);
@@ -106,9 +104,19 @@ function ensureCmakeSource(cmake: string, relativeCpp: string): string {
   return cmake.slice(0, bodyEnd) + insertion + cmake.slice(bodyEnd);
 }
 
-export async function createGameplaySystem(project: FriggaProject): Promise<void> {
+export async function createSystem(
+  project: FriggaProject,
+  contextUri?: vscode.Uri,
+  preferredModule?: FriggaModule
+): Promise<void> {
+  const mod =
+    preferredModule ?? (await resolveModule(project, contextUri));
+  if (!mod) {
+    return;
+  }
+
   const name = await vscode.window.showInputBox({
-    prompt: 'System name (e.g. "Movement" or "MovementSystem")',
+    prompt: `System name for module "${mod.name}" (e.g. Movement or MovementSystem)`,
     placeHolder: "Movement",
     validateInput: (value) => {
       if (!value.trim()) {
@@ -128,65 +136,42 @@ export async function createGameplaySystem(project: FriggaProject): Promise<void
   const className = systemClassName(name.trim());
   const fileBase = className;
 
-  const headerUri = vscode.Uri.joinPath(
-    project.root,
-    "plugins",
-    "gameplay",
-    "src",
-    "systems",
-    `${fileBase}.hpp`
-  );
-  const sourceUri = vscode.Uri.joinPath(
-    project.root,
-    "plugins",
-    "gameplay",
-    "src",
-    "systems",
-    `${fileBase}.cpp`
-  );
+  const headerUri = vscode.Uri.joinPath(mod.root, "src", "systems", `${fileBase}.hpp`);
+  const sourceUri = vscode.Uri.joinPath(mod.root, "src", "systems", `${fileBase}.cpp`);
 
   if ((await pathExistsUri(headerUri)) || (await pathExistsUri(sourceUri))) {
-    vscode.window.showErrorMessage(`${fileBase} already exists under plugins/gameplay/src/systems`);
+    vscode.window.showErrorMessage(`${fileBase} already exists under ${mod.id}/src/systems`);
     return;
   }
-
-  const pluginUri = vscode.Uri.joinPath(
-    project.root,
-    "plugins",
-    "gameplay",
-    "src",
-    "GameplayPlugin.cpp"
-  );
-  const cmakeUri = vscode.Uri.joinPath(
-    project.root,
-    "plugins",
-    "gameplay",
-    "CMakeLists.txt"
-  );
-  if (!(await pathExistsUri(pluginUri))) {
-    vscode.window.showErrorMessage("plugins/gameplay/src/GameplayPlugin.cpp not found");
+  if (!(await pathExistsUri(mod.entryFile))) {
+    vscode.window.showErrorMessage(`Module entry file not found: ${mod.entryFile.fsPath}`);
     return;
   }
-  if (!(await pathExistsUri(cmakeUri))) {
-    vscode.window.showErrorMessage("CMakeLists.txt not found");
+  if (!(await pathExistsUri(mod.cmakeFile))) {
+    vscode.window.showErrorMessage(`CMakeLists.txt not found for module ${mod.id}`);
     return;
   }
 
   await writeTextFile(headerUri, systemHeader(className));
   await writeTextFile(sourceUri, systemSource(className, fileBase));
 
-  let plugin = await readTextFile(pluginUri);
+  let moduleSource = await readTextFile(mod.entryFile);
   try {
-    plugin = ensureInclude(plugin, `#include "systems/${fileBase}.hpp"`);
-    plugin = insertFluentCall(plugin, `.System<${className}>()`, "System");
+    moduleSource = ensureInclude(moduleSource, `#include "systems/${fileBase}.hpp"`);
+    moduleSource = insertFluentCall(
+      moduleSource,
+      `.System<${className}>()`,
+      "System",
+      entryFileName(mod.entryFile)
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     vscode.window.showErrorMessage(message);
     return;
   }
-  await writeTextFile(pluginUri, plugin);
+  await writeTextFile(mod.entryFile, moduleSource);
 
-  let cmake = await readTextFile(cmakeUri);
+  let cmake = await readTextFile(mod.cmakeFile);
   try {
     cmake = ensureCmakeSource(cmake, `src/systems/${fileBase}.cpp`);
   } catch (error) {
@@ -194,10 +179,10 @@ export async function createGameplaySystem(project: FriggaProject): Promise<void
     vscode.window.showErrorMessage(message);
     return;
   }
-  await writeTextFile(cmakeUri, cmake);
+  await writeTextFile(mod.cmakeFile, cmake);
 
   await openDocument(sourceUri);
   vscode.window.showInformationMessage(
-    `Created ${className}. Registered in FRI_PLUGIN_MODULE + CMakeLists — rebuild & reload the plugin.`
+    `Created ${className} in ${mod.name}. Registered in FRI_MODULE + CMakeLists — rebuild & reload the module.`
   );
 }

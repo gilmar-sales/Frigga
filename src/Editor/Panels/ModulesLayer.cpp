@@ -1,4 +1,4 @@
-#include "PluginsLayer.hpp"
+#include "ModulesLayer.hpp"
 
 #include "Editor/BoostrapIconsFont.hpp"
 #include "Editor/DockLayout.hpp"
@@ -7,42 +7,42 @@
 
 #include <imgui.h>
 
-PluginsLayer::PluginsLayer(skr::Arc<ProjectSession> session,
-                           skr::Arc<fg::GameplayPluginHost> pluginHost,
+ModulesLayer::ModulesLayer(skr::Arc<ProjectSession> session,
+                           skr::Arc<fg::GameplayModuleHost> moduleHost,
                            skr::Arc<fg::SceneSimulationState> simulation)
-    : fg::Layer("Plugins"), mSession(std::move(session)), mPluginHost(std::move(pluginHost)),
+    : fg::Layer("Modules"), mSession(std::move(session)), mModuleHost(std::move(moduleHost)),
       mSimulation(std::move(simulation))
 {
 }
 
-void PluginsLayer::onUpdate()
+void ModulesLayer::onUpdate()
 {
 }
 
-void PluginsLayer::refreshLibrary()
+void ModulesLayer::refreshLibrary()
 {
     EditorPaths::EnsureDirectories();
-    mUserLibrary = PluginCatalog::ScanDirectory(EditorPaths::DefaultPluginsDir(), false);
-    mBundled     = PluginCatalog::ScanBundled(ProjectSession::DiscoverFriggaSdk(),
+    mUserLibrary = ModuleCatalog::ScanDirectory(EditorPaths::DefaultModulesDir(), false);
+    mBundled     = ModuleCatalog::ScanBundled(ProjectSession::DiscoverFriggaSdk(),
                                               ProjectSession::DiscoverFriggaRoot(),
                                               ProjectSession::ExecutablePath().parent_path());
 }
 
-void PluginsLayer::drawProjectPlugins()
+void ModulesLayer::drawProjectModules()
 {
     const auto &desc = mSession->GetDescriptor();
-    ImGui::TextUnformatted("Project plugins");
+    ImGui::TextUnformatted("Project modules");
     ImGui::Separator();
 
     const bool playing = mSimulation && mSimulation->IsPlaying();
     ImGui::BeginDisabled(playing || !mSession->HasProject() || mSession->IsBuilding());
 
     ImGui::SetNextItemWidth(EditorUiScale::S(160.0f));
-    ImGui::InputText("##NewPluginName", mNewName, sizeof(mNewName));
+    ImGui::InputText("##NewModuleName", mNewName, sizeof(mNewName));
     ImGui::SameLine();
     if(ImGui::Button("Create"))
     {
-        if(mSession->CreatePlugin(mNewName))
+        if(mSession->CreateModule(mNewName))
         {
             mStatus = mSession->GetStatusMessage();
         }
@@ -54,19 +54,19 @@ void PluginsLayer::drawProjectPlugins()
     ImGui::SameLine();
     if(ImGui::Button("Build all"))
     {
-        mSession->BuildPlugin();
+        mSession->BuildModule();
     }
     ImGui::SameLine();
     if(ImGui::Button("Reload all"))
     {
-        mSession->ReloadPlugin();
+        mSession->ReloadModule();
         mStatus = mSession->GetStatusMessage();
     }
 
     ImGui::EndDisabled();
     ImGui::Dummy(ImVec2(0.0f, EditorUiScale::S(6.0f)));
 
-    if(ImGui::BeginTable("##ProjectPlugins", 5,
+    if(ImGui::BeginTable("##ProjectModules", 5,
                          ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
                              ImGuiTableFlags_SizingStretchProp))
     {
@@ -77,7 +77,7 @@ void PluginsLayer::drawProjectPlugins()
         ImGui::TableSetupColumn("Share", ImGuiTableColumnFlags_WidthFixed, EditorUiScale::S(70.0f));
         ImGui::TableHeadersRow();
 
-        for(const auto &entry : desc.plugins)
+        for(const auto &entry : desc.modules)
         {
             ImGui::PushID(entry.id.c_str());
             ImGui::TableNextRow();
@@ -86,26 +86,26 @@ void PluginsLayer::drawProjectPlugins()
             ImGui::BeginDisabled(playing || mSession->IsBuilding());
             if(ImGui::Checkbox("##en", &enabled) && enabled != entry.enabled)
             {
-                mSession->SetPluginEnabled(entry.id, enabled);
+                mSession->SetModuleEnabled(entry.id, enabled);
             }
             ImGui::EndDisabled();
             ImGui::TableNextColumn();
             ImGui::TextUnformatted(entry.id.c_str());
             ImGui::TableNextColumn();
-            const bool loaded = mPluginHost && mPluginHost->IsPluginLoaded(entry.id);
+            const bool loaded = mModuleHost && mModuleHost->IsModuleLoaded(entry.id);
             ImGui::TextUnformatted(loaded ? "yes" : "no");
             ImGui::TableNextColumn();
             ImGui::BeginDisabled(playing || mSession->IsBuilding() || !entry.enabled);
             if(ImGui::SmallButton("Build"))
             {
-                mSession->BuildPlugin(entry.target);
+                mSession->BuildModule(entry.target);
             }
             ImGui::EndDisabled();
             ImGui::TableNextColumn();
             ImGui::BeginDisabled(entry.IsGameplay() || playing);
             if(ImGui::SmallButton("Export"))
             {
-                if(mSession->ExportPlugin(entry.id))
+                if(mSession->ExportModule(entry.id))
                 {
                     mStatus = mSession->GetStatusMessage();
                     refreshLibrary();
@@ -122,12 +122,12 @@ void PluginsLayer::drawProjectPlugins()
     }
 }
 
-void PluginsLayer::drawLibrary()
+void ModulesLayer::drawLibrary()
 {
     ImGui::Dummy(ImVec2(0.0f, EditorUiScale::S(10.0f)));
     ImGui::TextUnformatted("Install");
     ImGui::SameLine();
-    ImGui::TextDisabled("%s", EditorPaths::DefaultPluginsDir().string().c_str());
+    ImGui::TextDisabled("%s", EditorPaths::DefaultModulesDir().string().c_str());
     ImGui::SameLine();
     if(ImGui::SmallButton("Refresh"))
     {
@@ -136,24 +136,24 @@ void PluginsLayer::drawLibrary()
     ImGui::Separator();
 
     const bool playing = mSimulation && mSimulation->IsPlaying();
-    auto drawList      = [&](const char *heading, const std::vector<DiscoveredPlugin> &list) {
+    auto drawList      = [&](const char *heading, const std::vector<DiscoveredModule> &list) {
         ImGui::TextDisabled("%s", heading);
         if(list.empty())
         {
             ImGui::TextDisabled("  (none)");
             return;
         }
-        for(const auto &plugin : list)
+        for(const auto &module : list)
         {
-            ImGui::PushID(plugin.root.string().c_str());
-            ImGui::TextUnformatted(plugin.name.empty() ? plugin.id.c_str() : plugin.name.c_str());
+            ImGui::PushID(module.root.string().c_str());
+            ImGui::TextUnformatted(module.name.empty() ? module.id.c_str() : module.name.c_str());
             ImGui::SameLine();
-            ImGui::TextDisabled("%s", plugin.id.c_str());
+            ImGui::TextDisabled("%s", module.id.c_str());
             ImGui::SameLine();
             ImGui::BeginDisabled(playing || !mSession->HasProject() || mSession->IsBuilding());
             if(ImGui::SmallButton("Install"))
             {
-                if(mSession->InstallPluginFrom(plugin.root))
+                if(mSession->InstallModuleFrom(module.root))
                 {
                     mStatus = mSession->GetStatusMessage();
                 }
@@ -171,9 +171,9 @@ void PluginsLayer::drawLibrary()
     drawList("User library", mUserLibrary);
 }
 
-void PluginsLayer::onGui()
+void ModulesLayer::onGui()
 {
-    const auto windowId = EditorDock::WindowId("Plugins");
+    const auto windowId = EditorDock::WindowId("Modules");
     if(!ImGui::Begin(windowId.c_str()))
     {
         ImGui::End();
@@ -187,12 +187,12 @@ void PluginsLayer::onGui()
 
     if(!mSession->HasProject())
     {
-        ImGui::TextDisabled("Open a project to manage plugins.");
+        ImGui::TextDisabled("Open a project to manage modules.");
         ImGui::End();
         return;
     }
 
-    drawProjectPlugins();
+    drawProjectModules();
     drawLibrary();
 
     if(!mStatus.empty())

@@ -63,10 +63,10 @@ namespace FRIGGA_NAMESPACE
             }
         }
 
-        ClearPluginTypes();
+        ClearModuleTypes();
     }
 
-    void UserComponentRegistry::ClearPluginTypes()
+    void UserComponentRegistry::ClearModuleTypes()
     {
         std::lock_guard lock(mMutex);
         mTypes.clear();

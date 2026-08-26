@@ -1,6 +1,6 @@
 #include "ProjectScaffold.hpp"
 
-#include "PluginCatalog.hpp"
+#include "ModuleCatalog.hpp"
 #include "ProjectEnginePaths.hpp"
 #include "ProjectFile.hpp"
 
@@ -9,6 +9,7 @@
 #include <Frigga/Input/InputMapIO.hpp>
 
 #include <array>
+#include <cctype>
 #include <fstream>
 #include <sstream>
 #include <string_view>
@@ -28,7 +29,7 @@ namespace
         return static_cast<bool>(file);
     }
 
-    std::string DefaultPluginLibraryRelative(const std::string &target)
+    std::string DefaultModuleLibraryRelative(const std::string &target)
     {
 #ifdef _WIN32
         return "build/" + target + ".dll";
@@ -88,21 +89,21 @@ namespace
         return out.str();
     }
 
-    std::string MakeManagedPluginSubdirsBlock(const ProjectDescriptor &desc)
+    std::string MakeManagedModuleSubdirsBlock(const ProjectDescriptor &desc)
     {
         std::ostringstream out;
-        out << ProjectScaffold::ManagedPluginSubdirsBegin << "\n";
-        for(const auto &entry : desc.plugins)
+        out << ProjectScaffold::ManagedModuleSubdirsBegin << "\n";
+        for(const auto &entry : desc.modules)
         {
             const auto folder = entry.id.empty() ? entry.target : entry.id;
             out << "if(EXISTS \"${CMAKE_CURRENT_SOURCE_DIR}/"
-                << ProjectDescriptor::PluginsDirName << "/" << folder
+                << ProjectDescriptor::ModulesDirName << "/" << folder
                 << "/CMakeLists.txt\")\n";
-            out << "  add_subdirectory(" << ProjectDescriptor::PluginsDirName << "/" << folder
+            out << "  add_subdirectory(" << ProjectDescriptor::ModulesDirName << "/" << folder
                 << ")\n";
             out << "endif()\n";
         }
-        out << ProjectScaffold::ManagedPluginSubdirsEnd << "\n";
+        out << ProjectScaffold::ManagedModuleSubdirsEnd << "\n";
         return out.str();
     }
 
@@ -111,7 +112,7 @@ namespace
         std::ostringstream out;
         out << "cmake_minimum_required(VERSION 3.29)\n";
         out << "project(" << desc.name << "Gameplay LANGUAGES CXX)\n\n";
-        out << "# Frigga gameplay plugins require C++26 (+ reflection), matching the Editor.\n";
+        out << "# Frigga gameplay modules require C++26 (+ reflection), matching the Editor.\n";
         out << "set(CMAKE_CXX_STANDARD 26)\n";
         out << "set(CMAKE_CXX_STANDARD_REQUIRED ON)\n";
         out << "set(CMAKE_CXX_EXTENSIONS ON)\n";
@@ -120,12 +121,12 @@ namespace
         out << "set(CMAKE_CXX_SCAN_FOR_MODULES 0)\n\n";
         out << "if(CMAKE_CXX_COMPILER_ID STREQUAL \"GNU\")\n";
         out << "  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 16)\n";
-        out << "    message(FATAL_ERROR \"Gameplay plugins need GCC 16+ (C++26 reflection). "
+        out << "    message(FATAL_ERROR \"Gameplay modules need GCC 16+ (C++26 reflection). "
                "Found ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}\")\n";
         out << "  endif()\n";
         out << "elseif(CMAKE_CXX_COMPILER_ID MATCHES \"Clang\")\n";
         out << "  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 22)\n";
-        out << "    message(FATAL_ERROR \"Gameplay plugins need Clang 22+ (C++26 reflection). "
+        out << "    message(FATAL_ERROR \"Gameplay modules need Clang 22+ (C++26 reflection). "
                "Found ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}\")\n";
         out << "  endif()\n";
         out << "endif()\n\n";
@@ -168,7 +169,7 @@ namespace
                "FRIGGA_BUILD.\")\n";
         out << "  endif()\n";
         out << "endif()\n";
-        out << "if(NOT EXISTS \"${FRIGGA_ROOT}/src/Frigga/Plugin/frigga_plugin.h\")\n";
+        out << "if(NOT EXISTS \"${FRIGGA_ROOT}/src/Frigga/Module/frigga_module.h\")\n";
         out << "  message(FATAL_ERROR \"FRIGGA_ROOT does not look like a Frigga tree: "
                "${FRIGGA_ROOT}\")\n";
         out << "endif()\n";
@@ -203,10 +204,10 @@ namespace
         out << "    endif()\n";
         out << "  endforeach()\n";
         out << "endif()\n\n";
-        out << "function(frigga_add_plugin TARGET)\n";
+        out << "function(frigga_add_module TARGET)\n";
         out << "  add_library(${TARGET} SHARED ${ARGN})\n";
         out << "  target_compile_features(${TARGET} PRIVATE cxx_std_26)\n";
-        out << "  target_compile_definitions(${TARGET} PRIVATE FRI_PLUGIN_EXPORTS)\n";
+        out << "  target_compile_definitions(${TARGET} PRIVATE FRI_MODULE_EXPORTS)\n";
         out << "  if(MSVC)\n";
         out << "    target_compile_options(${TARGET} PRIVATE /std:c++latest /experimental:reflection)\n";
         out << "  else()\n";
@@ -216,7 +217,7 @@ namespace
         out << "  target_precompile_headers(${TARGET} PRIVATE\n";
         out << "    <cstdint>\n";
         out << "    <type_traits>\n";
-        out << "    \"${FRIGGA_ROOT}/src/Frigga/Plugin/FriPluginSdk.hpp\"\n";
+        out << "    \"${FRIGGA_ROOT}/src/Frigga/Module/FriPluginSdk.hpp\"\n";
         out << "  )\n";
         out << "  target_include_directories(${TARGET} PRIVATE\n";
         out << "    ${CMAKE_CURRENT_SOURCE_DIR}/include\n";
@@ -251,7 +252,7 @@ namespace
         out << "    set_target_properties(${TARGET} PROPERTIES PREFIX \"\" IMPORT_PREFIX \"\")\n";
         out << "  endif()\n";
         out << "endfunction()\n\n";
-        out << MakeManagedPluginSubdirsBlock(desc);
+        out << MakeManagedModuleSubdirsBlock(desc);
         return out.str();
     }
 
@@ -267,7 +268,7 @@ namespace
 #include <Skirnir/Skirnir.hpp>
 
 /**
- * Freyr system owned by the gameplay plugin.
+ * Freyr system owned by the gameplay module.
  */
 class GameplaySystem: public fr::System
 {
@@ -306,26 +307,26 @@ void GameplaySystem::Update(float)
 )cpp";
     }
 
-    std::string MakeGameplayPluginCpp()
+    std::string MakeGameplayModuleCpp()
     {
-        return R"cpp(// FRIGGA_MANAGED_PLUGIN_ENTRY
+        return R"cpp(// FRIGGA_MANAGED_MODULE_ENTRY
 #include "systems/GameplaySystem.hpp"
 #include "components/Health.hpp"
 
-#include <Frigga/Plugin/FriPluginModule.hpp>
+#include <Frigga/Module/FriModule.hpp>
 
-FRI_PLUGIN_MODULE(plugin)
+FRI_MODULE(module)
 {
-    plugin.Component<Health>()
+    module.Component<Health>()
           .System<GameplaySystem>();
 }
 )cpp";
     }
 
-    std::string MakeGameplayPluginCMake()
+    std::string MakeGameplayModuleCMake()
     {
-        return "frigga_add_plugin(gameplay\n"
-               "  src/GameplayPlugin.cpp\n"
+        return "frigga_add_module(gameplay\n"
+               "  src/GameplayModule.cpp\n"
                "  src/systems/GameplaySystem.cpp\n"
                ")\n";
     }
@@ -336,7 +337,7 @@ FRI_PLUGIN_MODULE(plugin)
 
 /**
  * Convenience aliases for project Freyr gameplay components.
- * Register types with FRI_PLUGIN_MODULE: plugin.Component<T>().
+ * Register types with FRI_MODULE: module.Component<T>().
  */
 
 #include <Frigga/ECS/UserComponentReflection.hpp>
@@ -352,7 +353,7 @@ using fg::FriTryGet;
 
 #include <Freyr/Freyr.hpp>
 
-/// Example project component. Register in GameplayPlugin on_attach.
+/// Example project component. Register in GameplayModule on_attach.
 struct Health: fr::Component
 {
     float current = 100.0f;
@@ -372,33 +373,33 @@ struct Health: fr::Component
         out << "- `ecs.json` — ECS pipeline / system layout (created on first Editor open)\n";
         out << "- `scenes/main.json` — default scene\n";
         out << "- `Resources/` — models, textures, prefabs, and fonts owned by this project\n";
-        out << "- `plugins/` — shared libraries (`gameplay`, optional extras)\n";
-        out << "- `plugins/gameplay/src/systems/` — Freyr systems\n";
-        out << "- `plugins/gameplay/src/components/` — project POD components (example: Health)\n";
-        out << "- `plugins/gameplay/src/GameplayPlugin.cpp` — FRI_PLUGIN_MODULE entry\n";
+        out << "- `modules/` — shared libraries (`gameplay`, optional extras)\n";
+        out << "- `modules/gameplay/src/systems/` — Freyr systems\n";
+        out << "- `modules/gameplay/src/components/` — project POD components (example: Health)\n";
+        out << "- `modules/gameplay/src/GameplayModule.cpp` — FRI_MODULE entry\n";
         out << "- `include/frigga_user_components.hpp` — FriSet / FriTryGet helpers\n\n";
         out << "## Project components\n\n";
         out << "1. Declare `struct Foo : fr::Component { float x; };`\n";
-        out << "2. In `FRI_PLUGIN_MODULE`: `plugin.Component<Foo>()`\n";
-        out << "3. Build + **Reload Gameplay Plugin**.\n";
+        out << "2. In `FRI_MODULE`: `module.Component<Foo>()`\n";
+        out << "3. Build + **Reload Gameplay Module**.\n";
         out << "4. In the Editor: Entity → Add Component → Gameplay → Foo.\n";
         out << "5. In a Freyr `System::Update`: `CreateMutation()->Each<Foo>(...)` "
                "(Simulation pipeline — Play mode only).\n\n";
         out << "## Gameplay systems\n\n";
-        out << "Inherit `fr::System` and register with `plugin.System<MySystem>()` "
+        out << "Inherit `fr::System` and register with `module.System<MySystem>()` "
                "(defaults to the **Simulation** pipeline).\n";
-        out << "Optional DI: `plugin.Singleton<T>()`, `.Scoped<T>()`, `.Transient<T>()`.\n";
+        out << "Optional DI: `module.Singleton<T>()`, `.Scoped<T>()`, `.Transient<T>()`.\n";
         out << "Host exposes `fg::Input`, `fg::Physics`, and `fg::AudioController` — inject them "
                "in system ctors "
                "(`IsDown`/`WasPressed`/`GetAxis`, `MoveCharacter`/`SetLinearVelocity`, "
                "`Play`/`Stop` on entities with `AudioSourceComponent`).\n";
-        out << "Host placement: new plugin systems append to **Simulation** (60 Hz, Play only); "
+        out << "Host placement: new module systems append to **Simulation** (60 Hz, Play only); "
                "known labels are restored from `ecs.json` after attach. Edit pipelines in the "
                "**ECS** workflow.\n";
         out << "Tick order: **Simulation** (gameplay + physics) → **Main** (audio + camera) → "
                "**Render** (animation preview + draw, always last). Edit mode keeps only "
                "Render; Simulation and Main tick in Play.\n\n";
-        out << "## Build the plugin\n\n";
+        out << "## Build the module\n\n";
         out << "Requires a **C++26** compiler with reflection (GCC 16+ or Clang 22+), "
                "same as Frigga.\n\n";
         out << "Point CMake at the packaged `Sdk/` next to the Editor (or the engine tree):\n\n";
@@ -412,13 +413,13 @@ struct Health: fr::Component
                "`CMakeUserPresets.json` (gitignored).\n";
         out << "Engine developers can also pass `-DFRIGGA_ROOT=` (source) and "
                "`-DFRIGGA_BUILD=` (Editor binary dir with `_deps/`).\n\n";
-        out << "Or use **File → Build Gameplay Plugin** (Ctrl+B) in the Editor "
+        out << "Or use **File → Build Gameplay Module** (Ctrl+B) in the Editor "
                "(passes SDK paths and forces `gnu++26` + `-freflection`).\n\n";
-        out << "The shared library is written to `" << desc.pluginLibraryRelative << "`.\n";
+        out << "The shared library is written to `" << desc.moduleLibraryRelative << "`.\n";
         out << "It resolves Freyr symbols from the Editor process (do not link `libfreyr.a` into the "
-               "plugin).\n";
-        out << "In the Editor: **File → Build Gameplay Plugin** (Ctrl+B), then **Reload Gameplay "
-               "Plugin** "
+               "module).\n";
+        out << "In the Editor: **File → Build Gameplay Module** (Ctrl+B), then **Reload Gameplay "
+               "Module** "
                "(Ctrl+R), and press Play.\n\n";
         out << "## Debug gameplay code\n\n";
         out << "1. Keep the Frigga Editor open on this project.\n";
@@ -433,11 +434,11 @@ struct Health: fr::Component
         return "build/\n.frigga/\nCMakeUserPresets.json\n";
     }
 
-    bool CopyPluginHeader(const std::filesystem::path &friggaRoot,
+    bool CopyModuleHeader(const std::filesystem::path &friggaRoot,
                           const std::filesystem::path &projectRoot)
     {
-        const auto src = friggaRoot / "src/Frigga/Plugin/frigga_plugin.h";
-        const auto dst = projectRoot / "include/frigga_plugin.h";
+        const auto src = friggaRoot / "src/Frigga/Module/frigga_module.h";
+        const auto dst = projectRoot / "include/frigga_module.h";
         std::error_code ec;
         std::filesystem::create_directories(dst.parent_path(), ec);
         std::filesystem::copy_file(src, dst, std::filesystem::copy_options::overwrite_existing, ec);
@@ -471,7 +472,7 @@ ProjectManagedWriteResult ProjectScaffold::WriteManagedFiles(
 
     std::error_code ec;
     std::filesystem::create_directories(projectRoot / "include", ec);
-    std::filesystem::create_directories(projectRoot / ProjectDescriptor::PluginsDirName, ec);
+    std::filesystem::create_directories(projectRoot / ProjectDescriptor::ModulesDirName, ec);
     if(ec)
     {
         result.error = "Failed to create include/";
@@ -502,9 +503,9 @@ ProjectManagedWriteResult ProjectScaffold::WriteManagedFiles(
         return result;
     }
 
-    if(!CopyPluginHeader(desc.friggaRoot, projectRoot))
+    if(!CopyModuleHeader(desc.friggaRoot, projectRoot))
     {
-        result.error = "Failed to copy frigga_plugin.h";
+        result.error = "Failed to copy frigga_module.h";
         return result;
     }
 
@@ -515,24 +516,24 @@ ProjectManagedWriteResult ProjectScaffold::WriteManagedFiles(
         return result;
     }
 
-    const auto gameplayRoot = projectRoot / ProjectDescriptor::PluginsDirName / "gameplay";
-    if(!WriteTextFile(gameplayRoot / "CMakeLists.txt", MakeGameplayPluginCMake()))
+    const auto gameplayRoot = projectRoot / ProjectDescriptor::ModulesDirName / "gameplay";
+    if(!WriteTextFile(gameplayRoot / "CMakeLists.txt", MakeGameplayModuleCMake()))
     {
-        result.error = "Failed to write plugins/gameplay/CMakeLists.txt";
+        result.error = "Failed to write modules/gameplay/CMakeLists.txt";
         return result;
     }
-    if(!std::filesystem::exists(gameplayRoot / PluginCatalog::ManifestFileName))
+    if(!std::filesystem::exists(gameplayRoot / ModuleCatalog::ManifestFileName))
     {
-        DiscoveredPlugin gameplayManifest;
+        DiscoveredModule gameplayManifest;
         gameplayManifest.id              = "gameplay";
         gameplayManifest.name            = "Gameplay";
         gameplayManifest.target          = "gameplay";
-        gameplayManifest.libraryRelative = desc.pluginLibraryRelative.empty()
+        gameplayManifest.libraryRelative = desc.moduleLibraryRelative.empty()
                                                ? ProjectDescriptor::DefaultLibraryRelative("gameplay")
-                                               : desc.pluginLibraryRelative;
-        if(!PluginCatalog::WriteManifest(gameplayRoot, gameplayManifest))
+                                               : desc.moduleLibraryRelative;
+        if(!ModuleCatalog::WriteManifest(gameplayRoot, gameplayManifest))
         {
-            result.error = "Failed to write plugins/gameplay/plugin.json";
+            result.error = "Failed to write modules/gameplay/module.json";
             return result;
         }
     }
@@ -665,29 +666,29 @@ bool ProjectScaffold::WriteExampleUserComponents(const std::filesystem::path &pr
                                                  std::string &error)
 {
     // Always refresh the example Health header so migrators pick up fr::Component.
-    if(!WriteTextFile(projectRoot / ProjectDescriptor::PluginsDirName / "gameplay" /
+    if(!WriteTextFile(projectRoot / ProjectDescriptor::ModulesDirName / "gameplay" /
                           "src/components/Health.hpp",
                       MakeHealthComponentHpp()))
     {
-        error = "Failed to write plugins/gameplay/src/components/Health.hpp";
+        error = "Failed to write modules/gameplay/src/components/Health.hpp";
         return false;
     }
     return true;
 }
 
-bool ProjectScaffold::MaybeRewriteManagedPluginEntry(const std::filesystem::path &projectRoot,
+bool ProjectScaffold::MaybeRewriteManagedModuleEntry(const std::filesystem::path &projectRoot,
                                                      std::string &error)
 {
-    const auto pluginPath =
-        projectRoot / ProjectDescriptor::PluginsDirName / "gameplay" / "src/GameplayPlugin.cpp";
-    const bool exists     = std::filesystem::exists(pluginPath);
-    if(exists && !FileContains(pluginPath, ManagedPluginMarker))
+    const auto modulePath =
+        projectRoot / ProjectDescriptor::ModulesDirName / "gameplay" / "src/GameplayModule.cpp";
+    const bool exists     = std::filesystem::exists(modulePath);
+    if(exists && !FileContains(modulePath, ManagedModuleMarker))
     {
         return true;
     }
-    if(!WriteTextFile(pluginPath, MakeGameplayPluginCpp()))
+    if(!WriteTextFile(modulePath, MakeGameplayModuleCpp()))
     {
-        error = "Failed to write plugins/gameplay/src/GameplayPlugin.cpp";
+        error = "Failed to write modules/gameplay/src/GameplayModule.cpp";
         return false;
     }
     return true;
@@ -696,9 +697,9 @@ bool ProjectScaffold::MaybeRewriteManagedPluginEntry(const std::filesystem::path
 bool ProjectScaffold::MaybeRewriteManagedGameplaySystem(const std::filesystem::path &projectRoot,
                                                         std::string &error)
 {
-    const auto hppPath = projectRoot / ProjectDescriptor::PluginsDirName / "gameplay" /
+    const auto hppPath = projectRoot / ProjectDescriptor::ModulesDirName / "gameplay" /
                          "src/systems/GameplaySystem.hpp";
-    const auto cppPath = projectRoot / ProjectDescriptor::PluginsDirName / "gameplay" /
+    const auto cppPath = projectRoot / ProjectDescriptor::ModulesDirName / "gameplay" /
                          "src/systems/GameplaySystem.cpp";
     const bool hppExists = std::filesystem::exists(hppPath);
     const bool cppExists = std::filesystem::exists(cppPath);
@@ -719,7 +720,7 @@ bool ProjectScaffold::MaybeRewriteManagedGameplaySystem(const std::filesystem::p
     if(!WriteTextFile(hppPath, MakeGameplaySystemHpp()) ||
        !WriteTextFile(cppPath, MakeGameplaySystemCpp()))
     {
-        error = "Failed to write plugins/gameplay/src/systems/GameplaySystem.*";
+        error = "Failed to write modules/gameplay/src/systems/GameplaySystem.*";
         return false;
     }
     return true;
@@ -727,29 +728,52 @@ bool ProjectScaffold::MaybeRewriteManagedGameplaySystem(const std::filesystem::p
 
 namespace
 {
-    std::string MakeExtraPluginCpp(const std::string &classHint)
+    std::string ToPascalCase(std::string_view raw)
     {
-        (void)classHint;
-        return R"cpp(#include <Frigga/Plugin/FriPluginModule.hpp>
+        std::string out;
+        bool upper = true;
+        for(const char ch : raw)
+        {
+            if(!std::isalnum(static_cast<unsigned char>(ch)))
+            {
+                upper = true;
+                continue;
+            }
+            if(upper)
+            {
+                out.push_back(static_cast<char>(std::toupper(static_cast<unsigned char>(ch))));
+                upper = false;
+            }
+            else
+            {
+                out.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
+            }
+        }
+        return out.empty() ? "Module" : out;
+    }
 
-FRI_PLUGIN_MODULE(plugin)
+    std::string MakeExtraModuleCpp(const std::string &)
+    {
+        return R"cpp(#include <Frigga/Module/FriModule.hpp>
+
+FRI_MODULE(module)
 {
 }
 )cpp";
     }
 
-    std::string MakeExtraPluginCMake(const std::string &target, const std::string &sourceFile)
+    std::string MakeExtraModuleCMake(const std::string &target, const std::string &sourceFile)
     {
         std::ostringstream out;
-        out << "frigga_add_plugin(" << target << "\n";
+        out << "frigga_add_module(" << target << "\n";
         out << "  src/" << sourceFile << "\n";
         out << ")\n";
         return out.str();
     }
 
-    bool RegisterPluginEntry(ProjectDescriptor &desc, ProjectPluginEntry entry)
+    bool RegisterModuleEntry(ProjectDescriptor &desc, ProjectModuleEntry entry)
     {
-        for(auto &existing : desc.plugins)
+        for(auto &existing : desc.modules)
         {
             if(existing.id == entry.id || existing.target == entry.target)
             {
@@ -758,13 +782,13 @@ FRI_PLUGIN_MODULE(plugin)
                 return true;
             }
         }
-        desc.plugins.push_back(std::move(entry));
+        desc.modules.push_back(std::move(entry));
         desc.SyncGameplayMirror();
         return true;
     }
 } // namespace
 
-bool ProjectScaffold::SyncManagedPluginSubdirs(const std::filesystem::path &projectRoot,
+bool ProjectScaffold::SyncManagedModuleSubdirs(const std::filesystem::path &projectRoot,
                                                const ProjectDescriptor &desc, std::string &error)
 {
     const auto cmakePath = projectRoot / "CMakeLists.txt";
@@ -777,9 +801,9 @@ bool ProjectScaffold::SyncManagedPluginSubdirs(const std::filesystem::path &proj
     std::ostringstream buffer;
     buffer << in.rdbuf();
     std::string text = buffer.str();
-    const auto block = MakeManagedPluginSubdirsBlock(desc);
-    const auto begin = text.find(ManagedPluginSubdirsBegin);
-    const auto end   = text.find(ManagedPluginSubdirsEnd);
+    const auto block = MakeManagedModuleSubdirsBlock(desc);
+    const auto begin = text.find(ManagedModuleSubdirsBegin);
+    const auto end   = text.find(ManagedModuleSubdirsEnd);
     if(begin != std::string::npos && end != std::string::npos && end > begin)
     {
         const auto endLine = text.find('\n', end);
@@ -797,86 +821,86 @@ bool ProjectScaffold::SyncManagedPluginSubdirs(const std::filesystem::path &proj
     }
     if(!WriteTextFile(cmakePath, text))
     {
-        error = "Failed to update CMakeLists.txt plugin subdirectories";
+        error = "Failed to update CMakeLists.txt module subdirectories";
         return false;
     }
     return true;
 }
 
-bool ProjectScaffold::CreateExtraPlugin(const std::filesystem::path &projectRoot,
+bool ProjectScaffold::CreateExtraModule(const std::filesystem::path &projectRoot,
                                         ProjectDescriptor &desc, std::string name,
                                         std::string &error)
 {
-    const auto id = PluginCatalog::SanitizeId(name);
-    const auto pluginRoot = projectRoot / ProjectDescriptor::PluginsDirName / id;
-    if(std::filesystem::exists(pluginRoot))
+    const auto id = ModuleCatalog::SanitizeId(name);
+    const auto moduleRoot = projectRoot / ProjectDescriptor::ModulesDirName / id;
+    if(std::filesystem::exists(moduleRoot))
     {
-        error = "Plugin already exists: " + id;
+        error = "Module already exists: " + id;
         return false;
     }
 
-    const auto sourceFile = id + "Plugin.cpp";
+    const auto sourceFile = ToPascalCase(name.empty() ? id : name) + "Module.cpp";
     std::error_code ec;
-    std::filesystem::create_directories(pluginRoot / "src" / "components", ec);
-    std::filesystem::create_directories(pluginRoot / "src" / "systems", ec);
-    if(!WriteTextFile(pluginRoot / "src" / sourceFile, MakeExtraPluginCpp(id)) ||
-       !WriteTextFile(pluginRoot / "CMakeLists.txt", MakeExtraPluginCMake(id, sourceFile)))
+    std::filesystem::create_directories(moduleRoot / "src" / "components", ec);
+    std::filesystem::create_directories(moduleRoot / "src" / "systems", ec);
+    if(!WriteTextFile(moduleRoot / "src" / sourceFile, MakeExtraModuleCpp(id)) ||
+       !WriteTextFile(moduleRoot / "CMakeLists.txt", MakeExtraModuleCMake(id, sourceFile)))
     {
-        error = "Failed to write plugin sources";
+        error = "Failed to write module sources";
         return false;
     }
 
-    DiscoveredPlugin manifest;
+    DiscoveredModule manifest;
     manifest.id               = id;
     manifest.name             = name.empty() ? id : name;
     manifest.target           = id;
     manifest.libraryRelative  = ProjectDescriptor::DefaultLibraryRelative(id);
-    if(!PluginCatalog::WriteManifest(pluginRoot, manifest))
+    if(!ModuleCatalog::WriteManifest(moduleRoot, manifest))
     {
-        error = "Failed to write plugin.json";
+        error = "Failed to write module.json";
         return false;
     }
 
-    RegisterPluginEntry(desc, ProjectPluginEntry {.id              = id,
+    RegisterModuleEntry(desc, ProjectModuleEntry {.id              = id,
                                                   .target          = id,
                                                   .libraryRelative = manifest.libraryRelative,
                                                   .enabled         = true,
-                                                  .source          = PluginSource::Project});
-    desc.EnsureGameplayPlugin();
-    if(!SyncManagedPluginSubdirs(projectRoot, desc, error))
+                                                  .source          = ModuleSource::Project});
+    desc.EnsureGameplayModule();
+    if(!SyncManagedModuleSubdirs(projectRoot, desc, error))
     {
         return false;
     }
     return true;
 }
 
-bool ProjectScaffold::InstallPlugin(const std::filesystem::path &projectRoot,
+bool ProjectScaffold::InstallModule(const std::filesystem::path &projectRoot,
                                     ProjectDescriptor &desc,
                                     const std::filesystem::path &sourceRoot, std::string &error)
 {
-    auto discovered = PluginCatalog::ReadManifest(sourceRoot);
+    auto discovered = ModuleCatalog::ReadManifest(sourceRoot);
     if(!discovered)
     {
-        error = "plugin.json not found in " + sourceRoot.string();
+        error = "module.json not found in " + sourceRoot.string();
         return false;
     }
-    const auto id         = PluginCatalog::SanitizeId(discovered->id);
-    const auto pluginRoot = projectRoot / ProjectDescriptor::PluginsDirName / id;
-    if(!PluginCatalog::CopyPluginTree(sourceRoot, pluginRoot, error))
+    const auto id         = ModuleCatalog::SanitizeId(discovered->id);
+    const auto moduleRoot = projectRoot / ProjectDescriptor::ModulesDirName / id;
+    if(!ModuleCatalog::CopyModuleTree(sourceRoot, moduleRoot, error))
     {
         return false;
     }
-    if(!std::filesystem::exists(pluginRoot / "CMakeLists.txt"))
+    if(!std::filesystem::exists(moduleRoot / "CMakeLists.txt"))
     {
-        const auto sourceFile = id + "Plugin.cpp";
-        if(!WriteTextFile(pluginRoot / "CMakeLists.txt", MakeExtraPluginCMake(id, sourceFile)))
+        const auto sourceFile = ToPascalCase(discovered->name.empty() ? id : discovered->name) + "Module.cpp";
+        if(!WriteTextFile(moduleRoot / "CMakeLists.txt", MakeExtraModuleCMake(id, sourceFile)))
         {
-            error = "Failed to write installed plugin CMakeLists.txt";
+            error = "Failed to write installed module CMakeLists.txt";
             return false;
         }
     }
 
-    RegisterPluginEntry(desc, ProjectPluginEntry {.id              = id,
+    RegisterModuleEntry(desc, ProjectModuleEntry {.id              = id,
                                                   .target          = discovered->target.empty()
                                                                          ? id
                                                                          : discovered->target,
@@ -884,9 +908,9 @@ bool ProjectScaffold::InstallPlugin(const std::filesystem::path &projectRoot,
                                                       discovered->target.empty() ? id
                                                                                  : discovered->target),
                                                   .enabled         = true,
-                                                  .source          = PluginSource::User});
-    desc.EnsureGameplayPlugin();
-    return SyncManagedPluginSubdirs(projectRoot, desc, error);
+                                                  .source          = ModuleSource::User});
+    desc.EnsureGameplayModule();
+    return SyncManagedModuleSubdirs(projectRoot, desc, error);
 }
 
 ProjectScaffoldResult ProjectScaffold::Create(const std::filesystem::path &parentDir,
@@ -896,7 +920,7 @@ ProjectScaffoldResult ProjectScaffold::Create(const std::filesystem::path &paren
     ProjectScaffoldResult result;
     ProjectDescriptor desc = descIn;
     desc.formatVersion     = ProjectDescriptor::CurrentFormatVersion;
-    desc.EnsureGameplayPlugin();
+    desc.EnsureGameplayModule();
 
     if(desc.name.empty())
     {
@@ -910,9 +934,9 @@ ProjectScaffoldResult ProjectScaffold::Create(const std::filesystem::path &paren
     }
     FillMissingEnginePaths(desc);
 
-    if(desc.pluginLibraryRelative.empty())
+    if(desc.moduleLibraryRelative.empty())
     {
-        desc.pluginLibraryRelative = DefaultPluginLibraryRelative(desc.pluginTarget);
+        desc.moduleLibraryRelative = DefaultModuleLibraryRelative(desc.moduleTarget);
     }
 
     const auto projectRoot = parentDir / desc.name;
@@ -926,7 +950,7 @@ ProjectScaffoldResult ProjectScaffold::Create(const std::filesystem::path &paren
     std::filesystem::create_directories(projectRoot / "scenes", ec);
     std::filesystem::create_directories(projectRoot / "include", ec);
     std::filesystem::create_directories(projectRoot / "build", ec);
-    std::filesystem::create_directories(projectRoot / ProjectDescriptor::PluginsDirName, ec);
+    std::filesystem::create_directories(projectRoot / ProjectDescriptor::ModulesDirName, ec);
     if(ec)
     {
         result.error = "Failed to create project directories";
@@ -947,26 +971,26 @@ ProjectScaffoldResult ProjectScaffold::Create(const std::filesystem::path &paren
         return result;
     }
 
-    if(!MaybeRewriteManagedPluginEntry(projectRoot, result.error) ||
+    if(!MaybeRewriteManagedModuleEntry(projectRoot, result.error) ||
        !MaybeRewriteManagedGameplaySystem(projectRoot, result.error))
     {
         return result;
     }
 
-    const auto gameplayRoot = projectRoot / ProjectDescriptor::PluginsDirName / "gameplay";
-    if(!WriteTextFile(gameplayRoot / "CMakeLists.txt", MakeGameplayPluginCMake()))
+    const auto gameplayRoot = projectRoot / ProjectDescriptor::ModulesDirName / "gameplay";
+    if(!WriteTextFile(gameplayRoot / "CMakeLists.txt", MakeGameplayModuleCMake()))
     {
-        result.error = "Failed to write plugins/gameplay/CMakeLists.txt";
+        result.error = "Failed to write modules/gameplay/CMakeLists.txt";
         return result;
     }
-    DiscoveredPlugin gameplayManifest;
+    DiscoveredModule gameplayManifest;
     gameplayManifest.id              = "gameplay";
     gameplayManifest.name            = "Gameplay";
     gameplayManifest.target          = "gameplay";
-    gameplayManifest.libraryRelative = desc.pluginLibraryRelative;
-    if(!PluginCatalog::WriteManifest(gameplayRoot, gameplayManifest))
+    gameplayManifest.libraryRelative = desc.moduleLibraryRelative;
+    if(!ModuleCatalog::WriteManifest(gameplayRoot, gameplayManifest))
     {
-        result.error = "Failed to write plugins/gameplay/plugin.json";
+        result.error = "Failed to write modules/gameplay/module.json";
         return result;
     }
 

@@ -1,5 +1,5 @@
-# Populates ${CMAKE_BINARY_DIR}/Sdk for gameplay plugin scaffolding / CI publish.
-# Layout used by gameplay plugin CMake via FRIGGA_SDK (same tree as FRIGGA_ROOT + _deps):
+# Populates ${CMAKE_BINARY_DIR}/Sdk for gameplay module scaffolding / CI publish.
+# Layout used by gameplay module CMake via FRIGGA_SDK (same tree as FRIGGA_ROOT + _deps):
 #   Sdk/src/Frigga/...
 #   Sdk/_deps/{freyr,skirnir,glm}-src/...
 
@@ -32,7 +32,7 @@ foreach(_dep IN ITEMS "${_FRIGGA_SDK_FREYR}/include/Freyr" "${_FRIGGA_SDK_SKIRNI
 endforeach()
 
 file(REMOVE_RECURSE "${FRIGGA_SDK_DIR}")
-file(MAKE_DIRECTORY "${FRIGGA_SDK_DIR}/src/Frigga/Plugin")
+file(MAKE_DIRECTORY "${FRIGGA_SDK_DIR}/src/Frigga/Module")
 file(MAKE_DIRECTORY "${FRIGGA_SDK_DIR}/_deps/freyr-src/include")
 file(MAKE_DIRECTORY "${FRIGGA_SDK_DIR}/_deps/skirnir-src/include")
 file(MAKE_DIRECTORY "${FRIGGA_SDK_DIR}/_deps/glm-src")
@@ -40,7 +40,7 @@ file(MAKE_DIRECTORY "${FRIGGA_SDK_DIR}/_deps/simdjson-src/include")
 
 file(COPY "${CMAKE_SOURCE_DIR}/src/Frigga/Macro.hpp"
      DESTINATION "${FRIGGA_SDK_DIR}/src/Frigga")
-file(COPY "${CMAKE_SOURCE_DIR}/src/Frigga/Plugin"
+file(COPY "${CMAKE_SOURCE_DIR}/src/Frigga/Module"
      DESTINATION "${FRIGGA_SDK_DIR}/src/Frigga"
      FILES_MATCHING
         PATTERN "*.hpp"
@@ -64,7 +64,7 @@ file(COPY "${CMAKE_SOURCE_DIR}/src/Frigga/Physics/PhysicsBodyHandle.hpp"
           "${CMAKE_SOURCE_DIR}/src/Frigga/Physics/Physics.hpp"
      DESTINATION "${FRIGGA_SDK_DIR}/src/Frigga/Physics")
 
-# Lightweight Freya event enums for InputMap / plugin includes (no Vulkan).
+# Lightweight Freya event enums for InputMap / module includes (no Vulkan).
 set(_FRIGGA_SDK_FREYA "${CMAKE_BINARY_DIR}/_deps/freya-src")
 if(DEFINED freya_SOURCE_DIR)
     set(_FRIGGA_SDK_FREYA "${freya_SOURCE_DIR}")
@@ -86,11 +86,11 @@ file(COPY "${_FRIGGA_SDK_FREYA}/include/Freya/Events"
         PATTERN "*.h")
 
 file(WRITE "${FRIGGA_SDK_DIR}/src/Frigga/Frigga.hpp"
-     "#pragma once\n#include \"Frigga/Macro.hpp\"\n#include \"Frigga/Plugin/FriPluginSdk.hpp\"\n")
+     "#pragma once\n#include \"Frigga/Macro.hpp\"\n#include \"Frigga/Module/FriPluginSdk.hpp\"\n")
 
-file(COPY "${CMAKE_SOURCE_DIR}/src/Editor/Resources/plugins"
+file(COPY "${CMAKE_SOURCE_DIR}/src/Editor/Resources/modules"
      DESTINATION "${FRIGGA_SDK_DIR}")
-file(WRITE "${FRIGGA_SDK_DIR}/CMakeLists.txt" "# Frigga gameplay plugin SDK (packaged with Editor)\n")
+file(WRITE "${FRIGGA_SDK_DIR}/CMakeLists.txt" "# Frigga gameplay module SDK (packaged with Editor)\n")
 
 file(COPY "${_FRIGGA_SDK_FREYR}/include/Freyr"
      DESTINATION "${FRIGGA_SDK_DIR}/_deps/freyr-src/include")
@@ -98,7 +98,7 @@ file(COPY "${_FRIGGA_SDK_SKIRNIR}/include/Skirnir"
      DESTINATION "${FRIGGA_SDK_DIR}/_deps/skirnir-src/include")
 file(COPY "${_FRIGGA_SDK_GLM}/glm"
      DESTINATION "${FRIGGA_SDK_DIR}/_deps/glm-src")
-# Skirnir public headers include <simdjson.h>; plugins compile against the SDK
+# Skirnir public headers include <simdjson.h>; modules compile against the SDK
 # without linking simdjson, so the headers must ship with the pack.
 file(COPY "${_FRIGGA_SDK_SIMDJSON}/include/simdjson.h"
           "${_FRIGGA_SDK_SIMDJSON}/include/simdjson"

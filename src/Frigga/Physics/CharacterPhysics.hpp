@@ -3,7 +3,7 @@
 #include "Frigga/ECS/Components/UserDataComponent.hpp"
 #include "Frigga/ECS/UserComponentRegistry.hpp"
 #include "Frigga/Physics/PhysicsTypes.hpp"
-#include "Frigga/Plugin/GameplayTypeIds.hpp"
+#include "Frigga/Module/GameplayTypeIds.hpp"
 
 #include <algorithm>
 #include <cstdint>

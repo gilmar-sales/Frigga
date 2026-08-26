@@ -1,4 +1,4 @@
-#include "PluginCatalog.hpp"
+#include "ModuleCatalog.hpp"
 
 #include "ProjectDescriptor.hpp"
 
@@ -114,7 +114,7 @@ namespace
     }
 } // namespace
 
-std::string PluginCatalog::SanitizeId(std::string_view raw)
+std::string ModuleCatalog::SanitizeId(std::string_view raw)
 {
     std::string out;
     out.reserve(raw.size());
@@ -131,18 +131,18 @@ std::string PluginCatalog::SanitizeId(std::string_view raw)
     }
     if(out.empty())
     {
-        return "plugin";
+        return "module";
     }
     if(std::isdigit(static_cast<unsigned char>(out.front())))
     {
-        out.insert(out.begin(), 'p');
+        out.insert(out.begin(), 'm');
     }
     return out;
 }
 
-std::optional<DiscoveredPlugin> PluginCatalog::ReadManifest(const std::filesystem::path &pluginRoot)
+std::optional<DiscoveredModule> ModuleCatalog::ReadManifest(const std::filesystem::path &moduleRoot)
 {
-    const auto path = pluginRoot / ManifestFileName;
+    const auto path = moduleRoot / ManifestFileName;
     if(!std::filesystem::exists(path))
     {
         return std::nullopt;
@@ -152,46 +152,46 @@ std::optional<DiscoveredPlugin> PluginCatalog::ReadManifest(const std::filesyste
     buffer << file.rdbuf();
     const std::string text = buffer.str();
 
-    DiscoveredPlugin plugin;
-    plugin.root = pluginRoot;
-    ExtractJsonStringField(text, "id", plugin.id);
-    ExtractJsonStringField(text, "name", plugin.name);
-    ExtractJsonStringField(text, "target", plugin.target);
-    ExtractJsonStringField(text, "library", plugin.libraryRelative);
-    ExtractJsonBoolField(text, "bundled", plugin.bundled);
-    if(plugin.id.empty())
+    DiscoveredModule module;
+    module.root = moduleRoot;
+    ExtractJsonStringField(text, "id", module.id);
+    ExtractJsonStringField(text, "name", module.name);
+    ExtractJsonStringField(text, "target", module.target);
+    ExtractJsonStringField(text, "library", module.libraryRelative);
+    ExtractJsonBoolField(text, "bundled", module.bundled);
+    if(module.id.empty())
     {
-        plugin.id = pluginRoot.filename().string();
+        module.id = moduleRoot.filename().string();
     }
-    if(plugin.target.empty())
+    if(module.target.empty())
     {
-        plugin.target = plugin.id;
+        module.target = module.id;
     }
-    if(plugin.name.empty())
+    if(module.name.empty())
     {
-        plugin.name = plugin.id;
+        module.name = module.id;
     }
-    if(plugin.libraryRelative.empty())
+    if(module.libraryRelative.empty())
     {
-        plugin.libraryRelative = ProjectDescriptor::DefaultLibraryRelative(plugin.target);
+        module.libraryRelative = ProjectDescriptor::DefaultLibraryRelative(module.target);
     }
-    return plugin;
+    return module;
 }
 
-bool PluginCatalog::WriteManifest(const std::filesystem::path &pluginRoot,
-                                  const DiscoveredPlugin &plugin)
+bool ModuleCatalog::WriteManifest(const std::filesystem::path &moduleRoot,
+                                  const DiscoveredModule &module)
 {
     std::error_code ec;
-    std::filesystem::create_directories(pluginRoot, ec);
+    std::filesystem::create_directories(moduleRoot, ec);
     std::ostringstream json;
     json << "{\n";
-    json << "  \"id\": \"" << EscapeJson(plugin.id) << "\",\n";
-    json << "  \"name\": \"" << EscapeJson(plugin.name.empty() ? plugin.id : plugin.name) << "\",\n";
-    json << "  \"target\": \"" << EscapeJson(plugin.target) << "\",\n";
-    json << "  \"library\": \"" << EscapeJson(plugin.libraryRelative) << "\",\n";
-    json << "  \"bundled\": " << (plugin.bundled ? "true" : "false") << "\n";
+    json << "  \"id\": \"" << EscapeJson(module.id) << "\",\n";
+    json << "  \"name\": \"" << EscapeJson(module.name.empty() ? module.id : module.name) << "\",\n";
+    json << "  \"target\": \"" << EscapeJson(module.target) << "\",\n";
+    json << "  \"library\": \"" << EscapeJson(module.libraryRelative) << "\",\n";
+    json << "  \"bundled\": " << (module.bundled ? "true" : "false") << "\n";
     json << "}\n";
-    std::ofstream file(pluginRoot / ManifestFileName, std::ios::binary | std::ios::trunc);
+    std::ofstream file(moduleRoot / ManifestFileName, std::ios::binary | std::ios::trunc);
     if(!file)
     {
         return false;
@@ -200,10 +200,10 @@ bool PluginCatalog::WriteManifest(const std::filesystem::path &pluginRoot,
     return static_cast<bool>(file);
 }
 
-std::vector<DiscoveredPlugin> PluginCatalog::ScanDirectory(const std::filesystem::path &dir,
+std::vector<DiscoveredModule> ModuleCatalog::ScanDirectory(const std::filesystem::path &dir,
                                                            bool bundled)
 {
-    std::vector<DiscoveredPlugin> result;
+    std::vector<DiscoveredModule> result;
     std::error_code ec;
     if(!std::filesystem::is_directory(dir, ec))
     {
@@ -215,18 +215,18 @@ std::vector<DiscoveredPlugin> PluginCatalog::ScanDirectory(const std::filesystem
         {
             continue;
         }
-        auto plugin = ReadManifest(entry.path());
-        if(!plugin)
+        auto module = ReadManifest(entry.path());
+        if(!module)
         {
             continue;
         }
-        plugin->bundled = bundled || plugin->bundled;
-        result.push_back(std::move(*plugin));
+        module->bundled = bundled || module->bundled;
+        result.push_back(std::move(*module));
     }
     return result;
 }
 
-std::vector<std::filesystem::path> PluginCatalog::BundledPluginSearchDirs(
+std::vector<std::filesystem::path> ModuleCatalog::BundledModuleSearchDirs(
     const std::filesystem::path &friggaSdk, const std::filesystem::path &friggaRoot,
     const std::filesystem::path &executableDir)
 {
@@ -251,39 +251,39 @@ std::vector<std::filesystem::path> PluginCatalog::BundledPluginSearchDirs(
         dirs.push_back(ec ? std::move(path) : canonical);
     };
     // First hit wins in ScanBundled: this Editor's copy, then SDK pack, then source.
-    add(executableDir / "Resources" / "plugins");
-    add(friggaSdk / "plugins");
-    add(friggaRoot / "src" / "Editor" / "Resources" / "plugins");
+    add(executableDir / "Resources" / "modules");
+    add(friggaSdk / "modules");
+    add(friggaRoot / "src" / "Editor" / "Resources" / "modules");
     return dirs;
 }
 
-std::vector<DiscoveredPlugin> PluginCatalog::ScanBundled(const std::filesystem::path &friggaSdk,
+std::vector<DiscoveredModule> ModuleCatalog::ScanBundled(const std::filesystem::path &friggaSdk,
                                                          const std::filesystem::path &friggaRoot,
                                                          const std::filesystem::path &executableDir)
 {
-    std::vector<DiscoveredPlugin> result;
+    std::vector<DiscoveredModule> result;
     std::unordered_set<std::string> ids;
-    for(const auto &dir : BundledPluginSearchDirs(friggaSdk, friggaRoot, executableDir))
+    for(const auto &dir : BundledModuleSearchDirs(friggaSdk, friggaRoot, executableDir))
     {
-        for(auto &plugin : ScanDirectory(dir, true))
+        for(auto &module : ScanDirectory(dir, true))
         {
-            if(!ids.insert(plugin.id).second)
+            if(!ids.insert(module.id).second)
             {
                 continue;
             }
-            result.push_back(std::move(plugin));
+            result.push_back(std::move(module));
         }
     }
     return result;
 }
 
-bool PluginCatalog::CopyPluginTree(const std::filesystem::path &from, const std::filesystem::path &to,
+bool ModuleCatalog::CopyModuleTree(const std::filesystem::path &from, const std::filesystem::path &to,
                                    std::string &error)
 {
     std::error_code ec;
     if(!std::filesystem::is_directory(from, ec))
     {
-        error = "Plugin folder not found: " + from.string();
+        error = "Module folder not found: " + from.string();
         return false;
     }
     if(std::filesystem::exists(to, ec))
@@ -298,7 +298,7 @@ bool PluginCatalog::CopyPluginTree(const std::filesystem::path &from, const std:
                           ec);
     if(ec)
     {
-        error = "Failed to copy plugin: " + ec.message();
+        error = "Failed to copy module: " + ec.message();
         return false;
     }
     std::filesystem::remove_all(to / "build", ec);

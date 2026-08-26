@@ -1,4 +1,4 @@
-#include "Frigga/Plugin/FriComponentInspector.hpp"
+#include "Frigga/Module/FriComponentInspector.hpp"
 
 #include <cstdio>
 #include <imgui.h>

@@ -82,7 +82,7 @@ Targets:
 | `Shaders` | Freya SPIR-V compile (built as a Freya dependency) |
 | `package` | CPack archive (`cpack` / `ninja package`) |
 
-CMake copies `src/Editor/Resources` into the build tree (`build/Resources`). That tree is the **engine** pack (UI fonts, shaders, bundled plugins, default textures). Freya also deposits compiled shaders under it. **Run the editor from the build directory** so engine resource paths resolve:
+CMake copies `src/Editor/Resources` into the build tree (`build/Resources`). That tree is the **engine** pack (UI fonts, shaders, bundled modules, default textures). Freya also deposits compiled shaders under it. **Run the editor from the build directory** so engine resource paths resolve:
 
 ```bash
 cd build
@@ -135,8 +135,8 @@ cd build-release && ./Editor
 | Open scene | Ctrl+O |
 | Save | Ctrl+S |
 | Save as | Ctrl+Shift+S |
-| Build plugins | Ctrl+B |
-| Reload plugins | Ctrl+R |
+| Build modules | Ctrl+B |
+| Reload modules | Ctrl+R |
 | Open project in code editor | Ctrl+Shift+E |
 | Play / pause / resume | Ctrl+P |
 | Step one physics tick | Ctrl+. |
@@ -145,18 +145,19 @@ cd build-release && ./Editor
 | Gizmo translate / rotate / scale | W / E / R (editor viewport focused) |
 | Frame selection | F (editor viewport) |
 
-The Editor starts on a **home screen**: create a 2D/3D project (scaffolds CMake + Freyr gameplay plugin stubs + `Resources/` + scene), open an existing `frigga.project`, or pick a recent project. Opening a project auto-migrates older `frigga.project` formats (rewrites managed `CMakeLists.txt` / plugin header / scaffold `GameplaySystem` when still marked managed). Gameplay CMake does not bake machine paths: the Editor passes `-DFRIGGA_SDK` (packaged `Sdk/` next to the binary, or the engine tree), and CLI builds can use the same flag, the `FRIGGA_SDK` environment variable, or local `CMakeUserPresets.json`. Use **File → Migrate Project Files** to force-refresh managed files, then **Build Plugins** (Ctrl+B) and **Reload** (Ctrl+R). Each project has a `gameplay` plugin plus optional extras under `plugins/` (combat, camera, movement, …). Share extras by exporting to `~/Frigga/Plugins`. Plugins use `FRI_PLUGIN_MODULE` to register components/systems/DI. Host `fg::Input` loads `input.json` Actions/Axes; inject it into Freyr systems. Pipeline layout lives in `ecs.json` (ECS workflow editor). **Play** enables the Freyr **Simulation** pipeline at 60 Hz (physics + gameplay). **Main** runs animation (and optional third-person camera plugin) every frame; **Render** always ticks last.
+The Editor starts on a **home screen**: create a 2D/3D project (scaffolds CMake + Freyr gameplay module stubs + `Resources/` + scene), open an existing `frigga.project`, or pick a recent project. Opening a project refreshes managed scaffold files when needed (`CMakeLists.txt`, module header, `GameplaySystem` when still marked managed). Gameplay CMake does not bake machine paths: the Editor passes `-DFRIGGA_SDK` (packaged `Sdk/` next to the binary, or the engine tree), and CLI builds can use the same flag, the `FRIGGA_SDK` environment variable, or local `CMakeUserPresets.json`. Use **File → Migrate Project Files** to force-refresh managed files, then **Build Modules** (Ctrl+B) and **Reload** (Ctrl+R). Each project has a `gameplay` module plus optional extras under `modules/` (combat, camera, movement, …). Share extras by exporting to `~/Frigga/Modules`. Modules use `FRI_MODULE` to register components/systems/DI. Host `fg::Input` loads `input.json` Actions/Axes; inject it into Freyr systems. Pipeline layout lives in `ecs.json` (ECS workflow editor). **Play** enables the Freyr **Simulation** pipeline at 60 Hz (physics + gameplay). **Main** runs animation (and optional third-person camera module) every frame; **Render** always ticks last.
 
 ### Debug gameplay (VS Code + GDB)
 
 1. Install the Frigga VS Code extension from `tools/vscode-frigga` (and the Microsoft C/C++ extension).
 2. Open the gameplay project in the Frigga Editor (writes `.frigga/editor-session.json` with Editor PID / binary path).
 3. Open the same project folder in VS Code (**File → Open in Code Editor** / Ctrl+Shift+E).
-4. Run **Frigga: Attach Debugger to Editor**, set breakpoints in gameplay sources, and press Play in the Editor.
+4. Use the **Frigga → Modules** sidebar to create modules, scaffold components/systems, enable/disable, build, install from the user library, or export.
+5. Run **Frigga: Attach Debugger to Editor**, set breakpoints in module sources, and press Play in the Editor.
 
 Build progress and other background work appear in the Editor bottom status bar (click the mini progress indicator to expand the task list).
 
-Workflows other than **Gameplay** / **ECS** are placeholders. Preferences live under the OS preferred dir (`~/.local/share/Frigga/Editor/preferences.json` on Linux); some graphics options need a restart. New projects default to `~/Frigga/Projects`; shared plugins live in `~/Frigga/Plugins`.
+Workflows other than **Gameplay** / **ECS** are placeholders. Preferences live under the OS preferred dir (`~/.local/share/Frigga/Editor/preferences.json` on Linux); some graphics options need a restart. New projects default to `~/Frigga/Projects`; shared modules live in `~/Frigga/Modules`.
 
 Default environment map path in preferences may point at a missing HDR under `Resources/Environments/` — place an HDR there or change the path in Preferences.
 
@@ -164,9 +165,9 @@ Default environment map path in preferences may point at a missing HDR under `Re
 
 ```
 src/
-  Frigga/          Engine library (ECS, scene I/O, physics, plugins, GUI, render systems)
+  Frigga/          Engine library (ECS, scene I/O, physics, modules, GUI, render systems)
   Editor/          Editor app (home, projects, workflows, panels, preferences)
-    Resources/     Engine pack: UI fonts, default textures, bundled plugins, ProjectTemplate/
+    Resources/     Engine pack: UI fonts, default textures, bundled modules, ProjectTemplate/
 CMakeLists.txt
 ```
 

@@ -71,7 +71,7 @@ namespace FRIGGA_NAMESPACE
     {
         return LabelEndsWith(label, "AnimationSystem") || LabelEndsWith(label, "RenderSystem") ||
                LabelEndsWith(label, "PhysicsSystem") || LabelEndsWith(label, "AudioSystem") ||
-               LabelEndsWith(label, "GameplayPluginBridge");
+               LabelEndsWith(label, "GameplayModuleBridge");
     }
 
     const char *EngineSystemBuiltinPipeline(std::string_view label)
@@ -252,7 +252,7 @@ namespace FRIGGA_NAMESPACE
             {
                 (void)registry.MoveSystem(id, *defaultId, slot);
                 ++slot;
-                result.addedPluginSystems = true;
+                result.addedModuleSystems = true;
             }
         }
 

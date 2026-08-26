@@ -24,8 +24,8 @@
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/ECS/TransformUtil.hpp"
 #include "Frigga/ECS/Components/UserDataComponent.hpp"
-#include "Frigga/Plugin/FriComponentInspector.hpp"
-#include "Frigga/Plugin/GameplayTypeIds.hpp"
+#include "Frigga/Module/FriComponentInspector.hpp"
+#include "Frigga/Module/GameplayTypeIds.hpp"
 #include "Frigga/Scene/Prefab.hpp"
 
 #include <SDL3/SDL_dialog.h>
@@ -802,7 +802,7 @@ bool HierarchyLayer::hasUserComponentType(std::string_view typeId) const
     return mUserComponents && mUserComponents->Has(typeId);
 }
 
-void HierarchyLayer::drawPluginAddComponentMenus(fr::Entity entity)
+void HierarchyLayer::drawModuleAddComponentMenus(fr::Entity entity)
 {
     if(!mUserComponents)
     {
@@ -810,24 +810,24 @@ void HierarchyLayer::drawPluginAddComponentMenus(fr::Entity entity)
     }
 
     const auto types = mUserComponents->GetTypes();
-    struct PluginGroup
+    struct ModuleGroup
     {
         std::string id;
         std::string name;
         std::vector<fg::RuntimeComponentOps> components;
     };
-    std::vector<PluginGroup> groups;
+    std::vector<ModuleGroup> groups;
     std::map<std::string, std::size_t> indexById;
     for(const auto &ops : types)
     {
-        const auto id = ops.pluginId.empty() ? std::string("plugins") : ops.pluginId;
+        const auto id = ops.moduleId.empty() ? std::string("modules") : ops.moduleId;
         auto found    = indexById.find(id);
         if(found == indexById.end())
         {
             indexById.emplace(id, groups.size());
-            groups.push_back(PluginGroup {
+            groups.push_back(ModuleGroup {
                 .id   = id,
-                .name = ops.pluginName.empty() ? id : ops.pluginName,
+                .name = ops.moduleName.empty() ? id : ops.moduleName,
             });
             found = indexById.find(id);
         }
@@ -1641,7 +1641,7 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
             }
         }
 
-        drawPluginAddComponentMenus(entity);
+        drawModuleAddComponentMenus(entity);
         ImGui::EndDisabled();
 
         ImGui::EndPopup();

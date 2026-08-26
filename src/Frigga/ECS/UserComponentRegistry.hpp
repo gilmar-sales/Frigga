@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Frigga/ECS/Components/UserDataComponent.hpp"
-#include "Frigga/Plugin/FriComponentInspector.hpp"
+#include "Frigga/Module/FriComponentInspector.hpp"
 
 #include <Freyr/Freyr.hpp>
 
@@ -30,8 +30,8 @@ namespace FRIGGA_NAMESPACE
     {
         std::string                         typeId;
         std::string                         displayName;
-        std::string                         pluginId;
-        std::string                         pluginName;
+        std::string                         moduleId;
+        std::string                         moduleName;
         fr::ComponentId                     componentId = 0;
         std::vector<UserComponentFieldDesc> fields;
         UserComponentInstance               defaultInstance {};
@@ -71,7 +71,7 @@ namespace FRIGGA_NAMESPACE
         void Register(RuntimeComponentOps ops);
         /// Strip entities + Freyr unregister via ops, then clear catalogue. Call before dlclose.
         void DetachAll(fr::Registry &registry);
-        void ClearPluginTypes();
+        void ClearModuleTypes();
 
         /// Serialize every attached user-component instance (call before DetachAll).
         [[nodiscard]] UserComponentWorldSnapshot CaptureAll(fr::Registry &registry) const;
@@ -81,7 +81,7 @@ namespace FRIGGA_NAMESPACE
 
         /// Stash a gameplay component read from disk while its typeId is not yet registered
         /// (plugin not loaded). Survives until ApplyDeferred or ClearDeferred; not cleared by
-        /// DetachAll / ClearPluginTypes so first-build reload can still apply scene data.
+        /// DetachAll / ClearModuleTypes so first-build reload can still apply scene data.
         void EnqueueDeferred(fr::Entity entity, UserComponentInstance instance);
         void ClearDeferred();
         /// Apply every deferred instance whose typeId is now registered. Removes applied entries.

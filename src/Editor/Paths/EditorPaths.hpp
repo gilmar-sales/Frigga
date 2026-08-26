@@ -15,7 +15,7 @@ class EditorPaths
     static constexpr const char *AppName             = "Editor";
     static constexpr const char *FriggaHomeFolder    = "Frigga";
     static constexpr const char *ProjectsFolderName  = "Projects";
-    static constexpr const char *PluginsFolderName   = "Plugins";
+    static constexpr const char *ModulesFolderName   = "Modules";
     static constexpr const char *LegacyProjectsFolderName = "FriggaProjects";
     static constexpr const char *PreferencesFileName = "preferences.json";
 
@@ -25,7 +25,7 @@ class EditorPaths
     /// User home directory (fallback-friendly).
     [[nodiscard]] static std::filesystem::path UserHomeDir();
 
-    /// `UserHomeDir() / Frigga` — parent for Projects + Plugins.
+    /// `UserHomeDir() / Frigga` — parent for Projects + Modules.
     [[nodiscard]] static std::filesystem::path FriggaHomeDir();
 
     /// `UserHomeDir() / Frigga / Projects` — default parent for new projects.
@@ -34,12 +34,12 @@ class EditorPaths
     /// `UserHomeDir() / FriggaProjects` — pre-v13 default (not migrated automatically).
     [[nodiscard]] static std::filesystem::path LegacyProjectsDir();
 
-    /// `UserHomeDir() / Frigga / Plugins` — shared user plugin library.
-    [[nodiscard]] static std::filesystem::path DefaultPluginsDir();
+    /// `UserHomeDir() / Frigga / Modules` — shared user module library.
+    [[nodiscard]] static std::filesystem::path DefaultModulesDir();
 
     /// `PreferredDir() / preferences.json`
     [[nodiscard]] static std::filesystem::path PreferencesFile();
 
-    /// Ensures PreferredDir + Frigga home (Projects + Plugins) exist.
+    /// Ensures PreferredDir + Frigga home (Projects + Modules) exist.
     static void EnsureDirectories();
 };

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Frigga/ECS/UserComponentRegistry.hpp"
-#include "Frigga/Plugin/frigga_plugin.h"
+#include "Frigga/Module/frigga_module.h"
 
 #include <Freyr/Core/SystemManager.hpp>
 #include <Freyr/Freyr.hpp>
@@ -17,7 +17,7 @@
 namespace FRIGGA_NAMESPACE
 {
 
-    struct PluginLoadRequest
+    struct ModuleLoadRequest
     {
         std::string           id;
         std::string           name;
@@ -25,26 +25,26 @@ namespace FRIGGA_NAMESPACE
     };
 
     /**
-     * Loads / unloads gameplay shared libraries exposing fri_plugin_api().
-     * Safe to call Reload from the main thread; UpdatePlugin is called from the ECS bridge.
+     * Loads / unloads gameplay shared libraries exposing fri_module_api().
+     * Safe to call Reload from the main thread; UpdateModule is called from the ECS bridge.
      */
-    class GameplayPluginHost
+    class GameplayModuleHost
     {
       public:
-        GameplayPluginHost(const skr::Arc<fr::Registry> &registry,
+        GameplayModuleHost(const skr::Arc<fr::Registry> &registry,
                            const skr::Arc<UserComponentRegistry> &userComponents,
                            const skr::Arc<fr::SystemManager> &systemManager,
                            const skr::Arc<skr::ServiceProvider> &services,
-                           const skr::Arc<skr::Logger<GameplayPluginHost>> &logger);
-        ~GameplayPluginHost();
+                           const skr::Arc<skr::Logger<GameplayModuleHost>> &logger);
+        ~GameplayModuleHost();
 
-        GameplayPluginHost(const GameplayPluginHost &)            = delete;
-        GameplayPluginHost &operator=(const GameplayPluginHost &) = delete;
+        GameplayModuleHost(const GameplayModuleHost &)            = delete;
+        GameplayModuleHost &operator=(const GameplayModuleHost &) = delete;
 
         [[nodiscard]] bool IsLoaded() const;
-        [[nodiscard]] bool IsPluginLoaded(std::string_view id) const;
+        [[nodiscard]] bool IsModuleLoaded(std::string_view id) const;
         [[nodiscard]] std::size_t LoadedCount() const;
-        [[nodiscard]] std::vector<std::string> GetLoadedPluginIds() const;
+        [[nodiscard]] std::vector<std::string> GetLoadedModuleIds() const;
         [[nodiscard]] const std::string &GetLastError() const
         {
             return mLastError;
@@ -52,42 +52,42 @@ namespace FRIGGA_NAMESPACE
         /// TypeIds registered by the last successful attach (e.g. "Health, Player").
         [[nodiscard]] std::vector<std::string> GetRegisteredTypeIds() const;
 
-        /// Unload every plugin, then load @p plugins in order (callers should put gameplay last).
-        bool LoadAll(const std::vector<PluginLoadRequest> &plugins);
+        /// Unload every module, then load @p modules in order (callers should put gameplay last).
+        bool LoadAll(const std::vector<ModuleLoadRequest> &modules);
         /// Compatibility: replace the set with a single library.
         bool Load(const std::filesystem::path &libraryPath);
         bool Reload();
         void Unload();
 
-        /// Forwards to every loaded plugin (no-op otherwise).
-        void UpdatePlugin(float deltaTime);
+        /// Forwards to every loaded module (no-op otherwise).
+        void UpdateModule(float deltaTime);
 
       private:
-        struct LoadedPlugin
+        struct LoadedModule
         {
             std::string           id;
             std::string           name;
             std::filesystem::path libraryPath;
             std::filesystem::path stagedLibraryPath;
             void                 *handle   = nullptr;
-            const FriPluginApi   *api      = nullptr;
-            FriPlugin            *plugin   = nullptr;
+            const FriModuleApi   *api      = nullptr;
+            FriModule            *module   = nullptr;
             bool                  attached = false;
         };
 
-        bool loadUnlocked(const PluginLoadRequest &request, bool restoreAfterAttach);
+        bool loadUnlocked(const ModuleLoadRequest &request, bool restoreAfterAttach);
         void unloadAllUnlocked(bool preserveUserComponents);
-        void unloadOneUnlocked(LoadedPlugin &slot, bool preserveUserComponents);
-        void attachUnlocked(LoadedPlugin &slot, bool restoreAfterAttach);
+        void unloadOneUnlocked(LoadedModule &slot, bool preserveUserComponents);
+        void attachUnlocked(LoadedModule &slot, bool restoreAfterAttach);
 
         skr::Arc<fr::Registry> mRegistry;
         skr::Arc<UserComponentRegistry> mUserComponents;
         skr::Arc<fr::SystemManager> mSystemManager;
         skr::Arc<skr::ServiceProvider> mServices;
-        skr::Arc<skr::Logger<GameplayPluginHost>> mLogger;
+        skr::Arc<skr::Logger<GameplayModuleHost>> mLogger;
 
         mutable std::mutex mMutex;
-        std::vector<LoadedPlugin> mPlugins;
+        std::vector<LoadedModule> mModules;
         std::uint64_t mLoadGeneration = 0;
         std::string mLastError;
         UserComponentWorldSnapshot mPendingRestore {};

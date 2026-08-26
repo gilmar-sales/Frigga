@@ -8,7 +8,7 @@
 #include "Panels/InputMapLayer.hpp"
 #include "Panels/LogsLayer.hpp"
 #include "Panels/PipelinesLayer.hpp"
-#include "Panels/PluginsLayer.hpp"
+#include "Panels/ModulesLayer.hpp"
 #include "Panels/PreferencesLayer.hpp"
 #include "Panels/ResourcesLayer.hpp"
 #include "Panels/ScenesLayer.hpp"
@@ -118,7 +118,7 @@ int main(int argc, char *argv[])
         .AddTransient<EditorLayer>()
         .AddScoped<ResourcesLayer>()
         .AddTransient<ScenesLayer>()
-        .AddTransient<PluginsLayer>()
+        .AddTransient<ModulesLayer>()
         .AddTransient<LogsLayer>()
         .AddTransient<ArchetypesLayer>()
         .AddTransient<PipelinesLayer>()

@@ -1,7 +1,7 @@
 #include "systems/ThirdPersonCameraSystem.hpp"
 #include "components/ThirdPersonCameraComponent.hpp"
 
-#include <Frigga/Plugin/FriPluginModule.hpp>
+#include <Frigga/Module/FriModule.hpp>
 
 static void DrawThirdPersonCamera(ThirdPersonCameraComponent &c, fg::FriComponentInspector &ui)
 {
@@ -20,9 +20,9 @@ static void DrawThirdPersonCamera(ThirdPersonCameraComponent &c, fg::FriComponen
     ui.TextDisabled("Uses Input Map LookX / LookY / Zoom");
 }
 
-FRI_PLUGIN_MODULE(plugin)
+FRI_MODULE(module)
 {
-    plugin.Component<ThirdPersonCameraComponent>("ThirdPersonCameraComponent",
+    module.Component<ThirdPersonCameraComponent>("ThirdPersonCameraComponent",
                                                  "Third Person Camera", DrawThirdPersonCamera)
           .System<ThirdPersonCameraSystem>("Main");
 }

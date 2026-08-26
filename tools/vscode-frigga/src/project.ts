@@ -51,7 +51,7 @@ async function collectWorkspaceProjects(): Promise<FriggaProject[]> {
 }
 
 /**
- * Resolve the Frigga gameplay project to target.
+ * Resolve the Frigga project to target.
  * Prefer the project nearest the active editor / explorer selection, else prompt.
  */
 export async function resolveFriggaProject(
@@ -98,7 +98,7 @@ export async function resolveFriggaProject(
   }
 
   vscode.window.showErrorMessage(
-    "No frigga.project found. Open a Frigga gameplay project folder first."
+    "No frigga.project found. Open a Frigga project folder first."
   );
   return undefined;
 }

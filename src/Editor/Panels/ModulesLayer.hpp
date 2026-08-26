@@ -1,36 +1,36 @@
 #pragma once
 
 #include "../Project/ProjectSession.hpp"
-#include "../Project/PluginCatalog.hpp"
+#include "../Project/ModuleCatalog.hpp"
 
 #include <Frigga/Core/Layer.hpp>
-#include <Frigga/Plugin/GameplayPluginHost.hpp>
+#include <Frigga/Module/GameplayModuleHost.hpp>
 #include <Frigga/Scene/SceneSimulationState.hpp>
 
 #include <string>
 #include <vector>
 
-class PluginsLayer: public fg::Layer
+class ModulesLayer: public fg::Layer
 {
   public:
-    PluginsLayer(skr::Arc<ProjectSession> session, skr::Arc<fg::GameplayPluginHost> pluginHost,
+    ModulesLayer(skr::Arc<ProjectSession> session, skr::Arc<fg::GameplayModuleHost> moduleHost,
                  skr::Arc<fg::SceneSimulationState> simulation);
-    ~PluginsLayer() override = default;
+    ~ModulesLayer() override = default;
 
     void onUpdate() override;
     void onGui() override;
 
   private:
     void refreshLibrary();
-    void drawProjectPlugins();
+    void drawProjectModules();
     void drawLibrary();
 
     skr::Arc<ProjectSession> mSession;
-    skr::Arc<fg::GameplayPluginHost> mPluginHost;
+    skr::Arc<fg::GameplayModuleHost> mModuleHost;
     skr::Arc<fg::SceneSimulationState> mSimulation;
 
     char mNewName[128] = "Combat";
     std::string mStatus;
-    std::vector<DiscoveredPlugin> mUserLibrary;
-    std::vector<DiscoveredPlugin> mBundled;
+    std::vector<DiscoveredModule> mUserLibrary;
+    std::vector<DiscoveredModule> mBundled;
 };

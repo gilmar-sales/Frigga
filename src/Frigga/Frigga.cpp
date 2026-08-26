@@ -32,8 +32,8 @@
 #include "Physics/IPhysicsWorld.hpp"
 #include "Physics/JoltPhysicsWorld.hpp"
 #include "Physics/Physics.hpp"
-#include "Plugin/GameplayPluginBridge.hpp"
-#include "Plugin/GameplayPluginHost.hpp"
+#include "Module/GameplayModuleBridge.hpp"
+#include "Module/GameplayModuleHost.hpp"
 #include "Scene/Scene.hpp"
 #include "Scene/SceneSimulationState.hpp"
 
@@ -65,7 +65,7 @@ namespace FRIGGA_NAMESPACE
                         // Gameplay runs first so fg::Physics intents apply before the step.
                         pipeline.WithName("Simulation")
                             .WithRate(60)
-                            .WithSystem<GameplayPluginBridge>()
+                            .WithSystem<GameplayModuleBridge>()
                             .WithSystem<PhysicsSystem>();
                     })
                     .WithPipeline([](fr::PipelineBuilder &pipeline) {
@@ -104,7 +104,7 @@ namespace FRIGGA_NAMESPACE
         services.AddSingleton<fg::SceneSimulationState>();
         services.AddSingleton<fg::Input>();
         services.AddSingleton<fg::UserComponentRegistry>();
-        services.AddSingleton<fg::GameplayPluginHost>();
+        services.AddSingleton<fg::GameplayModuleHost>();
         services.AddScoped<fg::LayerStack>();
         services.AddSingleton<fg::GuiLayer>();
     }

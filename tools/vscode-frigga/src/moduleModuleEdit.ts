@@ -1,23 +1,24 @@
 import * as vscode from "vscode";
 
 /**
- * Locates FRI_PLUGIN_MODULE(...) { ... } and inserts a fluent call
+ * Locates FRI_MODULE(...) { ... } and inserts a fluent call
  * before the terminating ';' of the builder chain.
  */
 export function insertFluentCall(
   source: string,
   call: string,
-  kind: "Component" | "System"
+  kind: "Component" | "System",
+  entryFileName = "Module.cpp"
 ): string {
   if (source.includes(call)) {
     return source;
   }
 
-  const moduleRe = /FRI_PLUGIN_MODULE\s*\(\s*\w+\s*\)\s*\{/;
+  const moduleRe = /FRI_MODULE\s*\(\s*\w+\s*\)\s*\{/;
   const moduleMatch = moduleRe.exec(source);
   if (!moduleMatch) {
     throw new Error(
-      "Could not find FRI_PLUGIN_MODULE(...) in GameplayPlugin.cpp. Migrate the project in the Frigga Editor first."
+      `Could not find FRI_MODULE(...) in ${entryFileName}. Open the project in the Frigga Editor first.`
     );
   }
 
@@ -37,19 +38,18 @@ export function insertFluentCall(
     i += 1;
   }
   if (depth !== 0) {
-    throw new Error("Unbalanced braces in FRI_PLUGIN_MODULE");
+    throw new Error("Unbalanced braces in FRI_MODULE");
   }
 
   const body = source.slice(bodyStart, i);
   const chainEnd = body.lastIndexOf(";");
   if (chainEnd < 0) {
-    throw new Error("Could not find fluent registration chain in FRI_PLUGIN_MODULE");
+    throw new Error("Could not find fluent registration chain in FRI_MODULE");
   }
 
   const beforeSemi = body.slice(0, chainEnd);
   const afterSemi = body.slice(chainEnd);
 
-  // Prefer inserting after last .Component / before first .System for components.
   if (kind === "Component") {
     const lastComponent = beforeSemi.lastIndexOf(".Component<");
     if (lastComponent >= 0) {
@@ -76,7 +76,6 @@ export function insertFluentCall(
     }
   }
 
-  // Default: append before terminating ';'
   const trimmed = beforeSemi.replace(/\s+$/, "");
   const insertion = `\n          ${call}`;
   const newBody = trimmed + insertion + afterSemi;
@@ -110,4 +109,9 @@ export async function pathExistsUri(uri: vscode.Uri): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+export function entryFileName(entryFile: vscode.Uri): string {
+  const parts = entryFile.fsPath.replace(/\\/g, "/").split("/");
+  return parts[parts.length - 1] ?? "Module.cpp";
 }

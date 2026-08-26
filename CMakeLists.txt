@@ -87,7 +87,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(miniaudio)
 
-# Headers needed to scaffold/build gameplay plugins from a published Editor.
+# Headers needed to scaffold/build gameplay modules from a published Editor.
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/PackFriggaSdk.cmake")
 
 file(GLOB_RECURSE FRIGGA_SRC src/Frigga/*.cpp src/Frigga/*.hpp)
@@ -141,7 +141,7 @@ set_source_files_properties(
 )
 
 file(GLOB_RECURSE EDITOR_SRC src/Editor/*.cpp src/Editor/*.hpp)
-list(FILTER EDITOR_SRC EXCLUDE REGEX "/Resources/plugins/")
+list(FILTER EDITOR_SRC EXCLUDE REGEX "/Resources/modules/")
 
 add_executable(Editor ${EDITOR_SRC}
         src/Editor/Main.cpp
@@ -155,10 +155,10 @@ target_link_libraries(Editor PUBLIC
         imguizmo::imguizmo
 )
 
-# Expose Freyr/Frigga/Skirnir/simdjson to gameplay plugins.
+# Expose Freyr/Frigga/Skirnir/simdjson to gameplay modules.
 # Linux: undefined refs in the .so bind to the Editor at dlopen.
 # Windows: PE allows ≤65535 exports, so we cannot --export-all-symbols on the
-# full Editor. cmake/GeneratePluginExports.cmake dumps the four runtime archives
+# full Editor. cmake/GenerateModuleExports.cmake dumps the four runtime archives
 # (no namespace allowlist) into a .def that feeds ENABLE_EXPORTS' implib.
 set_target_properties(Editor PROPERTIES ENABLE_EXPORTS TRUE)
 if (UNIX AND NOT APPLE)
@@ -167,30 +167,30 @@ elseif (APPLE)
     target_link_options(Editor PRIVATE -Wl,-export_dynamic)
 endif ()
 if (WIN32 AND CMAKE_NM)
-    set(_plugin_exports "${CMAKE_BINARY_DIR}/frigga_plugin_exports.def")
+    set(_module_exports "${CMAKE_BINARY_DIR}/frigga_module_exports.def")
     add_custom_command(
-            OUTPUT "${_plugin_exports}"
+            OUTPUT "${_module_exports}"
             COMMAND ${CMAKE_COMMAND}
             -D "NM=${CMAKE_NM}"
             -D "LIB0=$<TARGET_FILE:frigga>"
             -D "LIB1=$<TARGET_FILE:freyr>"
             -D "LIB2=$<TARGET_FILE:skirnir>"
             -D "LIB3=$<TARGET_FILE:simdjson>"
-            -D "OUT=${_plugin_exports}"
-            -P "${CMAKE_SOURCE_DIR}/cmake/GeneratePluginExports.cmake"
+            -D "OUT=${_module_exports}"
+            -P "${CMAKE_SOURCE_DIR}/cmake/GenerateModuleExports.cmake"
             DEPENDS frigga freyr skirnir simdjson
-            "${CMAKE_SOURCE_DIR}/cmake/GeneratePluginExports.cmake"
+            "${CMAKE_SOURCE_DIR}/cmake/GenerateModuleExports.cmake"
             VERBATIM
-            COMMENT "Generate gameplay plugin export table")
-    target_sources(Editor PRIVATE "${_plugin_exports}")
+            COMMENT "Generate gameplay module export table")
+    target_sources(Editor PRIVATE "${_module_exports}")
     add_custom_command(TARGET Editor POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "$<TARGET_LINKER_FILE:Editor>"
             "${FRIGGA_SDK_DIR}/$<TARGET_LINKER_FILE_NAME:Editor>"
-            COMMENT "Pack Editor import lib into Sdk for gameplay plugins")
+            COMMENT "Pack Editor import lib into Sdk for gameplay modules")
 endif ()
 
-# Engine pack (UI fonts, shaders, bundled plugins) plus ProjectTemplate for new games.
+# Engine pack (UI fonts, shaders, bundled modules) plus ProjectTemplate for new games.
 file(COPY src/Editor/Resources DESTINATION ${CMAKE_BINARY_DIR})
 
 # --- Tests -----------------------------------------------------------------

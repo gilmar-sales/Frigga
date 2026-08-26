@@ -7,7 +7,7 @@ interface EditorSessionMarker {
   pid: number;
   editorPath: string;
   soSearchPath: string;
-  pluginLibrary?: string;
+  moduleLibrary?: string;
   projectRoot: string;
   updatedAt?: string;
 }
@@ -140,6 +140,6 @@ export async function attachDebuggerToEditor(uri?: vscode.Uri): Promise<void> {
   }
 
   void vscode.window.showInformationMessage(
-    `Attached to Frigga Editor (pid ${session.pid}). Set breakpoints in gameplay code and press Play in the Editor.`
+    `Attached to Frigga Editor (pid ${session.pid}). Set breakpoints in module code and press Play in the Editor.`
   );
 }

@@ -159,17 +159,17 @@ namespace
         return false;
     }
 
-    PluginSource ParsePluginSource(std::string_view value)
+    ModuleSource ParseModuleSource(std::string_view value)
     {
-        return value == "user" ? PluginSource::User : PluginSource::Project;
+        return value == "user" ? ModuleSource::User : ModuleSource::Project;
     }
 
-    const char *PluginSourceId(PluginSource source)
+    const char *ModuleSourceId(ModuleSource source)
     {
-        return source == PluginSource::User ? "user" : "project";
+        return source == ModuleSource::User ? "user" : "project";
     }
 
-    void ParsePluginObject(std::string_view object, ProjectPluginEntry &entry)
+    void ParseModuleObject(std::string_view object, ProjectModuleEntry &entry)
     {
         ExtractJsonStringField(object, "id", entry.id);
         ExtractJsonStringField(object, "target", entry.target);
@@ -178,7 +178,7 @@ namespace
         std::string source;
         if(ExtractJsonStringField(object, "source", source))
         {
-            entry.source = ParsePluginSource(source);
+            entry.source = ParseModuleSource(source);
         }
         if(entry.id.empty())
         {
@@ -190,9 +190,9 @@ namespace
         }
     }
 
-    void ExtractPluginsArray(std::string_view text, std::vector<ProjectPluginEntry> &out)
+    void ExtractModulesArray(std::string_view text, std::vector<ProjectModuleEntry> &out)
     {
-        const auto arrayKey = text.find("\"plugins\"");
+        const auto arrayKey = text.find("\"modules\"");
         if(arrayKey == std::string_view::npos)
         {
             return;
@@ -221,8 +221,8 @@ namespace
             {
                 break;
             }
-            ProjectPluginEntry entry;
-            ParsePluginObject(body.substr(objStart, objEnd - objStart + 1), entry);
+            ProjectModuleEntry entry;
+            ParseModuleObject(body.substr(objStart, objEnd - objStart + 1), entry);
             if(!entry.id.empty() || !entry.target.empty())
             {
                 out.push_back(std::move(entry));
@@ -235,7 +235,7 @@ namespace
 bool ProjectFile::Save(const std::filesystem::path &projectFile, const ProjectDescriptor &desc)
 {
     ProjectDescriptor written = desc;
-    written.EnsureGameplayPlugin();
+    written.EnsureGameplayModule();
     written.SyncGameplayMirror();
 
     std::ostringstream json;
@@ -244,22 +244,22 @@ bool ProjectFile::Save(const std::filesystem::path &projectFile, const ProjectDe
     json << "  \"name\": \"" << EscapeJson(written.name) << "\",\n";
     json << "  \"template\": \"" << EscapeJson(written.TemplateId()) << "\",\n";
     json << "  \"scene\": \"" << EscapeJson(written.sceneRelativePath) << "\",\n";
-    json << "  \"plugin\": {\n";
-    json << "    \"target\": \"" << EscapeJson(written.pluginTarget) << "\",\n";
-    json << "    \"library\": \"" << EscapeJson(written.pluginLibraryRelative) << "\"\n";
+    json << "  \"module\": {\n";
+    json << "    \"target\": \"" << EscapeJson(written.moduleTarget) << "\",\n";
+    json << "    \"library\": \"" << EscapeJson(written.moduleLibraryRelative) << "\"\n";
     json << "  },\n";
-    json << "  \"plugins\": [\n";
-    for(std::size_t i = 0; i < written.plugins.size(); ++i)
+    json << "  \"modules\": [\n";
+    for(std::size_t i = 0; i < written.modules.size(); ++i)
     {
-        const auto &entry = written.plugins[i];
+        const auto &entry = written.modules[i];
         json << "    {\n";
         json << "      \"id\": \"" << EscapeJson(entry.id) << "\",\n";
         json << "      \"target\": \"" << EscapeJson(entry.target) << "\",\n";
         json << "      \"library\": \"" << EscapeJson(entry.libraryRelative) << "\",\n";
         json << "      \"enabled\": " << (entry.enabled ? "true" : "false") << ",\n";
-        json << "      \"source\": \"" << PluginSourceId(entry.source) << "\"\n";
+        json << "      \"source\": \"" << ModuleSourceId(entry.source) << "\"\n";
         json << "    }";
-        json << (i + 1 < written.plugins.size() ? ",\n" : "\n");
+        json << (i + 1 < written.modules.size() ? ",\n" : "\n");
     }
     json << "  ],\n";
     json << "  \"engine\": {\n";
@@ -316,9 +316,9 @@ std::optional<ProjectDescriptor> ProjectFile::Load(const std::filesystem::path &
 
     ExtractJsonStringField(text, "scene", desc.sceneRelativePath);
 
-    // Nested plugin.library / plugin.target — keys appear as plain "target"/"library".
-    ExtractJsonStringField(text, "target", desc.pluginTarget);
-    ExtractJsonStringField(text, "library", desc.pluginLibraryRelative);
+    // Nested module.library / module.target — keys appear as plain "target"/"library".
+    ExtractJsonStringField(text, "target", desc.moduleTarget);
+    ExtractJsonStringField(text, "library", desc.moduleLibraryRelative);
 
     std::string sdk;
     std::string root;
@@ -330,8 +330,8 @@ std::optional<ProjectDescriptor> ProjectFile::Load(const std::filesystem::path &
     desc.friggaRoot  = root;
     desc.friggaBuild = build;
 
-    ExtractPluginsArray(text, desc.plugins);
-    desc.EnsureGameplayPlugin();
+    ExtractModulesArray(text, desc.modules);
+    desc.EnsureGameplayModule();
     desc.SyncGameplayMirror();
 
     return desc;

@@ -1,7 +1,7 @@
 #include "systems/CharacterMovementSystem.hpp"
 #include "components/CharacterControllerComponent.hpp"
 
-#include <Frigga/Plugin/FriPluginModule.hpp>
+#include <Frigga/Module/FriModule.hpp>
 
 #include <cstdint>
 #include <cstdio>
@@ -41,9 +41,9 @@ static void DrawCharacterController(CharacterControllerComponent &c, fg::FriComp
     }
 }
 
-FRI_PLUGIN_MODULE(plugin)
+FRI_MODULE(module)
 {
-    plugin.Component<CharacterControllerComponent>("CharacterControllerComponent",
+    module.Component<CharacterControllerComponent>("CharacterControllerComponent",
                                                    "Character Controller", DrawCharacterController)
           .System<CharacterMovementSystem>();
 }

@@ -24,12 +24,12 @@ struct ProjectManagedWriteResult
 class ProjectScaffold
 {
   public:
-    static constexpr std::string_view ManagedPluginMarker = "// FRIGGA_MANAGED_PLUGIN_ENTRY";
+    static constexpr std::string_view ManagedModuleMarker = "// FRIGGA_MANAGED_MODULE_ENTRY";
     static constexpr std::string_view ManagedGameplaySystemMarker =
         "// FRIGGA_MANAGED_GAMEPLAY_SYSTEM";
-    static constexpr std::string_view ManagedPluginSubdirsBegin =
-        "# FRIGGA_MANAGED_PLUGIN_SUBDIRS_BEGIN";
-    static constexpr std::string_view ManagedPluginSubdirsEnd = "# FRIGGA_MANAGED_PLUGIN_SUBDIRS_END";
+    static constexpr std::string_view ManagedModuleSubdirsBegin =
+        "# FRIGGA_MANAGED_MODULE_SUBDIRS_BEGIN";
+    static constexpr std::string_view ManagedModuleSubdirsEnd = "# FRIGGA_MANAGED_MODULE_SUBDIRS_END";
 
     /// Creates project directory under parentDir/name and writes all scaffold files.
     /// Uses @p scene to seed and serialize the template scene JSON.
@@ -37,9 +37,9 @@ class ProjectScaffold
                                         const ProjectDescriptor &desc,
                                         fg::Scene &scene);
 
-    /// Rewrites Editor-managed files (CMakeLists, frigga_plugin.h, README,
+    /// Rewrites Editor-managed files (CMakeLists, frigga_module.h, README,
     /// frigga_user_components.hpp, local CMakeUserPresets) without touching custom
-    /// gameplay sources under plugins/gameplay/src/.
+    /// gameplay sources under modules/gameplay/src/.
     static ProjectManagedWriteResult WriteManagedFiles(const std::filesystem::path &projectRoot,
                                                        const ProjectDescriptor &desc);
 
@@ -62,23 +62,23 @@ class ProjectScaffold
                                        std::string &error,
                                        const std::filesystem::path &friggaRoot = {});
 
-    /// Rewrites GameplayPlugin.cpp only if missing or still marked managed.
-    static bool MaybeRewriteManagedPluginEntry(const std::filesystem::path &projectRoot,
+    /// Rewrites GameplayModule.cpp only if missing or still marked managed.
+    static bool MaybeRewriteManagedModuleEntry(const std::filesystem::path &projectRoot,
                                                std::string &error);
 
     /// Rewrites GameplaySystem.* only if missing or still marked managed.
     static bool MaybeRewriteManagedGameplaySystem(const std::filesystem::path &projectRoot,
                                                   std::string &error);
 
-    /// Scaffolds plugins/<id>/ (CMake + FRI_PLUGIN_MODULE) and registers it on @p desc.
-    static bool CreateExtraPlugin(const std::filesystem::path &projectRoot, ProjectDescriptor &desc,
+    /// Scaffolds modules/<id>/ (CMake + FRI_MODULE) and registers it on @p desc.
+    static bool CreateExtraModule(const std::filesystem::path &projectRoot, ProjectDescriptor &desc,
                                   std::string name, std::string &error);
 
-    /// Copies a plugin tree into plugins/<id> and registers it on @p desc.
-    static bool InstallPlugin(const std::filesystem::path &projectRoot, ProjectDescriptor &desc,
+    /// Copies a module tree into modules/<id> and registers it on @p desc.
+    static bool InstallModule(const std::filesystem::path &projectRoot, ProjectDescriptor &desc,
                               const std::filesystem::path &sourceRoot, std::string &error);
 
     /// Rewrites the managed add_subdirectory block in the root CMakeLists.
-    static bool SyncManagedPluginSubdirs(const std::filesystem::path &projectRoot,
+    static bool SyncManagedModuleSubdirs(const std::filesystem::path &projectRoot,
                                          const ProjectDescriptor &desc, std::string &error);
 };

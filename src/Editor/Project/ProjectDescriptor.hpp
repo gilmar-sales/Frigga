@@ -8,19 +8,19 @@
 #include <string_view>
 #include <vector>
 
-enum class PluginSource : std::uint8_t
+enum class ModuleSource : std::uint8_t
 {
     Project = 0,
     User,
 };
 
-struct ProjectPluginEntry
+struct ProjectModuleEntry
 {
     std::string id;
     std::string target;
     std::string libraryRelative;
     bool enabled           = true;
-    PluginSource source    = PluginSource::Project;
+    ModuleSource source    = ModuleSource::Project;
 
     [[nodiscard]] bool IsGameplay() const
     {
@@ -34,7 +34,7 @@ struct ProjectDescriptor
     /// Missing / 0 on disk is treated as LegacyFormatVersion (1).
     static constexpr int LegacyFormatVersion  = 1;
     static constexpr int CurrentFormatVersion = 1;
-    static constexpr std::string_view PluginsDirName   = "plugins";
+    static constexpr std::string_view ModulesDirName   = "modules";
     static constexpr std::string_view ResourcesDirName = "Resources";
 
     int formatVersion = CurrentFormatVersion;
@@ -42,10 +42,10 @@ struct ProjectDescriptor
     std::string name;
     fg::SceneTemplate sceneTemplate = fg::SceneTemplate::D3;
     std::string sceneRelativePath   = "scenes/main.json";
-    std::string pluginTarget        = "gameplay";
+    std::string moduleTarget        = "gameplay";
     /// Relative to project root (after cmake --build). Gameplay convenience mirror.
-    std::string pluginLibraryRelative = "build/libgameplay.so";
-    std::vector<ProjectPluginEntry> plugins;
+    std::string moduleLibraryRelative = "build/libgameplay.so";
+    std::vector<ProjectModuleEntry> modules;
     /// Packaged `Sdk/` next to the Editor, or the engine source tree. Last-used hint;
     /// CMake resolves via `-DFRIGGA_SDK`, `FRIGGA_SDK` env, or `CMakeUserPresets.json`.
     std::filesystem::path friggaSdk;
@@ -75,48 +75,48 @@ struct ProjectDescriptor
 
     void SyncGameplayMirror()
     {
-        for(const auto &entry : plugins)
+        for(const auto &entry : modules)
         {
             if(entry.IsGameplay())
             {
-                pluginTarget           = entry.target.empty() ? "gameplay" : entry.target;
-                pluginLibraryRelative  = entry.libraryRelative;
+                moduleTarget           = entry.target.empty() ? "gameplay" : entry.target;
+                moduleLibraryRelative  = entry.libraryRelative;
                 return;
             }
         }
-        if(pluginTarget.empty())
+        if(moduleTarget.empty())
         {
-            pluginTarget = "gameplay";
+            moduleTarget = "gameplay";
         }
-        if(pluginLibraryRelative.empty())
+        if(moduleLibraryRelative.empty())
         {
-            pluginLibraryRelative = DefaultLibraryRelative(pluginTarget);
+            moduleLibraryRelative = DefaultLibraryRelative(moduleTarget);
         }
     }
 
-    void EnsureGameplayPlugin()
+    void EnsureGameplayModule()
     {
         SyncGameplayMirror();
-        for(const auto &entry : plugins)
+        for(const auto &entry : modules)
         {
             if(entry.IsGameplay())
             {
                 return;
             }
         }
-        plugins.insert(plugins.begin(),
-                       ProjectPluginEntry {.id               = "gameplay",
-                                           .target           = pluginTarget,
-                                           .libraryRelative  = pluginLibraryRelative,
+        modules.insert(modules.begin(),
+                       ProjectModuleEntry {.id               = "gameplay",
+                                           .target           = moduleTarget,
+                                           .libraryRelative  = moduleLibraryRelative,
                                            .enabled          = true,
-                                           .source           = PluginSource::Project});
+                                           .source           = ModuleSource::Project});
     }
 
-    [[nodiscard]] std::vector<ProjectPluginEntry> LoadOrder() const
+    [[nodiscard]] std::vector<ProjectModuleEntry> LoadOrder() const
     {
-        std::vector<ProjectPluginEntry> extras;
-        std::vector<ProjectPluginEntry> gameplay;
-        for(const auto &entry : plugins)
+        std::vector<ProjectModuleEntry> extras;
+        std::vector<ProjectModuleEntry> gameplay;
+        for(const auto &entry : modules)
         {
             if(!entry.enabled)
             {

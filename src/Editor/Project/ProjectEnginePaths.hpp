@@ -6,7 +6,7 @@
 
 inline bool LooksLikeFriggaSdk(const std::filesystem::path &path)
 {
-    return std::filesystem::exists(path / "src/Frigga/Plugin/frigga_plugin.h") &&
+    return std::filesystem::exists(path / "src/Frigga/Module/frigga_module.h") &&
            std::filesystem::exists(path / "_deps/freyr-src/include/Freyr");
 }
 

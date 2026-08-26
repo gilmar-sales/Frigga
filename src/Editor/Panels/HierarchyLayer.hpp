@@ -66,7 +66,7 @@ class HierarchyLayer: public fg::Layer
 
     void drawComponents();
     void drawComponentsPanelActions();
-    void drawPluginAddComponentMenus(fr::Entity entity);
+    void drawModuleAddComponentMenus(fr::Entity entity);
 
     void copyComponent(std::string_view kind);
     void pasteComponent();

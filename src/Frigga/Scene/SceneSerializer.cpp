@@ -19,7 +19,7 @@
 #include "Frigga/ECS/TransformUtil.hpp"
 #include "Frigga/ECS/Components/UserDataComponent.hpp"
 #include "Frigga/ECS/UserComponentRegistry.hpp"
-#include "Frigga/Plugin/GameplayTypeIds.hpp"
+#include "Frigga/Module/GameplayTypeIds.hpp"
 #include "Frigga/Animation/AnimGraphDefinition.hpp"
 
 #define SIMDJSON_STATIC_REFLECTION 1
@@ -1859,7 +1859,7 @@ namespace FRIGGA_NAMESPACE
                         {
                             scene.mUserComponents->EnqueueDeferred(entity, std::move(instance));
                             scene.mLogger->LogWarning(
-                                "Deferred gameplay component '{}' on '{}' until the plugin "
+                                "Deferred gameplay component '{}' on '{}' until the module "
                                 "registers it",
                                 userDto.typeId, entityDto.name);
                             continue;
@@ -2425,7 +2425,7 @@ namespace FRIGGA_NAMESPACE
             {
                 scene.mUserComponents->EnqueueDeferred(entity, std::move(instance));
                 scene.mLogger->LogWarning(
-                    "Deferred gameplay component '{}' until the plugin registers it",
+                    "Deferred gameplay component '{}' until the module registers it",
                     userDto.typeId);
                 scene.FlushEcs();
                 return true;

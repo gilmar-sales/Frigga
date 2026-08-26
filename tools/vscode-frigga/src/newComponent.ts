@@ -6,7 +6,8 @@ import {
   readTextFile,
   writeTextFile,
 } from "./project";
-import { insertFluentCall, pathExistsUri } from "./pluginModuleEdit";
+import { FriggaModule, resolveModule } from "./modules";
+import { entryFileName, insertFluentCall, pathExistsUri } from "./moduleModuleEdit";
 
 function componentHeader(name: string, emptyTag: boolean): string {
   if (emptyTag) {
@@ -47,22 +48,28 @@ function ensureInclude(source: string, includeLine: string): string {
     return source.slice(0, insertAt) + includeLine + "\n" + source.slice(insertAt);
   }
 
-  const moduleInclude = "#include <Frigga/Plugin/FriPluginModule.hpp>";
+  const moduleInclude = "#include <Frigga/Module/FriModule.hpp>";
   const idx = source.indexOf(moduleInclude);
   if (idx >= 0) {
-    return (
-      source.slice(0, idx) + includeLine + "\n" + source.slice(idx)
-    );
+    return source.slice(0, idx) + includeLine + "\n" + source.slice(idx);
   }
 
   return includeLine + "\n" + source;
 }
 
-export async function createGameplayComponent(
-  project: FriggaProject
+export async function createComponent(
+  project: FriggaProject,
+  contextUri?: vscode.Uri,
+  preferredModule?: FriggaModule
 ): Promise<void> {
+  const mod =
+    preferredModule ?? (await resolveModule(project, contextUri));
+  if (!mod) {
+    return;
+  }
+
   const name = await vscode.window.showInputBox({
-    prompt: "Component type name (C++ identifier)",
+    prompt: `Component type name for module "${mod.name}"`,
     placeHolder: "Player",
     validateInput: (value) => {
       if (!value.trim()) {
@@ -91,48 +98,40 @@ export async function createGameplayComponent(
   }
 
   const headerUri = vscode.Uri.joinPath(
-    project.root,
-    "plugins",
-    "gameplay",
+    mod.root,
     "src",
     "components",
     `${typeName}.hpp`
   );
-  try {
-    await vscode.workspace.fs.stat(headerUri);
+  if (await pathExistsUri(headerUri)) {
     vscode.window.showErrorMessage(`${typeName}.hpp already exists`);
     return;
-  } catch {
-    // ok
   }
-
-  const pluginUri = vscode.Uri.joinPath(
-    project.root,
-    "plugins",
-    "gameplay",
-    "src",
-    "GameplayPlugin.cpp"
-  );
-  if (!(await pathExistsUri(pluginUri))) {
-    vscode.window.showErrorMessage("plugins/gameplay/src/GameplayPlugin.cpp not found in project");
+  if (!(await pathExistsUri(mod.entryFile))) {
+    vscode.window.showErrorMessage(`Module entry file not found: ${mod.entryFile.fsPath}`);
     return;
   }
 
   await writeTextFile(headerUri, componentHeader(typeName, kind.empty));
 
-  let plugin = await readTextFile(pluginUri);
+  let moduleSource = await readTextFile(mod.entryFile);
   try {
-    plugin = ensureInclude(plugin, `#include "components/${typeName}.hpp"`);
-    plugin = insertFluentCall(plugin, `.Component<${typeName}>()`, "Component");
+    moduleSource = ensureInclude(moduleSource, `#include "components/${typeName}.hpp"`);
+    moduleSource = insertFluentCall(
+      moduleSource,
+      `.Component<${typeName}>()`,
+      "Component",
+      entryFileName(mod.entryFile)
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     vscode.window.showErrorMessage(message);
     return;
   }
-  await writeTextFile(pluginUri, plugin);
+  await writeTextFile(mod.entryFile, moduleSource);
 
   await openDocument(headerUri);
   vscode.window.showInformationMessage(
-    `Created ${typeName}. Registered in FRI_PLUGIN_MODULE — rebuild & reload the plugin.`
+    `Created ${typeName} in ${mod.name}. Registered in FRI_MODULE — rebuild & reload the module.`
   );
 }

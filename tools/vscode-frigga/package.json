@@ -1,8 +1,8 @@
 {
   "name": "frigga",
   "displayName": "Frigga",
-  "description": "Scaffold gameplay components/systems and attach GDB to the Frigga Editor",
-  "version": "0.2.0",
+  "description": "Scaffold gameplay modules, components/systems, and attach GDB to the Frigga Editor",
+  "version": "0.3.0",
   "publisher": "frigga",
   "engines": {
     "vscode": "^1.85.0"
@@ -21,19 +21,134 @@
   "contributes": {
     "commands": [
       {
+        "command": "frigga.newModule",
+        "title": "Frigga: New Module",
+        "icon": "$(add)"
+      },
+      {
         "command": "frigga.newComponent",
-        "title": "Frigga: New Gameplay Component"
+        "title": "Frigga: New Component",
+        "icon": "$(symbol-class)"
       },
       {
         "command": "frigga.newSystem",
-        "title": "Frigga: New Gameplay System"
+        "title": "Frigga: New System",
+        "icon": "$(symbol-method)"
+      },
+      {
+        "command": "frigga.buildModule",
+        "title": "Frigga: Build Module",
+        "icon": "$(tools)"
+      },
+      {
+        "command": "frigga.buildAllModules",
+        "title": "Frigga: Build All Modules",
+        "icon": "$(debug-start)"
+      },
+      {
+        "command": "frigga.enableModule",
+        "title": "Frigga: Enable Module"
+      },
+      {
+        "command": "frigga.disableModule",
+        "title": "Frigga: Disable Module"
+      },
+      {
+        "command": "frigga.exportModule",
+        "title": "Frigga: Export Module"
+      },
+      {
+        "command": "frigga.installModule",
+        "title": "Frigga: Install Module",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "frigga.refreshModules",
+        "title": "Frigga: Refresh Modules",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "frigga.openModulesPanel",
+        "title": "Frigga: Open Modules Panel"
       },
       {
         "command": "frigga.attachDebugger",
-        "title": "Frigga: Attach Debugger to Editor"
+        "title": "Frigga: Attach Debugger to Editor",
+        "icon": "$(debug-alt)"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "frigga",
+          "title": "Frigga",
+          "icon": "$(game)"
+        }
+      ]
+    },
+    "views": {
+      "frigga": [
+        {
+          "id": "frigga.modules",
+          "name": "Modules"
+        }
+      ]
+    },
     "menus": {
+      "view/title": [
+        {
+          "command": "frigga.newModule",
+          "when": "view == frigga.modules",
+          "group": "navigation@1"
+        },
+        {
+          "command": "frigga.buildAllModules",
+          "when": "view == frigga.modules",
+          "group": "navigation@2"
+        },
+        {
+          "command": "frigga.refreshModules",
+          "when": "view == frigga.modules",
+          "group": "navigation@3"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "frigga.newComponent",
+          "when": "view == frigga.modules && viewItem == frigga.projectModule",
+          "group": "frigga@1"
+        },
+        {
+          "command": "frigga.newSystem",
+          "when": "view == frigga.modules && viewItem == frigga.projectModule",
+          "group": "frigga@2"
+        },
+        {
+          "command": "frigga.buildModule",
+          "when": "view == frigga.modules && viewItem == frigga.projectModule",
+          "group": "frigga@3"
+        },
+        {
+          "command": "frigga.enableModule",
+          "when": "view == frigga.modules && viewItem == frigga.projectModule",
+          "group": "frigga@4"
+        },
+        {
+          "command": "frigga.disableModule",
+          "when": "view == frigga.modules && viewItem == frigga.projectModule",
+          "group": "frigga@5"
+        },
+        {
+          "command": "frigga.exportModule",
+          "when": "view == frigga.modules && viewItem == frigga.projectModule",
+          "group": "frigga@6"
+        },
+        {
+          "command": "frigga.installModule",
+          "when": "view == frigga.modules && viewItem == frigga.libraryModule",
+          "group": "frigga@1"
+        }
+      ],
       "explorer/context": [
         {
           "command": "frigga.newComponent",

@@ -1,13 +1,13 @@
 #pragma once
 
 #include "ProjectDescriptor.hpp"
-#include "PluginCatalog.hpp"
+#include "ModuleCatalog.hpp"
 #include "../Preferences/EditorPreferences.hpp"
 #include "../Paths/EditorPaths.hpp"
 
 #include <Frigga/Asset/AssetRegistry.hpp>
 #include <Frigga/Input/Input.hpp>
-#include <Frigga/Plugin/GameplayPluginHost.hpp>
+#include <Frigga/Module/GameplayModuleHost.hpp>
 #include <Frigga/Scene/Scene.hpp>
 #include <Frigga/Scene/SceneSimulationState.hpp>
 
@@ -29,7 +29,7 @@ enum class EditorSessionMode : std::uint8_t
     Editor,
 };
 
-enum class PluginBuildPhase : std::uint8_t
+enum class ModuleBuildPhase : std::uint8_t
 {
     Idle = 0,
     Configuring,
@@ -58,14 +58,14 @@ struct EditorBackgroundTask
 };
 
 /**
- * Owns the open Frigga project (if any), engine path discovery, plugin build/load,
+ * Owns the open Frigga project (if any), engine path discovery, module build/load,
  * and Home ↔ Editor mode transitions.
  */
 class ProjectSession
 {
   public:
     ProjectSession(skr::Arc<fg::Scene> scene,
-                   skr::Arc<fg::GameplayPluginHost> pluginHost,
+                   skr::Arc<fg::GameplayModuleHost> moduleHost,
                    skr::Arc<fg::SceneSimulationState> simulation,
                    skr::Arc<fg::Input> input,
                    skr::Arc<fg::AssetRegistry> assets,
@@ -78,7 +78,7 @@ class ProjectSession
     ProjectSession(const ProjectSession &)            = delete;
     ProjectSession &operator=(const ProjectSession &) = delete;
 
-    /// Poll async build completion / trigger plugin reload. Call from the main thread.
+    /// Poll async build completion / trigger module reload. Call from the main thread.
     void Poll();
 
     [[nodiscard]] EditorSessionMode GetMode() const
@@ -108,13 +108,13 @@ class ProjectSession
     {
         return mBuildRunning.load(std::memory_order_acquire);
     }
-    [[nodiscard]] PluginBuildPhase GetBuildPhase() const;
+    [[nodiscard]] ModuleBuildPhase GetBuildPhase() const;
     /// 0..1 when known from Ninja; otherwise an animated indeterminate value for UI.
     [[nodiscard]] float GetBuildProgress() const;
     [[nodiscard]] bool IsBuildProgressDeterminate() const;
     [[nodiscard]] std::string GetBuildLogTail() const;
 
-    /// Background jobs for the Rider-style status / notifications strip (currently: plugin build).
+    /// Background jobs for the Rider-style status / notifications strip (currently: module build).
     [[nodiscard]] std::vector<EditorBackgroundTask> GetBackgroundTasks() const;
     [[nodiscard]] bool HasRunningBackgroundTasks() const;
 
@@ -144,21 +144,21 @@ class ProjectSession
                      bool setAsStartup = true);
     bool SetStartupScene(const std::filesystem::path &scenePath);
 
-    /// Starts an asynchronous cmake configure+build. Empty @p cmakeTarget builds all plugins.
-    bool BuildPlugin(std::string cmakeTarget = {});
-    bool ReloadPlugin();
-    void UnloadPlugin();
+    /// Starts an asynchronous cmake configure+build. Empty @p cmakeTarget builds all modules.
+    bool BuildModule(std::string cmakeTarget = {});
+    bool ReloadModule();
+    void UnloadModule();
     void DismissBuildUi();
 
-    bool CreatePlugin(std::string name);
-    bool InstallPluginFrom(const std::filesystem::path &sourceRoot);
-    bool ExportPlugin(std::string_view pluginId);
-    bool SetPluginEnabled(std::string_view pluginId, bool enabled);
+    bool CreateModule(std::string name);
+    bool InstallModuleFrom(const std::filesystem::path &sourceRoot);
+    bool ExportModule(std::string_view moduleId);
+    bool SetModuleEnabled(std::string_view moduleId, bool enabled);
     bool SaveDescriptor();
 
     /// Writes the live pipeline/system layout to `{project}/ecs.json`.
     bool SaveEcsLayout();
-    /// Load/apply ecs.json after plugin attach (creates the file on first use).
+    /// Load/apply ecs.json after module attach (creates the file on first use).
     void SyncEcsLayout();
 
     /// Migrates the open project to the current format (or force-rewrites managed files).
@@ -171,7 +171,7 @@ class ProjectSession
 
   private:
     bool enterEditor(const std::filesystem::path &projectFile, ProjectDescriptor desc,
-                     bool loadPlugin = true);
+                     bool loadModule = true);
     bool migrateProjectFile(const std::filesystem::path &projectFile, ProjectDescriptor &desc,
                             bool force);
     void touchRecent();
@@ -183,16 +183,16 @@ class ProjectSession
                      std::string cmakeTarget);
     void writeEditorSessionMarker();
     void clearEditorSessionMarker();
-    [[nodiscard]] std::filesystem::path pluginLibraryAbsolute() const;
-    [[nodiscard]] std::filesystem::path pluginLibraryAbsolute(const ProjectPluginEntry &entry) const;
-    [[nodiscard]] bool anyEnabledPluginMissing() const;
+    [[nodiscard]] std::filesystem::path moduleLibraryAbsolute() const;
+    [[nodiscard]] std::filesystem::path moduleLibraryAbsolute(const ProjectModuleEntry &entry) const;
+    [[nodiscard]] bool anyEnabledModuleMissing() const;
     bool tryLoadPendingStartupScene();
-    bool loadEnabledPlugins();
+    bool loadEnabledModules();
     [[nodiscard]] static std::filesystem::path projectRootFromPath(
         const std::filesystem::path &projectFileOrRoot);
 
     skr::Arc<fg::Scene> mScene;
-    skr::Arc<fg::GameplayPluginHost> mPluginHost;
+    skr::Arc<fg::GameplayModuleHost> mModuleHost;
     skr::Arc<fg::SceneSimulationState> mSimulation;
     skr::Arc<fg::Input> mInput;
     skr::Arc<fg::AssetRegistry> mAssets;
@@ -211,7 +211,7 @@ class ProjectSession
     std::string mLastError;
 
     std::atomic<bool> mBuildRunning {false};
-    std::atomic<PluginBuildPhase> mBuildPhase {PluginBuildPhase::Idle};
+    std::atomic<ModuleBuildPhase> mBuildPhase {ModuleBuildPhase::Idle};
     std::atomic<float> mBuildProgress {0.0f};
     std::atomic<bool> mBuildProgressDeterminate {false};
     std::atomic<bool> mBuildFinished {false};
