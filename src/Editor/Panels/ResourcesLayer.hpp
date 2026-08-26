@@ -132,6 +132,7 @@ class ResourcesLayer: public fg::Layer
     void spawnPrefab(const std::filesystem::path &relativePath);
     void createMaterialAsset();
     void assignMaterialToSelection(std::uint32_t materialId);
+    void assignAudioClipToSelection(const std::filesystem::path &relativePath);
 
     static void onImportModelDialog(void *userdata, const char *const *filelist, int filter);
     static void onImportTextureDialog(void *userdata, const char *const *filelist, int filter);

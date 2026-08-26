@@ -5,6 +5,7 @@
 #include "Editor/Panels/HierarchyLayer.hpp"
 #include "Editor/UiScale.hpp"
 #include "Frigga/ECS/Components/AnimatorComponent.hpp"
+#include "Frigga/ECS/Components/AudioSourceComponent.hpp"
 #include "Frigga/ECS/Components/HierarchyComponent.hpp"
 #include "Frigga/ECS/Components/MaterialComponent.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"
@@ -1377,6 +1378,36 @@ void ResourcesLayer::assignMaterialToSelection(std::uint32_t materialId)
     mStatus = "Assigned material to selection";
 }
 
+void ResourcesLayer::assignAudioClipToSelection(const std::filesystem::path &relativePath)
+{
+    const auto entity = mSelection->Get();
+    if(entity == SelectionContext::Invalid)
+    {
+        mStatus = "Select an entity to assign the audio clip";
+        return;
+    }
+
+    std::string path = relativePath.generic_string();
+    std::ranges::replace(path, '\\', '/');
+    (void)mAssets->LoadAudioClip(path);
+
+    if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
+    {
+        mRegistry->AddComponents(entity, fg::TransformComponent {});
+    }
+
+    if(!mRegistry->HasComponent<fg::AudioSourceComponent>(entity))
+    {
+        mRegistry->AddComponents(entity, fg::AudioSourceComponent {.eventPath = path});
+    }
+    else
+    {
+        mRegistry->TryGetComponents<fg::AudioSourceComponent>(
+            entity, [&](fg::AudioSourceComponent &source) { source.eventPath = path; });
+    }
+    mStatus = std::format("Assigned clip '{}' to selection", path);
+}
+
 void ResourcesLayer::drawToolbar()
 {
     const bool playing = mSimulation->IsPlaying();
@@ -1527,6 +1558,17 @@ void ResourcesLayer::drawInspector()
         if(const auto clip = mAssets->LoadAudioClip(mSelected->relativePath))
         {
             ImGui::Text("Duration: %.2f s", clip->durationSec);
+        }
+        ImGui::BeginDisabled(mSimulation->IsPlaying() ||
+                             mSelection->Get() == SelectionContext::Invalid);
+        if(ImGui::Button("Assign to Selection"))
+        {
+            assignAudioClipToSelection(mSelected->relativePath);
+        }
+        ImGui::EndDisabled();
+        if(mSelection->Get() == SelectionContext::Invalid && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        {
+            ImGui::SetTooltip("Select an entity first");
         }
         break;
     }

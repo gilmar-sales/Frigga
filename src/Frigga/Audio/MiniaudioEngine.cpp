@@ -50,7 +50,11 @@ namespace FRIGGA_NAMESPACE
 
         [[nodiscard]] bool IsDirectClipPath(std::string_view path)
         {
-            const auto lower = std::string(path);
+            std::string lower {path};
+            for(char &ch : lower)
+            {
+                ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            }
             return lower.ends_with(".wav") || lower.ends_with(".ogg") || lower.ends_with(".mp3") ||
                    lower.ends_with(".flac");
         }
