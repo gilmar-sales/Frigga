@@ -65,6 +65,7 @@ namespace FRIGGA_NAMESPACE
             std::optional<std::string>             roughness;
             std::optional<std::string>             emissive;
             std::optional<std::string>             metalness;
+            std::optional<std::string>             occlusion;
             std::optional<std::vector<float>>      albedoFactor;
             std::optional<float>                   roughnessFactor;
             std::optional<float>                   metalnessFactor;
@@ -72,6 +73,15 @@ namespace FRIGGA_NAMESPACE
             std::optional<float>                   aoFactor;
             std::optional<float>                   alphaCutoff;
             std::optional<std::string>             alphaMode;
+            std::optional<float>                   clearcoat;
+            std::optional<float>                   clearcoatRoughness;
+            std::optional<float>                   transmission;
+            std::optional<float>                   ior;
+            std::optional<bool>                    unlit;
+            std::optional<bool>                    doubleSided;
+            std::optional<bool>                    receiveShadows;
+            std::optional<bool>                    packedMetallicRoughness;
+            std::optional<std::uint32_t>           techniqueId;
         };
 
         struct SceneCameraDto
@@ -745,6 +755,7 @@ namespace FRIGGA_NAMESPACE
             dto.roughness = TexturePathOrNull(assets, info.roughness);
             dto.emissive  = TexturePathOrNull(assets, info.emissive);
             dto.metalness = TexturePathOrNull(assets, info.metalness);
+            dto.occlusion = TexturePathOrNull(assets, info.occlusion);
             dto.albedoFactor = std::vector<float> {info.albedoFactor.x, info.albedoFactor.y,
                                                    info.albedoFactor.z, info.albedoFactor.w};
             dto.roughnessFactor = info.roughnessFactor;
@@ -754,6 +765,15 @@ namespace FRIGGA_NAMESPACE
                                     info.emissiveFactor.z};
             dto.aoFactor     = info.aoFactor;
             dto.alphaCutoff  = info.alphaCutoff;
+            dto.clearcoat    = info.clearcoat;
+            dto.clearcoatRoughness = info.clearcoatRoughness;
+            dto.transmission       = info.transmission;
+            dto.ior                = info.ior;
+            dto.unlit              = info.unlit;
+            dto.doubleSided        = info.doubleSided;
+            dto.receiveShadows     = info.receiveShadows;
+            dto.packedMetallicRoughness = info.packedMetallicRoughness;
+            dto.techniqueId             = info.techniqueId;
             switch(info.alphaMode)
             {
             case fra::AlphaMode::Mask:
@@ -800,7 +820,7 @@ namespace FRIGGA_NAMESPACE
 
             if(!loadSlot(dto.albedo, info.albedo) || !loadSlot(dto.normal, info.normal) ||
                !loadSlot(dto.roughness, info.roughness) || !loadSlot(dto.emissive, info.emissive) ||
-               !loadSlot(dto.metalness, info.metalness))
+               !loadSlot(dto.metalness, info.metalness) || !loadSlot(dto.occlusion, info.occlusion))
             {
                 return false;
             }
@@ -855,6 +875,42 @@ namespace FRIGGA_NAMESPACE
                 {
                     info.alphaMode = fra::AlphaMode::Opaque;
                 }
+            }
+            if(dto.clearcoat)
+            {
+                info.clearcoat = *dto.clearcoat;
+            }
+            if(dto.clearcoatRoughness)
+            {
+                info.clearcoatRoughness = *dto.clearcoatRoughness;
+            }
+            if(dto.transmission)
+            {
+                info.transmission = *dto.transmission;
+            }
+            if(dto.ior)
+            {
+                info.ior = *dto.ior;
+            }
+            if(dto.unlit)
+            {
+                info.unlit = *dto.unlit;
+            }
+            if(dto.doubleSided)
+            {
+                info.doubleSided = *dto.doubleSided;
+            }
+            if(dto.receiveShadows)
+            {
+                info.receiveShadows = *dto.receiveShadows;
+            }
+            if(dto.packedMetallicRoughness)
+            {
+                info.packedMetallicRoughness = *dto.packedMetallicRoughness;
+            }
+            if(dto.techniqueId)
+            {
+                info.techniqueId = *dto.techniqueId;
             }
 
             if(assets)

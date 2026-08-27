@@ -1087,7 +1087,7 @@ void ResourcesLayer::processPendingImports()
                 .kind         = EntryKind::Model,
                 .label        = model->label,
                 .relativePath = model->relativePath,
-                .meshId       = model->meshIds.empty() ? 0u : model->meshIds.front(),
+                .meshId       = model->submeshes.empty() ? 0u : model->submeshes.front().meshId,
             };
             mNeedsRefresh = true;
         }
@@ -1194,18 +1194,22 @@ void ResourcesLayer::spawnModel(const std::filesystem::path &relativePath)
     }
 
     const auto model = mAssets->LoadModel(relativePath);
-    if(!model || model->meshIds.empty())
+    if(!model || model->submeshes.empty())
     {
         mStatus = std::format("Failed to load model '{}'", relativePath.string());
         return;
     }
 
     fr::Entity first = SelectionContext::Invalid;
-    for(std::size_t i = 0; i < model->meshIds.size(); ++i)
+    for(std::size_t i = 0; i < model->submeshes.size(); ++i)
     {
-        const auto name = model->meshIds.size() == 1
-                              ? model->label
-                              : std::format("{} ({})", model->label, i);
+        const auto &submesh = model->submeshes[i];
+        const auto name     = model->submeshes.size() == 1
+                                  ? model->label
+                                  : std::format("{} ({})", model->label, i);
+
+        const auto materialId =
+            submesh.materialId != 0 ? submesh.materialId : mPrimitives->GetDefaultMaterial();
 
         fr::Entity entity {};
         if(model->skinned && !model->clips.empty())
@@ -1215,8 +1219,8 @@ void ResourcesLayer::spawnModel(const std::filesystem::path &relativePath)
                 fg::TransformComponent {.scale = model->label.find("Fox") != std::string::npos
                                                      ? glm::vec3(0.02f)
                                                      : glm::vec3(1.0f)},
-                fg::MeshComponent {.meshId = model->meshIds[i]},
-                fg::MaterialComponent {.materialId = mPrimitives->GetDefaultMaterial()},
+                fg::MeshComponent {.meshId = submesh.meshId},
+                fg::MaterialComponent {.materialId = materialId},
                 fg::AnimatorComponent {.modelSource = model->relativePath, .playing = true,
                                        .previewInEdit = true});
         }
@@ -1224,8 +1228,8 @@ void ResourcesLayer::spawnModel(const std::filesystem::path &relativePath)
         {
             entity = mRegistry->CreateEntity(
                 fg::NameComponent {.name = name}, fg::TransformComponent {},
-                fg::MeshComponent {.meshId = model->meshIds[i]},
-                fg::MaterialComponent {.materialId = mPrimitives->GetDefaultMaterial()});
+                fg::MeshComponent {.meshId = submesh.meshId},
+                fg::MaterialComponent {.materialId = materialId});
         }
 
         if(first == SelectionContext::Invalid)
@@ -1237,8 +1241,8 @@ void ResourcesLayer::spawnModel(const std::filesystem::path &relativePath)
     {
         mSelection->Select(first);
     }
-    mStatus = std::format("Spawned model '{}' ({} meshes{})", model->label, model->meshIds.size(),
-                          model->skinned ? ", skinned" : "");
+    mStatus = std::format("Spawned model '{}' ({} submeshes{})", model->label,
+                          model->submeshes.size(), model->skinned ? ", skinned" : "");
 }
 
 void ResourcesLayer::spawnPrefab(const std::filesystem::path &relativePath)
@@ -1500,10 +1504,11 @@ void ResourcesLayer::drawInspector()
         ImGui::TextWrapped("Path: Resources/%s", mSelected->relativePath.string().c_str());
         if(const auto model = mAssets->LoadModel(mSelected->relativePath))
         {
-            ImGui::Text("Meshes: %zu", model->meshIds.size());
-            for(std::size_t i = 0; i < model->meshIds.size(); ++i)
+            ImGui::Text("Submeshes: %zu", model->submeshes.size());
+            for(std::size_t i = 0; i < model->submeshes.size(); ++i)
             {
-                ImGui::BulletText("[%zu] Mesh ID %u", i, model->meshIds[i]);
+                ImGui::BulletText("[%zu] Mesh %u, Material %u", i, model->submeshes[i].meshId,
+                                  model->submeshes[i].materialId);
             }
         }
         ImGui::BeginDisabled(mSimulation->IsPlaying());

@@ -88,6 +88,7 @@ class HierarchyLayer: public fg::Layer
         Roughness,
         Emissive,
         Metalness,
+        Occlusion,
         Billboard,
         Particle,
     };

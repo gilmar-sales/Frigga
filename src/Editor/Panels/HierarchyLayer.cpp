@@ -5,6 +5,7 @@
 #include "Editor/Panels/ResourcesLayer.hpp"
 #include "Editor/Ui/AudioComponentInspector.hpp"
 #include "Editor/Ui/ComponentClipboard.hpp"
+#include "Editor/Ui/MaterialInspector.hpp"
 #include "Editor/UiScale.hpp"
 #include "Frigga/ECS/Components/CameraComponent.hpp"
 #include "Frigga/ECS/Components/LightComponent.hpp"
@@ -1040,6 +1041,9 @@ void HierarchyLayer::processPendingTextureImport()
             break;
         case PendingTextureSlot::Metalness:
             info.metalness = texture->textureId;
+            break;
+        case PendingTextureSlot::Occlusion:
+            info.occlusion = texture->textureId;
             break;
         case PendingTextureSlot::Billboard:
         case PendingTextureSlot::Particle:
@@ -2077,7 +2081,7 @@ void HierarchyLayer::drawComponents()
             }
             else if(isImported)
             {
-                preview = currentModel.meshIds.size() == 1
+                preview = currentModel.submeshes.size() == 1
                               ? currentModel.label
                               : std::format("{} [{}]", currentModel.label, currentSubmesh);
             }
@@ -2112,10 +2116,10 @@ void HierarchyLayer::drawComponents()
                     }
                     for(const auto &model : mAssets->GetModels())
                     {
-                        for(std::size_t i = 0; i < model.meshIds.size(); ++i)
+                        for(std::size_t i = 0; i < model.submeshes.size(); ++i)
                         {
                             const auto label =
-                                model.meshIds.size() == 1
+                                model.submeshes.size() == 1
                                     ? model.label
                                     : std::format("{} [{}]", model.label, i);
                             const bool selected =
@@ -2123,7 +2127,7 @@ void HierarchyLayer::drawComponents()
                                 static_cast<std::uint32_t>(i) == currentSubmesh;
                             if(ImGui::Selectable(label.c_str(), selected))
                             {
-                                mesh.meshId = model.meshIds[i];
+                                mesh.meshId = model.submeshes[i].meshId;
                             }
                             if(selected)
                             {
@@ -2196,38 +2200,38 @@ void HierarchyLayer::drawComponents()
                 }
 
                 ImGui::BeginDisabled(isDefault);
-                auto info    = mPrimitives->GetMaterialCreateInfo(material.materialId);
-                bool changed = false;
-                changed |= ImGui::ColorEdit4("Albedo", &info.albedoFactor.x);
-                changed |=
-                    ImGui::DragFloat("Roughness", &info.roughnessFactor, 0.01f, 0.0f, 1.0f);
-                changed |=
-                    ImGui::DragFloat("Metalness", &info.metalnessFactor, 0.01f, 0.0f, 1.0f);
-                changed |= ImGui::ColorEdit3("Emissive", &info.emissiveFactor.x);
+                auto info = mPrimitives->GetMaterialCreateInfo(material.materialId);
 
-                int alphaMode = static_cast<int>(info.alphaMode);
-                if(ImGui::Combo("Alpha Mode", &alphaMode, "Opaque\0Mask\0Blend\0"))
-                {
-                    info.alphaMode = static_cast<fra::AlphaMode>(std::clamp(alphaMode, 0, 2));
-                    changed        = true;
-                }
-                if(info.alphaMode == fra::AlphaMode::Mask)
-                {
-                    changed |=
-                        ImGui::DragFloat("Alpha Cutoff", &info.alphaCutoff, 0.01f, 0.0f, 1.0f);
-                }
+                EditorMaterialUi::TextureSlotContext textureCtx {
+                    .assets        = mAssets,
+                    .editingLocked = mSimulation->IsPlaying() || isDefault,
+                    .requestImport = [this](EditorMaterialUi::TextureSlot slot) {
+                        switch(slot)
+                        {
+                        case EditorMaterialUi::TextureSlot::Albedo:
+                            requestTextureForSlot(PendingTextureSlot::Albedo);
+                            break;
+                        case EditorMaterialUi::TextureSlot::Normal:
+                            requestTextureForSlot(PendingTextureSlot::Normal);
+                            break;
+                        case EditorMaterialUi::TextureSlot::Roughness:
+                            requestTextureForSlot(PendingTextureSlot::Roughness);
+                            break;
+                        case EditorMaterialUi::TextureSlot::Emissive:
+                            requestTextureForSlot(PendingTextureSlot::Emissive);
+                            break;
+                        case EditorMaterialUi::TextureSlot::Metalness:
+                            requestTextureForSlot(PendingTextureSlot::Metalness);
+                            break;
+                        case EditorMaterialUi::TextureSlot::Occlusion:
+                            requestTextureForSlot(PendingTextureSlot::Occlusion);
+                            break;
+                        }
+                    },
+                };
 
-                ImGui::SeparatorText("Maps");
-                drawTextureSlot("Albedo Map", PendingTextureSlot::Albedo, info.albedo, changed);
-                drawTextureSlot("Normal Map", PendingTextureSlot::Normal, info.normal, changed);
-                drawTextureSlot("Roughness Map", PendingTextureSlot::Roughness, info.roughness,
-                                changed);
-                drawTextureSlot("Metalness Map", PendingTextureSlot::Metalness, info.metalness,
-                                changed);
-                drawTextureSlot("Emissive Map", PendingTextureSlot::Emissive, info.emissive,
-                                changed);
-
-                if(changed)
+                if(EditorMaterialUi::DrawMaterialCreateInfo(info, mSimulation->IsPlaying() || isDefault,
+                                                            textureCtx))
                 {
                     mPrimitives->UpdateMaterial(material.materialId, info);
                 }

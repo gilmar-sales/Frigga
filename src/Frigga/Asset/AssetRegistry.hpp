@@ -17,11 +17,17 @@ namespace FRIGGA_NAMESPACE
 
     class IAudioEngine;
 
+    struct ModelSubmeshAsset
+    {
+        std::uint32_t meshId     = 0;
+        std::uint32_t materialId = 0;
+    };
+
     struct ModelAsset
     {
         std::string relativePath;
         std::string label;
-        std::vector<std::uint32_t> meshIds;
+        std::vector<ModelSubmeshAsset> submeshes;
         bool skinned = false;
         fra::Skeleton skeleton {};
         std::vector<fra::AnimationClip> clips;
@@ -205,6 +211,8 @@ namespace FRIGGA_NAMESPACE
             const std::filesystem::path &relativePath);
 
         [[nodiscard]] static std::string normalizeRelativeKey(const std::filesystem::path &relative);
+
+        void catalogMaterialIfNew(std::uint32_t materialId, std::string name);
 
         skr::Arc<fra::MeshPool> mMeshPool;
         skr::Arc<fra::TexturePool> mTexturePool;

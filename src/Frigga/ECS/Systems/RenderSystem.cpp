@@ -6,6 +6,7 @@
 #include "../Components/CameraComponent.hpp"
 #include "../Components/FullscreenEffectComponent.hpp"
 #include "../Components/HealthBarComponent.hpp"
+#include "../Components/HierarchyComponent.hpp"
 #include "../Components/LightComponent.hpp"
 #include "../Components/MaterialComponent.hpp"
 #include "../Components/MeshComponent.hpp"
@@ -27,6 +28,26 @@
 
 namespace FRIGGA_NAMESPACE
 {
+    namespace
+    {
+        bool IsInIsolatedSubtree(fr::Registry &registry, fr::Entity entity, fr::Entity root)
+        {
+            fr::Entity current = entity;
+            while(current != static_cast<fr::Entity>(-1))
+            {
+                if(current == root)
+                {
+                    return true;
+                }
+                fr::Entity parent = static_cast<fr::Entity>(-1);
+                registry.TryGetComponents<HierarchyComponent>(current, [&](HierarchyComponent &h) {
+                    parent = h.parent;
+                });
+                current = parent;
+            }
+            return false;
+        }
+    } // namespace
 
     namespace
     {
@@ -199,9 +220,17 @@ namespace FRIGGA_NAMESPACE
         // Do not call ClearLights()/RemoveLight() every frame. Freya memcpy's an
         // empty UBO into every in-flight ring slot, so the GPU lighting pass
         // often samples zeros. Click/pick waitIdle then shows one correct frame.
+        const bool isolate = mScene->IsUsingPreviewCamera() && mScene->HasRenderIsolation();
+        const fr::Entity isolatedEntity = isolate ? mScene->GetRenderIsolation()
+                                                    : static_cast<fr::Entity>(-1);
+
         std::vector<fra::Light> wanted;
         mRegistry->CreateMutation()->Each(
             [&](fr::Entity entity, TransformComponent &, LightComponent &light) {
+                if(isolate && !IsInIsolatedSubtree(*mRegistry, entity, isolatedEntity))
+                {
+                    return;
+                }
                 wanted.push_back(MakeGpuLight(TransformUtil::WorldPose(*mRegistry, entity), light));
             });
 
@@ -241,7 +270,7 @@ namespace FRIGGA_NAMESPACE
         mRegistry->CreateMutation()->Each(
             [this, isolate, isolatedEntity](fr::Entity entity, TransformComponent &,
                                             MeshComponent &mesh, MaterialComponent &material) {
-                if(isolate && entity != isolatedEntity)
+                if(isolate && !IsInIsolatedSubtree(*mRegistry, entity, isolatedEntity))
                 {
                     return;
                 }
@@ -320,8 +349,8 @@ namespace FRIGGA_NAMESPACE
         const fr::Entity isolatedEntity = isolate ? mScene->GetRenderIsolation()
                                                   : static_cast<fr::Entity>(-1);
 
-        const auto skip = [isolate, isolatedEntity](fr::Entity entity) {
-            return isolate && entity != isolatedEntity;
+        const auto skip = [this, isolate, isolatedEntity](fr::Entity entity) {
+            return isolate && !IsInIsolatedSubtree(*mRegistry, entity, isolatedEntity);
         };
 
         mRegistry->CreateMutation()->Each(

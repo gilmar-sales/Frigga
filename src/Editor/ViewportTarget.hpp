@@ -17,9 +17,9 @@ namespace fg
         glm::mat4 projection{1.0f};
     };
 
-    /// Thick wrapper around Freya v0.42's renderer-owned offscreen viewport.
+    /// Thick wrapper around Freya v0.43's renderer-owned offscreen viewport.
     ///
-    /// v0.42 removed the app-owned `RenderTarget`/`SetOutputTarget` API; the
+    /// v0.43 removed the app-owned `RenderTarget`/`SetOutputTarget` API; the
     /// renderer owns the viewport target and exposes it through
     /// `SetViewportTarget` / `GetViewportImage`. Each editor viewport panel
     /// claims the shared target while it is the active view and displays the

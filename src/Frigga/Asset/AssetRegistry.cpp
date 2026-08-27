@@ -238,21 +238,42 @@ namespace FRIGGA_NAMESPACE
             return mModels[it->second];
         }
 
+        const auto baseLabel = relativePath.stem().string();
         ModelAsset asset {.relativePath = key,
                           .label        = relativePath.filename().string()};
 
+        const auto appendSubmeshes =
+            [&](const std::vector<fra::ModelSubmesh> &parts) {
+                for(std::size_t i = 0; i < parts.size(); ++i)
+                {
+                    asset.submeshes.push_back(ModelSubmeshAsset {
+                        .meshId     = parts[i].meshId,
+                        .materialId = parts[i].materialId,
+                    });
+                    if(parts[i].materialId != 0)
+                    {
+                        const auto matName =
+                            parts.size() == 1
+                                ? std::format("{} Material", baseLabel)
+                                : std::format("{} Material {}", baseLabel, i);
+                        catalogMaterialIfNew(parts[i].materialId, matName);
+                    }
+                }
+            };
+
         if(mMeshPool == nullptr)
         {
-            asset.meshIds.push_back(++mCatalogMeshSeq);
+            asset.submeshes.push_back(
+                ModelSubmeshAsset {.meshId = ++mCatalogMeshSeq, .materialId = 0});
         }
         else
         {
             // Prefer the skinned loader when the file contains a skeleton.
             auto skinned = mMeshPool->CreateSkinnedModelFromFile(absolutePath.string());
-            if(skinned.skeleton.JointCount() > 0 && !skinned.meshIds.empty())
+            if(skinned.skeleton.JointCount() > 0 && !skinned.submeshes.empty())
             {
                 asset.skinned  = true;
-                asset.meshIds  = std::move(skinned.meshIds);
+                appendSubmeshes(skinned.submeshes);
                 asset.skeleton = std::move(skinned.skeleton);
                 asset.clips    = std::move(skinned.clips);
                 for(auto &clip : asset.clips)
@@ -262,10 +283,10 @@ namespace FRIGGA_NAMESPACE
             }
             else
             {
-                asset.meshIds = mMeshPool->CreateMeshFromFile(absolutePath.string());
+                appendSubmeshes(mMeshPool->CreateModelFromFile(absolutePath.string()));
             }
 
-            if(asset.meshIds.empty())
+            if(asset.submeshes.empty())
             {
                 if(mLogger)
                 {
@@ -284,13 +305,13 @@ namespace FRIGGA_NAMESPACE
             if(stored.skinned)
             {
                 mLogger->LogInformation(
-                    "Imported skinned model '{}' ({} meshes, {} joints, {} clips)", key,
-                    stored.meshIds.size(), stored.skeleton.JointCount(), stored.clips.size());
+                    "Imported skinned model '{}' ({} submeshes, {} joints, {} clips)", key,
+                    stored.submeshes.size(), stored.skeleton.JointCount(), stored.clips.size());
             }
             else
             {
-                mLogger->LogInformation("Imported model '{}' ({} meshes)", key,
-                                        stored.meshIds.size());
+                mLogger->LogInformation("Imported model '{}' ({} submeshes)", key,
+                                        stored.submeshes.size());
             }
         }
 
@@ -315,8 +336,8 @@ namespace FRIGGA_NAMESPACE
         }
         else
         {
-            asset.textureId = mTexturePool->CreateTextureFromFile(absolutePath.string());
-            if(asset.textureId == 0)
+            const auto loaded = mTexturePool->CreateTextureFromFile(absolutePath.string());
+            if(!loaded)
             {
                 if(mLogger)
                 {
@@ -324,6 +345,7 @@ namespace FRIGGA_NAMESPACE
                 }
                 return std::nullopt;
             }
+            asset.textureId = *loaded;
         }
 
         mTextureIndexByPath.emplace(key, mTextures.size());
@@ -679,14 +701,30 @@ namespace FRIGGA_NAMESPACE
         return mMaterialPool->GetCreateInfo(materialId);
     }
 
+    void AssetRegistry::catalogMaterialIfNew(std::uint32_t materialId, std::string name)
+    {
+        if(materialId == 0)
+        {
+            return;
+        }
+        for(const auto &existing : mMaterials)
+        {
+            if(existing.materialId == materialId)
+            {
+                return;
+            }
+        }
+        mMaterials.push_back(MaterialAsset {.name = std::move(name), .materialId = materialId});
+    }
+
     bool AssetRegistry::TryFindModelByMeshId(std::uint32_t meshId, ModelAsset &outModel,
                                              std::uint32_t &outSubmeshIndex) const
     {
         for(const auto &model : mModels)
         {
-            for(std::size_t i = 0; i < model.meshIds.size(); ++i)
+            for(std::size_t i = 0; i < model.submeshes.size(); ++i)
             {
-                if(model.meshIds[i] == meshId)
+                if(model.submeshes[i].meshId == meshId)
                 {
                     outModel         = model;
                     outSubmeshIndex  = static_cast<std::uint32_t>(i);
@@ -701,11 +739,11 @@ namespace FRIGGA_NAMESPACE
                                      std::uint32_t &outMeshId)
     {
         const auto model = LoadModel(relativePath);
-        if(!model || submeshIndex >= model->meshIds.size())
+        if(!model || submeshIndex >= model->submeshes.size())
         {
             return false;
         }
-        outMeshId = model->meshIds[submeshIndex];
+        outMeshId = model->submeshes[submeshIndex].meshId;
         return true;
     }
 

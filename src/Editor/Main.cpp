@@ -16,6 +16,7 @@
 #include "Preferences/PreferencesStore.hpp"
 #include "Project/ProjectSession.hpp"
 #include "SelectionContext.hpp"
+#include "MaterialSelectionContext.hpp"
 #include "Workflows/AnimationWorkflow.hpp"
 #include "Workflows/AudioWorkflow.hpp"
 #include "Workflows/EcsWorkflow.hpp"
@@ -111,6 +112,7 @@ int main(int argc, char *argv[])
         ->AddSingleton<EditorPreferences>(
             [startupPreferences](skr::ServiceProvider &) { return startupPreferences; })
         .AddSingleton<SelectionContext>()
+        .AddSingleton<MaterialSelectionContext>()
         .AddSingleton<ProjectSession>()
         .AddTransient<HomeLayer>()
         .AddTransient<MainLayer>()

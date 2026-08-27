@@ -1,21 +1,31 @@
 #include "ShadingWorkflow.hpp"
 
 #include "Editor/DockLayout.hpp"
+#include "Editor/Panels/MaterialPropertiesLayer.hpp"
+#include "Editor/Panels/MaterialsLayer.hpp"
 #include "Editor/Panels/PlaceholderLayer.hpp"
+#include "Editor/Panels/ShadingPreviewLayer.hpp"
 
 #include <imgui_internal.h>
 
-ShadingWorkflow::ShadingWorkflow()
+ShadingWorkflow::ShadingWorkflow(skr::Arc<fg::AssetRegistry> assets,
+                                 skr::Arc<fg::PrimitiveMeshFactory> primitives,
+                                 skr::Arc<MaterialSelectionContext> materialSelection,
+                                 skr::Arc<fra::Renderer> renderer,
+                                 skr::Arc<fra::MeshPool> meshPool, skr::Arc<fr::Registry> registry,
+                                 skr::Arc<fg::Scene> scene, skr::Arc<EditorPreferences> preferences,
+                                 skr::Arc<fg::SceneSimulationState> simulation,
+                                 skr::Arc<fra::Window> window)
     : Workflow("Shading",
                {
-                   skr::MakeArc<PlaceholderLayer>(
-                       "Materials", "Browse materials and assign shading models."),
+                   skr::MakeArc<MaterialsLayer>(assets, primitives, materialSelection, simulation),
                    skr::MakeArc<PlaceholderLayer>(
                        "Shader Graph", "Node graph for authoring shaders."),
-                   skr::MakeArc<PlaceholderLayer>(
-                       "Material Properties", "Edit parameters, textures, and render states."),
-                   skr::MakeArc<PlaceholderLayer>(
-                       "Preview", "Interactive material and lighting preview."),
+                   skr::MakeArc<MaterialPropertiesLayer>(assets, primitives, materialSelection,
+                                                         simulation, window),
+                   skr::MakeArc<ShadingPreviewLayer>(renderer, registry, meshPool, primitives,
+                                                     materialSelection, scene, preferences,
+                                                     simulation),
                })
 {
 }
