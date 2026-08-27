@@ -16,6 +16,8 @@
 namespace FRIGGA_NAMESPACE
 {
 
+    class AudioController;
+
     enum class SimulationMode : std::uint8_t
     {
         Edit = 0,
@@ -30,7 +32,8 @@ namespace FRIGGA_NAMESPACE
                              const skr::Arc<Scene> &scene,
                              const skr::Arc<PrimitiveMeshFactory> &primitives,
                              const skr::Arc<UserComponentRegistry> &userComponents,
-                             const skr::Arc<skr::Logger<SceneSimulationState>> &logger);
+                             const skr::Arc<skr::Logger<SceneSimulationState>> &logger,
+                             const skr::Arc<AudioController> &audioController = {});
 
         /// True while the play session is active (running or paused).
         [[nodiscard]] bool IsPlaying() const
@@ -142,6 +145,7 @@ namespace FRIGGA_NAMESPACE
         skr::Arc<PrimitiveMeshFactory> mPrimitives;
         skr::Arc<UserComponentRegistry> mUserComponents;
         skr::Arc<skr::Logger<SceneSimulationState>> mLogger;
+        skr::Arc<AudioController> mAudioController;
         SimulationMode mMode = SimulationMode::Edit;
         bool mPaused                 = false;
         bool mStepRequested          = false;

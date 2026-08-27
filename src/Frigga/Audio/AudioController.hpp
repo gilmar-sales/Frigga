@@ -38,6 +38,9 @@ namespace FRIGGA_NAMESPACE
         bool PreviewEvent(std::string_view eventPath, float volume = 1.0f, bool loop = false);
         void StopPreview();
 
+        /// Stops preview and every AudioSource engine instance (e.g. on Play session exit).
+        void StopAllPlayback();
+
       private:
         struct PreviewRuntime
         {

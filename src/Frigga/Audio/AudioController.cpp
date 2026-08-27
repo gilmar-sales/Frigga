@@ -145,4 +145,23 @@ namespace FRIGGA_NAMESPACE
         mPreview.instance = {};
     }
 
+    void AudioController::StopAllPlayback()
+    {
+        StopPreview();
+
+        mRegistry->CreateMutation()->Each(
+            [&](fr::Entity /*entity*/, AudioSourceComponent &source) {
+                if(source.instance.IsValid())
+                {
+                    mAudioEngine->StopEvent(source.instance, true);
+                    mAudioEngine->ReleaseEventInstance(source.instance);
+                    source.instance = {};
+                }
+                source.desired       = AudioPlaybackState::Stopped;
+                source.oneShot       = false;
+                source.awakeApplied  = false;
+                source.engineStarted = false;
+            });
+    }
+
 } // namespace FRIGGA_NAMESPACE

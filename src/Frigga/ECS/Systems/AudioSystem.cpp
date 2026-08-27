@@ -35,14 +35,10 @@ namespace FRIGGA_NAMESPACE
 
     void AudioSystem::stopAllSources()
     {
-        mRegistry->CreateMutation()->Each(
-            [&](fr::Entity /*entity*/, AudioSourceComponent &source) {
-                releaseSource(source);
-                source.desired       = AudioPlaybackState::Stopped;
-                source.oneShot       = false;
-                source.awakeApplied  = false;
-                source.engineStarted = false;
-            });
+        if(mController)
+        {
+            mController->StopAllPlayback();
+        }
     }
 
     void AudioSystem::applySourceProperties(AudioSourceComponent &source)

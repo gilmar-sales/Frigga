@@ -1,5 +1,6 @@
 #include "SceneSimulationState.hpp"
 
+#include "Frigga/Audio/AudioController.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/NameComponent.hpp"
 #include "Frigga/ECS/TransformUtil.hpp"
@@ -14,9 +15,11 @@ namespace FRIGGA_NAMESPACE
         const skr::Arc<fr::Registry> &registry, const skr::Arc<IPhysicsWorld> &physicsWorld,
         const skr::Arc<Scene> &scene, const skr::Arc<PrimitiveMeshFactory> &primitives,
         const skr::Arc<UserComponentRegistry> &userComponents,
-        const skr::Arc<skr::Logger<SceneSimulationState>> &logger)
+        const skr::Arc<skr::Logger<SceneSimulationState>> &logger,
+        const skr::Arc<AudioController> &audioController)
         : mRegistry(registry), mPhysicsWorld(physicsWorld), mScene(scene),
-          mPrimitives(primitives), mUserComponents(userComponents), mLogger(logger)
+          mPrimitives(primitives), mUserComponents(userComponents), mLogger(logger),
+          mAudioController(audioController)
     {
     }
 
@@ -155,6 +158,11 @@ namespace FRIGGA_NAMESPACE
         if(!IsPlaying())
         {
             return;
+        }
+
+        if(mAudioController)
+        {
+            mAudioController->StopAllPlayback();
         }
 
         teardownPhysicsWorld();
