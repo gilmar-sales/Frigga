@@ -42,6 +42,7 @@ namespace FRIGGA_NAMESPACE
         bool mEventCallbackRegistered  = false;
         float m_time                   = 0.9f;
         skr::Arc<skr::ServiceProvider> mServiceProvider;
+        skr::Arc<fra::Renderer>        mRenderer;
     };
 
 } // namespace FRIGGA_NAMESPACE

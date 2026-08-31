@@ -2,6 +2,7 @@
 
 #include "Frigga/Animation/AnimationController.hpp"
 #include "Frigga/Asset/AssetRegistry.hpp"
+#include "Frigga/Scene/Scene.hpp"
 #include "Frigga/Scene/SceneSimulationState.hpp"
 
 #include <Freya/Asset/BakedAnimation.hpp>
@@ -23,6 +24,7 @@ namespace FRIGGA_NAMESPACE
         AnimationSystem(const skr::Arc<fr::Registry> &registry,
                         const skr::Arc<fra::Renderer> &renderer,
                         const skr::Arc<AssetRegistry> &assets,
+                        const skr::Arc<Scene> &scene,
                         const skr::Arc<SceneSimulationState> &simulation,
                         const skr::Arc<fra::FreyaOptions> &options,
                         const skr::Arc<AnimationController> &controller);
@@ -52,14 +54,26 @@ namespace FRIGGA_NAMESPACE
             }
         };
 
+        struct ActorLodState
+        {
+            float        accum = 0.f;
+            std::uint8_t tier  = 0;
+        };
+
         [[nodiscard]] const fra::AnimationClip *resolveClip(const ModelAsset &model,
                                                             const std::string &clipName) const;
 
         [[nodiscard]] const fra::BakedClip *ensureBake(const ModelAsset &model,
                                                        const fra::AnimationClip &clip);
 
+        [[nodiscard]] glm::vec3 cameraPosition() const;
+
+        [[nodiscard]] bool shouldEvaluatePose(float deltaTime, fr::Entity entity,
+                                              const glm::vec3 &actorPosition, bool ticking);
+
         skr::Arc<fra::Renderer> mRenderer;
         skr::Arc<AssetRegistry> mAssets;
+        skr::Arc<Scene> mScene;
         skr::Arc<SceneSimulationState> mSimulation;
         skr::Arc<fra::FreyaOptions> mOptions;
         skr::Arc<AnimationController> mController;
@@ -67,8 +81,7 @@ namespace FRIGGA_NAMESPACE
         std::vector<glm::mat4> mBonePalette;
         std::vector<fra::GpuAnimInstance> mGpuInstances;
         std::unordered_map<BakeKey, fra::BakedClip, BakeKeyHash> mBakes;
-        std::string mGpuSkeletonSource;
-        bool mGpuSkeletonUploaded = false;
+        std::unordered_map<fr::Entity, ActorLodState> mLodStates;
     };
 
 } // namespace FRIGGA_NAMESPACE

@@ -259,6 +259,21 @@ void PreferencesLayer::drawGraphicsTab()
     drawViewportQuality("Gameplay Viewport", prefs.gameplayViewport);
     ImGui::TextDisabled("Applied while the Gameplay viewport is rendering.");
 
+    ImGui::SeparatorText("Animation");
+
+    int animationQuality = ClampQuality(prefs.animationQuality);
+    if(ImGui::Combo("Animation Quality", &animationQuality, kQualityLabels))
+    {
+        animationQuality = ClampQuality(animationQuality);
+        prefs.animationQuality = animationQuality;
+        const auto quality =
+            static_cast<fra::AnimationQuality>(animationQuality);
+        fra::ApplyAnimationQuality(*mFreyaOptions, quality);
+        persist();
+    }
+    ActiveU32("animLod tier0 Hz",
+              static_cast<std::uint32_t>(mFreyaOptions->animLodHz[0]));
+
     ImGui::SeparatorText("SSAO Fine Tuning");
     ImGui::TextDisabled("Shared knobs applied on top of the active viewport preset.");
 

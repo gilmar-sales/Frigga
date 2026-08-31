@@ -1,22 +1,34 @@
 #include "AnimationSystem.hpp"
 
 #include "Frigga/ECS/Components/AnimatorComponent.hpp"
+#include "Frigga/ECS/Components/CameraComponent.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/ECS/TransformUtil.hpp"
 
+#include <Freya/Asset/AnimGraph.hpp>
 #include <Freya/Asset/Pose.hpp>
+#include <Freya/Asset/Rig.hpp>
+#include <Freya/FreyaOptions.hpp>
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <unordered_map>
+#include <vector>
 
 namespace FRIGGA_NAMESPACE
 {
     namespace
     {
-        constexpr std::uint32_t kInvalidGpuClipSlot      = 0xffffffffu;
-        constexpr std::uint32_t kMaxGpuAnimInstances     = 1024u;
+        constexpr std::uint32_t kInvalidGpuClipSlot  = 0xffffffffu;
+        constexpr std::uint32_t kMaxGpuAnimInstances = 2048u;
+
+        [[nodiscard]] std::uint64_t ClipGpuKey(const std::string &modelSource,
+                                               std::string_view clipName)
+        {
+            return fra::GpuClipKey(modelSource + "/" + std::string(clipName));
+        }
 
         void AdvanceClipTime(float &timeSec, float duration, float delta, bool loop)
         {
@@ -40,16 +52,117 @@ namespace FRIGGA_NAMESPACE
                 timeSec = std::clamp(timeSec, 0.0f, duration);
             }
         }
+
+        void UploadSkeletonForModel(fra::Renderer &renderer, const ModelAsset &model)
+        {
+            renderer.UploadGpuAnimSkeleton(fra::PackSkeleton(model.skeleton));
+            const auto root = fra::FindRootJoint(model.skeleton);
+            renderer.SetGpuAnimRigIndices(
+                0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
+                root >= 0 ? static_cast<std::uint32_t>(root) : 0u);
+        }
+
+        [[nodiscard]] bool TryPackClipGpu(fra::GpuAnimInstance &instance,
+                                          const ModelAsset &model,
+                                          const fra::AnimationClip &clip, float timeSec,
+                                          bool loop, std::uint32_t boneOffset,
+                                          std::uint32_t jointCount, const glm::mat4 &modelWorld,
+                                          fra::Renderer &renderer, const fra::BakedClip &bake)
+        {
+            const auto slot = renderer.EnsureGpuAnimClipResident(
+                ClipGpuKey(model.relativePath, clip.name), bake);
+            if(slot == kInvalidGpuClipSlot)
+            {
+                return false;
+            }
+
+            instance                 = {};
+            instance.boneOffset      = boneOffset;
+            instance.jointCount      = jointCount;
+            instance.clipA           = slot;
+            instance.timeA           = timeSec;
+            instance.wA              = 1.0f;
+            instance.flags           = loop ? fra::GpuAnimFlags::Loop : 0u;
+            instance.modelWorld      = modelWorld;
+            return true;
+        }
+
+        [[nodiscard]] bool TryPackGraphGpu(
+            fra::GpuAnimInstance &instance, fra::AnimGraph &graph, const ModelAsset &model,
+            std::uint32_t boneOffset, std::uint32_t jointCount, const glm::mat4 &modelWorld,
+            bool loop, fra::Renderer &renderer,
+            const std::function<std::uint32_t(const fra::AnimationClip *)> &clipSlot)
+        {
+            fra::AnimLocoGpuSample loco {};
+            if(!graph.TryGetLocoGpuSample(loco))
+            {
+                return false;
+            }
+
+            const auto slotA = clipSlot(loco.clipA);
+            if(slotA == kInvalidGpuClipSlot)
+            {
+                return false;
+            }
+
+            const auto slotB = loco.clipB ? clipSlot(loco.clipB) : kInvalidGpuClipSlot;
+            const auto slotC = loco.clipC ? clipSlot(loco.clipC) : kInvalidGpuClipSlot;
+
+            instance            = {};
+            instance.boneOffset = boneOffset;
+            instance.jointCount = jointCount;
+            instance.clipA      = slotA;
+            instance.clipB      = slotB == kInvalidGpuClipSlot ? 0u : slotB;
+            instance.clipC      = slotC == kInvalidGpuClipSlot ? 0u : slotC;
+            instance.timeA      = loco.timeA;
+            instance.timeB      = loco.timeB;
+            instance.timeC      = loco.timeC;
+            instance.wA         = loco.wA;
+            instance.wB         = loco.wB;
+            instance.wC         = loco.wC;
+            instance.flags      = loop ? fra::GpuAnimFlags::Loop : 0u;
+            instance.modelWorld = modelWorld;
+
+            fra::AnimLayerGpuSlots layers {};
+            if(graph.TryGetLayerGpuSlots(layers))
+            {
+                if(layers.masked.active && layers.masked.clip != nullptr)
+                {
+                    const auto maskSlot = clipSlot(layers.masked.clip);
+                    if(maskSlot != kInvalidGpuClipSlot)
+                    {
+                        instance.clipMask   = maskSlot;
+                        instance.timeMask   = layers.masked.time;
+                        instance.weightMask = layers.masked.weight;
+                        instance.flags |= fra::GpuAnimFlags::MaskedOverlay;
+                    }
+                }
+                if(layers.additive.active && layers.additive.clip != nullptr)
+                {
+                    const auto addSlot = clipSlot(layers.additive.clip);
+                    if(addSlot != kInvalidGpuClipSlot)
+                    {
+                        instance.clipAdd   = addSlot;
+                        instance.timeAdd   = layers.additive.time;
+                        instance.weightAdd = layers.additive.weight;
+                        instance.flags |= fra::GpuAnimFlags::Additive;
+                    }
+                }
+            }
+
+            return true;
+        }
     } // namespace
 
     AnimationSystem::AnimationSystem(const skr::Arc<fr::Registry> &registry,
                                      const skr::Arc<fra::Renderer> &renderer,
                                      const skr::Arc<AssetRegistry> &assets,
+                                     const skr::Arc<Scene> &scene,
                                      const skr::Arc<SceneSimulationState> &simulation,
                                      const skr::Arc<fra::FreyaOptions> &options,
                                      const skr::Arc<AnimationController> &controller)
-        : System(registry), mRenderer(renderer), mAssets(assets), mSimulation(simulation),
-          mOptions(options), mController(controller)
+        : System(registry), mRenderer(renderer), mAssets(assets), mScene(scene),
+          mSimulation(simulation), mOptions(options), mController(controller)
     {
     }
 
@@ -101,6 +214,66 @@ namespace FRIGGA_NAMESPACE
         return &it->second;
     }
 
+    glm::vec3 AnimationSystem::cameraPosition() const
+    {
+        if(mScene->IsUsingEditorCamera())
+        {
+            return mScene->GetEditorCamera().transform.position;
+        }
+        if(mScene->IsUsingPreviewCamera())
+        {
+            return mScene->GetPreviewCamera().transform.position;
+        }
+
+        glm::vec3     position = mScene->GetEditorCamera().transform.position;
+        bool          found    = false;
+        fr::Entity    primary  = static_cast<fr::Entity>(-1);
+
+        mRegistry->CreateMutation()->Each(
+            [&](fr::Entity entity, TransformComponent &, CameraComponent &camera) {
+                if(camera.primary)
+                {
+                    primary = entity;
+                }
+            });
+
+        if(primary != static_cast<fr::Entity>(-1))
+        {
+            return TransformUtil::WorldPose(*mRegistry, primary).position;
+        }
+
+        mRegistry->CreateMutation()->Each(
+            [&](fr::Entity entity, TransformComponent &, CameraComponent &) {
+                if(!found)
+                {
+                    position = TransformUtil::WorldPose(*mRegistry, entity).position;
+                    found    = true;
+                }
+            });
+
+        return position;
+    }
+
+    bool AnimationSystem::shouldEvaluatePose(float deltaTime, fr::Entity entity,
+                                             const glm::vec3 &actorPosition, bool ticking)
+    {
+        if(!ticking)
+        {
+            return false;
+        }
+        if(!mOptions || !mOptions->enableAnimLod)
+        {
+            return true;
+        }
+
+        auto &lod = mLodStates[entity];
+        const float dist =
+            glm::length(actorPosition - cameraPosition());
+        fra::UpdateAnimLodTier(*mOptions, lod.tier, dist);
+        return fra::ConsumeAnimLodTick(lod.accum, deltaTime,
+                                       fra::AnimLodHz(*mOptions, lod.tier));
+    }
+
     void AnimationSystem::Update(float deltaTime)
     {
         mBonePalette.clear();
@@ -111,61 +284,15 @@ namespace FRIGGA_NAMESPACE
         const std::uint32_t gpuMaxJoints = mRenderer->GetGpuAnimJointsPerClipSlot();
         mRenderer->SetGpuAnimEnabled(false);
 
-        std::unordered_map<std::string, std::uint32_t> gpuVotes;
-        mRegistry->CreateMutation()->Each(
-            [&](AnimatorComponent &animator) {
-                animator.boneOffset = fra::kNoSkin;
-                animator.boneCount  = 0;
-                if(!animator.useGpu || animator.modelSource.empty())
-                {
-                    return;
-                }
-                const auto *model = mAssets->FindModel(animator.modelSource);
-                if(model != nullptr && model->skinned && model->skeleton.JointCount() > 0)
-                {
-                    ++gpuVotes[animator.modelSource];
-                }
-            });
-
-        std::string gpuPreferredSource;
-        std::uint32_t gpuPreferredCount = 0;
-        for(const auto &[source, count] : gpuVotes)
-        {
-            if(count > gpuPreferredCount)
-            {
-                gpuPreferredSource = source;
-                gpuPreferredCount  = count;
-            }
-        }
-
-        const ModelAsset *gpuModel = nullptr;
-        if(gpuPreferredCount > 0)
-        {
-            gpuModel = mAssets->FindModel(gpuPreferredSource);
-            if(gpuModel == nullptr || !gpuModel->skinned)
-            {
-                gpuModel = nullptr;
-            }
-        }
-
-        if(gpuModel != nullptr)
-        {
-            if(!mGpuSkeletonUploaded || mGpuSkeletonSource != gpuModel->relativePath)
-            {
-                mRenderer->UploadGpuAnimSkeleton(fra::PackSkeleton(gpuModel->skeleton));
-                const auto root = fra::FindRootJoint(gpuModel->skeleton);
-                mRenderer->SetGpuAnimRigIndices(0xffffffffu, 0xffffffffu, 0xffffffffu,
-                                                0xffffffffu,
-                                                root >= 0 ? static_cast<std::uint32_t>(root) : 0u);
-                mGpuSkeletonSource   = gpuModel->relativePath;
-                mGpuSkeletonUploaded = true;
-            }
-            mRenderer->SetGpuAnimCopyPrevBones(true);
-        }
+        std::unordered_map<std::string, std::vector<fra::GpuAnimInstance>> gpuBatches;
+        std::unordered_map<std::string, const ModelAsset *> gpuBatchModels;
 
         mRegistry->CreateMutation()->Each(
             [&](fr::Entity entity, TransformComponent &, MeshComponent &,
                 AnimatorComponent &animator) {
+                animator.boneOffset = fra::kNoSkin;
+                animator.boneCount  = 0;
+
                 if(animator.modelSource.empty())
                 {
                     return;
@@ -192,41 +319,93 @@ namespace FRIGGA_NAMESPACE
                 const bool ticking =
                     animator.playing && (allowPreview || mSimulation->IsRunning());
 
+                const auto worldPose = TransformUtil::WorldPose(*mRegistry, entity);
+                const auto modelWorld = TransformUtil::WorldMatrix(*mRegistry, entity);
+                const bool mustEval =
+                    shouldEvaluatePose(deltaTime, entity, worldPose.position, ticking);
+
+                const auto jointCount = model->skeleton.JointCount();
+                const auto boneOffset = static_cast<std::uint32_t>(mBonePalette.size());
+                mBonePalette.resize(mBonePalette.size() + jointCount, glm::mat4(1.0f));
+                animator.boneOffset = boneOffset;
+                animator.boneCount  = jointCount;
+
+                auto *runtime = mController ? mController->TryGetRuntime(entity) : nullptr;
+                const bool crossFading = runtime != nullptr && runtime->crossFading;
+
+                const auto clipSlotFn =
+                    [this, model](const fra::AnimationClip *clip) -> std::uint32_t {
+                    if(clip == nullptr)
+                    {
+                        return kInvalidGpuClipSlot;
+                    }
+                    const auto *bake = ensureBake(*model, *clip);
+                    return mRenderer->EnsureGpuAnimClipResident(
+                        ClipGpuKey(model->relativePath, clip->name), *bake);
+                };
+
+                const bool canGpu =
+                    animator.useGpu && !crossFading && jointCount <= gpuMaxJoints;
+
+                auto tryQueueGpu = [&](fra::GpuAnimInstance &gpuInst) -> bool {
+                    if(!canGpu)
+                    {
+                        return false;
+                    }
+                    auto &batch = gpuBatches[model->relativePath];
+                    if(batch.size() >= kMaxGpuAnimInstances)
+                    {
+                        return false;
+                    }
+                    batch.push_back(gpuInst);
+                    gpuBatchModels[model->relativePath] = model;
+                    return true;
+                };
+
                 if(graph != nullptr)
                 {
-                    auto *runtime = mController->TryGetRuntime(entity);
-                    if(ticking && runtime != nullptr)
+                    if(mustEval && ticking)
                     {
-                        for(const auto &[name, value] : runtime->floats)
+                        if(runtime != nullptr)
                         {
-                            graph->SetFloat(name, value);
-                        }
-                        for(const auto &[name, value] : runtime->bools)
-                        {
-                            graph->SetBool(name, value);
-                        }
-                        for(auto &[name, raised] : runtime->triggers)
-                        {
-                            if(raised)
+                            for(const auto &[name, value] : runtime->floats)
                             {
-                                graph->SetTrigger(name);
-                                raised = false;
+                                graph->SetFloat(name, value);
+                            }
+                            for(const auto &[name, value] : runtime->bools)
+                            {
+                                graph->SetBool(name, value);
+                            }
+                            for(auto &[name, raised] : runtime->triggers)
+                            {
+                                if(raised)
+                                {
+                                    graph->SetTrigger(name);
+                                    raised = false;
+                                }
                             }
                         }
                         graph->Advance(deltaTime * animator.speed);
                         animator.clipName = std::string {graph->CurrentStateName()};
                     }
 
-                    const auto jointCount = model->skeleton.JointCount();
-                    const auto boneOffset = static_cast<std::uint32_t>(mBonePalette.size());
-                    mBonePalette.resize(mBonePalette.size() + jointCount, glm::mat4(1.0f));
-                    animator.boneOffset = boneOffset;
-                    animator.boneCount  = jointCount;
+                    fra::GpuAnimInstance gpuInst {};
+                    if(canGpu &&
+                       TryPackGraphGpu(gpuInst, *graph, *model, boneOffset, jointCount,
+                                       modelWorld, animator.loop, *mRenderer, clipSlotFn) &&
+                       tryQueueGpu(gpuInst))
+                    {
+                        return;
+                    }
 
-                    const auto pose = graph->SampleCurrent();
-                    const auto skin = fra::PoseToSkinMatrices(model->skeleton, pose);
-                    std::copy(skin.begin(), skin.end(),
-                              mBonePalette.begin() + static_cast<std::ptrdiff_t>(boneOffset));
+                    if(mustEval || !canGpu)
+                    {
+                        const auto pose = graph->SampleCurrent();
+                        const auto skin = fra::PoseToSkinMatrices(model->skeleton, pose);
+                        std::copy(skin.begin(), skin.end(),
+                                  mBonePalette.begin() +
+                                      static_cast<std::ptrdiff_t>(boneOffset));
+                    }
                     return;
                 }
 
@@ -236,13 +415,10 @@ namespace FRIGGA_NAMESPACE
                     return;
                 }
 
-                auto *runtime = mController ? mController->TryGetRuntime(entity) : nullptr;
-                const bool crossFading = runtime != nullptr && runtime->crossFading;
-
-                if(ticking)
+                if(mustEval && ticking)
                 {
-                    AdvanceClipTime(animator.timeSec, clip->duration, deltaTime * animator.speed,
-                                    animator.loop);
+                    AdvanceClipTime(animator.timeSec, clip->duration,
+                                    deltaTime * animator.speed, animator.loop);
                     if(crossFading)
                     {
                         const auto *fromClip = resolveClip(*model, runtime->fromClip);
@@ -259,35 +435,14 @@ namespace FRIGGA_NAMESPACE
                     }
                 }
 
-                const auto jointCount = model->skeleton.JointCount();
-                const auto boneOffset = static_cast<std::uint32_t>(mBonePalette.size());
-                mBonePalette.resize(mBonePalette.size() + jointCount, glm::mat4(1.0f));
-
-                animator.boneOffset = boneOffset;
-                animator.boneCount  = jointCount;
-
-                // Cross-fade requires CPU local poses; skip GPU for this actor while blending.
-                const bool useGpuThisActor =
-                    !crossFading && animator.useGpu && gpuModel != nullptr &&
-                    model->relativePath == gpuModel->relativePath &&
-                    jointCount <= gpuMaxJoints && mGpuInstances.size() < kMaxGpuAnimInstances;
-
-                if(useGpuThisActor)
+                if(canGpu)
                 {
                     const auto *bake = ensureBake(*model, *clip);
-                    const auto slot  = mRenderer->EnsureGpuAnimClipResident(
-                        fra::GpuClipKey(clip->name), *bake);
-                    if(slot != kInvalidGpuClipSlot)
+                    fra::GpuAnimInstance gpuInst {};
+                    if(TryPackClipGpu(gpuInst, *model, *clip, animator.timeSec, animator.loop,
+                                      boneOffset, jointCount, modelWorld, *mRenderer, *bake) &&
+                       tryQueueGpu(gpuInst))
                     {
-                        fra::GpuAnimInstance instance {};
-                        instance.boneOffset = boneOffset;
-                        instance.jointCount = jointCount;
-                        instance.clipA      = slot;
-                        instance.timeA      = animator.timeSec;
-                        instance.wA         = 1.0f;
-                        instance.flags = animator.loop ? fra::GpuAnimFlags::Loop : 0u;
-                        instance.modelWorld = TransformUtil::WorldMatrix(*mRegistry, entity);
-                        mGpuInstances.push_back(instance);
                         return;
                     }
                 }
@@ -313,9 +468,13 @@ namespace FRIGGA_NAMESPACE
                         runtime->crossFading = false;
                     }
                 }
-                else
+                else if(mustEval || !canGpu)
                 {
                     skin = fra::EvaluateSkeletonPose(model->skeleton, *clip, animator.timeSec);
+                }
+                else
+                {
+                    return;
                 }
 
                 std::copy(skin.begin(), skin.end(),
@@ -327,14 +486,50 @@ namespace FRIGGA_NAMESPACE
             mRenderer->UploadBoneMatrices(mBonePalette);
         }
 
-        if(!mGpuInstances.empty())
-        {
-            mRenderer->UploadGpuAnimInstances(mGpuInstances);
-            mRenderer->SetGpuAnimEnabled(true);
-        }
-        else
+        if(gpuBatches.empty())
         {
             mRenderer->SetGpuAnimEnabled(false);
+            return;
+        }
+
+        std::vector<std::string> batchOrder;
+        batchOrder.reserve(gpuBatches.size());
+        for(const auto &[source, batch] : gpuBatches)
+        {
+            (void)batch;
+            batchOrder.push_back(source);
+        }
+        std::sort(batchOrder.begin(), batchOrder.end(),
+                  [&](const std::string &a, const std::string &b) {
+                      return gpuBatches[a].size() > gpuBatches[b].size();
+                  });
+
+        const auto frameIndex = mRenderer->GetCurrentFrameIndex();
+
+        for(std::size_t i = 0; i < batchOrder.size(); ++i)
+        {
+            const auto &source = batchOrder[i];
+            const auto *model  = gpuBatchModels[source];
+            if(model == nullptr)
+            {
+                continue;
+            }
+
+            UploadSkeletonForModel(*mRenderer, *model);
+
+            auto &batch = gpuBatches[source];
+            if(i == 0)
+            {
+                mGpuInstances = std::move(batch);
+                mRenderer->SetGpuAnimCopyPrevBones(true);
+                mRenderer->UploadGpuAnimInstances(mGpuInstances);
+                mRenderer->SetGpuAnimEnabled(true);
+            }
+            else
+            {
+                mRenderer->SetGpuAnimCopyPrevBones(false);
+                (void)mRenderer->DispatchGpuAnimImmediate(batch, frameIndex);
+            }
         }
     }
 

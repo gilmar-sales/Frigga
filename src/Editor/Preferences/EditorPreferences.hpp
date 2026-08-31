@@ -40,7 +40,7 @@ struct GraphicsPreferences
     double clearColorA = 0.0;
 
     double        drawDistance     = 1000.0;
-    std::uint32_t maxLights        = 16;
+    std::uint32_t maxLights        = 64;
     double        iblIntensity     = 0.7;
     double        exposure         = 0.7;
     double        ambientColorR    = 1.0;
@@ -80,6 +80,9 @@ struct GraphicsPreferences
     int ssaoDebugView = 0;
 
     bool reverseZ = false;
+
+    /// 0=Low … 3=Ultra, 4=Off (fra::AnimationQuality)
+    int animationQuality = 2;
 };
 
 struct EcsPreferences

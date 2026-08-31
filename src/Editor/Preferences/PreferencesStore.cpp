@@ -440,7 +440,8 @@ void PreferencesStore::Save(const EditorPreferences &preferences,
     json << "    \"ssaoPower\": " << g.ssaoPower << ",\n";
     json << "    \"ssaoIntensity\": " << g.ssaoIntensity << ",\n";
     json << "    \"ssaoDebugView\": " << g.ssaoDebugView << ",\n";
-    json << "    \"reverseZ\": " << g.reverseZ << "\n";
+    json << "    \"reverseZ\": " << g.reverseZ << ",\n";
+    json << "    \"animationQuality\": " << g.animationQuality << "\n";
     json << "  },\n";
     json << "  \"ecs\": {\n";
     json << "    \"maxEntities\": " << e.maxEntities << ",\n";

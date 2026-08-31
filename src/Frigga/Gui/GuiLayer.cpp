@@ -7,12 +7,15 @@
 
 #include <SDL3/SDL.h>
 
+#include <algorithm>
 #include <memory>
 
 #include <Freya/Events/EventManager.hpp>
 #include <Freya/Events/Gamepad.hpp>
 #include <Freya/Events/Keyboard.hpp>
 #include <Freya/Events/Mouse.hpp>
+#include <Freya/Events/Window.hpp>
+#include <Freya/FreyaOptions.hpp>
 
 namespace FRIGGA_NAMESPACE
 {
@@ -186,13 +189,21 @@ namespace FRIGGA_NAMESPACE
 
         StylePhantomDark();
 
-        auto renderer = mServiceProvider->GetService<fra::Renderer>();
-        const fra::ImGuiNativeHandles native = renderer->GetImGuiNativeHandles();
+        mRenderer = mServiceProvider->GetService<fra::Renderer>();
+        const fra::ImGuiNativeHandles native = mRenderer->GetImGuiNativeHandles();
 
-        auto sdlWindow            = static_cast<SDL_Window *>(native.window);
+        auto sdlWindow              = static_cast<SDL_Window *>(native.window);
         const SDL_WindowID windowId = SDL_GetWindowID(sdlWindow);
 
         ImGui_ImplSDL3_InitForVulkan(sdlWindow);
+
+        std::uint32_t imageCount = native.minImageCount;
+        if(const auto options = mServiceProvider->GetService<fra::FreyaOptions>())
+        {
+            imageCount = std::max(imageCount, options->frameCount);
+        }
+        imageCount = std::max(imageCount, mRenderer->GetFrameCount());
+        imageCount = std::max(imageCount, 2u);
 
         auto imguiSdl3VulkanInitInfo     = ImGui_ImplVulkan_InitInfo{};
         imguiSdl3VulkanInitInfo.Instance = static_cast<VkInstance>(native.instance);
@@ -201,7 +212,7 @@ namespace FRIGGA_NAMESPACE
         imguiSdl3VulkanInitInfo.Device = static_cast<VkDevice>(native.device);
         imguiSdl3VulkanInitInfo.Queue =
             static_cast<VkQueue>(native.graphicsQueue);
-        imguiSdl3VulkanInitInfo.ImageCount         = static_cast<std::uint32_t>(4);
+        imguiSdl3VulkanInitInfo.ImageCount         = imageCount;
         imguiSdl3VulkanInitInfo.MinImageCount      = native.minImageCount;
         imguiSdl3VulkanInitInfo.DescriptorPoolSize = 64;
         imguiSdl3VulkanInitInfo.PipelineInfoMain.RenderPass =
@@ -233,6 +244,10 @@ namespace FRIGGA_NAMESPACE
                 events->Subscribe<fra::MouseMoveEvent>(
                     [windowId](const fra::MouseMoveEvent &event) {
                         DispatchImGuiMouseMove(event, windowId);
+                    });
+                events->Subscribe<fra::WindowResizeEvent>(
+                    [renderer = mRenderer](const fra::WindowResizeEvent &) {
+                        RecreateMainPipeline(renderer);
                     });
             }
             mEventCallbackRegistered = true;
@@ -293,9 +308,18 @@ namespace FRIGGA_NAMESPACE
         io.DisplaySize = ImVec2((float)window->GetWidth(), (float)window->GetHeight());
 
         ImGui::Render();
-        ImGui_ImplVulkan_RenderDrawData(
-            ImGui::GetDrawData(),
-            static_cast<VkCommandBuffer>(renderer->NativeCommandBuffer()));
+
+        ImDrawData *drawData = ImGui::GetDrawData();
+        if(drawData != nullptr && drawData->TotalVtxCount > 0)
+        {
+            if(renderer->BeginUI())
+            {
+                ImGui_ImplVulkan_RenderDrawData(
+                    drawData,
+                    static_cast<VkCommandBuffer>(renderer->NativeCommandBuffer()));
+                renderer->EndUI();
+            }
+        }
 
         if(io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
         {

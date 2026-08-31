@@ -76,7 +76,8 @@ namespace
             .SetSsaoIntensity(static_cast<float>(graphics.ssaoIntensity))
             .SetSsaoDebugView(ssaoDebugView)
             .WithReverseZ(graphics.reverseZ)
-            .SetAnimationQuality(fra::AnimationQuality::High);
+            .SetAnimationQuality(static_cast<fra::AnimationQuality>(
+                clampQuality(graphics.animationQuality)));
     }
 } // namespace
 
