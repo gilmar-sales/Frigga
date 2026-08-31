@@ -27,6 +27,7 @@
 #include "Frigga/ECS/Components/UserDataComponent.hpp"
 #include "Frigga/Module/FriComponentInspector.hpp"
 #include "Frigga/Module/GameplayTypeIds.hpp"
+#include "Frigga/Rendering/FullscreenEffectCatalog.hpp"
 #include "Frigga/Scene/Prefab.hpp"
 
 #include <SDL3/SDL_dialog.h>
@@ -1983,28 +1984,128 @@ void HierarchyLayer::drawComponents()
             bool open = true;
             if(drawComponentHeader("Fullscreen Effect", "fullscreenEffect", &open))
             {
+                int kindIndex = static_cast<int>(fx.kind);
+                if(ImGui::Combo("Preset",
+                                &kindIndex,
+                                "Cell\0Outline\0Color Grade\0Underwater\0Heat Haze\0Glow\0Mu "
+                                "Item Glow\0Custom\0"))
+                {
+                    fx.kind = static_cast<fg::FullscreenEffectKind>(kindIndex);
+                    fx.fragment =
+                        fg::FullscreenEffectFragmentPath(fx.kind, fx.fragment);
+                }
+
                 char nameBuf[64];
-                char fragBuf[256];
                 std::snprintf(nameBuf, sizeof(nameBuf), "%s", fx.name.c_str());
-                std::snprintf(fragBuf, sizeof(fragBuf), "%s", fx.fragment.c_str());
                 if(ImGui::InputText("Name", nameBuf, sizeof(nameBuf)))
                 {
                     fx.name = nameBuf;
                 }
-                if(ImGui::InputText("Fragment", fragBuf, sizeof(fragBuf)))
+
+                if(fx.kind == fg::FullscreenEffectKind::Custom)
                 {
-                    fx.fragment = fragBuf;
+                    char fragBuf[256];
+                    std::snprintf(fragBuf, sizeof(fragBuf), "%s", fx.fragment.c_str());
+                    if(ImGui::InputText("Fragment", fragBuf, sizeof(fragBuf)))
+                    {
+                        fx.fragment = fragBuf;
+                    }
                 }
+                else
+                {
+                    ImGui::TextDisabled("Fragment: %s", fx.fragment.c_str());
+                }
+
                 ImGui::Checkbox("Enabled", &fx.enabled);
                 ImGui::Separator();
-                ImGui::TextDisabled("Cell shader parameters");
-                ImGui::DragFloat("Bands", &fx.bands, 0.1f, 1.0f, 16.0f);
-                ImGui::DragFloat("Edge Depth", &fx.edgeDepthScale, 0.5f, 0.0f, 400.0f);
-                ImGui::DragFloat("Edge Normal", &fx.edgeNormalScale, 0.05f, 0.0f, 20.0f);
-                ImGui::DragFloat("Strength", &fx.strength, 0.01f, 0.0f, 1.0f);
-                ImGui::ColorEdit4("Edge Color", &fx.edgeColor[0]);
-                ImGui::DragFloat("Shadow Lift", &fx.shadowLift, 0.01f, 0.0f, 1.0f);
-                ImGui::DragFloat("Edge Width", &fx.edgeWidth, 0.05f, 0.0f, 8.0f);
+                ImGui::TextDisabled("BindMaterial mask (empty = all pixels)");
+                if(ImGui::Button("Add Material ID"))
+                {
+                    fx.materialMaskIds.push_back(0);
+                }
+                ImGui::SameLine();
+                if(ImGui::Button("Clear Masks"))
+                {
+                    fx.materialMaskIds.clear();
+                }
+                for(std::size_t maskIndex = 0; maskIndex < fx.materialMaskIds.size(); ++maskIndex)
+                {
+                    ImGui::PushID(static_cast<int>(maskIndex));
+                    int maskId = static_cast<int>(fx.materialMaskIds[maskIndex]);
+                    if(ImGui::DragInt("##mask", &maskId, 1.0f, 0, 255))
+                    {
+                        fx.materialMaskIds[maskIndex] =
+                            static_cast<std::uint32_t>(std::clamp(maskId, 0, 255));
+                    }
+                    ImGui::SameLine();
+                    if(ImGui::Button("Remove"))
+                    {
+                        fx.materialMaskIds.erase(fx.materialMaskIds.begin() +
+                                                 static_cast<std::ptrdiff_t>(maskIndex));
+                        ImGui::PopID();
+                        break;
+                    }
+                    ImGui::PopID();
+                }
+
+                ImGui::Separator();
+                switch(fx.kind)
+                {
+                case fg::FullscreenEffectKind::Cell:
+                    ImGui::TextDisabled("Cell shader parameters");
+                    ImGui::DragFloat("Bands", &fx.bands, 0.1f, 1.0f, 16.0f);
+                    ImGui::DragFloat("Edge Depth", &fx.edgeDepthScale, 0.5f, 0.0f, 400.0f);
+                    ImGui::DragFloat("Edge Normal", &fx.edgeNormalScale, 0.05f, 0.0f, 20.0f);
+                    ImGui::DragFloat("Strength", &fx.strength, 0.01f, 0.0f, 1.0f);
+                    ImGui::ColorEdit4("Edge Color", &fx.edgeColor[0]);
+                    ImGui::DragFloat("Shadow Lift", &fx.shadowLift, 0.01f, 0.0f, 1.0f);
+                    ImGui::DragFloat("Edge Width", &fx.edgeWidth, 0.05f, 0.0f, 8.0f);
+                    break;
+                case fg::FullscreenEffectKind::Outline:
+                    ImGui::TextDisabled("Outline parameters");
+                    ImGui::DragFloat("Edge Depth", &fx.edgeDepthScale, 0.5f, 0.0f, 400.0f);
+                    ImGui::DragFloat("Edge Normal", &fx.edgeNormalScale, 0.05f, 0.0f, 20.0f);
+                    ImGui::DragFloat("Strength", &fx.strength, 0.01f, 0.0f, 1.0f);
+                    ImGui::ColorEdit4("Edge Color", &fx.edgeColor[0]);
+                    ImGui::DragFloat("Edge Width", &fx.edgeWidth, 0.05f, 0.0f, 8.0f);
+                    break;
+                case fg::FullscreenEffectKind::ColorGrade:
+                    ImGui::TextDisabled("Color grade parameters");
+                    ImGui::DragFloat("Contrast", &fx.contrast, 0.01f, 0.0f, 4.0f);
+                    ImGui::DragFloat("Saturation", &fx.saturation, 0.01f, 0.0f, 4.0f);
+                    ImGui::DragFloat("Exposure", &fx.exposure, 0.01f, -4.0f, 4.0f);
+                    ImGui::DragFloat("Vignette", &fx.vignette, 0.01f, 0.0f, 1.0f);
+                    break;
+                case fg::FullscreenEffectKind::Underwater:
+                    ImGui::TextDisabled("Underwater parameters");
+                    ImGui::DragFloat("Strength", &fx.strength, 0.01f, 0.0f, 2.0f);
+                    ImGui::DragFloat("Tint Strength", &fx.tintStrength, 0.01f, 0.0f, 1.0f);
+                    ImGui::DragFloat("Fog Density", &fx.fogDensity, 0.01f, 0.0f, 8.0f);
+                    ImGui::ColorEdit4("Tint Color", &fx.tintColor[0]);
+                    ImGui::DragFloat("Max Depth", &fx.maxDepth, 0.01f, 0.0f, 1.0f);
+                    break;
+                case fg::FullscreenEffectKind::HeatHaze:
+                    ImGui::TextDisabled("Heat haze parameters");
+                    ImGui::DragFloat("Strength", &fx.strength, 0.01f, 0.0f, 2.0f);
+                    ImGui::DragFloat("Speed", &fx.heatSpeed, 0.01f, 0.0f, 8.0f);
+                    break;
+                case fg::FullscreenEffectKind::Glow:
+                    ImGui::TextDisabled("Glow parameters");
+                    ImGui::DragFloat("Intensity", &fx.glowIntensity, 0.05f, 0.0f, 16.0f);
+                    ImGui::DragFloat("Radius", &fx.glowRadius, 0.1f, 0.0f, 32.0f);
+                    ImGui::DragFloat("Fill", &fx.glowFill, 0.01f, 0.0f, 1.0f);
+                    ImGui::ColorEdit4("Color", &fx.glowColor[0]);
+                    break;
+                case fg::FullscreenEffectKind::MuItemGlow:
+                    ImGui::TextDisabled("Mu item glow parameters");
+                    ImGui::DragFloat("Level", &fx.muGlowLevel, 0.1f, 0.0f, 32.0f);
+                    ImGui::DragFloat("Intensity", &fx.glowIntensity, 0.05f, 0.0f, 16.0f);
+                    ImGui::DragFloat("Radius", &fx.glowRadius, 0.1f, 0.0f, 32.0f);
+                    break;
+                case fg::FullscreenEffectKind::Custom:
+                    ImGui::TextDisabled("Custom SPIR-V — push constants depend on shader");
+                    break;
+                }
                 ImGui::TextDisabled("Inserted before Freya BillboardVfx");
             }
             if(!open && !mSimulation->IsPlaying())
@@ -2395,6 +2496,17 @@ void HierarchyLayer::drawComponents()
                 ImGui::SameLine();
                 ImGui::Checkbox("Preview in Edit", &animator.previewInEdit);
                 ImGui::Checkbox("Use Anim Graph", &animator.useAnimGraph);
+                ImGui::Separator();
+                ImGui::TextDisabled("Clip events (play mode)");
+                ImGui::Checkbox("Route Clip Events", &animator.routeClipEvents);
+                char footstepBuf[256];
+                std::snprintf(footstepBuf, sizeof(footstepBuf), "%s",
+                              animator.footstepEventPath.c_str());
+                if(ImGui::InputText("Footstep Event Path", footstepBuf, sizeof(footstepBuf)))
+                {
+                    animator.footstepEventPath = footstepBuf;
+                }
+                ImGui::TextDisabled("Footstep.* markers use this audio path when set.");
                 ImGui::TextDisabled("Bones: offset %u count %u", animator.boneOffset,
                                     animator.boneCount);
                 ImGui::EndDisabled();

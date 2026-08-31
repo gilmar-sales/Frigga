@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Frigga/Animation/AnimationController.hpp"
+#include "Frigga/Animation/AnimationEventRouter.hpp"
 #include "Frigga/Asset/AssetRegistry.hpp"
 #include "Frigga/Scene/Scene.hpp"
 #include "Frigga/Scene/SceneSimulationState.hpp"
@@ -27,7 +28,8 @@ namespace FRIGGA_NAMESPACE
                         const skr::Arc<Scene> &scene,
                         const skr::Arc<SceneSimulationState> &simulation,
                         const skr::Arc<fra::FreyaOptions> &options,
-                        const skr::Arc<AnimationController> &controller);
+                        const skr::Arc<AnimationController> &controller,
+                        const skr::Arc<AnimationEventRouter> &eventRouter);
 
         ~AnimationSystem() override = default;
 
@@ -80,11 +82,13 @@ namespace FRIGGA_NAMESPACE
         skr::Arc<SceneSimulationState> mSimulation;
         skr::Arc<fra::FreyaOptions> mOptions;
         skr::Arc<AnimationController> mController;
+        skr::Arc<AnimationEventRouter> mEventRouter;
 
         std::vector<glm::mat4> mBonePalette;
         std::vector<fra::GpuAnimInstance> mGpuInstances;
         std::unordered_map<BakeKey, fra::BakedClip, BakeKeyHash> mBakes;
         std::unordered_map<fr::Entity, ActorLodState> mLodStates;
+        std::unordered_map<fr::Entity, float> mClipTimePrev;
     };
 
 } // namespace FRIGGA_NAMESPACE

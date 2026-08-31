@@ -16,8 +16,7 @@
 #include "Frigga/ECS/TransformUtil.hpp"
 #include "Frigga/Scene/Scene.hpp"
 
-#include <Freya/Asset/FontAtlas.hpp>
-#include <Freya/Core/LightService.hpp>
+#include "Frigga/Rendering/FullscreenEffectCatalog.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -51,20 +50,6 @@ namespace FRIGGA_NAMESPACE
 
     namespace
     {
-        /// Push constants for Shaders/Cell/cell.frag (std430). Matches the
-        /// layout previously exposed by Freya's fullscreen-effect builder.
-        struct CellPushConstants
-        {
-            float     bands           = 4.0f;
-            float     edgeDepthScale  = 80.0f;
-            float     edgeNormalScale = 2.0f;
-            float     strength        = 1.0f;
-            glm::vec4 edgeColor {0.02f, 0.02f, 0.04f, 1.0f};
-            float     reverseZ   = 0.0f;
-            float     shadowLift = 0.22f;
-            float     edgeWidth  = 1.0f;
-        };
-
         fra::Light MakeGpuLight(const TransformUtil::Pose &pose, const LightComponent &light)
         {
             // Match Freya/OpenGL: entity local -Z is the aimed light direction / area normal.
@@ -460,26 +445,13 @@ namespace FRIGGA_NAMESPACE
                 const auto previousName = runtime.stageName;
                 const bool rebuild =
                     !runtime.effect || runtime.fragment != comp.fragment ||
-                    previousName != stageName;
+                    runtime.kind != comp.kind || previousName != stageName;
                 if(rebuild)
                 {
-                    const bool cell = comp.fragment.find("cell.frag") != std::string::npos;
-                    auto builder    = mEffectBuilder->SetName(stageName).SetFragment(comp.fragment);
-                    if(cell)
-                    {
-                        builder
-                            .SetInputs({fra::PostProcessInput::SceneColor, fra::PostProcessInput::Depth,
-                                        fra::PostProcessInput::Normal})
-                            .SetPushConstantSize(
-                                static_cast<std::uint32_t>(sizeof(CellPushConstants)));
-                    }
-                    else
-                    {
-                        builder.SetInputs({fra::PostProcessInput::SceneColor}).SetPushConstantSize(0);
-                    }
-
-                    runtime.effect    = builder.Build();
+                    ConfigureFullscreenEffectBuilder(*mEffectBuilder, stageName, comp);
+                    runtime.effect    = mEffectBuilder->Build();
                     runtime.fragment  = comp.fragment;
+                    runtime.kind      = comp.kind;
                     runtime.stageName = stageName;
                     if(runtime.effect)
                     {
@@ -500,19 +472,18 @@ namespace FRIGGA_NAMESPACE
                 }
 
                 runtime.effect->SetEnabled(comp.enabled);
-                if(comp.fragment.find("cell.frag") != std::string::npos)
+                if(comp.enabled)
                 {
-                    CellPushConstants cell {};
-                    cell.bands           = comp.bands;
-                    cell.edgeDepthScale  = comp.edgeDepthScale;
-                    cell.edgeNormalScale = comp.edgeNormalScale;
-                    cell.strength        = comp.strength;
-                    cell.edgeColor       = comp.edgeColor;
-                    cell.reverseZ        = (mFreyaOptions && mFreyaOptions->ReverseZ) ? 1.0f : 0.0f;
-                    cell.shadowLift      = comp.shadowLift;
-                    cell.edgeWidth       = comp.edgeWidth;
-                    runtime.effect->SetPushConstants(cell);
+                    mEffectTimeSec[entity] += mWindow->GetDeltaTime();
                 }
+
+                const FullscreenEffectPushState pushState {
+                    .timeSec  = mEffectTimeSec[entity],
+                    .reverseZ = mFreyaOptions && mFreyaOptions->ReverseZ,
+                    .component = &comp,
+                };
+                ApplyFullscreenEffectPushConstants(*runtime.effect, pushState);
+                SyncFullscreenEffectMaterials(*runtime.effect, comp);
             });
 
         for(auto &[entity, runtime] : mEffects)
@@ -522,6 +493,8 @@ namespace FRIGGA_NAMESPACE
                 runtime.effect->SetEnabled(false);
             }
         }
+
+        std::erase_if(mEffectTimeSec, [&](const auto &entry) { return !live.contains(entry.first); });
     }
 
 } // namespace FRIGGA_NAMESPACE

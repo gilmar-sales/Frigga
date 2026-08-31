@@ -7,6 +7,7 @@
 #include "Frigga/ECS/TransformUtil.hpp"
 
 #include <Freya/Asset/AnimGraph.hpp>
+#include <Freya/Asset/AnimationClip.hpp>
 #include <Freya/Asset/Pose.hpp>
 #include <Freya/Asset/Rig.hpp>
 #include <Freya/FreyaOptions.hpp>
@@ -160,9 +161,11 @@ namespace FRIGGA_NAMESPACE
                                      const skr::Arc<Scene> &scene,
                                      const skr::Arc<SceneSimulationState> &simulation,
                                      const skr::Arc<fra::FreyaOptions> &options,
-                                     const skr::Arc<AnimationController> &controller)
+                                     const skr::Arc<AnimationController> &controller,
+                                     const skr::Arc<AnimationEventRouter> &eventRouter)
         : System(registry), mRenderer(renderer), mAssets(assets), mScene(scene),
-          mSimulation(simulation), mOptions(options), mController(controller)
+          mSimulation(simulation), mOptions(options), mController(controller),
+          mEventRouter(eventRouter)
     {
     }
 
@@ -374,6 +377,7 @@ namespace FRIGGA_NAMESPACE
 
                 if(graph != nullptr)
                 {
+                    std::vector<fra::FiredAnimationEvent> firedEvents;
                     if(mustEval && ticking)
                     {
                         if(runtime != nullptr)
@@ -395,8 +399,13 @@ namespace FRIGGA_NAMESPACE
                                 }
                             }
                         }
-                        graph->Advance(advanceDt * animator.speed);
+                        graph->Advance(advanceDt * animator.speed, &firedEvents);
                         animator.clipName = std::string {graph->CurrentStateName()};
+                    }
+
+                    if(mEventRouter && !firedEvents.empty())
+                    {
+                        mEventRouter->Dispatch(entity, animator, firedEvents);
                     }
 
                     fra::GpuAnimInstance gpuInst {};
@@ -427,8 +436,18 @@ namespace FRIGGA_NAMESPACE
 
                 if(mustEval && ticking)
                 {
+                    const float tPrev = mClipTimePrev[entity];
                     AdvanceClipTime(animator.timeSec, clip->duration,
                                     advanceDt * animator.speed, animator.loop);
+                    std::vector<fra::FiredAnimationEvent> firedEvents;
+                    fra::CollectFiredClipEvents(*clip, tPrev, animator.timeSec, animator.loop,
+                                                firedEvents);
+                    if(mEventRouter && !firedEvents.empty())
+                    {
+                        mEventRouter->Dispatch(entity, animator, firedEvents);
+                    }
+                    mClipTimePrev[entity] = animator.timeSec;
+
                     if(crossFading)
                     {
                         const auto *fromClip = resolveClip(*model, runtime->fromClip);

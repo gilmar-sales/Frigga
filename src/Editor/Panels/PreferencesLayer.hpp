@@ -11,13 +11,15 @@
 class PreferencesLayer: public fg::Layer
 {
   public:
-    PreferencesLayer(const skr::Arc<fra::Window> &window,
+    PreferencesLayer(const skr::Arc<skr::ServiceProvider> &services,
+                     const skr::Arc<fra::Window> &window,
                      const skr::Arc<fra::Renderer> &renderer,
                      const skr::Arc<fra::LightService> &lightService,
                      const skr::Arc<fra::FreyaOptions> &freyaOptions,
                      const skr::Arc<fr::FreyrOptions> &freyrOptions,
                      const skr::Arc<EditorPreferences> &preferences)
         : fg::Layer("Preferences"),
+          mServices(services),
           mWindow(window),
           mRenderer(renderer),
           mLightService(lightService),
@@ -39,7 +41,10 @@ class PreferencesLayer: public fg::Layer
     /// (before BeginFrame), never mid-ImGui while the UI pass is open.
     struct PendingGraphics
     {
-        std::optional<bool> vSync;
+        std::optional<bool>        vSync;
+        std::optional<std::string> environmentMapPath;
+        std::optional<std::string> shaderRoot;
+        std::optional<bool>        reverseZ;
     };
 
     void drawAppearanceTab();
@@ -51,6 +56,7 @@ class PreferencesLayer: public fg::Layer
     void applyPendingGraphics();
     void syncSsaoFinePrefsFromRenderer();
 
+    skr::Arc<skr::ServiceProvider> mServices;
     skr::Arc<fra::Window>           mWindow;
     skr::Arc<fra::Renderer>         mRenderer;
     skr::Arc<fra::LightService>     mLightService;

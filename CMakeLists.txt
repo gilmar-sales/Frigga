@@ -32,7 +32,7 @@ FetchContent_MakeAvailable(skirnir)
 FetchContent_Declare(
         freyr
         GIT_REPOSITORY "https://github.com/gilmar-sales/Freyr.git"
-        GIT_TAG "v0.37.0"
+        GIT_TAG "v0.36.0"
         GIT_SHALLOW TRUE
 )
 FetchContent_MakeAvailable(freyr)
@@ -153,6 +153,10 @@ target_compile_features(Editor PUBLIC cxx_std_26)
 target_link_libraries(Editor PUBLIC
         frigga::frigga
         imguizmo::imguizmo
+)
+
+target_include_directories(Editor PRIVATE
+        "${freya_SOURCE_DIR}/src"
 )
 
 # Expose Freyr/Frigga/Skirnir/simdjson to gameplay modules.

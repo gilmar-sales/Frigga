@@ -145,9 +145,66 @@ namespace FRIGGA_NAMESPACE
         mPreview.instance = {};
     }
 
+    bool AudioController::PlayOneShotAt(std::string_view eventPath, const glm::vec3 &position,
+                                        float volume)
+    {
+        if(eventPath.empty())
+        {
+            return false;
+        }
+
+        AudioEventInstance instance = mAudioEngine->CreateEventInstance(eventPath);
+        if(!instance.IsValid())
+        {
+            return false;
+        }
+
+        mAudioEngine->SetEventVolume(instance, volume);
+        mAudioEngine->SetEventLoop(instance, false);
+        mAudioEngine->SetEventSpatialization(instance, true);
+        mAudioEngine->SetEvent3DAttributes(instance, position, glm::vec3(0.0f));
+        if(!mAudioEngine->StartEvent(instance))
+        {
+            mAudioEngine->ReleaseEventInstance(instance);
+            return false;
+        }
+
+        mOneShots.push_back(OneShotVoice {.instance = instance, .position = position});
+        return true;
+    }
+
+    void AudioController::UpdateOneShots()
+    {
+        std::erase_if(mOneShots, [this](OneShotVoice &voice) {
+            if(!voice.instance.IsValid())
+            {
+                return true;
+            }
+
+            if(mAudioEngine->IsEventPlaying(voice.instance))
+            {
+                return false;
+            }
+
+            mAudioEngine->StopEvent(voice.instance, true);
+            mAudioEngine->ReleaseEventInstance(voice.instance);
+            return true;
+        });
+    }
+
     void AudioController::StopAllPlayback()
     {
         StopPreview();
+
+        for(auto &voice : mOneShots)
+        {
+            if(voice.instance.IsValid())
+            {
+                mAudioEngine->StopEvent(voice.instance, true);
+                mAudioEngine->ReleaseEventInstance(voice.instance);
+            }
+        }
+        mOneShots.clear();
 
         mRegistry->CreateMutation()->Each(
             [&](fr::Entity /*entity*/, AudioSourceComponent &source) {

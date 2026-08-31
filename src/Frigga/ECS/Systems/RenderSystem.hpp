@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Frigga/ECS/Components/FullscreenEffectComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 
 #include <Freya/Freya.hpp>
@@ -40,6 +41,7 @@ namespace FRIGGA_NAMESPACE
             skr::Arc<fra::PostProcess> effect;
             std::string                fragment;
             std::string                stageName;
+            FullscreenEffectKind       kind = FullscreenEffectKind::Cell;
         };
 
         void updateCamera();
@@ -64,6 +66,7 @@ namespace FRIGGA_NAMESPACE
         std::vector<fra::SceneInstanceUpload> mSceneInstances;
         std::unordered_map<fr::Entity, fra::ParticleEmitter> mEmitters;
         std::unordered_map<fr::Entity, EffectRuntime> mEffects;
+        std::unordered_map<fr::Entity, float> mEffectTimeSec;
         std::unordered_map<std::string, fra::FontAtlas> mFonts;
     };
 

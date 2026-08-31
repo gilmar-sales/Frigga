@@ -1,6 +1,7 @@
 #include "Frigga.hpp"
 
 #include "Animation/AnimationController.hpp"
+#include "Animation/AnimationEventRouter.hpp"
 #include "Asset/AssetRegistry.hpp"
 #include "Asset/PrimitiveMeshFactory.hpp"
 #include "Audio/AudioController.hpp"
@@ -96,6 +97,7 @@ namespace FRIGGA_NAMESPACE
         services.AddSingleton<fg::PrimitiveMeshFactory>();
         services.AddSingleton<fg::AssetRegistry>();
         services.AddSingleton<fg::AnimationController>();
+        services.AddSingleton<fg::AnimationEventRouter>();
         services.AddSingleton<fg::IAudioEngine, fg::MiniaudioEngine>();
         services.AddSingleton<fg::AudioController>();
         services.AddSingleton<fg::IPhysicsWorld, fg::JoltPhysicsWorld>();

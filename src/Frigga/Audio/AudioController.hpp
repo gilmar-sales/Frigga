@@ -5,7 +5,9 @@
 
 #include <Freyr/Freyr.hpp>
 
+#include <glm/glm.hpp>
 #include <string_view>
+#include <vector>
 
 namespace FRIGGA_NAMESPACE
 {
@@ -38,6 +40,13 @@ namespace FRIGGA_NAMESPACE
         bool PreviewEvent(std::string_view eventPath, float volume = 1.0f, bool loop = false);
         void StopPreview();
 
+        /// One-shot 3D clip at a world position (no AudioSourceComponent required).
+        bool PlayOneShotAt(std::string_view eventPath, const glm::vec3 &position,
+                           float volume = 1.0f);
+
+        /// Prune finished one-shot voices. Call from AudioSystem each frame.
+        void UpdateOneShots();
+
         /// Stops preview and every AudioSource engine instance (e.g. on Play session exit).
         void StopAllPlayback();
 
@@ -47,9 +56,16 @@ namespace FRIGGA_NAMESPACE
             AudioEventInstance instance {};
         };
 
+        struct OneShotVoice
+        {
+            AudioEventInstance instance {};
+            glm::vec3          position {0.0f};
+        };
+
         skr::Arc<fr::Registry> mRegistry;
         skr::Arc<IAudioEngine> mAudioEngine;
         PreviewRuntime mPreview;
+        std::vector<OneShotVoice> mOneShots;
     };
 
 } // namespace FRIGGA_NAMESPACE

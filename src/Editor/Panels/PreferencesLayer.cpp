@@ -1,6 +1,7 @@
 #include "PreferencesLayer.hpp"
 
 #include "../EditorTheme.hpp"
+#include "../FreyaGraphicsRuntime.hpp"
 #include "../Preferences/PreferencesStore.hpp"
 #include "../UiScale.hpp"
 
@@ -69,14 +70,31 @@ void PreferencesLayer::applyTheme(int themeIndex) const
 
 void PreferencesLayer::applyPendingGraphics()
 {
-    if(!mPendingGraphics.vSync.has_value())
+    if(mPendingGraphics.vSync.has_value())
     {
-        return;
+        mRenderer->SetVSync(*mPendingGraphics.vSync);
+        mPendingGraphics.vSync.reset();
+        fg::GuiLayer::RecreateMainPipeline(mRenderer);
     }
 
-    mRenderer->SetVSync(*mPendingGraphics.vSync);
-    mPendingGraphics.vSync.reset();
-    fg::GuiLayer::RecreateMainPipeline(mRenderer);
+    if(mPendingGraphics.shaderRoot.has_value())
+    {
+        (void)editor::ApplyShaderRoot(mRenderer, mFreyaOptions, std::move(*mPendingGraphics.shaderRoot));
+        mPendingGraphics.shaderRoot.reset();
+    }
+
+    if(mPendingGraphics.environmentMapPath.has_value())
+    {
+        (void)editor::ApplyEnvironmentMap(mServices, mRenderer, mFreyaOptions,
+                                          std::move(*mPendingGraphics.environmentMapPath));
+        mPendingGraphics.environmentMapPath.reset();
+    }
+
+    if(mPendingGraphics.reverseZ.has_value())
+    {
+        (void)editor::ApplyReverseZ(mRenderer, mFreyaOptions, *mPendingGraphics.reverseZ);
+        mPendingGraphics.reverseZ.reset();
+    }
 }
 
 void PreferencesLayer::drawViewportQuality(const char *label, ViewportQualityPreferences &quality)
@@ -326,9 +344,10 @@ void PreferencesLayer::drawGraphicsTab()
     if(ImGui::InputText("Environment Map", environmentPath, sizeof(environmentPath)))
     {
         prefs.environmentMapPath = environmentPath;
+        mPendingGraphics.environmentMapPath = prefs.environmentMapPath;
         persist();
     }
-    RestartHint();
+    ImGui::TextDisabled("Applied on next frame (rebuilds IBL + swapchain).");
     ActivePath("environment", mFreyaOptions->environmentMapPath);
 
     char shaderRoot[512] {};
@@ -336,18 +355,20 @@ void PreferencesLayer::drawGraphicsTab()
     if(ImGui::InputText("Shader Root", shaderRoot, sizeof(shaderRoot)))
     {
         prefs.shaderRoot = shaderRoot;
+        mPendingGraphics.shaderRoot = prefs.shaderRoot;
         persist();
     }
-    RestartHint();
+    ImGui::TextDisabled("Applied on next frame (rebuilds swapchain).");
     ActivePath("shaderRoot", mFreyaOptions->shaderRoot);
 
     ImGui::SeparatorText("Depth");
 
     if(ImGui::Checkbox("Reverse Z", &prefs.reverseZ))
     {
+        mPendingGraphics.reverseZ = prefs.reverseZ;
         persist();
     }
-    RestartHint();
+    ImGui::TextDisabled("Applied on next frame (rebuilds swapchain).");
     ActiveBool("Reverse Z", mFreyaOptions->ReverseZ);
 }
 

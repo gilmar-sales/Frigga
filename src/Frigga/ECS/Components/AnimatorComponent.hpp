@@ -9,6 +9,8 @@
 
 #include <cstdint>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace FRIGGA_NAMESPACE
 {
@@ -38,6 +40,13 @@ namespace FRIGGA_NAMESPACE
         /// Drive playback from `animGraph` instead of a single `clipName`.
         bool useAnimGraph = false;
         AnimGraphDefinition animGraph {};
+
+        /// When set, Footstep.* clip markers route to this audio event path.
+        std::string footstepEventPath;
+        /// Optional explicit marker name → audio event path overrides.
+        std::vector<std::pair<std::string, std::string>> clipEventRoutes;
+        /// When false, clip markers are ignored by AnimationEventRouter.
+        bool routeClipEvents = true;
 
         std::uint32_t boneOffset = fra::kNoSkin;
         std::uint32_t boneCount  = 0;

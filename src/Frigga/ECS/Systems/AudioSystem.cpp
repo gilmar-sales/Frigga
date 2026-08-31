@@ -231,6 +231,10 @@ namespace FRIGGA_NAMESPACE
         }
 
         mAudioEngine->Update(deltaTime);
+        if(mController)
+        {
+            mController->UpdateOneShots();
+        }
         syncListener();
         syncSources();
     }

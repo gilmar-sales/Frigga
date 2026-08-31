@@ -177,29 +177,40 @@ namespace FRIGGA_NAMESPACE
 
         struct SceneFullscreenEffectDto
         {
-            std::string        name {"Cell"};
-            std::string        fragment {"Cell/cell.frag.spv"};
-            bool               enabled = true;
-            float              bands           = 4.0f;
-            float              edgeDepthScale  = 80.0f;
-            float              edgeNormalScale = 2.0f;
-            float              strength        = 1.0f;
-            std::vector<float> edgeColor;
-            float              shadowLift = 0.22f;
-            float              edgeWidth  = 1.0f;
+            std::optional<std::uint32_t> kind;
+            std::string                  name {"Cell"};
+            std::string                  fragment {"Cell/cell.frag.spv"};
+            bool                         enabled = true;
+            std::vector<std::uint32_t>   materialMaskIds;
+            float                        bands           = 4.0f;
+            float                        edgeDepthScale  = 80.0f;
+            float                        edgeNormalScale = 2.0f;
+            float                        strength        = 1.0f;
+            std::vector<float>           edgeColor;
+            float                        shadowLift = 0.22f;
+            float                        edgeWidth  = 1.0f;
+            std::optional<float>         contrast;
+            std::optional<float>         saturation;
+            std::optional<float>         exposure;
+            std::optional<float>         vignette;
+            std::optional<float>         glowIntensity;
+            std::optional<float>         glowRadius;
+            std::optional<float>         muGlowLevel;
         };
 
         struct SceneAnimatorDto
         {
-            std::string          modelSource;
+            std::string                modelSource;
             std::optional<std::string> clipName;
-            std::optional<float> timeSec;
-            std::optional<float> speed;
-            std::optional<bool>  playing;
-            std::optional<bool>  loop;
-            std::optional<bool>  useGpu;
-            std::optional<bool>  previewInEdit;
-            std::optional<bool>  useAnimGraph;
+            std::optional<float>       timeSec;
+            std::optional<float>       speed;
+            std::optional<bool>        playing;
+            std::optional<bool>        loop;
+            std::optional<bool>        useGpu;
+            std::optional<bool>        previewInEdit;
+            std::optional<bool>        useAnimGraph;
+            std::optional<std::string> footstepEventPath;
+            std::optional<bool>        routeClipEvents;
             std::optional<AnimGraphDefinition> animGraph;
         };
 
@@ -1012,16 +1023,18 @@ namespace FRIGGA_NAMESPACE
 
             registry.TryGetComponents<AnimatorComponent>(entity, [&](AnimatorComponent &animator) {
                 dto.animator = SceneAnimatorDto {
-                    .modelSource   = animator.modelSource,
-                    .clipName      = animator.clipName,
-                    .timeSec       = animator.timeSec,
-                    .speed         = animator.speed,
-                    .playing       = animator.playing,
-                    .loop          = animator.loop,
-                    .useGpu        = animator.useGpu,
-                    .previewInEdit = animator.previewInEdit,
-                    .useAnimGraph  = animator.useAnimGraph,
-                    .animGraph     = animator.animGraph,
+                    .modelSource       = animator.modelSource,
+                    .clipName          = animator.clipName,
+                    .timeSec           = animator.timeSec,
+                    .speed             = animator.speed,
+                    .playing           = animator.playing,
+                    .loop              = animator.loop,
+                    .useGpu            = animator.useGpu,
+                    .previewInEdit     = animator.previewInEdit,
+                    .useAnimGraph      = animator.useAnimGraph,
+                    .footstepEventPath = animator.footstepEventPath,
+                    .routeClipEvents   = animator.routeClipEvents,
+                    .animGraph         = animator.animGraph,
                 };
             });
 
@@ -1109,17 +1122,26 @@ namespace FRIGGA_NAMESPACE
             registry.TryGetComponents<FullscreenEffectComponent>(
                 entity, [&](FullscreenEffectComponent &fx) {
                     dto.fullscreenEffect = SceneFullscreenEffectDto {
-                        .name            = fx.name,
-                        .fragment        = fx.fragment,
-                        .enabled         = fx.enabled,
-                        .bands           = fx.bands,
-                        .edgeDepthScale  = fx.edgeDepthScale,
-                        .edgeNormalScale = fx.edgeNormalScale,
-                        .strength        = fx.strength,
-                        .edgeColor       = {fx.edgeColor.x, fx.edgeColor.y, fx.edgeColor.z,
-                                            fx.edgeColor.w},
-                        .shadowLift      = fx.shadowLift,
-                        .edgeWidth       = fx.edgeWidth,
+                        .kind              = static_cast<std::uint32_t>(fx.kind),
+                        .name              = fx.name,
+                        .fragment          = fx.fragment,
+                        .enabled           = fx.enabled,
+                        .materialMaskIds   = fx.materialMaskIds,
+                        .bands             = fx.bands,
+                        .edgeDepthScale    = fx.edgeDepthScale,
+                        .edgeNormalScale   = fx.edgeNormalScale,
+                        .strength          = fx.strength,
+                        .edgeColor         = {fx.edgeColor.x, fx.edgeColor.y, fx.edgeColor.z,
+                                              fx.edgeColor.w},
+                        .shadowLift        = fx.shadowLift,
+                        .edgeWidth         = fx.edgeWidth,
+                        .contrast          = fx.contrast,
+                        .saturation        = fx.saturation,
+                        .exposure          = fx.exposure,
+                        .vignette          = fx.vignette,
+                        .glowIntensity     = fx.glowIntensity,
+                        .glowRadius        = fx.glowRadius,
+                        .muGlowLevel       = fx.muGlowLevel,
                     };
                 });
 
@@ -1525,6 +1547,8 @@ namespace FRIGGA_NAMESPACE
                     .previewInEdit = animDto.previewInEdit.value_or(true),
                     .useAnimGraph  = animDto.useAnimGraph.value_or(false),
                     .animGraph     = animDto.animGraph.value_or(AnimGraphDefinition {}),
+                    .footstepEventPath = animDto.footstepEventPath.value_or(std::string {}),
+                    .routeClipEvents   = animDto.routeClipEvents.value_or(true),
                 };
             }
 
@@ -1719,6 +1743,10 @@ namespace FRIGGA_NAMESPACE
             {
                 const auto &fxDto = *entityDto.fullscreenEffect;
                 FullscreenEffectComponent fx {};
+                if(fxDto.kind.has_value())
+                {
+                    fx.kind = static_cast<FullscreenEffectKind>(*fxDto.kind);
+                }
                 if(!fxDto.name.empty())
                 {
                     fx.name = fxDto.name;
@@ -1727,11 +1755,12 @@ namespace FRIGGA_NAMESPACE
                 {
                     fx.fragment = fxDto.fragment;
                 }
-                fx.enabled         = fxDto.enabled;
-                fx.bands           = fxDto.bands;
-                fx.edgeDepthScale  = fxDto.edgeDepthScale;
-                fx.edgeNormalScale = fxDto.edgeNormalScale;
-                fx.strength        = fxDto.strength;
+                fx.enabled           = fxDto.enabled;
+                fx.materialMaskIds   = fxDto.materialMaskIds;
+                fx.bands             = fxDto.bands;
+                fx.edgeDepthScale    = fxDto.edgeDepthScale;
+                fx.edgeNormalScale   = fxDto.edgeNormalScale;
+                fx.strength          = fxDto.strength;
                 if(!fxDto.edgeColor.empty() && !ReadVec4(fxDto.edgeColor, fx.edgeColor))
                 {
                     scene.mLogger->LogError("Invalid fullscreenEffect.edgeColor on '{}'",
@@ -1740,6 +1769,34 @@ namespace FRIGGA_NAMESPACE
                 }
                 fx.shadowLift = fxDto.shadowLift;
                 fx.edgeWidth  = fxDto.edgeWidth;
+                if(fxDto.contrast.has_value())
+                {
+                    fx.contrast = *fxDto.contrast;
+                }
+                if(fxDto.saturation.has_value())
+                {
+                    fx.saturation = *fxDto.saturation;
+                }
+                if(fxDto.exposure.has_value())
+                {
+                    fx.exposure = *fxDto.exposure;
+                }
+                if(fxDto.vignette.has_value())
+                {
+                    fx.vignette = *fxDto.vignette;
+                }
+                if(fxDto.glowIntensity.has_value())
+                {
+                    fx.glowIntensity = *fxDto.glowIntensity;
+                }
+                if(fxDto.glowRadius.has_value())
+                {
+                    fx.glowRadius = *fxDto.glowRadius;
+                }
+                if(fxDto.muGlowLevel.has_value())
+                {
+                    fx.muGlowLevel = *fxDto.muGlowLevel;
+                }
                 fullscreenEffect = fx;
             }
 
@@ -2227,16 +2284,18 @@ namespace FRIGGA_NAMESPACE
             bool found = false;
             registry->TryGetComponents<AnimatorComponent>(entity, [&](AnimatorComponent &animator) {
                 document.animator = SceneAnimatorDto {
-                    .modelSource   = animator.modelSource,
-                    .clipName      = animator.clipName,
-                    .timeSec       = animator.timeSec,
-                    .speed         = animator.speed,
-                    .playing       = animator.playing,
-                    .loop          = animator.loop,
-                    .useGpu        = animator.useGpu,
-                    .previewInEdit = animator.previewInEdit,
-                    .useAnimGraph  = animator.useAnimGraph,
-                    .animGraph     = animator.animGraph,
+                    .modelSource       = animator.modelSource,
+                    .clipName          = animator.clipName,
+                    .timeSec           = animator.timeSec,
+                    .speed             = animator.speed,
+                    .playing           = animator.playing,
+                    .loop              = animator.loop,
+                    .useGpu            = animator.useGpu,
+                    .previewInEdit     = animator.previewInEdit,
+                    .useAnimGraph      = animator.useAnimGraph,
+                    .footstepEventPath = animator.footstepEventPath,
+                    .routeClipEvents   = animator.routeClipEvents,
+                    .animGraph         = animator.animGraph,
                 };
                 found = true;
             });
@@ -2381,17 +2440,26 @@ namespace FRIGGA_NAMESPACE
             registry->TryGetComponents<FullscreenEffectComponent>(
                 entity, [&](FullscreenEffectComponent &fx) {
                     document.fullscreenEffect = SceneFullscreenEffectDto {
-                        .name            = fx.name,
-                        .fragment        = fx.fragment,
-                        .enabled         = fx.enabled,
-                        .bands           = fx.bands,
-                        .edgeDepthScale  = fx.edgeDepthScale,
-                        .edgeNormalScale = fx.edgeNormalScale,
-                        .strength        = fx.strength,
-                        .edgeColor       = {fx.edgeColor.x, fx.edgeColor.y, fx.edgeColor.z,
-                                            fx.edgeColor.w},
-                        .shadowLift      = fx.shadowLift,
-                        .edgeWidth       = fx.edgeWidth,
+                        .kind              = static_cast<std::uint32_t>(fx.kind),
+                        .name              = fx.name,
+                        .fragment          = fx.fragment,
+                        .enabled           = fx.enabled,
+                        .materialMaskIds   = fx.materialMaskIds,
+                        .bands             = fx.bands,
+                        .edgeDepthScale    = fx.edgeDepthScale,
+                        .edgeNormalScale   = fx.edgeNormalScale,
+                        .strength          = fx.strength,
+                        .edgeColor         = {fx.edgeColor.x, fx.edgeColor.y, fx.edgeColor.z,
+                                              fx.edgeColor.w},
+                        .shadowLift        = fx.shadowLift,
+                        .edgeWidth         = fx.edgeWidth,
+                        .contrast          = fx.contrast,
+                        .saturation        = fx.saturation,
+                        .exposure          = fx.exposure,
+                        .vignette          = fx.vignette,
+                        .glowIntensity     = fx.glowIntensity,
+                        .glowRadius        = fx.glowRadius,
+                        .muGlowLevel       = fx.muGlowLevel,
                     };
                     found = true;
                 });
@@ -2697,6 +2765,8 @@ namespace FRIGGA_NAMESPACE
                 .previewInEdit = animDto.previewInEdit.value_or(true),
                 .useAnimGraph  = animDto.useAnimGraph.value_or(false),
                 .animGraph     = animDto.animGraph.value_or(AnimGraphDefinition {}),
+                .footstepEventPath = animDto.footstepEventPath.value_or(std::string {}),
+                .routeClipEvents   = animDto.routeClipEvents.value_or(true),
             };
             UpsertComponent(*registry, entity, animator);
             scene.FlushEcs();
@@ -2861,6 +2931,10 @@ namespace FRIGGA_NAMESPACE
         {
             const auto &fxDto = *document.fullscreenEffect;
             FullscreenEffectComponent fx {};
+            if(fxDto.kind.has_value())
+            {
+                fx.kind = static_cast<FullscreenEffectKind>(*fxDto.kind);
+            }
             if(!fxDto.name.empty())
             {
                 fx.name = fxDto.name;
@@ -2869,17 +2943,46 @@ namespace FRIGGA_NAMESPACE
             {
                 fx.fragment = fxDto.fragment;
             }
-            fx.enabled         = fxDto.enabled;
-            fx.bands           = fxDto.bands;
-            fx.edgeDepthScale  = fxDto.edgeDepthScale;
-            fx.edgeNormalScale = fxDto.edgeNormalScale;
-            fx.strength        = fxDto.strength;
+            fx.enabled           = fxDto.enabled;
+            fx.materialMaskIds   = fxDto.materialMaskIds;
+            fx.bands             = fxDto.bands;
+            fx.edgeDepthScale    = fxDto.edgeDepthScale;
+            fx.edgeNormalScale   = fxDto.edgeNormalScale;
+            fx.strength          = fxDto.strength;
             if(!fxDto.edgeColor.empty() && !ReadVec4(fxDto.edgeColor, fx.edgeColor))
             {
                 return false;
             }
             fx.shadowLift = fxDto.shadowLift;
-            fx.edgeWidth  = fxDto.edgeWidth;
+            fx.edgeWidth  = fx.edgeWidth;
+            if(fxDto.contrast.has_value())
+            {
+                fx.contrast = *fxDto.contrast;
+            }
+            if(fxDto.saturation.has_value())
+            {
+                fx.saturation = *fxDto.saturation;
+            }
+            if(fxDto.exposure.has_value())
+            {
+                fx.exposure = *fxDto.exposure;
+            }
+            if(fxDto.vignette.has_value())
+            {
+                fx.vignette = *fxDto.vignette;
+            }
+            if(fxDto.glowIntensity.has_value())
+            {
+                fx.glowIntensity = *fxDto.glowIntensity;
+            }
+            if(fxDto.glowRadius.has_value())
+            {
+                fx.glowRadius = *fxDto.glowRadius;
+            }
+            if(fxDto.muGlowLevel.has_value())
+            {
+                fx.muGlowLevel = *fxDto.muGlowLevel;
+            }
             UpsertComponent(*registry, entity, fx);
             scene.FlushEcs();
             return true;
