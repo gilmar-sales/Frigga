@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <vector>
 
 #include <Freya/Events/EventManager.hpp>
 #include <Freya/Events/Gamepad.hpp>
@@ -19,6 +20,11 @@
 
 namespace FRIGGA_NAMESPACE
 {
+    struct PendingImGuiSdlEvents
+    {
+        std::vector<SDL_Event> events;
+    };
+
     namespace
     {
         struct KeyModState
@@ -29,70 +35,26 @@ namespace FRIGGA_NAMESPACE
             bool capsLock = false;
         };
 
-        /// Unshifted / shifted characters for SDL scancode -> typable text.
-        /// Keys whose scancode is not listed here do not produce text input.
-        char PrintableChar(const KeyModState &mods, const SDL_Scancode scancode)
+        /// Freya's Window::pollEvents drops SDL wheel/text events before ImGui
+        /// sees them. Capture via SDL_AddEventWatch and flush in begin().
+        bool SDLCALL CaptureDroppedSdlEvents(void *userdata, SDL_Event *event)
         {
-            char base     = '\0';
-            char shifted  = '\0';
-            switch(scancode)
+            if(event == nullptr || userdata == nullptr)
             {
-            case SDL_SCANCODE_A: base = 'a'; shifted = 'A'; break;
-            case SDL_SCANCODE_B: base = 'b'; shifted = 'B'; break;
-            case SDL_SCANCODE_C: base = 'c'; shifted = 'C'; break;
-            case SDL_SCANCODE_D: base = 'd'; shifted = 'D'; break;
-            case SDL_SCANCODE_E: base = 'e'; shifted = 'E'; break;
-            case SDL_SCANCODE_F: base = 'f'; shifted = 'F'; break;
-            case SDL_SCANCODE_G: base = 'g'; shifted = 'G'; break;
-            case SDL_SCANCODE_H: base = 'h'; shifted = 'H'; break;
-            case SDL_SCANCODE_I: base = 'i'; shifted = 'I'; break;
-            case SDL_SCANCODE_J: base = 'j'; shifted = 'J'; break;
-            case SDL_SCANCODE_K: base = 'k'; shifted = 'K'; break;
-            case SDL_SCANCODE_L: base = 'l'; shifted = 'L'; break;
-            case SDL_SCANCODE_M: base = 'm'; shifted = 'M'; break;
-            case SDL_SCANCODE_N: base = 'n'; shifted = 'N'; break;
-            case SDL_SCANCODE_O: base = 'o'; shifted = 'O'; break;
-            case SDL_SCANCODE_P: base = 'p'; shifted = 'P'; break;
-            case SDL_SCANCODE_Q: base = 'q'; shifted = 'Q'; break;
-            case SDL_SCANCODE_R: base = 'r'; shifted = 'R'; break;
-            case SDL_SCANCODE_S: base = 's'; shifted = 'S'; break;
-            case SDL_SCANCODE_T: base = 't'; shifted = 'T'; break;
-            case SDL_SCANCODE_U: base = 'u'; shifted = 'U'; break;
-            case SDL_SCANCODE_V: base = 'v'; shifted = 'V'; break;
-            case SDL_SCANCODE_W: base = 'w'; shifted = 'W'; break;
-            case SDL_SCANCODE_X: base = 'x'; shifted = 'X'; break;
-            case SDL_SCANCODE_Y: base = 'y'; shifted = 'Y'; break;
-            case SDL_SCANCODE_Z: base = 'z'; shifted = 'Z'; break;
-            case SDL_SCANCODE_1: base = '1'; shifted = '!'; break;
-            case SDL_SCANCODE_2: base = '2'; shifted = '@'; break;
-            case SDL_SCANCODE_3: base = '3'; shifted = '#'; break;
-            case SDL_SCANCODE_4: base = '4'; shifted = '$'; break;
-            case SDL_SCANCODE_5: base = '5'; shifted = '%'; break;
-            case SDL_SCANCODE_6: base = '6'; shifted = '^'; break;
-            case SDL_SCANCODE_7: base = '7'; shifted = '&'; break;
-            case SDL_SCANCODE_8: base = '8'; shifted = '*'; break;
-            case SDL_SCANCODE_9: base = '9'; shifted = '('; break;
-            case SDL_SCANCODE_0: base = '0'; shifted = ')'; break;
-            case SDL_SCANCODE_MINUS: base = '-'; shifted = '_'; break;
-            case SDL_SCANCODE_EQUALS: base = '='; shifted = '+'; break;
-            case SDL_SCANCODE_LEFTBRACKET: base = '['; shifted = '{'; break;
-            case SDL_SCANCODE_RIGHTBRACKET: base = ']'; shifted = '}'; break;
-            case SDL_SCANCODE_BACKSLASH: base = '\\'; shifted = '|'; break;
-            case SDL_SCANCODE_SEMICOLON: base = ';'; shifted = ':'; break;
-            case SDL_SCANCODE_APOSTROPHE: base = '\''; shifted = '"'; break;
-            case SDL_SCANCODE_GRAVE: base = '`'; shifted = '~'; break;
-            case SDL_SCANCODE_COMMA: base = ','; shifted = '<'; break;
-            case SDL_SCANCODE_PERIOD: base = '.'; shifted = '>'; break;
-            case SDL_SCANCODE_SLASH: base = '/'; shifted = '?'; break;
-            case SDL_SCANCODE_SPACE: base = ' '; shifted = ' '; break;
-            default: return '\0';
+                return true;
             }
 
-            if(mods.shift || mods.capsLock)
+            switch(event->type)
             {
-                return shifted;
+            case SDL_EVENT_MOUSE_WHEEL:
+            case SDL_EVENT_TEXT_INPUT:
+                static_cast<PendingImGuiSdlEvents *>(userdata)->events.push_back(*event);
+                break;
+            default:
+                break;
             }
-            return base;
+
+            return true;
         }
 
         void DispatchImGuiKey(const fra::KeyCode key, const bool down,
@@ -132,25 +94,13 @@ namespace FRIGGA_NAMESPACE
             ev.key.down     = down;
             ev.key.which    = 0;
             ImGui_ImplSDL3_ProcessEvent(&ev);
-
-            // Typed text requires SDL_EVENT_TEXT_INPUT, which Freya's event
-            // system drops. Recover printable characters from the scancode +
-            // tracked modifiers and feed them straight into ImGui.
-            if(down && !mods.ctrl && !mods.alt && ImGui::GetCurrentContext() != nullptr)
-            {
-                const char ch = PrintableChar(mods, scancode);
-                if(ch != '\0')
-                {
-                    ImGui::GetIO().AddInputCharacter(static_cast<ImWchar>(ch));
-                }
-            }
         }
 
         void DispatchImGuiMouseButton(const fra::MouseButton button, const bool down,
                                       const SDL_WindowID windowId)
         {
             SDL_Event ev {};
-            ev.type          = down ? SDL_EVENT_MOUSE_BUTTON_DOWN : SDL_EVENT_MOUSE_BUTTON_UP;
+            ev.type            = down ? SDL_EVENT_MOUSE_BUTTON_DOWN : SDL_EVENT_MOUSE_BUTTON_UP;
             ev.button.windowID = windowId;
             ev.button.button   = static_cast<std::uint8_t>(button);
             ev.button.down     = down;
@@ -163,13 +113,13 @@ namespace FRIGGA_NAMESPACE
                                     const SDL_WindowID windowId)
         {
             SDL_Event ev {};
-            ev.type         = SDL_EVENT_MOUSE_MOTION;
+            ev.type            = SDL_EVENT_MOUSE_MOTION;
             ev.motion.windowID = windowId;
-            ev.motion.x     = event.x;
-            ev.motion.y     = event.y;
-            ev.motion.xrel  = event.deltaX;
-            ev.motion.yrel  = event.deltaY;
-            ev.motion.which = 0;
+            ev.motion.x        = event.x;
+            ev.motion.y        = event.y;
+            ev.motion.xrel     = event.deltaX;
+            ev.motion.yrel     = event.deltaY;
+            ev.motion.which    = 0;
             ImGui_ImplSDL3_ProcessEvent(&ev);
         }
     } // namespace
@@ -220,6 +170,12 @@ namespace FRIGGA_NAMESPACE
 
         ImGui_ImplVulkan_Init(&imguiSdl3VulkanInitInfo);
 
+        if(mPendingSdlEvents == nullptr)
+        {
+            mPendingSdlEvents = std::make_shared<PendingImGuiSdlEvents>();
+            SDL_AddEventWatch(CaptureDroppedSdlEvents, mPendingSdlEvents.get());
+        }
+
         if(!mEventCallbackRegistered)
         {
             if(auto events = mServiceProvider->GetService<fra::EventManager>())
@@ -256,6 +212,12 @@ namespace FRIGGA_NAMESPACE
 
     void GuiLayer::onDettach()
     {
+        if(mPendingSdlEvents != nullptr)
+        {
+            SDL_RemoveEventWatch(CaptureDroppedSdlEvents, mPendingSdlEvents.get());
+            mPendingSdlEvents.reset();
+        }
+
         if(!ImGui::GetCurrentContext())
         {
             return;
@@ -294,6 +256,15 @@ namespace FRIGGA_NAMESPACE
 
     void GuiLayer::begin()
     {
+        if(mPendingSdlEvents != nullptr)
+        {
+            for(const SDL_Event &event : mPendingSdlEvents->events)
+            {
+                ImGui_ImplSDL3_ProcessEvent(&event);
+            }
+            mPendingSdlEvents->events.clear();
+        }
+
         ImGui_ImplVulkan_NewFrame();
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();

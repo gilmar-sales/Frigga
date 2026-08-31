@@ -68,8 +68,11 @@ namespace FRIGGA_NAMESPACE
 
         [[nodiscard]] glm::vec3 cameraPosition() const;
 
-        [[nodiscard]] bool shouldEvaluatePose(float deltaTime, fr::Entity entity,
-                                              const glm::vec3 &actorPosition, bool ticking);
+        /// Returns true when a pose/clip tick is due; writes wall-clock advance
+        /// amount (LOD interval or frame delta) into @p outAdvanceDt.
+        [[nodiscard]] bool consumeAnimationTick(float deltaTime, fr::Entity entity,
+                                                const glm::vec3 &actorPosition, bool ticking,
+                                                float &outAdvanceDt);
 
         skr::Arc<fra::Renderer> mRenderer;
         skr::Arc<AssetRegistry> mAssets;

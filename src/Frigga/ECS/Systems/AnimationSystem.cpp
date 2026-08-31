@@ -254,24 +254,32 @@ namespace FRIGGA_NAMESPACE
         return position;
     }
 
-    bool AnimationSystem::shouldEvaluatePose(float deltaTime, fr::Entity entity,
-                                             const glm::vec3 &actorPosition, bool ticking)
+    bool AnimationSystem::consumeAnimationTick(float deltaTime, fr::Entity entity,
+                                               const glm::vec3 &actorPosition, bool ticking,
+                                               float &outAdvanceDt)
     {
+        outAdvanceDt = 0.0f;
         if(!ticking)
         {
             return false;
         }
         if(!mOptions || !mOptions->enableAnimLod)
         {
+            outAdvanceDt = deltaTime;
             return true;
         }
 
         auto &lod = mLodStates[entity];
-        const float dist =
-            glm::length(actorPosition - cameraPosition());
+        const float dist = glm::length(actorPosition - cameraPosition());
         fra::UpdateAnimLodTier(*mOptions, lod.tier, dist);
-        return fra::ConsumeAnimLodTick(lod.accum, deltaTime,
-                                       fra::AnimLodHz(*mOptions, lod.tier));
+        const float hz = fra::AnimLodHz(*mOptions, lod.tier);
+        if(!fra::ConsumeAnimLodTick(lod.accum, deltaTime, hz))
+        {
+            return false;
+        }
+
+        outAdvanceDt = hz >= 1.0e5f ? deltaTime : (1.0f / std::max(hz, 1.0f));
+        return true;
     }
 
     void AnimationSystem::Update(float deltaTime)
@@ -321,8 +329,10 @@ namespace FRIGGA_NAMESPACE
 
                 const auto worldPose = TransformUtil::WorldPose(*mRegistry, entity);
                 const auto modelWorld = TransformUtil::WorldMatrix(*mRegistry, entity);
+                float      advanceDt = 0.0f;
                 const bool mustEval =
-                    shouldEvaluatePose(deltaTime, entity, worldPose.position, ticking);
+                    consumeAnimationTick(deltaTime, entity, worldPose.position, ticking,
+                                         advanceDt);
 
                 const auto jointCount = model->skeleton.JointCount();
                 const auto boneOffset = static_cast<std::uint32_t>(mBonePalette.size());
@@ -385,7 +395,7 @@ namespace FRIGGA_NAMESPACE
                                 }
                             }
                         }
-                        graph->Advance(deltaTime * animator.speed);
+                        graph->Advance(advanceDt * animator.speed);
                         animator.clipName = std::string {graph->CurrentStateName()};
                     }
 
@@ -418,16 +428,16 @@ namespace FRIGGA_NAMESPACE
                 if(mustEval && ticking)
                 {
                     AdvanceClipTime(animator.timeSec, clip->duration,
-                                    deltaTime * animator.speed, animator.loop);
+                                    advanceDt * animator.speed, animator.loop);
                     if(crossFading)
                     {
                         const auto *fromClip = resolveClip(*model, runtime->fromClip);
                         if(fromClip != nullptr)
                         {
                             AdvanceClipTime(runtime->fromTimeSec, fromClip->duration,
-                                            deltaTime * animator.speed, animator.loop);
+                                            advanceDt * animator.speed, animator.loop);
                         }
-                        runtime->crossFadeElapsed += deltaTime;
+                        runtime->crossFadeElapsed += advanceDt;
                         if(runtime->crossFadeElapsed >= runtime->crossFadeDuration)
                         {
                             runtime->crossFading = false;

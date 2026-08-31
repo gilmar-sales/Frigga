@@ -6,8 +6,12 @@
 
 #include "Frigga/Core/Layer.hpp"
 
+#include <memory>
+
 namespace FRIGGA_NAMESPACE
 {
+
+    struct PendingImGuiSdlEvents;
 
     class GuiLayer: public Layer
     {
@@ -41,8 +45,9 @@ namespace FRIGGA_NAMESPACE
         bool m_blockEvents             = true;
         bool mEventCallbackRegistered  = false;
         float m_time                   = 0.9f;
-        skr::Arc<skr::ServiceProvider> mServiceProvider;
-        skr::Arc<fra::Renderer>        mRenderer;
+        skr::Arc<skr::ServiceProvider>                  mServiceProvider;
+        skr::Arc<fra::Renderer>                         mRenderer;
+        std::shared_ptr<PendingImGuiSdlEvents>          mPendingSdlEvents;
     };
 
 } // namespace FRIGGA_NAMESPACE

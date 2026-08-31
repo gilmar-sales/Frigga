@@ -73,27 +73,34 @@ namespace FRIGGA_NAMESPACE
             const glm::vec3 safeDirection =
                 glm::dot(direction, direction) > 1e-6f ? direction : glm::vec3(0.0f, -1.0f, 0.0f);
 
-            if(light.type == fra::LightType::Area)
+            fra::Light gpuLight {};
+            switch(light.type)
+            {
+            case fra::LightType::Point:
+                gpuLight = fra::MakePointLight(pose.position, light.color, light.radius,
+                                               light.intensity);
+                break;
+            case fra::LightType::Directional:
+                gpuLight            = fra::MakeDirectionalLight(safeDirection, light.color,
+                                                                light.intensity);
+                gpuLight.position   = pose.position;
+                break;
+            case fra::LightType::Spot:
+                gpuLight = fra::MakeSpotLight(
+                    pose.position, safeDirection, light.color, light.radius,
+                    glm::radians(std::max(light.innerAngleDegrees, 0.0f)),
+                    glm::radians(std::max(light.outerAngleDegrees, 0.0f)), light.intensity);
+                break;
+            case fra::LightType::Area:
             {
                 const glm::vec3 tangent = pose.rotation * glm::vec3(1.0f, 0.0f, 0.0f);
-                fra::Light gpuLight     = fra::MakeAreaLight(
+                gpuLight                = fra::MakeAreaLight(
                     pose.position, safeDirection, tangent, light.halfWidth, light.halfHeight,
                     light.color, light.intensity);
-                gpuLight.castShadows = light.castShadows;
-                return gpuLight;
+                break;
+            }
             }
 
-            fra::Light gpuLight {};
-            gpuLight.position  = pose.position;
-            gpuLight.type      = static_cast<float>(light.type);
-            gpuLight.color     = light.color;
-            gpuLight.radius    = light.radius;
-            gpuLight.direction = safeDirection;
-            gpuLight.intensity = light.intensity;
-            gpuLight.innerCutoff =
-                std::cos(glm::radians(std::max(light.innerAngleDegrees, 0.0f)));
-            gpuLight.outerCutoff =
-                std::cos(glm::radians(std::max(light.outerAngleDegrees, 0.0f)));
             gpuLight.castShadows = light.castShadows;
             return gpuLight;
         }
