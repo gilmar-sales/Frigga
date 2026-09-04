@@ -21,7 +21,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-26.04
             c_compiler: gcc
             cxx_compiler: g++
           - os: windows-latest
@@ -44,11 +44,10 @@ jobs:
       - name: Linux deps
         if: runner.os == 'Linux'
         run: |
+          set -euo pipefail
+          echo "deb http://archive.ubuntu.com/ubuntu stonking main universe" | sudo tee /etc/apt/sources.list.d/stonking-toolchain.list
           sudo apt-get update
-          sudo apt-get install -y software-properties-common
-          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
-          sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -t stonking --no-install-recommends \
             gcc-16 g++-16 glslc ninja-build \
             libx11-dev libxext-dev libxrandr-dev libxcursor-dev \
             libxi-dev libxinerama-dev libxxf86vm-dev libxss-dev \
@@ -58,8 +57,13 @@ jobs:
             libudev-dev libdbus-1-dev \
             libpulse-dev libasound2-dev
           sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-16 100 \
-            --slave /usr/bin/g++ g++ /usr/bin/g++-16
+            --slave /usr/bin/g++ g++ /usr/bin/g++-16 \
+            --slave /usr/bin/gcov gcov /usr/bin/gcov-16
           sudo update-alternatives --set gcc /usr/bin/gcc-16
+          gcc --version
+          g++ --version
+          gcc --version | grep -E '16\.2'
+          g++ --version | grep -E '16\.2'
 
       - name: Windows glslc
         if: runner.os == 'Windows'
@@ -86,14 +90,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: C:\mingw64-gcc16
-          key: mingw64-gcc16-16.1.0-rt_v14-rev1-posix-seh-ucrt
+          key: mingw64-gcc16-16.2.0-rt_v14-rev1-posix-seh-ucrt
 
       - name: Install MinGW
         if: runner.os == 'Windows' && steps.cache-mingw.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $url = 'https://github.com/niXman/mingw-builds-binaries/releases/download/16.1.0-rt_v14-rev1/x86_64-16.1.0-release-posix-seh-ucrt-rt_v14-rev1.7z'
+          $url = 'https://github.com/niXman/mingw-builds-binaries/releases/download/16.2.0-rt_v14-rev1/x86_64-16.2.0-release-posix-seh-ucrt-rt_v14-rev1.7z'
           $zip = "$env:TEMP\mingw64.7z"
           Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
           Remove-Item -Recurse -Force C:\mingw64-scratch -ErrorAction SilentlyContinue
@@ -158,7 +162,7 @@ jobs:
         shell: bash
         run: |
           case "${{ matrix.os }}" in
-            ubuntu-latest) PLATFORM=linux ;;
+            ubuntu-26.04) PLATFORM=linux ;;
             windows-latest) PLATFORM=windows ;;
             *) PLATFORM="${{ matrix.os }}" ;;
           esac
