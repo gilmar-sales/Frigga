@@ -2361,8 +2361,9 @@ void HierarchyLayer::drawComponents()
         });
 
     mRegistry->TryGetComponents<fg::RigidBodyComponent>(
-        selection, [this](fg::RigidBodyComponent &rigidBody) {
-            if(drawComponentHeader("Rigid Body Component", "rigidBody"))
+        selection, [this, selection](fg::RigidBodyComponent &rigidBody) {
+            bool open = true;
+            if(drawComponentHeader("Rigid Body Component", "rigidBody", &open))
             {
                 ImGui::BeginDisabled(mSimulation->IsPlaying());
                 int motion = static_cast<int>(rigidBody.motion);
@@ -2460,6 +2461,10 @@ void HierarchyLayer::drawComponents()
                 {
                     ImGui::TextDisabled("Collider edits apply after Stop");
                 }
+            }
+            if(!open && !mSimulation->IsPlaying())
+            {
+                mRegistry->RemoveComponent<fg::RigidBodyComponent>(selection);
             }
         });
 

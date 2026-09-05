@@ -532,26 +532,7 @@ void MainLayer::drawMenuBar()
             {
                 mSession->OpenInCodeEditor();
             }
-            if(ImGui::MenuItem("Build Modules", "Ctrl+B"))
-            {
-                mSession->BuildModule();
-            }
-            if(ImGui::MenuItem("Migrate Project Files"))
-            {
-                mSession->MigrateOpenProject(true);
-            }
-            if(ImGui::MenuItem("Reload Modules", "Ctrl+R"))
-            {
-                mSession->ReloadModule();
-            }
             ImGui::EndDisabled();
-            {
-                const auto status = mSession->GetStatusMessage();
-                if(!status.empty())
-                {
-                    ImGui::TextDisabled("%s", status.c_str());
-                }
-            }
             ImGui::Separator();
             if(ImGui::MenuItem(ICON_BTSP_SHUTDOWN " Close Phantom", "Alt+F4"))
             {
