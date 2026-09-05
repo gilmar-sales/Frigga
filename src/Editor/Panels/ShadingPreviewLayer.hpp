@@ -53,6 +53,7 @@ class ShadingPreviewLayer: public fg::Layer
     std::uint32_t mPendingHeight = 720;
     bool mClaimOutput            = true;
     bool mPreviewWindowOpen      = false;
+    bool mPreviewWindowBegun     = false;
     ImVec2 mLayoutAvail {};
     bool mViewportHovered        = false;
 

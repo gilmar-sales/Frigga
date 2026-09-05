@@ -146,6 +146,8 @@ class ProjectSession
 
     /// Starts an asynchronous cmake configure+build. Empty @p cmakeTarget builds all modules.
     bool BuildModule(std::string cmakeTarget = {});
+    /// Builds and installs a self-contained Release game package.
+    bool PublishGame(const std::filesystem::path &destination);
     bool ReloadModule();
     void UnloadModule();
     void DismissBuildUi();
@@ -180,7 +182,8 @@ class ProjectSession
     void unbindProjectResources();
     void joinBuildThread();
     void runBuildJob(std::filesystem::path root, std::filesystem::path buildDir,
-                     std::string cmakeTarget);
+                     std::string cmakeTarget, bool publish = false,
+                     std::filesystem::path publishDestination = {});
     void writeEditorSessionMarker();
     void clearEditorSessionMarker();
     [[nodiscard]] std::filesystem::path moduleLibraryAbsolute() const;
@@ -216,6 +219,9 @@ class ProjectSession
     std::atomic<bool> mBuildProgressDeterminate {false};
     std::atomic<bool> mBuildFinished {false};
     std::atomic<int> mBuildExitCode {0};
+    std::atomic<bool> mPublishing {false};
+    std::atomic<bool> mLastOperationWasPublish {false};
+    std::filesystem::path mPublishDestination;
     std::string mBuildLogTail;
     bool mReloadAfterBuild = false;
     std::thread mBuildThread;

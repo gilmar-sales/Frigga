@@ -209,6 +209,7 @@ void ShadingPreviewLayer::onUpdate()
 
 void ShadingPreviewLayer::onGuiBegin()
 {
+    mPreviewWindowBegun = false;
     if(mSimulation && mSimulation->IsPlaying())
     {
         mClaimOutput       = false;
@@ -222,6 +223,7 @@ void ShadingPreviewLayer::onGuiBegin()
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
     mPreviewWindowOpen = ImGui::Begin(title.c_str());
+    mPreviewWindowBegun = true;
     if(mPreviewWindowOpen)
     {
         mClaimOutput = true;
@@ -236,18 +238,17 @@ void ShadingPreviewLayer::onGuiBegin()
         mClaimOutput     = false;
         mViewportHovered = false;
         EditorViewportHost::Request({&mViewport, 0, 0, false});
-        ImGui::PopStyleVar();
     }
 }
 
 void ShadingPreviewLayer::onGuiEnd()
 {
-    if(!mPreviewWindowOpen)
+    if(!mPreviewWindowBegun)
     {
         return;
     }
 
-    if(!mSimulation || !mSimulation->IsPlaying())
+    if(mPreviewWindowOpen && (!mSimulation || !mSimulation->IsPlaying()))
     {
         if(mViewport.IsActive())
         {
@@ -264,4 +265,5 @@ void ShadingPreviewLayer::onGuiEnd()
     ImGui::End();
     ImGui::PopStyleVar();
     mPreviewWindowOpen = false;
+    mPreviewWindowBegun = false;
 }

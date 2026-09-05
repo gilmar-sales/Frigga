@@ -90,3 +90,39 @@ function(frigga_add_module TARGET)
         set_target_properties(${TARGET} PROPERTIES PREFIX "" IMPORT_PREFIX "")
     endif()
 endfunction()
+
+function(frigga_install_game RUNTIME_EXECUTABLE GAME_NAME)
+    if(NOT EXISTS "${RUNTIME_EXECUTABLE}")
+        message(FATAL_ERROR "Frigga Runtime executable not found: ${RUNTIME_EXECUTABLE}")
+    endif()
+
+    get_filename_component(_frigga_runtime_dir "${RUNTIME_EXECUTABLE}" DIRECTORY)
+    if(NOT EXISTS "${_frigga_runtime_dir}/Resources")
+        message(FATAL_ERROR "Frigga Runtime resources not found beside ${RUNTIME_EXECUTABLE}")
+    endif()
+
+    install(PROGRAMS "${RUNTIME_EXECUTABLE}"
+            DESTINATION .
+            RENAME "${GAME_NAME}${CMAKE_EXECUTABLE_SUFFIX}")
+    install(DIRECTORY "${_frigga_runtime_dir}/Resources/"
+            DESTINATION Resources)
+    install(DIRECTORY "${CMAKE_SOURCE_DIR}/Resources/"
+            DESTINATION Resources)
+
+    foreach(_project_file IN ITEMS frigga.project input.json ecs.json)
+        if(EXISTS "${CMAKE_SOURCE_DIR}/${_project_file}")
+            install(FILES "${CMAKE_SOURCE_DIR}/${_project_file}" DESTINATION .)
+        endif()
+    endforeach()
+    if(EXISTS "${CMAKE_SOURCE_DIR}/scenes")
+        install(DIRECTORY "${CMAKE_SOURCE_DIR}/scenes/" DESTINATION scenes)
+    endif()
+
+    # Gameplay modules are emitted under the project build/ directory. Only
+    # canonical shared-library artifacts are installed; hot-reload copies
+    # (for example libgameplay.so.reload-*) must never ship.
+    install(DIRECTORY "${CMAKE_SOURCE_DIR}/build/"
+            DESTINATION build
+            FILES_MATCHING
+            REGEX ".*\\.(so|dll|dylib)$")
+endfunction()

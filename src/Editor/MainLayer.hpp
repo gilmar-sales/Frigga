@@ -39,6 +39,7 @@ class MainLayer: public fg::Layer
         New,
         Open,
         SaveAs,
+        Publish,
     };
 
     void handleShortcuts();
@@ -47,6 +48,7 @@ class MainLayer: public fg::Layer
     void requestOpenScene();
     void requestSaveScene();
     void requestSaveSceneAs();
+    void requestPublishGame();
     void openSceneDialog();
     void saveSceneDialog();
     void ensureEditMode();
@@ -56,6 +58,7 @@ class MainLayer: public fg::Layer
 
     static void onOpenSceneDialog(void *userdata, const char *const *filelist, int filter);
     static void onSaveSceneDialog(void *userdata, const char *const *filelist, int filter);
+    static void onPublishGameDialog(void *userdata, const char *const *filelist, int filter);
 
     std::vector<std::pair<const char *, skr::Arc<Workflow>>> m_tabIds;
     skr::Arc<Workflow> m_activeTab;

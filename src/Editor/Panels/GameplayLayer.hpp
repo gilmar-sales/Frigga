@@ -57,6 +57,7 @@ class GameplayLayer: public fg::Layer
     std::uint32_t mPendingHeight   = 720;
     bool mClaimOutput              = false;
     bool mGameplayWindowOpen       = false;
+    bool mGameplayWindowBegun      = false;
     ImVec2 mLayoutAvail {};
     ImVec2 mLayoutImageMin {};
     bool mViewportHovered          = false;

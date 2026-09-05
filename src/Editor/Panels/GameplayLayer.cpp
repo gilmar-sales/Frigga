@@ -105,6 +105,7 @@ void GameplayLayer::onUpdate()
 
 void GameplayLayer::onGuiBegin()
 {
+    mGameplayWindowBegun = false;
     if(!mSimulation->IsPlaying())
     {
         mClaimOutput     = false;
@@ -132,6 +133,7 @@ void GameplayLayer::onGuiBegin()
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
     mGameplayWindowOpen = ImGui::Begin(title.c_str());
+    mGameplayWindowBegun = true;
     if(mGameplayWindowOpen)
     {
         mClaimOutput = true;
@@ -159,18 +161,17 @@ void GameplayLayer::onGuiBegin()
             mMouseGrabbed = false;
         }
         EditorViewportHost::Request({&mViewport, 0, 0, false});
-        ImGui::PopStyleVar();
     }
 }
 
 void GameplayLayer::onGuiEnd()
 {
-    if(!mGameplayWindowOpen)
+    if(!mGameplayWindowBegun)
     {
         return;
     }
 
-    if(mSimulation->IsPlaying())
+    if(mGameplayWindowOpen && mSimulation->IsPlaying())
     {
         if(mViewport.IsActive())
         {
@@ -197,6 +198,7 @@ void GameplayLayer::onGuiEnd()
     ImGui::End();
     ImGui::PopStyleVar();
     mGameplayWindowOpen = false;
+    mGameplayWindowBegun = false;
 }
 
 void GameplayLayer::drawToolbar()

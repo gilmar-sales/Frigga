@@ -65,6 +65,16 @@ namespace
     {
         const auto sdk   = EffectiveFriggaSdk(desc).generic_string();
         const auto build = EffectiveFriggaBuild(desc).generic_string();
+        auto runtimeBase = EffectiveFriggaBuild(desc);
+        if(runtimeBase.filename() == "Sdk")
+        {
+            runtimeBase = runtimeBase.parent_path();
+        }
+#ifdef _WIN32
+        const auto runtime = (runtimeBase / "Runtime.exe").generic_string();
+#else
+        const auto runtime = (runtimeBase / "Runtime").generic_string();
+#endif
         std::ostringstream out;
         out << "{\n";
         out << "  \"version\": 6,\n";
@@ -79,7 +89,8 @@ namespace
         out << "        \"CMAKE_BUILD_TYPE\": \"Debug\",\n";
         out << "        \"CMAKE_CXX_STANDARD\": \"26\",\n";
         out << "        \"FRIGGA_SDK\": \"" << EscapeJson(sdk) << "\",\n";
-        out << "        \"FRIGGA_BUILD\": \"" << EscapeJson(build) << "\"\n";
+        out << "        \"FRIGGA_BUILD\": \"" << EscapeJson(build) << "\",\n";
+        out << "        \"FRIGGA_RUNTIME\": \"" << EscapeJson(runtime) << "\"\n";
         out << "      }\n";
         out << "    }\n";
         out << "  ]\n";
@@ -116,16 +127,24 @@ namespace
         out << "set(CMAKE_POSITION_INDEPENDENT_CODE ON)\n";
         out << "set(CMAKE_CXX_SCAN_FOR_MODULES 0)\n\n";
         out << "set(FRIGGA_SDK \"\" CACHE PATH \"Frigga SDK or source tree\")\n";
+        out << "set(FRIGGA_RUNTIME \"\" CACHE FILEPATH \"Frigga Runtime executable\")\n";
         out << "if(NOT FRIGGA_SDK AND DEFINED ENV{FRIGGA_SDK} AND NOT \"$ENV{FRIGGA_SDK}\" STREQUAL \"\")\n";
         out << "  set(FRIGGA_SDK \"$ENV{FRIGGA_SDK}\" CACHE PATH \"Frigga SDK or source tree\" FORCE)\n";
         out << "endif()\n";
         out << "if(NOT FRIGGA_SDK)\n";
         out << "  message(FATAL_ERROR \"Frigga SDK not found. Configure with -DFRIGGA_SDK=<path>, set FRIGGA_SDK, or use CMakeUserPresets.json.\")\n";
         out << "endif()\n";
+        out << "if(NOT FRIGGA_RUNTIME AND DEFINED ENV{FRIGGA_RUNTIME} AND NOT \"$ENV{FRIGGA_RUNTIME}\" STREQUAL \"\")\n";
+        out << "  set(FRIGGA_RUNTIME \"$ENV{FRIGGA_RUNTIME}\" CACHE FILEPATH \"Frigga Runtime executable\" FORCE)\n";
+        out << "endif()\n";
+        out << "if(NOT FRIGGA_RUNTIME)\n";
+        out << "  message(FATAL_ERROR \"Frigga Runtime not found. Configure with -DFRIGGA_RUNTIME=<path> or set FRIGGA_RUNTIME.\")\n";
+        out << "endif()\n";
         out << "if(NOT EXISTS \"${FRIGGA_SDK}/cmake/FriggaSdk.cmake\")\n";
         out << "  message(FATAL_ERROR \"Invalid Frigga SDK: ${FRIGGA_SDK}/cmake/FriggaSdk.cmake not found\")\n";
         out << "endif()\n";
         out << "include(\"${FRIGGA_SDK}/cmake/FriggaSdk.cmake\")\n\n";
+        out << "frigga_install_game(\"${FRIGGA_RUNTIME}\" \"" << desc.name << "\")\n\n";
         out << MakeManagedModuleSubdirsBlock(desc);
         return out.str();
     }
@@ -298,6 +317,11 @@ struct Health: fr::Component
         out << "In the Editor: **File → Build Gameplay Module** (Ctrl+B), then **Reload Gameplay "
                "Module** "
                "(Ctrl+R), and press Play.\n\n";
+        out << "## Publish the game\n\n";
+        out << "Use **Project → Publish Game...** in the Editor and choose an empty "
+               "destination folder. The Release build copies the standalone Runtime, "
+               "enabled gameplay modules, scene, and Resources into a distributable "
+               "folder that does not require the Editor, SDK, CMake, or source tree.\n\n";
         out << "## Debug gameplay code\n\n";
         out << "1. Keep the Frigga Editor open on this project.\n";
         out << "2. Open this folder in VS Code with the Frigga extension.\n";

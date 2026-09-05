@@ -200,7 +200,8 @@ namespace FRIGGA_NAMESPACE
         return ids;
     }
 
-    bool GameplayModuleHost::LoadAll(const std::vector<ModuleLoadRequest> &modules)
+    bool GameplayModuleHost::LoadAll(const std::vector<ModuleLoadRequest> &modules,
+                                     bool stageForReload)
     {
         std::lock_guard lock(mMutex);
         unloadAllUnlocked(/*preserveUserComponents=*/true);
@@ -209,7 +210,7 @@ namespace FRIGGA_NAMESPACE
         for(std::size_t i = 0; i < modules.size(); ++i)
         {
             const bool last = i + 1 == modules.size();
-            if(loadUnlocked(modules[i], last))
+            if(loadUnlocked(modules[i], last, stageForReload))
             {
                 any = true;
             }
@@ -267,7 +268,8 @@ namespace FRIGGA_NAMESPACE
         }
     }
 
-    bool GameplayModuleHost::loadUnlocked(const ModuleLoadRequest &request, bool restoreAfterAttach)
+    bool GameplayModuleHost::loadUnlocked(const ModuleLoadRequest &request, bool restoreAfterAttach,
+                                          bool stageForReload)
     {
         const auto &libraryPath = request.libraryPath;
         if(libraryPath.empty() || !std::filesystem::exists(libraryPath))
@@ -278,7 +280,15 @@ namespace FRIGGA_NAMESPACE
         }
 
         const auto absolute = std::filesystem::weakly_canonical(libraryPath);
-        const auto staged   = MakeStagedLibraryPath(absolute, ++mLoadGeneration);
+        const auto staged =
+            stageForReload ? MakeStagedLibraryPath(absolute, ++mLoadGeneration) : absolute;
+        const auto removeStaged = [&]() {
+            if(stageForReload)
+            {
+                RemoveFileQuietly(staged);
+            }
+        };
+        if(stageForReload)
         {
             std::error_code ec;
             std::filesystem::copy_file(absolute, staged,
@@ -300,7 +310,7 @@ namespace FRIGGA_NAMESPACE
         {
             mLastError = LastDlError();
             mLogger->LogError("Failed to load module {}: {}", staged.string(), mLastError);
-            RemoveFileQuietly(staged);
+            removeStaged();
             return false;
         }
 
@@ -311,7 +321,7 @@ namespace FRIGGA_NAMESPACE
             mLastError = "Missing export fri_module_api: " + LastDlError();
             mLogger->LogError("{}", mLastError);
             CloseLibrary(slot.handle);
-            RemoveFileQuietly(staged);
+            removeStaged();
             return false;
         }
 
@@ -322,7 +332,7 @@ namespace FRIGGA_NAMESPACE
             mLastError = "Invalid FriModuleApi table";
             mLogger->LogError("{}", mLastError);
             CloseLibrary(slot.handle);
-            RemoveFileQuietly(staged);
+            removeStaged();
             return false;
         }
 
@@ -332,15 +342,22 @@ namespace FRIGGA_NAMESPACE
             mLastError = "fri_module_api create() returned null";
             mLogger->LogError("{}", mLastError);
             CloseLibrary(slot.handle);
-            RemoveFileQuietly(staged);
+            removeStaged();
             return false;
         }
 
         slot.stagedLibraryPath = staged;
         CleanupStaleStagedCopies(absolute, staged);
         attachUnlocked(slot, restoreAfterAttach);
-        mLogger->LogInformation("Loaded module {} from {} (staged {})", slot.id, absolute.string(),
-                                staged.filename().string());
+        if(stageForReload)
+        {
+            mLogger->LogInformation("Loaded module {} from {} (staged {})", slot.id,
+                                    absolute.string(), staged.filename().string());
+        }
+        else
+        {
+            mLogger->LogInformation("Loaded module {} from {}", slot.id, absolute.string());
+        }
         mModules.push_back(std::move(slot));
         return true;
     }

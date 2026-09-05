@@ -165,6 +165,16 @@ target_include_directories(Editor PRIVATE
         "${freya_SOURCE_DIR}/src"
 )
 
+file(GLOB_RECURSE RUNTIME_SRC CONFIGURE_DEPENDS
+        src/Runtime/*.cpp
+        src/Runtime/*.hpp)
+
+add_executable(Runtime ${RUNTIME_SRC})
+target_compile_features(Runtime PUBLIC cxx_std_26)
+target_link_libraries(Runtime PUBLIC frigga::frigga)
+target_include_directories(Runtime PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/Runtime")
+
 # Expose Freyr/Frigga/Skirnir/simdjson to gameplay modules.
 # Linux: undefined refs in the .so bind to the Editor at dlopen.
 # Windows: PE allows ≤65535 exports, so we cannot --export-all-symbols on the
@@ -173,8 +183,10 @@ target_include_directories(Editor PRIVATE
 set_target_properties(Editor PROPERTIES ENABLE_EXPORTS TRUE)
 if (UNIX AND NOT APPLE)
     target_link_options(Editor PRIVATE -Wl,--export-dynamic)
+    target_link_options(Runtime PRIVATE -Wl,--export-dynamic)
 elseif (APPLE)
     target_link_options(Editor PRIVATE -Wl,-export_dynamic)
+    target_link_options(Runtime PRIVATE -Wl,-export_dynamic)
 endif ()
 if (WIN32 AND CMAKE_NM)
     set(_module_exports "${CMAKE_BINARY_DIR}/frigga_module_exports.def")
@@ -214,7 +226,7 @@ install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/"
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
         COMPONENT Development)
 
-install(TARGETS Editor
+install(TARGETS Editor Runtime
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
         COMPONENT Runtime)
 

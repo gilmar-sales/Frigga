@@ -53,7 +53,9 @@ namespace FRIGGA_NAMESPACE
         [[nodiscard]] std::vector<std::string> GetRegisteredTypeIds() const;
 
         /// Unload every module, then load @p modules in order (callers should put gameplay last).
-        bool LoadAll(const std::vector<ModuleLoadRequest> &modules);
+        /// @p stageForReload copies libraries for safe editor hot reload; standalone runtimes
+        /// should disable it so they load the packaged artifacts directly.
+        bool LoadAll(const std::vector<ModuleLoadRequest> &modules, bool stageForReload = true);
         /// Compatibility: replace the set with a single library.
         bool Load(const std::filesystem::path &libraryPath);
         bool Reload();
@@ -75,7 +77,8 @@ namespace FRIGGA_NAMESPACE
             bool                  attached = false;
         };
 
-        bool loadUnlocked(const ModuleLoadRequest &request, bool restoreAfterAttach);
+        bool loadUnlocked(const ModuleLoadRequest &request, bool restoreAfterAttach,
+                          bool stageForReload);
         void unloadAllUnlocked(bool preserveUserComponents);
         void unloadOneUnlocked(LoadedModule &slot, bool preserveUserComponents);
         void attachUnlocked(LoadedModule &slot, bool restoreAfterAttach);

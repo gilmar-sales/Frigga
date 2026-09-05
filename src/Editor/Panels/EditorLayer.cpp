@@ -95,6 +95,7 @@ void EditorLayer::onUpdate()
 void EditorLayer::onGuiBegin()
 {
     ImGuizmo::BeginFrame();
+    mEditorWindowBegun = false;
 
     if(mSimulation->IsPlaying())
     {
@@ -116,6 +117,7 @@ void EditorLayer::onGuiBegin()
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
     mEditorWindowOpen = ImGui::Begin(title.c_str());
+    mEditorWindowBegun = true;
     if(mEditorWindowOpen)
     {
         mViewportFocused =
@@ -138,18 +140,17 @@ void EditorLayer::onGuiBegin()
         mViewportFocused = false;
         mNavMode         = NavMode::None;
         EditorViewportHost::Request({&mViewport, 0, 0, false});
-        ImGui::PopStyleVar();
     }
 }
 
 void EditorLayer::onGuiEnd()
 {
-    if(!mEditorWindowOpen)
+    if(!mEditorWindowBegun)
     {
         return;
     }
 
-    if(!mSimulation->IsPlaying())
+    if(mEditorWindowOpen && !mSimulation->IsPlaying())
     {
         mWidth  = mPendingWidth;
         mHeight = mPendingHeight;
@@ -218,6 +219,7 @@ void EditorLayer::onGuiEnd()
     ImGui::End();
     ImGui::PopStyleVar();
     mEditorWindowOpen = false;
+    mEditorWindowBegun = false;
 }
 
 void EditorLayer::drawToolbar()

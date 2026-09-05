@@ -141,10 +141,17 @@ jobs:
           mkdir -p publish
           if [[ -f build/Editor ]]; then
             cp build/Editor publish/
+            cp build/Runtime publish/
           elif [[ -f build/Editor.exe ]]; then
             cp build/Editor.exe publish/
+            cp build/Runtime.exe publish/
           else
             echo "Editor not found"; exit 1
+          fi
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            test -f publish/Runtime.exe
+          else
+            test -x publish/Runtime
           fi
           cp -a build/Resources publish/
           cp -a build/Sdk publish/

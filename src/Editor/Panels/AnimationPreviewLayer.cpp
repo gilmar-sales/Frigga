@@ -93,6 +93,7 @@ void AnimationPreviewLayer::onUpdate()
 
 void AnimationPreviewLayer::onGuiBegin()
 {
+    mPreviewWindowBegun = false;
     if(mSimulation && mSimulation->IsPlaying())
     {
         mClaimOutput        = false;
@@ -106,6 +107,7 @@ void AnimationPreviewLayer::onGuiBegin()
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
     mPreviewWindowOpen = ImGui::Begin(title.c_str());
+    mPreviewWindowBegun = true;
     if(mPreviewWindowOpen)
     {
         mClaimOutput = true;
@@ -122,18 +124,17 @@ void AnimationPreviewLayer::onGuiBegin()
         mClaimOutput     = false;
         mViewportHovered = false;
         EditorViewportHost::Request({&mViewport, 0, 0, false});
-        ImGui::PopStyleVar();
     }
 }
 
 void AnimationPreviewLayer::onGuiEnd()
 {
-    if(!mPreviewWindowOpen)
+    if(!mPreviewWindowBegun)
     {
         return;
     }
 
-    if(!mSimulation || !mSimulation->IsPlaying())
+    if(mPreviewWindowOpen && (!mSimulation || !mSimulation->IsPlaying()))
     {
         if(!mSelection->HasSelection())
         {
@@ -159,6 +160,7 @@ void AnimationPreviewLayer::onGuiEnd()
     ImGui::End();
     ImGui::PopStyleVar();
     mPreviewWindowOpen = false;
+    mPreviewWindowBegun = false;
 }
 
 AnimationPreviewLayer::FrameBounds AnimationPreviewLayer::computeSelectionBounds(

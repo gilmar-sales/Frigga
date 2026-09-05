@@ -47,6 +47,15 @@ namespace
         return path.empty() ? std::filesystem::current_path() : path.parent_path();
     }
 
+    std::filesystem::path RuntimeExecutablePath()
+    {
+#ifdef _WIN32
+        return ExecutableDirectory() / "Runtime.exe";
+#else
+        return ExecutableDirectory() / "Runtime";
+#endif
+    }
+
     std::string EscapeJson(std::string_view value)
     {
         std::string out;
@@ -338,27 +347,30 @@ std::vector<EditorBackgroundTask> ProjectSession::GetBackgroundTasks() const
     }
 
     EditorBackgroundTask task;
-    task.id = "gameplay-module-build";
+    const bool publishing = mPublishing.load(std::memory_order_acquire) ||
+                            mLastOperationWasPublish.load(std::memory_order_acquire);
+    const char *title       = publishing ? "Publish game" : "Build gameplay module";
+    task.id                 = publishing ? "game-publish" : "gameplay-module-build";
 
     switch(phase)
     {
     case ModuleBuildPhase::Configuring:
-        task.title  = "Build gameplay module";
+        task.title  = title;
         task.detail = "Configuring (CMake)…";
         task.state   = EditorBackgroundTaskState::Running;
         break;
     case ModuleBuildPhase::Building:
-        task.title  = "Build gameplay module";
+        task.title  = title;
         task.detail = "Compiling…";
         task.state   = EditorBackgroundTaskState::Running;
         break;
     case ModuleBuildPhase::Reloading:
-        task.title  = "Build gameplay module";
+        task.title  = title;
         task.detail = "Reloading module…";
         task.state   = EditorBackgroundTaskState::Running;
         break;
     case ModuleBuildPhase::Succeeded:
-        task.title  = "Build gameplay module";
+        task.title  = title;
         task.detail = "Succeeded";
         task.state   = EditorBackgroundTaskState::Succeeded;
         break;
@@ -458,11 +470,15 @@ void ProjectSession::Poll()
     joinBuildThread();
 
     const int exitCode = mBuildExitCode.load(std::memory_order_acquire);
+    const bool wasPublishing = mPublishing.exchange(false, std::memory_order_acq_rel);
+    mLastOperationWasPublish.store(wasPublishing, std::memory_order_release);
     if(exitCode != 0)
     {
         mBuildPhase.store(ModuleBuildPhase::Failed, std::memory_order_release);
         std::lock_guard lock(mMutex);
-        mLastError     = "Module build failed (exit " + std::to_string(exitCode) + ")";
+        mLastError     = (wasPublishing ? "Game publication failed (exit "
+                                        : "Module build failed (exit ") +
+                       std::to_string(exitCode) + ")";
         mStatusMessage = mLastError;
         mLogger->LogError("{}", mLastError);
         return;
@@ -493,6 +509,11 @@ void ProjectSession::Poll()
     {
         mBuildPhase.store(ModuleBuildPhase::Succeeded, std::memory_order_release);
         mBuildProgress.store(1.0f, std::memory_order_release);
+        if(wasPublishing)
+        {
+            std::lock_guard lock(mMutex);
+            mStatusMessage = "Game published to " + mPublishDestination.string();
+        }
     }
 
     mReloadAfterBuild = false;
@@ -1155,6 +1176,7 @@ bool ProjectSession::BuildModule(std::string cmakeTarget)
     const auto buildDir = root / "build";
 
     mReloadAfterBuild = true;
+    mLastOperationWasPublish.store(false, std::memory_order_release);
     mBuildFinished.store(false, std::memory_order_release);
     mBuildExitCode.store(0, std::memory_order_release);
     mBuildPhase.store(ModuleBuildPhase::Configuring, std::memory_order_release);
@@ -1178,8 +1200,71 @@ bool ProjectSession::BuildModule(std::string cmakeTarget)
     return true;
 }
 
+bool ProjectSession::PublishGame(const std::filesystem::path &destination)
+{
+    if(IsBuilding())
+    {
+        std::lock_guard lock(mMutex);
+        mLastError = "A build or publication is already running";
+        return false;
+    }
+    if(!mProjectFile)
+    {
+        std::lock_guard lock(mMutex);
+        mLastError = "No project open";
+        return false;
+    }
+    if(destination.empty())
+    {
+        std::lock_guard lock(mMutex);
+        mLastError = "Publication destination is empty";
+        return false;
+    }
+
+    std::error_code ec;
+    if(std::filesystem::exists(destination, ec) &&
+       !std::filesystem::is_empty(destination, ec))
+    {
+        std::lock_guard lock(mMutex);
+        mLastError = "Publication destination must be empty: " + destination.string();
+        return false;
+    }
+    std::filesystem::create_directories(destination, ec);
+    if(ec)
+    {
+        std::lock_guard lock(mMutex);
+        mLastError = "Unable to create publication destination: " + ec.message();
+        return false;
+    }
+
+    joinBuildThread();
+    const auto root     = mProjectFile->parent_path();
+    const auto buildDir = root / "build";
+    mPublishDestination = destination;
+    mPublishing.store(true, std::memory_order_release);
+    mReloadAfterBuild = false;
+    mBuildFinished.store(false, std::memory_order_release);
+    mBuildExitCode.store(0, std::memory_order_release);
+    mBuildPhase.store(ModuleBuildPhase::Configuring, std::memory_order_release);
+    mBuildProgress.store(0.05f, std::memory_order_release);
+    mBuildProgressDeterminate.store(false, std::memory_order_release);
+    mBuildRunning.store(true, std::memory_order_release);
+    {
+        std::lock_guard lock(mMutex);
+        mLastError.clear();
+        mBuildLogTail.clear();
+        mStatusMessage = "Publishing game…";
+    }
+
+    mBuildThread = std::thread([this, root, buildDir, destination]() {
+        runBuildJob(root, buildDir, {}, true, destination);
+    });
+    return true;
+}
+
 void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::path buildDir,
-                                 std::string cmakeTarget)
+                                 std::string cmakeTarget, bool publish,
+                                 std::filesystem::path publishDestination)
 {
     const auto appendLog = [this](std::string_view line) {
         std::lock_guard lock(mMutex);
@@ -1228,14 +1313,16 @@ void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::pa
         cmd += "\"";
     };
 
+    const char *buildType = publish ? "Release" : "Debug";
     std::string configureCmd =
         "cmake -S \"" + root.string() + "\" -B \"" + buildDir.string() +
-        "\" -G Ninja -DCMAKE_BUILD_TYPE=Debug"
+        "\" -G Ninja -DCMAKE_BUILD_TYPE=" + buildType +
         " -DCMAKE_CXX_STANDARD=26"
         " -DCMAKE_CXX_STANDARD_REQUIRED=ON"
         " -DCMAKE_CXX_EXTENSIONS=ON";
     appendCachePath(configureCmd, "FRIGGA_SDK", engine.friggaSdk);
     appendCachePath(configureCmd, "FRIGGA_BUILD", engine.friggaBuild);
+    appendCachePath(configureCmd, "FRIGGA_RUNTIME", RuntimeExecutablePath());
     if(!cxxCompiler.empty())
     {
         configureCmd += " -DCMAKE_CXX_COMPILER=\"" + cxxCompiler + "\"";
@@ -1265,7 +1352,7 @@ void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::pa
     mBuildProgress.store(0.15f, std::memory_order_release);
     mBuildProgressDeterminate.store(false, std::memory_order_release);
 
-    const int buildCode = RunShellCapturing(buildCmd, [&](std::string_view line) {
+    int buildCode = RunShellCapturing(buildCmd, [&](std::string_view line) {
         appendLog(line);
         float fraction = 0.0f;
         if(TryParseNinjaProgress(line, fraction))
@@ -1276,6 +1363,66 @@ void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::pa
             mBuildProgressDeterminate.store(true, std::memory_order_release);
         }
     });
+
+    if(buildCode == 0 && publish)
+    {
+        const auto staging = root / ".frigga" / "publish-staging";
+        std::error_code ec;
+        std::filesystem::remove_all(staging, ec);
+        std::filesystem::create_directories(staging, ec);
+        if(ec)
+        {
+            appendLog("Unable to create publication staging directory: " + ec.message());
+            buildCode = 1;
+        }
+        else
+        {
+            const auto installCmd = "cmake --install \"" + buildDir.string() +
+                                    "\" --prefix \"" + staging.string() + "\"";
+            buildCode = RunShellCapturing(installCmd, [&](std::string_view line) {
+                appendLog(line);
+            });
+        }
+
+        if(buildCode == 0)
+        {
+            auto publishedDescriptor = mDescriptor;
+            publishedDescriptor.friggaSdk.clear();
+            publishedDescriptor.friggaRoot.clear();
+            publishedDescriptor.friggaBuild.clear();
+            if(!ProjectFile::Save(staging / ProjectFile::FileName, publishedDescriptor))
+            {
+                appendLog("Unable to write sanitized published project manifest");
+                buildCode = 1;
+            }
+        }
+
+        if(buildCode == 0)
+        {
+            std::filesystem::create_directories(publishDestination, ec);
+            for(const auto &entry : std::filesystem::directory_iterator(staging, ec))
+            {
+                if(ec)
+                {
+                    break;
+                }
+                std::filesystem::copy(
+                    entry.path(), publishDestination / entry.path().filename(),
+                    std::filesystem::copy_options::recursive |
+                        std::filesystem::copy_options::overwrite_existing, ec);
+                if(ec)
+                {
+                    break;
+                }
+            }
+            if(ec)
+            {
+                appendLog("Unable to copy publication: " + ec.message());
+                buildCode = 1;
+            }
+        }
+        std::filesystem::remove_all(staging, ec);
+    }
 
     mBuildExitCode.store(buildCode, std::memory_order_release);
     if(buildCode == 0)

@@ -296,6 +296,12 @@ void MainLayer::processPendingSceneActions()
             mSession->SaveEcsLayout();
         }
         break;
+    case PendingSceneAction::Publish:
+        if(path)
+        {
+            mSession->PublishGame(*path);
+        }
+        break;
     case PendingSceneAction::None:
         break;
     }
@@ -329,6 +335,18 @@ void MainLayer::requestSaveSceneAs()
     saveSceneDialog();
 }
 
+void MainLayer::requestPublishGame()
+{
+    {
+        std::lock_guard lock(mDialogMutex);
+        mDialogDefaultLocation =
+            (mSession->GetProjectRoot().value_or(std::filesystem::current_path()) / "dist").string();
+    }
+    SDL_ShowOpenFolderDialog(onPublishGameDialog, this,
+                             static_cast<SDL_Window *>(mWindow->NativeWindow()),
+                             mDialogDefaultLocation.c_str(), false);
+}
+
 void MainLayer::onOpenSceneDialog(void *userdata, const char *const *filelist, int)
 {
     auto *self = static_cast<MainLayer *>(userdata);
@@ -352,6 +370,18 @@ void MainLayer::onSaveSceneDialog(void *userdata, const char *const *filelist, i
 
     std::lock_guard lock(self->mDialogMutex);
     self->mPendingAction = PendingSceneAction::SaveAs;
+    self->mPendingPath   = filelist[0];
+}
+
+void MainLayer::onPublishGameDialog(void *userdata, const char *const *filelist, int)
+{
+    auto *self = static_cast<MainLayer *>(userdata);
+    if(filelist == nullptr || filelist[0] == nullptr)
+    {
+        return;
+    }
+    std::lock_guard lock(self->mDialogMutex);
+    self->mPendingAction = PendingSceneAction::Publish;
     self->mPendingPath   = filelist[0];
 }
 
@@ -547,6 +577,14 @@ void MainLayer::drawMenuBar()
             if(ImGui::MenuItem(ICON_BTSP_CONTROLLER " Input Map..."))
             {
                 InputMapLayer::IsOpen = true;
+            }
+            ImGui::EndDisabled();
+            ImGui::Separator();
+            ImGui::BeginDisabled(!mSession->HasProject() || mSimulation->IsPlaying() ||
+                                 mSession->IsBuilding());
+            if(ImGui::MenuItem(ICON_BTSP_DOWNLOAD " Publish Game..."))
+            {
+                requestPublishGame();
             }
             ImGui::EndDisabled();
             ImGui::EndMenu();

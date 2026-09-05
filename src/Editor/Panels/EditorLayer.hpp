@@ -72,6 +72,7 @@ class EditorLayer: public fg::Layer
     std::uint32_t mPendingHeight = 720;
     bool mClaimOutput            = true;
     bool mEditorWindowOpen       = false;
+    bool mEditorWindowBegun      = false;
     ImVec2 mLayoutAvail {};
     ImVec2 mLayoutImageMin {};
     bool mViewportHovered        = false;

@@ -78,6 +78,7 @@ Targets:
 | -------------- | --------------------------------------------------------- |
 | `frigga`       | Engine library                                            |
 | `Editor`       | Editor executable                                         |
+| `Runtime`      | Standalone game runtime executable                        |
 | `frigga_tests` | GoogleTest suite (SceneSerializer round-trips / fixtures) |
 | `Shaders`      | Freya SPIR-V compile (built as a Freya dependency)        |
 | `package`      | CPack archive (`cpack` / `ninja package`)                 |
@@ -112,6 +113,29 @@ cmake --build build --target package
 ```
 
 The archive installs `Editor` plus `Resources/` suitable for running from the extracted folder (`./Editor` with `./Resources` beside it).
+
+### Publish a standalone game
+
+With a project open, use **Project → Publish Game...** and choose an empty
+destination folder. The Editor configures a Release build, builds all enabled
+gameplay modules, installs the standalone `Runtime`, and copies the project
+scene and resources into the destination. The resulting folder contains no
+Editor, SDK, CMake files, source tree, or `_deps` directory.
+
+The same operation is available from the command line after configuring the
+project:
+
+```bash
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+  -DFRIGGA_SDK=/path/to/Frigga/Sdk \
+  -DFRIGGA_RUNTIME=/path/to/Frigga/Runtime
+cmake --build build --parallel
+cmake --install build --prefix /path/to/published-game
+```
+
+Run the published game from its output folder. The Runtime also accepts
+`--project <frigga.project>` and `--scene <scene.json>` for diagnostics; by
+default it loads `frigga.project` and its configured startup scene.
 
 Release build:
 
