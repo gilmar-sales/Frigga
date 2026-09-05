@@ -1,4 +1,4 @@
-#include "AssetRegistry.hpp"
+#include <Frigga/Asset/AssetRegistry.hpp>
 
 #include "Frigga/Audio/IAudioEngine.hpp"
 

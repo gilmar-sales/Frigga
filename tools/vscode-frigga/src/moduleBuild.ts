@@ -28,9 +28,6 @@ function makeConfigureCommand(project: FriggaProject, desc: Awaited<ReturnType<t
   if (desc?.engine.friggaSdk) {
     parts.push("-DFRIGGA_SDK", shellQuote(desc.engine.friggaSdk));
   }
-  if (desc?.engine.friggaRoot) {
-    parts.push("-DFRIGGA_ROOT", shellQuote(desc.engine.friggaRoot));
-  }
   if (desc?.engine.friggaBuild) {
     parts.push("-DFRIGGA_BUILD", shellQuote(desc.engine.friggaBuild));
   }

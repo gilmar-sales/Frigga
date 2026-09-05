@@ -1,4 +1,4 @@
-#include "PhysicsSystem.hpp"
+#include <Frigga/ECS/Systems/PhysicsSystem.hpp>
 
 #include "Frigga/ECS/Components/RigidBodyComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"

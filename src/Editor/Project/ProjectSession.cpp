@@ -1235,7 +1235,6 @@ void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::pa
         " -DCMAKE_CXX_STANDARD_REQUIRED=ON"
         " -DCMAKE_CXX_EXTENSIONS=ON";
     appendCachePath(configureCmd, "FRIGGA_SDK", engine.friggaSdk);
-    appendCachePath(configureCmd, "FRIGGA_ROOT", engine.friggaRoot);
     appendCachePath(configureCmd, "FRIGGA_BUILD", engine.friggaBuild);
     if(!cxxCompiler.empty())
     {

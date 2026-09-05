@@ -1,4 +1,4 @@
-#include "UserComponentRegistry.hpp"
+#include <Frigga/ECS/UserComponentRegistry.hpp>
 
 namespace FRIGGA_NAMESPACE
 {

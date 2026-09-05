@@ -1,4 +1,4 @@
-#include "LightDebugDraw.hpp"
+#include <Frigga/Editor/LightDebugDraw.hpp>
 
 #include "Frigga/ECS/Components/LightComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"

@@ -1,4 +1,4 @@
-#include "ColliderDebugDraw.hpp"
+#include <Frigga/Physics/ColliderDebugDraw.hpp>
 
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/RigidBodyComponent.hpp"

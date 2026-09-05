@@ -1,4 +1,4 @@
-#include "JoltPhysicsWorld.hpp"
+#include <Frigga/Physics/JoltPhysicsWorld.hpp>
 
 #include <Jolt/Jolt.h>
 

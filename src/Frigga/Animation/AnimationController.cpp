@@ -1,4 +1,4 @@
-#include "AnimationController.hpp"
+#include <Frigga/Animation/AnimationController.hpp>
 
 #include "Frigga/Animation/AnimGraphDefinition.hpp"
 

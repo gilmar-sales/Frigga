@@ -1,4 +1,4 @@
-#include "FullscreenEffectCatalog.hpp"
+#include <Frigga/Rendering/FullscreenEffectCatalog.hpp>
 
 namespace FRIGGA_NAMESPACE
 {

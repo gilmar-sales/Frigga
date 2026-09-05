@@ -1,4 +1,4 @@
-#include "LayerStack.hpp"
+#include <Frigga/Core/LayerStack.hpp>
 
 #include <algorithm>
 

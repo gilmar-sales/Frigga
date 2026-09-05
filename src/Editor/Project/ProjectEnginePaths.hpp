@@ -6,8 +6,9 @@
 
 inline bool LooksLikeFriggaSdk(const std::filesystem::path &path)
 {
-    return std::filesystem::exists(path / "src/Frigga/Module/frigga_module.h") &&
-           std::filesystem::exists(path / "_deps/freyr-src/include/Freyr");
+    return std::filesystem::exists(path / "include/Frigga/Module/frigga_module.h") &&
+           std::filesystem::exists(path / "cmake/FriggaSdk.cmake") &&
+           std::filesystem::exists(path / "include/Freyr");
 }
 
 inline bool LooksLikeFriggaEngineRoot(const std::filesystem::path &path)
@@ -16,7 +17,7 @@ inline bool LooksLikeFriggaEngineRoot(const std::filesystem::path &path)
     {
         return true;
     }
-    return std::filesystem::exists(path / "src/Frigga/Frigga.hpp") &&
+    return std::filesystem::exists(path / "include/Frigga/Frigga.hpp") &&
            std::filesystem::exists(path / "CMakeLists.txt");
 }
 

@@ -1,4 +1,4 @@
-#include "GameplayModuleBridge.hpp"
+#include <Frigga/Module/GameplayModuleBridge.hpp>
 
 namespace FRIGGA_NAMESPACE
 {

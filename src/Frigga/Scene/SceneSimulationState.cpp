@@ -1,4 +1,4 @@
-#include "SceneSimulationState.hpp"
+#include <Frigga/Scene/SceneSimulationState.hpp>
 
 #include "Frigga/Audio/AudioController.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"

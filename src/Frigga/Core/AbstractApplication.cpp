@@ -1,4 +1,4 @@
-#include "AbstractApplication.hpp"
+#include <Frigga/Core/AbstractApplication.hpp>
 
 namespace FRIGGA_NAMESPACE
 {

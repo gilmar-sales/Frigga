@@ -1,4 +1,4 @@
-#include "AudioSystem.hpp"
+#include <Frigga/ECS/Systems/AudioSystem.hpp>
 
 #include "Frigga/ECS/Components/AudioSourceComponent.hpp"
 #include "Frigga/ECS/Components/HierarchyComponent.hpp"

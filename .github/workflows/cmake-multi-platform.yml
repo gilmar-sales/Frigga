@@ -148,7 +148,8 @@ jobs:
           fi
           cp -a build/Resources publish/
           cp -a build/Sdk publish/
-          test -f publish/Sdk/src/Frigga/Module/frigga_module.h
+          test -f publish/Sdk/include/Frigga/Module/frigga_module.h
+          test -f publish/Sdk/cmake/FriggaSdk.cmake
           find publish/Resources/Shaders -name '*.spv' | grep -q .
 
       - name: Upload artifact

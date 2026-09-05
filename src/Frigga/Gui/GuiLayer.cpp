@@ -1,9 +1,9 @@
-#include "GuiLayer.hpp"
+#include <Frigga/Gui/GuiLayer.hpp>
 
-#include "Styles/Styles.hpp"
+#include <Frigga/Gui/Styles/Styles.hpp>
 
-#include "Backends/imgui_impl_sdl3.h"
-#include "Backends/imgui_impl_vulkan.h"
+#include <Frigga/Gui/Backends/imgui_impl_sdl3.h>
+#include <Frigga/Gui/Backends/imgui_impl_vulkan.h>
 
 #include <SDL3/SDL.h>
 

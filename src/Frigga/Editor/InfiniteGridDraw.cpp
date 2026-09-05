@@ -1,4 +1,4 @@
-#include "InfiniteGridDraw.hpp"
+#include <Frigga/Editor/InfiniteGridDraw.hpp>
 
 #include <algorithm>
 #include <array>

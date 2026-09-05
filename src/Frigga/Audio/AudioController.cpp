@@ -1,4 +1,4 @@
-#include "AudioController.hpp"
+#include <Frigga/Audio/AudioController.hpp>
 
 namespace FRIGGA_NAMESPACE
 {

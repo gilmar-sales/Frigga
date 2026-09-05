@@ -1,4 +1,4 @@
-#include "AudioDebugDraw.hpp"
+#include <Frigga/Editor/AudioDebugDraw.hpp>
 
 #include "Frigga/ECS/Components/AudioSourceComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"

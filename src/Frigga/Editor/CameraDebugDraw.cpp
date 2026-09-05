@@ -1,4 +1,4 @@
-#include "CameraDebugDraw.hpp"
+#include <Frigga/Editor/CameraDebugDraw.hpp>
 
 #include "Frigga/ECS/Components/CameraComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"

@@ -1,4 +1,4 @@
-#include "PrimitiveMeshFactory.hpp"
+#include <Frigga/Asset/PrimitiveMeshFactory.hpp>
 
 #include <algorithm>
 #include <cmath>

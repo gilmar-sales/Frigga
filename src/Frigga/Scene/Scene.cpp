@@ -1,4 +1,4 @@
-#include "Scene.hpp"
+#include <Frigga/Scene/Scene.hpp>
 
 #include "Frigga/ECS/Components/CameraComponent.hpp"
 #include "Frigga/ECS/Components/LightComponent.hpp"

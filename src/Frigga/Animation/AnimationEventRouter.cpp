@@ -1,4 +1,4 @@
-#include "AnimationEventRouter.hpp"
+#include <Frigga/Animation/AnimationEventRouter.hpp>
 
 #include "Frigga/ECS/Components/AudioSourceComponent.hpp"
 

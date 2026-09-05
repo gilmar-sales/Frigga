@@ -1,4 +1,4 @@
-#include "Prefab.hpp"
+#include <Frigga/Scene/Prefab.hpp>
 
 #include "Frigga/Asset/AssetRegistry.hpp"
 #include "Frigga/Scene/SceneSerializer.hpp"

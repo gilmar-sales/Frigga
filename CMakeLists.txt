@@ -90,7 +90,10 @@ FetchContent_MakeAvailable(miniaudio)
 # Headers needed to scaffold/build gameplay modules from a published Editor.
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/PackFriggaSdk.cmake")
 
-file(GLOB_RECURSE FRIGGA_SRC src/Frigga/*.cpp src/Frigga/*.hpp)
+file(GLOB_RECURSE FRIGGA_SRC CONFIGURE_DEPENDS
+        src/Frigga/*.cpp
+        include/Frigga/*.hpp
+        include/Frigga/*.h)
 
 add_library(frigga ${FRIGGA_SRC})
 add_library(frigga::frigga ALIAS frigga)
@@ -104,11 +107,13 @@ endif ()
 
 target_precompile_headers(frigga PUBLIC "src/Frigga/pch.hpp")
 
-target_include_directories(frigga INTERFACE
+target_include_directories(frigga
         PUBLIC
         $<INSTALL_INTERFACE:include>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        src)
+        PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/Frigga)
 
 target_include_directories(frigga PUBLIC ${Vulkan_INCLUDE_DIRS})
 
@@ -156,6 +161,7 @@ target_link_libraries(Editor PUBLIC
 )
 
 target_include_directories(Editor PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
         "${freya_SOURCE_DIR}/src"
 )
 
@@ -203,6 +209,10 @@ add_subdirectory(test)
 
 # --- Install / packaging ---------------------------------------------------
 include(GNUInstallDirs)
+
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/"
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+        COMPONENT Development)
 
 install(TARGETS Editor
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}

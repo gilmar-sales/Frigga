@@ -64,7 +64,6 @@ namespace
     std::string MakeCMakeUserPresets(const ProjectDescriptor &desc)
     {
         const auto sdk   = EffectiveFriggaSdk(desc).generic_string();
-        const auto root  = EffectiveFriggaRoot(desc).generic_string();
         const auto build = EffectiveFriggaBuild(desc).generic_string();
         std::ostringstream out;
         out << "{\n";
@@ -80,7 +79,6 @@ namespace
         out << "        \"CMAKE_BUILD_TYPE\": \"Debug\",\n";
         out << "        \"CMAKE_CXX_STANDARD\": \"26\",\n";
         out << "        \"FRIGGA_SDK\": \"" << EscapeJson(sdk) << "\",\n";
-        out << "        \"FRIGGA_ROOT\": \"" << EscapeJson(root) << "\",\n";
         out << "        \"FRIGGA_BUILD\": \"" << EscapeJson(build) << "\"\n";
         out << "      }\n";
         out << "    }\n";
@@ -112,146 +110,22 @@ namespace
         std::ostringstream out;
         out << "cmake_minimum_required(VERSION 3.29)\n";
         out << "project(" << desc.name << "Gameplay LANGUAGES CXX)\n\n";
-        out << "# Frigga gameplay modules require C++26 (+ reflection), matching the Editor.\n";
         out << "set(CMAKE_CXX_STANDARD 26)\n";
         out << "set(CMAKE_CXX_STANDARD_REQUIRED ON)\n";
         out << "set(CMAKE_CXX_EXTENSIONS ON)\n";
         out << "set(CMAKE_POSITION_INDEPENDENT_CODE ON)\n";
-        out << "# Header reflection only — do not inject -fmodules-ts (CMP0155).\n";
         out << "set(CMAKE_CXX_SCAN_FOR_MODULES 0)\n\n";
-        out << "if(CMAKE_CXX_COMPILER_ID STREQUAL \"GNU\")\n";
-        out << "  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 16)\n";
-        out << "    message(FATAL_ERROR \"Gameplay modules need GCC 16+ (C++26 reflection). "
-               "Found ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}\")\n";
-        out << "  endif()\n";
-        out << "elseif(CMAKE_CXX_COMPILER_ID MATCHES \"Clang\")\n";
-        out << "  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 22)\n";
-        out << "    message(FATAL_ERROR \"Gameplay modules need Clang 22+ (C++26 reflection). "
-               "Found ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}\")\n";
-        out << "  endif()\n";
-        out << "endif()\n\n";
-        out << "# SDK path is never baked in: -DFRIGGA_SDK=, ENV{FRIGGA_SDK}, or CMakeUserPresets.\n";
-        out << "set(FRIGGA_SDK \"\" CACHE PATH \"Packaged Frigga Sdk (or engine source tree)\")\n";
-        out << "set(FRIGGA_ROOT \"\" CACHE PATH \"Frigga headers root (defaults to FRIGGA_SDK)\")\n";
-        out << "set(FRIGGA_BUILD \"\" CACHE PATH "
-               "\"Editor binary dir with _deps (defaults to FRIGGA_SDK when packaged)\")\n";
+        out << "set(FRIGGA_SDK \"\" CACHE PATH \"Frigga SDK or source tree\")\n";
         out << "if(NOT FRIGGA_SDK AND DEFINED ENV{FRIGGA_SDK} AND NOT \"$ENV{FRIGGA_SDK}\" STREQUAL \"\")\n";
-        out << "  set(FRIGGA_SDK \"$ENV{FRIGGA_SDK}\" CACHE PATH "
-               "\"Packaged Frigga Sdk (or engine source tree)\" FORCE)\n";
+        out << "  set(FRIGGA_SDK \"$ENV{FRIGGA_SDK}\" CACHE PATH \"Frigga SDK or source tree\" FORCE)\n";
         out << "endif()\n";
-        out << "if(NOT FRIGGA_ROOT AND DEFINED ENV{FRIGGA_ROOT} AND NOT \"$ENV{FRIGGA_ROOT}\" STREQUAL \"\")\n";
-        out << "  set(FRIGGA_ROOT \"$ENV{FRIGGA_ROOT}\" CACHE PATH "
-               "\"Frigga headers root (defaults to FRIGGA_SDK)\" FORCE)\n";
+        out << "if(NOT FRIGGA_SDK)\n";
+        out << "  message(FATAL_ERROR \"Frigga SDK not found. Configure with -DFRIGGA_SDK=<path>, set FRIGGA_SDK, or use CMakeUserPresets.json.\")\n";
         out << "endif()\n";
-        out << "if(NOT FRIGGA_BUILD AND DEFINED ENV{FRIGGA_BUILD} AND NOT \"$ENV{FRIGGA_BUILD}\" STREQUAL \"\")\n";
-        out << "  set(FRIGGA_BUILD \"$ENV{FRIGGA_BUILD}\" CACHE PATH "
-               "\"Editor binary dir with _deps (defaults to FRIGGA_SDK when packaged)\" FORCE)\n";
+        out << "if(NOT EXISTS \"${FRIGGA_SDK}/cmake/FriggaSdk.cmake\")\n";
+        out << "  message(FATAL_ERROR \"Invalid Frigga SDK: ${FRIGGA_SDK}/cmake/FriggaSdk.cmake not found\")\n";
         out << "endif()\n";
-        out << "if(NOT FRIGGA_SDK AND FRIGGA_ROOT)\n";
-        out << "  set(FRIGGA_SDK \"${FRIGGA_ROOT}\")\n";
-        out << "endif()\n";
-        out << "if(NOT FRIGGA_ROOT AND FRIGGA_SDK)\n";
-        out << "  set(FRIGGA_ROOT \"${FRIGGA_SDK}\")\n";
-        out << "endif()\n";
-        out << "if(NOT FRIGGA_ROOT)\n";
-        out << "  message(FATAL_ERROR \"Frigga SDK not found. Configure with "
-               "-DFRIGGA_SDK=<Sdk-or-source>, set FRIGGA_SDK, or use CMakeUserPresets.json "
-               "from the Editor.\")\n";
-        out << "endif()\n";
-        out << "if(NOT FRIGGA_BUILD)\n";
-        out << "  if(EXISTS \"${FRIGGA_ROOT}/_deps/freyr-src/include/Freyr\")\n";
-        out << "    set(FRIGGA_BUILD \"${FRIGGA_ROOT}\")\n";
-        out << "  elseif(EXISTS \"${FRIGGA_SDK}/_deps/freyr-src/include/Freyr\")\n";
-        out << "    set(FRIGGA_BUILD \"${FRIGGA_SDK}\")\n";
-        out << "  else()\n";
-        out << "    message(FATAL_ERROR \"FRIGGA_BUILD is required for a Frigga source tree "
-               "(Editor binary dir containing _deps/). Pass -DFRIGGA_BUILD=... or set "
-               "FRIGGA_BUILD.\")\n";
-        out << "  endif()\n";
-        out << "endif()\n";
-        out << "if(NOT EXISTS \"${FRIGGA_ROOT}/src/Frigga/Module/frigga_module.h\")\n";
-        out << "  message(FATAL_ERROR \"FRIGGA_ROOT does not look like a Frigga tree: "
-               "${FRIGGA_ROOT}\")\n";
-        out << "endif()\n";
-        out << "message(STATUS \"Frigga SDK:   ${FRIGGA_SDK}\")\n";
-        out << "message(STATUS \"Frigga root:  ${FRIGGA_ROOT}\")\n";
-        out << "message(STATUS \"Frigga build: ${FRIGGA_BUILD}\")\n\n";
-        out << "set(FREYR_INCLUDE \"${FRIGGA_BUILD}/_deps/freyr-src/include\")\n";
-        out << "set(SKIRNIR_INCLUDE \"${FRIGGA_BUILD}/_deps/skirnir-src/include\")\n";
-        out << "set(FREYA_INCLUDE \"${FRIGGA_BUILD}/_deps/freya-src/include\")\n";
-        out << "set(GLM_INCLUDE \"${FRIGGA_BUILD}/_deps/glm-src\")\n";
-        out << "set(SIMDJSON_INCLUDE \"${FRIGGA_BUILD}/_deps/simdjson-src/include\")\n";
-        out << "set(FREYR_LIB_DIR \"${FRIGGA_BUILD}/_deps/freyr-build\")\n";
-        out << "set(SKIRNIR_LIB_DIR \"${FRIGGA_BUILD}/_deps/skirnir-build\")\n\n";
-        out << "find_package(Threads REQUIRED)\n";
-        out << "if(WIN32)\n";
-        out << "  set(_FRIGGA_EDITOR_IMPLIB \"\")\n";
-        out << "  get_filename_component(_FRIGGA_BUILD_PARENT \"${FRIGGA_BUILD}\" DIRECTORY)\n";
-        out << "  get_filename_component(_FRIGGA_SDK_PARENT \"${FRIGGA_SDK}\" DIRECTORY)\n";
-        out << "  foreach(_cand IN ITEMS\n";
-        out << "      \"${FRIGGA_BUILD}/libEditor.dll.a\"\n";
-        out << "      \"${FRIGGA_BUILD}/Editor.lib\"\n";
-        out << "      \"${FRIGGA_BUILD}/libEditor.lib\"\n";
-        out << "      \"${FRIGGA_SDK}/libEditor.dll.a\"\n";
-        out << "      \"${FRIGGA_SDK}/Editor.lib\"\n";
-        out << "      \"${_FRIGGA_BUILD_PARENT}/libEditor.dll.a\"\n";
-        out << "      \"${_FRIGGA_BUILD_PARENT}/Editor.lib\"\n";
-        out << "      \"${_FRIGGA_SDK_PARENT}/libEditor.dll.a\"\n";
-        out << "      \"${_FRIGGA_SDK_PARENT}/Editor.lib\")\n";
-        out << "    if(EXISTS \"${_cand}\")\n";
-        out << "      set(_FRIGGA_EDITOR_IMPLIB \"${_cand}\")\n";
-        out << "      break()\n";
-        out << "    endif()\n";
-        out << "  endforeach()\n";
-        out << "endif()\n\n";
-        out << "function(frigga_add_module TARGET)\n";
-        out << "  add_library(${TARGET} SHARED ${ARGN})\n";
-        out << "  target_compile_features(${TARGET} PRIVATE cxx_std_26)\n";
-        out << "  target_compile_definitions(${TARGET} PRIVATE FRI_MODULE_EXPORTS)\n";
-        out << "  if(MSVC)\n";
-        out << "    target_compile_options(${TARGET} PRIVATE /std:c++latest /experimental:reflection)\n";
-        out << "  else()\n";
-        out << "    target_compile_options(${TARGET} PRIVATE -std=gnu++26 -freflection)\n";
-        out << "  endif()\n";
-        out << "  # Same std prelude Freya uses in its library PCH so Event.hpp compiles.\n";
-        out << "  target_precompile_headers(${TARGET} PRIVATE\n";
-        out << "    <cstdint>\n";
-        out << "    <type_traits>\n";
-        out << "    \"${FRIGGA_ROOT}/src/Frigga/Module/FriPluginSdk.hpp\"\n";
-        out << "  )\n";
-        out << "  target_include_directories(${TARGET} PRIVATE\n";
-        out << "    ${CMAKE_CURRENT_SOURCE_DIR}/include\n";
-        out << "    ${CMAKE_CURRENT_SOURCE_DIR}/src\n";
-        out << "    ${CMAKE_SOURCE_DIR}/include\n";
-        out << "    ${CMAKE_SOURCE_DIR}/src\n";
-        out << "    ${FRIGGA_ROOT}/src\n";
-        out << "    ${FREYR_INCLUDE}\n";
-        out << "    ${SKIRNIR_INCLUDE}\n";
-        out << "    ${FREYA_INCLUDE}\n";
-        out << "    ${GLM_INCLUDE}\n";
-        out << "    ${SIMDJSON_INCLUDE}\n";
-        out << "  )\n";
-        out << "  target_link_libraries(${TARGET} PRIVATE Threads::Threads)\n";
-        out << "  if(UNIX AND NOT APPLE)\n";
-        out << "    target_link_options(${TARGET} PRIVATE -Wl,--allow-shlib-undefined)\n";
-        out << "  elseif(WIN32)\n";
-        out << "    if(NOT _FRIGGA_EDITOR_IMPLIB)\n";
-        out << "      message(FATAL_ERROR \"Editor import library not found under ${FRIGGA_BUILD} (or parent). Rebuild the Editor.\")\n";
-        out << "    endif()\n";
-        out << "    target_link_libraries(${TARGET} PRIVATE \"${_FRIGGA_EDITOR_IMPLIB}\")\n";
-        out << "  endif()\n";
-        out << "  set_target_properties(${TARGET} PROPERTIES\n";
-        out << "    CXX_STANDARD 26\n";
-        out << "    CXX_STANDARD_REQUIRED ON\n";
-        out << "    CXX_EXTENSIONS ON\n";
-        out << "    LIBRARY_OUTPUT_DIRECTORY \"${CMAKE_SOURCE_DIR}/build\"\n";
-        out << "    RUNTIME_OUTPUT_DIRECTORY \"${CMAKE_SOURCE_DIR}/build\"\n";
-        out << "    ARCHIVE_OUTPUT_DIRECTORY \"${CMAKE_SOURCE_DIR}/build\"\n";
-        out << "  )\n";
-        out << "  if(WIN32)\n";
-        out << "    set_target_properties(${TARGET} PROPERTIES PREFIX \"\" IMPORT_PREFIX \"\")\n";
-        out << "  endif()\n";
-        out << "endfunction()\n\n";
+        out << "include(\"${FRIGGA_SDK}/cmake/FriggaSdk.cmake\")\n\n";
         out << MakeManagedModuleSubdirsBlock(desc);
         return out.str();
     }
@@ -402,7 +276,8 @@ struct Health: fr::Component
         out << "## Build the module\n\n";
         out << "Requires a **C++26** compiler with reflection (GCC 16+ or Clang 22+), "
                "same as Frigga.\n\n";
-        out << "Point CMake at the packaged `Sdk/` next to the Editor (or the engine tree):\n\n";
+        out << "Point CMake at the packaged self-contained `Sdk/` next to the Editor "
+               "(or the engine tree):\n\n";
         out << "```bash\n";
         out << "cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug "
                "-DFRIGGA_SDK=/path/to/Sdk\n";
@@ -411,8 +286,10 @@ struct Health: fr::Component
         out << "Alternatively set the `FRIGGA_SDK` environment variable, or use "
                "`cmake --preset default` after the Editor has written local "
                "`CMakeUserPresets.json` (gitignored).\n";
-        out << "Engine developers can also pass `-DFRIGGA_ROOT=` (source) and "
-               "`-DFRIGGA_BUILD=` (Editor binary dir with `_deps/`).\n\n";
+        out << "The SDK contains `include/Frigga`, dependency headers, and the shared "
+               "`cmake/FriggaSdk.cmake` module helper. Engine developers can point "
+               "`FRIGGA_SDK` at the source tree and optionally pass `-DFRIGGA_BUILD=` "
+               "(Editor binary dir with `_deps/`) for local dependency headers.\n\n";
         out << "Or use **File → Build Gameplay Module** (Ctrl+B) in the Editor "
                "(passes SDK paths and forces `gnu++26` + `-freflection`).\n\n";
         out << "The shared library is written to `" << desc.moduleLibraryRelative << "`.\n";
@@ -437,7 +314,7 @@ struct Health: fr::Component
     bool CopyModuleHeader(const std::filesystem::path &friggaRoot,
                           const std::filesystem::path &projectRoot)
     {
-        const auto src = friggaRoot / "src/Frigga/Module/frigga_module.h";
+        const auto src = friggaRoot / "include/Frigga/Module/frigga_module.h";
         const auto dst = projectRoot / "include/frigga_module.h";
         std::error_code ec;
         std::filesystem::create_directories(dst.parent_path(), ec);

@@ -1,4 +1,4 @@
-#include "Layer.hpp"
+#include <Frigga/Core/Layer.hpp>
 
 namespace FRIGGA_NAMESPACE
 {

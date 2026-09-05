@@ -145,7 +145,7 @@ cd build-release && ./Editor
 | Gizmo translate / rotate / scale | W / E / R (editor viewport focused) |
 | Frame selection                  | F (editor viewport)                 |
 
-The Editor starts on a **home screen**: create a 2D/3D project (scaffolds CMake + Freyr gameplay module stubs + `Resources/` + scene), open an existing `frigga.project`, or pick a recent project. Opening a project refreshes managed scaffold files when needed (`CMakeLists.txt`, module header, `GameplaySystem` when still marked managed). Gameplay CMake does not bake machine paths: the Editor passes `-DFRIGGA_SDK` (packaged `Sdk/` next to the binary, or the engine tree), and CLI builds can use the same flag, the `FRIGGA_SDK` environment variable, or local `CMakeUserPresets.json`. Use **File → Migrate Project Files** to force-refresh managed files, then **Build Modules** (Ctrl+B) and **Reload** (Ctrl+R). Each project has a `gameplay` module plus optional extras under `modules/` (combat, camera, movement, …). Share extras by exporting to `~/Frigga/Modules`. Modules use `FRI_MODULE` to register components/systems/DI. Host `fg::Input` loads `input.json` Actions/Axes; inject it into Freyr systems. Pipeline layout lives in `ecs.json` (ECS workflow editor). **Play** enables the Freyr **Simulation** pipeline at 60 Hz (physics + gameplay). **Main** runs animation (and optional third-person camera module) every frame; **Render** always ticks last.
+The Editor starts on a **home screen**: create a 2D/3D project (scaffolds CMake + Freyr gameplay module stubs + `Resources/` + scene), open an existing `frigga.project`, or pick a recent project. Opening a project refreshes managed scaffold files when needed (`CMakeLists.txt`, module header, `GameplaySystem` when still marked managed). Gameplay CMake consumes the self-contained SDK (`include/`, dependency headers, and `cmake/FriggaSdk.cmake`) through `-DFRIGGA_SDK` (packaged `Sdk/` next to the binary, or the engine tree). CLI builds can use the same flag, the `FRIGGA_SDK` environment variable, or local `CMakeUserPresets.json`. Use **File → Migrate Project Files** to force-refresh managed files, then **Build Modules** (Ctrl+B) and **Reload** (Ctrl+R). Each project has a `gameplay` module plus optional extras under `modules/` (combat, camera, movement, …). Share extras by exporting to `~/Frigga/Modules`. Modules use `FRI_MODULE` to register components/systems/DI. Host `fg::Input` loads `input.json` Actions/Axes; inject it into Freyr systems. Pipeline layout lives in `ecs.json` (ECS workflow editor). **Play** enables the Freyr **Simulation** pipeline at 60 Hz (physics + gameplay). **Main** runs animation (and optional third-person camera module) every frame; **Render** always ticks last.
 
 ### Debug gameplay (VS Code + GDB)
 
@@ -165,9 +165,11 @@ Default environment map path in preferences may point at a missing HDR under `Re
 
 ```plain
 src/
-  Frigga/          Engine library (ECS, scene I/O, physics, modules, GUI, render systems)
+  Frigga/          Engine implementations (ECS, scene I/O, physics, modules, GUI, render systems)
   Editor/          Editor app (home, projects, workflows, panels, preferences)
     Resources/     Engine pack: UI fonts, default textures, bundled modules, ProjectTemplate/
+include/
+  Frigga/          Public engine headers
 CMakeLists.txt
 ```
 

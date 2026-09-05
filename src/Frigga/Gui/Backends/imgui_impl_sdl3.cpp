@@ -63,7 +63,7 @@
 
 #include "imgui.h"
 #ifndef IMGUI_DISABLE
-#include "imgui_impl_sdl3.h"
+#include <Frigga/Gui/Backends/imgui_impl_sdl3.h>
 
 // Clang warnings with -Weverything
 #if defined(__clang__)

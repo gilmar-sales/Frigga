@@ -9,4 +9,4 @@
 #include <imgui.h>
 #include <imgui_internal.h>
 
-#include "Macro.hpp"
+#include <Frigga/Macro.hpp>

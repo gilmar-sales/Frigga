@@ -1,4 +1,4 @@
-#include "SceneSerializer.hpp"
+#include <Frigga/Scene/SceneSerializer.hpp>
 
 #include "Frigga/ECS/Components/AnimatorComponent.hpp"
 #include "Frigga/ECS/Components/AudioSourceComponent.hpp"

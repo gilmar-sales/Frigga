@@ -1,4 +1,4 @@
-#include "Styles.hpp"
+#include <Frigga/Gui/Styles/Styles.hpp>
 
 namespace FRIGGA_NAMESPACE
 {

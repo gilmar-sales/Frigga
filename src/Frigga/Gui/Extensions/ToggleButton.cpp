@@ -1,4 +1,4 @@
-#include "Extensions.hpp"
+#include <Frigga/Gui/Extensions/Extensions.hpp>
 
 namespace FRIGGA_NAMESPACE {
 

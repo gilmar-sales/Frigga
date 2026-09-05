@@ -1,4 +1,4 @@
-#include "AnimGraphDefinition.hpp"
+#include <Frigga/Animation/AnimGraphDefinition.hpp>
 
 #include <algorithm>
 #include <format>
