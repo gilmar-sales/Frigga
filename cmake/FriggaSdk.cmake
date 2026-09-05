@@ -400,6 +400,7 @@ function(frigga_install_game GAME_TARGET GAME_NAME)
             PATTERN "Modules" EXCLUDE
             PATTERN "modules" EXCLUDE
             PATTERN "ProjectTemplate" EXCLUDE
+            PATTERN "Scenes" EXCLUDE
             PATTERN "*.vert" EXCLUDE
             PATTERN "*.frag" EXCLUDE
             PATTERN "*.comp" EXCLUDE
@@ -410,20 +411,29 @@ function(frigga_install_game GAME_TARGET GAME_NAME)
             install(FILES "${CMAKE_SOURCE_DIR}/${_project_file}" DESTINATION .)
         endif()
     endforeach()
-    if(EXISTS "${CMAKE_SOURCE_DIR}/scenes")
-        install(DIRECTORY "${CMAKE_SOURCE_DIR}/scenes/" DESTINATION scenes)
+    if(EXISTS "${CMAKE_SOURCE_DIR}/Scenes")
+        install(DIRECTORY "${CMAKE_SOURCE_DIR}/Scenes/"
+                DESTINATION Scenes)
+    elseif(EXISTS "${CMAKE_SOURCE_DIR}/Resources/Scenes")
+        install(DIRECTORY "${CMAKE_SOURCE_DIR}/Resources/Scenes/"
+                DESTINATION Scenes)
+    elseif(EXISTS "${CMAKE_SOURCE_DIR}/scenes")
+        install(DIRECTORY "${CMAKE_SOURCE_DIR}/scenes/"
+                DESTINATION Scenes)
     endif()
 
     # Gameplay modules are emitted under the project build/ directory. Install
-    # only canonical shared-library artifacts under Resources/Modules;
+    # only canonical shared-library artifacts under Modules;
     # hot-reload copies (for example libgameplay.so.reload-*) must never ship.
     install(DIRECTORY "${CMAKE_BINARY_DIR}/"
-            DESTINATION Resources/Modules
+            DESTINATION Modules
             FILES_MATCHING
             PATTERN "CMakeFiles" EXCLUDE
             PATTERN "_deps" EXCLUDE
             PATTERN "Sdk" EXCLUDE
             PATTERN "Resources" EXCLUDE
+            PATTERN "Modules" EXCLUDE
+            PATTERN "modules" EXCLUDE
             PATTERN "Testing" EXCLUDE
             REGEX ".*\\.(so|dll|dylib)$")
 endfunction()

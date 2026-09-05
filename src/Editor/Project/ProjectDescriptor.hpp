@@ -47,7 +47,7 @@ struct ProjectDescriptor
     /// Persistent project format version written to frigga.project.
     /// Missing / 0 on disk is treated as LegacyFormatVersion (1).
     static constexpr int LegacyFormatVersion  = 1;
-    static constexpr int CurrentFormatVersion = 3;
+    static constexpr int CurrentFormatVersion = 5;
     static constexpr std::string_view ModulesDirName   = "Modules";
     static constexpr std::string_view ResourcesDirName = "Resources";
 
@@ -56,7 +56,7 @@ struct ProjectDescriptor
     std::string name;
     ProjectBranding branding;
     fg::SceneTemplate sceneTemplate = fg::SceneTemplate::D3;
-    std::string sceneRelativePath   = "scenes/main.json";
+    std::string sceneRelativePath   = "Scenes/main.json";
     std::string moduleTarget        = "gameplay";
     /// Relative to project root (after cmake --build). Gameplay convenience mirror.
     std::string moduleLibraryRelative = "build/libgameplay.so";

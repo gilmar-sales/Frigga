@@ -22,7 +22,7 @@ struct RuntimeProject
     std::string version = "1.0.0";
     std::string identifier;
     std::filesystem::path root;
-    std::filesystem::path scene = "scenes/main.json";
+    std::filesystem::path scene = "Scenes/main.json";
     std::vector<RuntimeModule> modules;
 
     [[nodiscard]] std::filesystem::path ScenePath() const

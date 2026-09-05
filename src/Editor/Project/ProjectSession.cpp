@@ -260,11 +260,11 @@ namespace
     std::string PublishedModuleLibrary(std::string_view target)
     {
 #if defined(_WIN32)
-        return "Resources/Modules/" + std::string(target) + ".dll";
+        return "Modules/" + std::string(target) + ".dll";
 #elif defined(__APPLE__)
-        return "Resources/Modules/lib" + std::string(target) + ".dylib";
+        return "Modules/lib" + std::string(target) + ".dylib";
 #else
-        return "Resources/Modules/lib" + std::string(target) + ".so";
+        return "Modules/lib" + std::string(target) + ".so";
 #endif
     }
 
@@ -1027,7 +1027,7 @@ std::filesystem::path ProjectSession::GetScenesDirectory() const
     {
         return {};
     }
-    return *root / "scenes";
+    return *root / "Scenes";
 }
 
 std::filesystem::path ProjectSession::GetResourcesDirectory() const

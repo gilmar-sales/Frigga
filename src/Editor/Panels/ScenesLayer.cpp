@@ -50,7 +50,7 @@ void ScenesLayer::drawToolbar()
     }
     if(ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
     {
-        ImGui::SetTooltip("Create scenes/<name>.json from a template and open it");
+        ImGui::SetTooltip("Create Scenes/<name>.json from a template and open it");
     }
 
     ImGui::EndDisabled();

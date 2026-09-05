@@ -302,7 +302,7 @@ struct Health: fr::Component
         out << "- `frigga.project` — project metadata\n";
         out << "- `input.json` — named Actions / Axes bindings\n";
         out << "- `ecs.json` — ECS pipeline / system layout (created on first Editor open)\n";
-        out << "- `scenes/main.json` — default scene\n";
+        out << "- `Scenes/main.json` — default scene\n";
         out << "- `Resources/` — models, textures, prefabs, and fonts owned by this project\n";
         out << "- `Modules/` — optional user-organized shared libraries\n";
         out << "- `include/frigga_user_components.hpp` — FriSet / FriTryGet helpers\n\n";
@@ -506,7 +506,7 @@ bool ProjectScaffold::EnsureProjectResources(const std::filesystem::path &projec
                                              std::string &error,
                                              const std::filesystem::path &friggaRoot)
 {
-    static constexpr std::array<std::string_view, 7> kFolders = {
+    static constexpr std::array<std::string_view, 8> kFolders = {
         "Models", "Textures", "Prefabs", "Fonts", "Audio", "Audio/Banks", "Audio/Clips"};
 
     const auto destRoot = projectRoot / ProjectDescriptor::ResourcesDirName;
@@ -865,7 +865,7 @@ ProjectScaffoldResult ProjectScaffold::Create(const std::filesystem::path &paren
         return result;
     }
 
-    std::filesystem::create_directories(projectRoot / "scenes", ec);
+    std::filesystem::create_directories(projectRoot / "Scenes", ec);
     std::filesystem::create_directories(projectRoot / "include", ec);
     std::filesystem::create_directories(projectRoot / "build", ec);
     std::filesystem::create_directories(projectRoot / ProjectDescriptor::ModulesDirName, ec);

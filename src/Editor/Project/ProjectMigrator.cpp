@@ -55,8 +55,14 @@ ProjectMigrationResult ProjectMigrator::Migrate(const std::filesystem::path &pro
     const auto modules        = projectRoot / ProjectDescriptor::ModulesDirName;
     const bool needsModuleRename =
         std::filesystem::exists(legacyModules) && !std::filesystem::exists(modules);
+    const auto legacyScenes = projectRoot / "scenes";
+    const auto nestedScenes = projectRoot / "Resources" / "Scenes";
+    const auto scenes       = projectRoot / "Scenes";
+    const bool needsSceneRename =
+        (std::filesystem::exists(legacyScenes) || std::filesystem::exists(nestedScenes)) &&
+        !std::filesystem::exists(scenes);
     if(!force && result.fromVersion == ProjectDescriptor::CurrentFormatVersion &&
-       !needsModuleRename)
+       !needsModuleRename && !needsSceneRename)
     {
         result.ok      = true;
         result.message = "Project is already at format v" +
@@ -78,6 +84,38 @@ ProjectMigrationResult ProjectMigrator::Migrate(const std::filesystem::path &pro
             result.error = "Failed to migrate modules/ to Modules/: " + ec.message();
             return result;
         }
+    }
+    if((std::filesystem::exists(legacyScenes) && std::filesystem::exists(nestedScenes)) ||
+       ((std::filesystem::exists(legacyScenes) || std::filesystem::exists(nestedScenes)) &&
+        std::filesystem::exists(scenes)))
+    {
+        result.error = "Multiple scene folders exist; merge them into Scenes/ before opening the project";
+        return result;
+    }
+    if(needsSceneRename)
+    {
+        std::error_code ec;
+        const auto source = std::filesystem::exists(legacyScenes) ? legacyScenes : nestedScenes;
+        std::filesystem::create_directories(scenes.parent_path(), ec);
+        if(!ec)
+        {
+            std::filesystem::rename(source, scenes, ec);
+        }
+        if(ec)
+        {
+            result.error = "Failed to migrate scenes to Scenes/: " + ec.message();
+            return result;
+        }
+    }
+    if(desc.sceneRelativePath == "scenes/main.json" ||
+       desc.sceneRelativePath.starts_with("scenes/") ||
+       desc.sceneRelativePath == "Resources/Scenes/main.json" ||
+       desc.sceneRelativePath.starts_with("Resources/Scenes/"))
+    {
+        const auto prefix = desc.sceneRelativePath.starts_with("Resources/Scenes/")
+                                ? std::string("Resources/Scenes/")
+                                : std::string("scenes/");
+        desc.sceneRelativePath = "Scenes/" + desc.sceneRelativePath.substr(prefix.size());
     }
 
     if(!friggaRoot.empty())

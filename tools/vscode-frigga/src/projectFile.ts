@@ -99,7 +99,7 @@ export async function loadProjectDescriptor(
       version: typeof parsed.version === "number" ? parsed.version : 1,
       name: String(parsed.name ?? "Project"),
       template: String(parsed.template ?? "3d"),
-      scene: String(parsed.scene ?? "scenes/main.json"),
+      scene: String(parsed.scene ?? "Scenes/main.json"),
       moduleTarget: String(moduleBlock.target ?? "gameplay"),
       moduleLibraryRelative: String(moduleBlock.library ?? ""),
       modules,
