@@ -39,7 +39,7 @@ class ProjectScaffold
 
     /// Rewrites Editor-managed files (CMakeLists, frigga_module.h, README,
     /// frigga_user_components.hpp, local CMakeUserPresets) without touching custom
-    /// gameplay sources under modules/gameplay/src/.
+    /// gameplay sources under Modules/gameplay/src/.
     static ProjectManagedWriteResult WriteManagedFiles(const std::filesystem::path &projectRoot,
                                                        const ProjectDescriptor &desc);
 
@@ -70,11 +70,11 @@ class ProjectScaffold
     static bool MaybeRewriteManagedGameplaySystem(const std::filesystem::path &projectRoot,
                                                   std::string &error);
 
-    /// Scaffolds modules/<id>/ (CMake + FRI_MODULE) and registers it on @p desc.
+    /// Scaffolds Modules/<id>/ (CMake + FRI_MODULE) and registers it on @p desc.
     static bool CreateExtraModule(const std::filesystem::path &projectRoot, ProjectDescriptor &desc,
                                   std::string name, std::string &error);
 
-    /// Copies a module tree into modules/<id> and registers it on @p desc.
+    /// Copies a module tree into Modules/<id> and registers it on @p desc.
     static bool InstallModule(const std::filesystem::path &projectRoot, ProjectDescriptor &desc,
                               const std::filesystem::path &sourceRoot, std::string &error);
 

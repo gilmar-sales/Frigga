@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <array>
+#include <functional>
 #include <cctype>
 #include <chrono>
 #include <cmath>
@@ -21,7 +22,6 @@
 #include <cstdlib>
 #include <ctime>
 #include <fstream>
-#include <functional>
 #include <initializer_list>
 #include <sstream>
 #include <string_view>
@@ -217,6 +217,105 @@ namespace
             }
         }
         return {};
+    }
+
+    std::string ReadTextFile(const std::filesystem::path &path)
+    {
+        std::ifstream file(path, std::ios::binary);
+        if(!file)
+        {
+            return {};
+        }
+        std::ostringstream contents;
+        contents << file.rdbuf();
+        return contents.str();
+    }
+
+    std::string ReleaseBuildSignature(const std::filesystem::path &projectRoot,
+                                      const std::filesystem::path &sdk,
+                                      const std::string &compiler)
+    {
+#if defined(_WIN32)
+        constexpr std::string_view platform = "windows";
+#elif defined(__APPLE__)
+        constexpr std::string_view platform = "macos";
+#else
+        constexpr std::string_view platform = "linux";
+#endif
+        const auto manifest = ReadTextFile(projectRoot / ProjectFile::FileName);
+        const auto cmake    = ReadTextFile(projectRoot / "CMakeLists.txt");
+        const auto sdkConfig = ReadTextFile(sdk / "FriggaSdkConfig.cmake");
+        std::ostringstream signature;
+        signature << "schema=2\n";
+        signature << "configuration=Release\n";
+        signature << "platform=" << platform << '\n';
+        signature << "compiler=" << compiler << '\n';
+        signature << "sdk=" << sdk.lexically_normal().generic_string() << '\n';
+        signature << "sdkConfigHash=" << std::hash<std::string> {}(sdkConfig) << '\n';
+        signature << "manifestHash=" << std::hash<std::string> {}(manifest) << '\n';
+        signature << "cmakeHash=" << std::hash<std::string> {}(cmake) << '\n';
+        return signature.str();
+    }
+
+    std::string PublishedModuleLibrary(std::string_view target)
+    {
+#if defined(_WIN32)
+        return "Resources/Modules/" + std::string(target) + ".dll";
+#elif defined(__APPLE__)
+        return "Resources/Modules/lib" + std::string(target) + ".dylib";
+#else
+        return "Resources/Modules/lib" + std::string(target) + ".so";
+#endif
+    }
+
+    bool PrepareReleaseBuild(const std::filesystem::path &buildDir,
+                             const std::string &signature,
+                             std::string &error)
+    {
+        const auto marker = buildDir / ".frigga-release-config";
+        if(std::filesystem::exists(buildDir) && std::filesystem::exists(marker) &&
+           ReadTextFile(marker) != signature)
+        {
+            std::error_code ec;
+            std::filesystem::remove_all(buildDir, ec);
+            if(ec)
+            {
+                error = "Unable to reset incompatible Release build: " + ec.message();
+                return false;
+            }
+        }
+        else if(std::filesystem::exists(buildDir) && !std::filesystem::exists(marker))
+        {
+            std::error_code ec;
+            std::filesystem::remove_all(buildDir, ec);
+            if(ec)
+            {
+                error = "Unable to reset untracked Release build: " + ec.message();
+                return false;
+            }
+        }
+
+        std::error_code ec;
+        std::filesystem::create_directories(buildDir, ec);
+        if(ec)
+        {
+            error = "Unable to create Release build directory: " + ec.message();
+            return false;
+        }
+        return true;
+    }
+
+    bool WriteReleaseBuildMarker(const std::filesystem::path &buildDir,
+                                 const std::string &signature)
+    {
+        std::ofstream marker(buildDir / ".frigga-release-config",
+                             std::ios::binary | std::ios::trunc);
+        if(!marker)
+        {
+            return false;
+        }
+        marker << signature;
+        return static_cast<bool>(marker);
     }
 } // namespace
 
@@ -1291,6 +1390,20 @@ void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::pa
         ExecutableDirectory(),
     });
     const auto cxxCompiler = ReadCMakeCacheValue(cachePath, "CMAKE_CXX_COMPILER");
+    std::string releaseSignature;
+    if(publish)
+    {
+        releaseSignature = ReleaseBuildSignature(root, engine.friggaSdk, cxxCompiler);
+        std::string releaseError;
+        if(!PrepareReleaseBuild(buildDir, releaseSignature, releaseError))
+        {
+            appendLog(releaseError);
+            mBuildExitCode.store(1, std::memory_order_release);
+            mBuildRunning.store(false, std::memory_order_release);
+            mBuildFinished.store(true, std::memory_order_release);
+            return;
+        }
+    }
 
     auto appendCachePath = [](std::string &cmd, const char *name, const std::filesystem::path &path) {
         if(path.empty())
@@ -1328,6 +1441,14 @@ void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::pa
     if(configureCode != 0)
     {
         mBuildExitCode.store(configureCode, std::memory_order_release);
+        mBuildRunning.store(false, std::memory_order_release);
+        mBuildFinished.store(true, std::memory_order_release);
+        return;
+    }
+    if(publish && !WriteReleaseBuildMarker(buildDir, releaseSignature))
+    {
+        appendLog("Unable to write Release build configuration marker");
+        mBuildExitCode.store(1, std::memory_order_release);
         mBuildRunning.store(false, std::memory_order_release);
         mBuildFinished.store(true, std::memory_order_release);
         return;
@@ -1380,6 +1501,12 @@ void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::pa
             publishedDescriptor.friggaSdk.clear();
             publishedDescriptor.friggaRoot.clear();
             publishedDescriptor.friggaBuild.clear();
+            for(auto &entry : publishedDescriptor.modules)
+            {
+                const auto target = entry.target.empty() ? entry.id : entry.target;
+                entry.libraryRelative = PublishedModuleLibrary(target);
+            }
+            publishedDescriptor.EnsureGameplayModule();
             if(!ProjectFile::Save(staging / ProjectFile::FileName, publishedDescriptor))
             {
                 appendLog("Unable to write sanitized published project manifest");

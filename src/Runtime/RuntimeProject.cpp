@@ -9,11 +9,11 @@ namespace
     std::string DefaultLibrary(std::string_view id)
     {
 #ifdef _WIN32
-        return "build/" + std::string(id) + ".dll";
+        return "Resources/Modules/" + std::string(id) + ".dll";
 #elif defined(__APPLE__)
-        return "build/lib" + std::string(id) + ".dylib";
+        return "Resources/Modules/lib" + std::string(id) + ".dylib";
 #else
-        return "build/lib" + std::string(id) + ".so";
+        return "Resources/Modules/lib" + std::string(id) + ".so";
 #endif
     }
 

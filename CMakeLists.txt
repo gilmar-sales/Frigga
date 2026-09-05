@@ -88,6 +88,10 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(miniaudio)
 
 # Headers needed to scaffold/build gameplay modules from a published Editor.
+file(REMOVE_RECURSE
+        "${CMAKE_BINARY_DIR}/Resources/modules"
+        "${CMAKE_BINARY_DIR}/Resources/Modules"
+        "${CMAKE_BINARY_DIR}/Resources/Shaders/Shaders")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/PackFriggaSdk.cmake")
 
 file(GLOB_RECURSE FRIGGA_SRC CONFIGURE_DEPENDS
@@ -187,7 +191,7 @@ set_source_files_properties(
 )
 
 file(GLOB_RECURSE EDITOR_SRC src/Editor/*.cpp src/Editor/*.hpp)
-list(FILTER EDITOR_SRC EXCLUDE REGEX "/Resources/modules/")
+list(FILTER EDITOR_SRC EXCLUDE REGEX "/Resources/Modules/")
 
 add_executable(Editor ${EDITOR_SRC}
         src/Editor/Main.cpp
@@ -257,6 +261,14 @@ endif ()
 
 # Engine pack (UI fonts, shaders, bundled modules) plus ProjectTemplate for new games.
 file(COPY src/Editor/Resources DESTINATION ${CMAKE_BINARY_DIR})
+file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/Resources/Fonts")
+file(COPY
+        "${CMAKE_SOURCE_DIR}/src/Editor/Resources/OpenSans.ttf"
+        "${CMAKE_SOURCE_DIR}/src/Editor/Resources/BootstrapIconsFont.ttf"
+        DESTINATION "${CMAKE_BINARY_DIR}/Resources/Fonts")
+file(REMOVE
+        "${CMAKE_BINARY_DIR}/Resources/OpenSans.ttf"
+        "${CMAKE_BINARY_DIR}/Resources/BootstrapIconsFont.ttf")
 
 # --- Tests -----------------------------------------------------------------
 enable_testing()

@@ -54,12 +54,34 @@ ProjectMigrationResult ProjectMigrator::Migrate(const std::filesystem::path &pro
                                                 : ProjectDescriptor::LegacyFormatVersion;
     result.toVersion   = ProjectDescriptor::CurrentFormatVersion;
 
-    if(!force && result.fromVersion == ProjectDescriptor::CurrentFormatVersion)
+    const auto projectRoot = projectFile.parent_path();
+    const auto legacyModules = projectRoot / "modules";
+    const auto modules        = projectRoot / ProjectDescriptor::ModulesDirName;
+    const bool needsModuleRename =
+        std::filesystem::exists(legacyModules) && !std::filesystem::exists(modules);
+    if(!force && result.fromVersion == ProjectDescriptor::CurrentFormatVersion &&
+       !needsModuleRename)
     {
         result.ok      = true;
         result.message = "Project is already at format v" +
                          std::to_string(ProjectDescriptor::CurrentFormatVersion);
         return result;
+    }
+
+    if(std::filesystem::exists(legacyModules) && std::filesystem::exists(modules))
+    {
+        result.error = "Both modules/ and Modules/ exist; merge them before opening the project";
+        return result;
+    }
+    if(needsModuleRename)
+    {
+        std::error_code ec;
+        std::filesystem::rename(legacyModules, modules, ec);
+        if(ec)
+        {
+            result.error = "Failed to migrate modules/ to Modules/: " + ec.message();
+            return result;
+        }
     }
 
     if(!friggaRoot.empty())
@@ -85,7 +107,7 @@ ProjectMigrationResult ProjectMigrator::Migrate(const std::filesystem::path &pro
         return result;
     }
 
-    // v1: modules/ (lowercase) with gameplay + extras; src/components + src/systems.
+    // Legacy projects used modules/ (lowercase); current projects use Modules/.
     std::string stepError;
     if(!ApplyManagedLayout(projectFile.parent_path(), desc, stepError))
     {
@@ -109,7 +131,7 @@ ProjectMigrationResult ProjectMigrator::Migrate(const std::filesystem::path &pro
     else
     {
         msg << "Applied project format v" << result.toVersion
-            << " (modules/ layout, FRI_MODULE)";
+            << " (Modules/ layout, FRI_MODULE)";
     }
     msg << ". Rebuild the gameplay module.";
     result.message = msg.str();

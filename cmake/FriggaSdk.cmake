@@ -18,9 +18,9 @@ endif()
 if(CMAKE_BUILD_TYPE STREQUAL "Release" AND
    DEFINED FRIGGA_SDK_BUILD_TYPE AND
    NOT FRIGGA_SDK_BUILD_TYPE STREQUAL "Release")
-    message(FATAL_ERROR
-            "Release game builds require a Release Frigga SDK; this SDK was built as "
-            "${FRIGGA_SDK_BUILD_TYPE}. Build the Editor/SDK in Release first.")
+    message(WARNING
+            "The game target is Release, but the Frigga SDK was built as "
+            "${FRIGGA_SDK_BUILD_TYPE}; project and module code will still use Release flags.")
 endif()
 
 set(_FRIGGA_DEPS_INCLUDE "${_FRIGGA_SDK_INCLUDE}")
@@ -167,6 +167,9 @@ function(frigga_add_game TARGET)
 
     if(UNIX AND NOT APPLE)
         target_link_options(${TARGET} PRIVATE -Wl,--export-dynamic)
+        if(CMAKE_BUILD_TYPE STREQUAL "Release")
+            target_link_options(${TARGET} PRIVATE -s)
+        endif()
     elseif(APPLE)
         target_link_options(${TARGET} PRIVATE -Wl,-export_dynamic)
         set_target_properties(${TARGET} PROPERTIES MACOSX_BUNDLE TRUE)
@@ -351,7 +354,33 @@ function(frigga_install_game GAME_TARGET GAME_NAME)
                 BUNDLE DESTINATION .
                 LIBRARY DESTINATION .)
         if(EXISTS "${FRIGGA_SDK}/Resources")
-            install(DIRECTORY "${FRIGGA_SDK}/Resources/" DESTINATION Resources)
+            install(DIRECTORY "${FRIGGA_SDK}/Resources/" DESTINATION Resources
+                    PATTERN "Modules" EXCLUDE
+                    PATTERN "modules" EXCLUDE
+                    PATTERN "ProjectTemplate" EXCLUDE
+                    PATTERN "Shaders" EXCLUDE
+                    PATTERN "OpenSans.ttf" EXCLUDE
+                    PATTERN "BootstrapIconsFont.ttf" EXCLUDE)
+            if(EXISTS "${FRIGGA_SDK}/Resources/Shaders")
+                file(GLOB _frigga_shader_directories
+                     LIST_DIRECTORIES true
+                     "${FRIGGA_SDK}/Resources/Shaders/*")
+                foreach(_frigga_shader_directory IN LISTS _frigga_shader_directories)
+                    get_filename_component(_frigga_shader_name
+                                           "${_frigga_shader_directory}" NAME)
+                    if(IS_DIRECTORY "${_frigga_shader_directory}" AND
+                       NOT _frigga_shader_name STREQUAL "Shaders")
+                        install(DIRECTORY "${_frigga_shader_directory}/"
+                                DESTINATION "Resources/Shaders/${_frigga_shader_name}")
+                    endif()
+                endforeach()
+            endif()
+            foreach(_frigga_font IN ITEMS OpenSans.ttf BootstrapIconsFont.ttf)
+                if(EXISTS "${FRIGGA_SDK}/Resources/Fonts/${_frigga_font}")
+                    install(FILES "${FRIGGA_SDK}/Resources/Fonts/${_frigga_font}"
+                            DESTINATION Resources/Fonts)
+                endif()
+            endforeach()
         endif()
     elseif(EXISTS "${GAME_TARGET}")
         get_filename_component(_frigga_runtime_dir "${GAME_TARGET}" DIRECTORY)
@@ -367,7 +396,14 @@ function(frigga_install_game GAME_TARGET GAME_NAME)
     endif()
 
     install(DIRECTORY "${CMAKE_SOURCE_DIR}/Resources/"
-            DESTINATION Resources)
+            DESTINATION Resources
+            PATTERN "Modules" EXCLUDE
+            PATTERN "modules" EXCLUDE
+            PATTERN "ProjectTemplate" EXCLUDE
+            PATTERN "*.vert" EXCLUDE
+            PATTERN "*.frag" EXCLUDE
+            PATTERN "*.comp" EXCLUDE
+            PATTERN "*.inc" EXCLUDE)
 
     foreach(_project_file IN ITEMS frigga.project input.json ecs.json)
         if(EXISTS "${CMAKE_SOURCE_DIR}/${_project_file}")
@@ -378,11 +414,16 @@ function(frigga_install_game GAME_TARGET GAME_NAME)
         install(DIRECTORY "${CMAKE_SOURCE_DIR}/scenes/" DESTINATION scenes)
     endif()
 
-    # Gameplay modules are emitted under the project build/ directory. Only
-    # canonical shared-library artifacts are installed; hot-reload copies
-    # (for example libgameplay.so.reload-*) must never ship.
+    # Gameplay modules are emitted under the project build/ directory. Install
+    # only canonical shared-library artifacts under Resources/Modules;
+    # hot-reload copies (for example libgameplay.so.reload-*) must never ship.
     install(DIRECTORY "${CMAKE_BINARY_DIR}/"
-            DESTINATION build
+            DESTINATION Resources/Modules
             FILES_MATCHING
+            PATTERN "CMakeFiles" EXCLUDE
+            PATTERN "_deps" EXCLUDE
+            PATTERN "Sdk" EXCLUDE
+            PATTERN "Resources" EXCLUDE
+            PATTERN "Testing" EXCLUDE
             REGEX ".*\\.(so|dll|dylib)$")
 endfunction()

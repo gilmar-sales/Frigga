@@ -32,14 +32,14 @@ class EditorApplication final: public fg::AbstractApplication
         EditorUiScale::Sync(mWindow->GetScale());
 
         ImGuiIO &io = ImGui::GetIO();
-        io.Fonts->AddFontFromFileTTF("Resources/OpenSans.ttf", 18);
+        io.Fonts->AddFontFromFileTTF("Resources/Fonts/OpenSans.ttf", 18);
 
         static const ImWchar icons_ranges[] = {ICON_MIN_BTSP, ICON_MAX_BTSP, 0};
         ImFontConfig icons_config;
         icons_config.MergeMode  = true;
         icons_config.PixelSnapH = true;
-        io.Fonts->AddFontFromFileTTF("Resources/BootstrapIconsFont.ttf", 16, &icons_config,
-                                     icons_ranges);
+        io.Fonts->AddFontFromFileTTF("Resources/Fonts/BootstrapIconsFont.ttf", 16,
+                                     &icons_config, icons_ranges);
 
         // Edit mode at startup: only Render (animation preview + draw) ticks.
         syncPlayPipelines();

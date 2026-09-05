@@ -304,10 +304,10 @@ struct Health: fr::Component
         out << "- `ecs.json` — ECS pipeline / system layout (created on first Editor open)\n";
         out << "- `scenes/main.json` — default scene\n";
         out << "- `Resources/` — models, textures, prefabs, and fonts owned by this project\n";
-        out << "- `modules/` — shared libraries (`gameplay`, optional extras)\n";
-        out << "- `modules/gameplay/src/systems/` — Freyr systems\n";
-        out << "- `modules/gameplay/src/components/` — project POD components (example: Health)\n";
-        out << "- `modules/gameplay/src/GameplayModule.cpp` — FRI_MODULE entry\n";
+        out << "- `Modules/` — shared libraries (`gameplay`, optional extras)\n";
+        out << "- `Modules/gameplay/src/systems/` — Freyr systems\n";
+        out << "- `Modules/gameplay/src/components/` — project POD components (example: Health)\n";
+        out << "- `Modules/gameplay/src/GameplayModule.cpp` — FRI_MODULE entry\n";
         out << "- `include/frigga_user_components.hpp` — FriSet / FriTryGet helpers\n\n";
         out << "## Branding and publishing metadata\n\n";
         out << "The `publish` section of `frigga.project` controls the executable identity: "
@@ -464,7 +464,7 @@ ProjectManagedWriteResult ProjectScaffold::WriteManagedFiles(
     const auto gameplayRoot = projectRoot / ProjectDescriptor::ModulesDirName / "gameplay";
     if(!WriteTextFile(gameplayRoot / "CMakeLists.txt", MakeGameplayModuleCMake()))
     {
-        result.error = "Failed to write modules/gameplay/CMakeLists.txt";
+        result.error = "Failed to write Modules/gameplay/CMakeLists.txt";
         return result;
     }
     if(!std::filesystem::exists(gameplayRoot / ModuleCatalog::ManifestFileName))
@@ -478,7 +478,7 @@ ProjectManagedWriteResult ProjectScaffold::WriteManagedFiles(
                                                : desc.moduleLibraryRelative;
         if(!ModuleCatalog::WriteManifest(gameplayRoot, gameplayManifest))
         {
-            result.error = "Failed to write modules/gameplay/module.json";
+            result.error = "Failed to write Modules/gameplay/module.json";
             return result;
         }
     }
@@ -615,7 +615,7 @@ bool ProjectScaffold::WriteExampleUserComponents(const std::filesystem::path &pr
                           "src/components/Health.hpp",
                       MakeHealthComponentHpp()))
     {
-        error = "Failed to write modules/gameplay/src/components/Health.hpp";
+        error = "Failed to write Modules/gameplay/src/components/Health.hpp";
         return false;
     }
     return true;
@@ -633,7 +633,7 @@ bool ProjectScaffold::MaybeRewriteManagedModuleEntry(const std::filesystem::path
     }
     if(!WriteTextFile(modulePath, MakeGameplayModuleCpp()))
     {
-        error = "Failed to write modules/gameplay/src/GameplayModule.cpp";
+        error = "Failed to write Modules/gameplay/src/GameplayModule.cpp";
         return false;
     }
     return true;
@@ -665,7 +665,7 @@ bool ProjectScaffold::MaybeRewriteManagedGameplaySystem(const std::filesystem::p
     if(!WriteTextFile(hppPath, MakeGameplaySystemHpp()) ||
        !WriteTextFile(cppPath, MakeGameplaySystemCpp()))
     {
-        error = "Failed to write modules/gameplay/src/systems/GameplaySystem.*";
+        error = "Failed to write Modules/gameplay/src/systems/GameplaySystem.*";
         return false;
     }
     return true;
@@ -925,7 +925,7 @@ ProjectScaffoldResult ProjectScaffold::Create(const std::filesystem::path &paren
     const auto gameplayRoot = projectRoot / ProjectDescriptor::ModulesDirName / "gameplay";
     if(!WriteTextFile(gameplayRoot / "CMakeLists.txt", MakeGameplayModuleCMake()))
     {
-        result.error = "Failed to write modules/gameplay/CMakeLists.txt";
+        result.error = "Failed to write Modules/gameplay/CMakeLists.txt";
         return result;
     }
     DiscoveredModule gameplayManifest;
@@ -935,7 +935,7 @@ ProjectScaffoldResult ProjectScaffold::Create(const std::filesystem::path &paren
     gameplayManifest.libraryRelative = desc.moduleLibraryRelative;
     if(!ModuleCatalog::WriteManifest(gameplayRoot, gameplayManifest))
     {
-        result.error = "Failed to write modules/gameplay/module.json";
+        result.error = "Failed to write Modules/gameplay/module.json";
         return result;
     }
 

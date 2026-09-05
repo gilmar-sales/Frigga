@@ -4,7 +4,7 @@
 #   Sdk/include/Frigga       Frigga public API
 #   Sdk/include/{Freya,Freyr,Skirnir,glm,simdjson} dependency headers
 #   Sdk/cmake/FriggaSdk.cmake shared gameplay-module CMake API
-#   Sdk/modules              bundled example modules
+#   Sdk/Modules              bundled example modules
 
 set(FRIGGA_SDK_DIR "${CMAKE_BINARY_DIR}/Sdk")
 
@@ -87,7 +87,7 @@ if(EXISTS "${CMAKE_BINARY_DIR}/Resources")
     file(COPY "${CMAKE_BINARY_DIR}/Resources"
          DESTINATION "${FRIGGA_SDK_DIR}")
 endif()
-file(COPY "${CMAKE_SOURCE_DIR}/src/Editor/Resources/modules"
+file(COPY "${CMAKE_SOURCE_DIR}/src/Editor/Resources/Modules"
      DESTINATION "${FRIGGA_SDK_DIR}")
 file(WRITE "${FRIGGA_SDK_DIR}/CMakeLists.txt"
      "# Frigga gameplay module SDK (packaged with Editor)\n")

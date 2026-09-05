@@ -107,7 +107,7 @@ namespace
 
     bool IsEngineOnlyFolder(std::string_view name)
     {
-        return name == "modules" || name == "Shaders" || name == "ProjectTemplate";
+        return name == "Modules" || name == "Shaders" || name == "ProjectTemplate";
     }
 
     bool IsStandardProjectFolder(std::string_view name)

@@ -251,9 +251,9 @@ std::vector<std::filesystem::path> ModuleCatalog::BundledModuleSearchDirs(
         dirs.push_back(ec ? std::move(path) : canonical);
     };
     // First hit wins in ScanBundled: this Editor's copy, then SDK pack, then source.
-    add(executableDir / "Resources" / "modules");
-    add(friggaSdk / "modules");
-    add(friggaRoot / "src" / "Editor" / "Resources" / "modules");
+    add(executableDir / "Resources" / "Modules");
+    add(friggaSdk / "Modules");
+    add(friggaRoot / "src" / "Editor" / "Resources" / "Modules");
     return dirs;
 }
 

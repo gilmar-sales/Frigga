@@ -47,8 +47,8 @@ function makeManagedModuleSubdirsBlock(desc: FriggaProjectDescriptor): string {
   for (const entry of desc.modules) {
     const folder = entry.id || entry.target;
     lines.push(
-      `if(EXISTS "\${CMAKE_CURRENT_SOURCE_DIR}/modules/${folder}/CMakeLists.txt")`,
-      `  add_subdirectory(modules/${folder})`,
+      `if(EXISTS "\${CMAKE_CURRENT_SOURCE_DIR}/Modules/${folder}/CMakeLists.txt")`,
+      `  add_subdirectory(Modules/${folder})`,
       "endif()"
     );
   }
@@ -106,7 +106,7 @@ export async function createModule(project: FriggaProject): Promise<void> {
   }
 
   const id = sanitizeModuleId(name);
-  const moduleRoot = vscode.Uri.joinPath(project.root, "modules", id);
+  const moduleRoot = vscode.Uri.joinPath(project.root, "Modules", id);
   if (await pathExistsUri(moduleRoot)) {
     vscode.window.showErrorMessage(`Module already exists: ${id}`);
     return;
@@ -168,7 +168,7 @@ export async function installModule(
   source: FriggaModule
 ): Promise<void> {
   const desc = (await loadProjectDescriptor(project.projectFile))!;
-  const destRoot = vscode.Uri.joinPath(project.root, "modules", source.id);
+  const destRoot = vscode.Uri.joinPath(project.root, "Modules", source.id);
   if (await pathExistsUri(destRoot)) {
     const overwrite = await vscode.window.showWarningMessage(
       `Module "${source.id}" already exists in project. Overwrite?`,

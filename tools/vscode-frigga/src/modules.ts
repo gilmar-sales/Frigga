@@ -152,7 +152,7 @@ async function moduleFromEntry(
   if (!id) {
     return undefined;
   }
-  const root = vscode.Uri.joinPath(project.root, "modules", id);
+  const root = vscode.Uri.joinPath(project.root, "Modules", id);
   if (!(await pathExistsUri(root))) {
     return undefined;
   }
@@ -189,7 +189,7 @@ export async function listProjectModules(
   const modules: FriggaModule[] = [];
   for (const entry of desc.modules) {
     const manifest = await readModuleManifest(
-      vscode.Uri.joinPath(project.root, "modules", entry.id || entry.target)
+      vscode.Uri.joinPath(project.root, "Modules", entry.id || entry.target)
     );
     const mod = await moduleFromEntry(project, entry, manifest);
     if (mod) {
@@ -251,9 +251,9 @@ export async function listBundledModules(
   desc: FriggaProjectDescriptor
 ): Promise<FriggaModule[]> {
   const dirs = [
-    desc.engine.friggaSdk ? path.join(desc.engine.friggaSdk, "modules") : "",
+    desc.engine.friggaSdk ? path.join(desc.engine.friggaSdk, "Modules") : "",
     desc.engine.friggaRoot
-      ? path.join(desc.engine.friggaRoot, "src", "Editor", "Resources", "modules")
+      ? path.join(desc.engine.friggaRoot, "src", "Editor", "Resources", "Modules")
       : "",
   ].filter(Boolean);
 
@@ -273,7 +273,7 @@ export async function listBundledModules(
 
 export function inferModuleIdFromUri(project: FriggaProject, uri: vscode.Uri): string | undefined {
   const rel = path.relative(project.root.fsPath, uri.fsPath).replace(/\\/g, "/");
-  const match = /^modules\/([^/]+)\//.exec(rel);
+  const match = /^Modules\/([^/]+)\//.exec(rel);
   return match?.[1];
 }
 
@@ -284,7 +284,7 @@ export async function resolveModule(
 ): Promise<FriggaModule | undefined> {
   const modules = await listProjectModules(project);
   if (modules.length === 0) {
-    vscode.window.showErrorMessage("No modules found under modules/ in this project.");
+    vscode.window.showErrorMessage("No modules found under Modules/ in this project.");
     return undefined;
   }
 
