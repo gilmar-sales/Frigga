@@ -3,12 +3,15 @@
 #include "RuntimeProject.hpp"
 
 #include <Frigga/Core/AbstractApplication.hpp>
+#include <Frigga/Diagnostics/RuntimeDiagnostics.hpp>
 #include <Frigga/Input/Input.hpp>
 #include <Frigga/Module/GameplayModuleHost.hpp>
 #include <Frigga/Scene/Scene.hpp>
 #include <Frigga/Scene/SceneSimulationState.hpp>
 
 #include <Freyr/Core/SystemManager.hpp>
+
+#include <memory>
 
 class RuntimeApplication final: public fg::AbstractApplication
 {
@@ -30,4 +33,5 @@ class RuntimeApplication final: public fg::AbstractApplication
     skr::Arc<fg::Scene> mScene;
     skr::Arc<fg::Input> mInput;
     skr::Arc<fg::SceneSimulationState> mSimulation;
+    std::unique_ptr<fg::FrameProfiler> mProfiler;
 };

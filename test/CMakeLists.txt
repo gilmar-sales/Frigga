@@ -19,6 +19,7 @@ include(GoogleTest)
 
 add_executable(frigga_tests
         AssetManifestSpec.cpp
+        DiagnosticsSpec.cpp
         EmptyApp.hpp
         FriModuleSpec.cpp
         InputSpec.cpp
@@ -31,6 +32,7 @@ add_executable(frigga_tests
         PrefabSpec.cpp
         ProjectFileSpec.cpp
         RuntimeProjectSpec.cpp
+        RuntimeSmokeSpec.cpp
         ${CMAKE_SOURCE_DIR}/src/Editor/Project/ProjectFile.cpp
         ${CMAKE_SOURCE_DIR}/src/Runtime/RuntimeProject.cpp
 )
@@ -38,6 +40,7 @@ add_executable(frigga_tests
 target_compile_features(frigga_tests PRIVATE cxx_std_26)
 target_compile_definitions(frigga_tests PRIVATE
         FRIGGA_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
+        FRIGGA_SOURCE_ROOT="${CMAKE_SOURCE_DIR}"
 )
 
 target_include_directories(frigga_tests PRIVATE

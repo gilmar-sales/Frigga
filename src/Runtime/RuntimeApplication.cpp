@@ -4,6 +4,8 @@
 #include <Frigga/ECS/EcsLayout.hpp>
 #include <Frigga/Input/InputMapIO.hpp>
 
+#include <chrono>
+#include <cstdlib>
 #include <format>
 
 RuntimeApplication::RuntimeApplication(const skr::Arc<skr::ServiceProvider> &serviceProvider)
@@ -23,6 +25,11 @@ RuntimeApplication::RuntimeApplication(const skr::Arc<skr::ServiceProvider> &ser
     {
         mWindow->Close();
         return;
+    }
+
+    if(const char *profilePath = std::getenv("FRIGGA_PROFILE_FILE"))
+    {
+        mProfiler = std::make_unique<fg::FrameProfiler>(profilePath);
     }
 
     assets->SetResourcesRoot(project->root / "Resources");
@@ -110,6 +117,7 @@ RuntimeApplication::RuntimeApplication(const skr::Arc<skr::ServiceProvider> &ser
 
 void RuntimeApplication::RenderScene()
 {
+    const auto frameStarted = std::chrono::steady_clock::now();
     if(mSimulation)
     {
         mSimulation->FlushPending();
@@ -127,4 +135,8 @@ void RuntimeApplication::RenderScene()
     }
     mRegistry->ExecuteTasks();
     mRegistry->Update(mWindow->GetDeltaTime());
+    if(mProfiler)
+    {
+        mProfiler->Record("RuntimeFrame", std::chrono::steady_clock::now() - frameStarted);
+    }
 }

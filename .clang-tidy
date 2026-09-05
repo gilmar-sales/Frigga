@@ -1,0 +1,11 @@
+Checks: >-
+  -*,
+  bugprone-*,
+  performance-*,
+  portability-*,
+  readability-container-size-empty,
+  readability-redundant-string-cstr,
+  modernize-use-nullptr
+WarningsAsErrors: ''
+HeaderFilterRegex: '(^|/)(include|src|test|bench)/'
+FormatStyle: file

@@ -48,7 +48,7 @@ jobs:
           echo "deb http://archive.ubuntu.com/ubuntu stonking main universe" | sudo tee /etc/apt/sources.list.d/stonking-toolchain.list
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-            glslc ninja-build \
+            glslc ninja-build gcovr \
             libx11-dev libxext-dev libxrandr-dev libxcursor-dev \
             libxi-dev libxinerama-dev libxxf86vm-dev libxss-dev \
             libxkbcommon-dev libxkbcommon-x11-dev \
@@ -135,6 +135,49 @@ jobs:
         shell: bash
         run: ctest --output-on-failure -C Release
 
+      - name: Sanitizer build
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          cmake -S . -B build-sanitize -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DFRIGGA_ENABLE_SANITIZERS=ON
+          cmake --build build-sanitize --target frigga_tests --parallel 2
+          ctest --test-dir build-sanitize --output-on-failure
+
+      - name: Coverage build
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          cmake -S . -B build-coverage -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DFRIGGA_ENABLE_COVERAGE=ON
+          cmake --build build-coverage --target frigga_tests --parallel 2
+          ctest --test-dir build-coverage --output-on-failure
+          gcovr --root . --object-directory build-coverage \
+            --xml-pretty --output coverage.xml \
+            --exclude 'build-coverage/_deps'
+
+      - name: Benchmark build
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          cmake -S . -B build-bench -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DFRIGGA_BUILD_BENCHMARKS=ON
+          cmake --build build-bench --target frigga_benchmarks --parallel 2
+          ./build-bench/frigga_benchmarks
+
+      - name: Static analysis
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends clang-tidy
+          cmake -S . -B build-tidy -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_CLANG_TIDY=clang-tidy
+          cmake --build build-tidy --target frigga_tests --parallel 2
+
       - name: Stage
         shell: bash
         run: |
@@ -191,3 +234,12 @@ jobs:
         with:
           files: ${{ steps.pack.outputs.asset }}
           fail_on_unmatched_files: true
+
+  macos-contract:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate macOS platform contract
+        run: |
+          cmake -S . -B build-macos-contract \
+            -DFRIGGA_PLATFORM_CONTRACT_ONLY=ON

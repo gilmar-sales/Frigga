@@ -24,8 +24,11 @@
 #include "Workflows/ShadingWorkflow.hpp"
 
 #include <Frigga/Frigga.hpp>
+#include <Frigga/Diagnostics/RuntimeDiagnostics.hpp>
 
 #include <algorithm>
+#include <cstdlib>
+#include <string_view>
 
 namespace
 {
@@ -83,6 +86,9 @@ namespace
 
 int main(int argc, char *argv[])
 {
+    const char *crashFile = std::getenv("FRIGGA_CRASH_FILE");
+    fg::CrashReporter::Install(crashFile != nullptr ? crashFile : "frigga-crash.log");
+
     // Early Bind so Freya/Freyr WithOptions can apply values before Build().
     const auto startupPreferences = PreferencesStore::Load();
 
@@ -92,7 +98,18 @@ int main(int argc, char *argv[])
                 PreferencesStore::Configure(configurationBuilder);
             })
             .WithExtension<skr::LoggingExtension>([](skr::LoggingExtension &logging) {
-                logging.AddConsoleSink().AddFileSink("frigga.log");
+                const char *logFile = std::getenv("FRIGGA_LOG_FILE");
+                const char *jsonFile = std::getenv("FRIGGA_LOG_JSON");
+                const char *console = std::getenv("FRIGGA_LOG_CONSOLE");
+                if(console == nullptr || std::string_view(console) != "0")
+                {
+                    logging.AddConsoleSink();
+                }
+                logging.AddFileSink(logFile != nullptr ? logFile : "frigga.log");
+                if(jsonFile != nullptr && *jsonFile != '\0')
+                {
+                    logging.AddJsonSink(jsonFile);
+                }
             })
             .WithExtension<fg::FriggaExtension>()
             .WithExtension<fra::FreyaExtension>([&](fra::FreyaExtension &freya) {

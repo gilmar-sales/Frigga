@@ -13,6 +13,28 @@ endif ()
 
 set(CMAKE_CXX_STANDARD 26)
 
+option(FRIGGA_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
+option(FRIGGA_ENABLE_COVERAGE "Enable GCC/Clang coverage instrumentation" OFF)
+option(FRIGGA_BUILD_BENCHMARKS "Build Frigga performance benchmarks" OFF)
+option(FRIGGA_PLATFORM_CONTRACT_ONLY "Validate platform conditionals without fetching dependencies" OFF)
+
+if(FRIGGA_PLATFORM_CONTRACT_ONLY)
+    if(NOT APPLE)
+        message(FATAL_ERROR "FRIGGA_PLATFORM_CONTRACT_ONLY is intended for macOS validation")
+    endif()
+    message(STATUS "Frigga macOS platform contract validated")
+    return()
+endif()
+
+if(FRIGGA_ENABLE_SANITIZERS)
+    add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=address,undefined)
+endif()
+if(FRIGGA_ENABLE_COVERAGE)
+    add_compile_options(--coverage)
+    add_link_options(--coverage)
+endif()
+
 if (NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
     set(CMAKE_GENERATOR_PLATFORM "x64" CACHE STRING "Target platform" FORCE)
 endif ()
@@ -274,6 +296,13 @@ file(REMOVE
 # --- Tests -----------------------------------------------------------------
 enable_testing()
 add_subdirectory(test)
+
+if(FRIGGA_BUILD_BENCHMARKS)
+    add_executable(frigga_benchmarks
+            bench/AssetPipelineBenchmark.cpp)
+    target_compile_features(frigga_benchmarks PRIVATE cxx_std_26)
+    target_link_libraries(frigga_benchmarks PRIVATE frigga::frigga)
+endif()
 
 # --- Install / packaging ---------------------------------------------------
 include(GNUInstallDirs)
