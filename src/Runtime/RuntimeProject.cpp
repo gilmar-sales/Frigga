@@ -212,9 +212,5 @@ bool RuntimeProject::Load(const std::filesystem::path &projectFile,
         }
     }
 
-    if(project.modules.empty())
-    {
-        AddModule(R"({"id":"gameplay","name":"Gameplay"})", project);
-    }
     return true;
 }

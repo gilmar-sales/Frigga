@@ -51,3 +51,28 @@ TEST(RuntimeProject, LoadsStartupSceneAndEnabledModules)
     std::error_code ec;
     std::filesystem::remove_all(root, ec);
 }
+
+TEST(RuntimeProject, AllowsProjectsWithoutModules)
+{
+    const auto root = std::filesystem::temp_directory_path() /
+                      ("frigga-runtime-empty-" +
+                       std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    std::filesystem::create_directories(root);
+    const auto projectFile = root / "frigga.project";
+    {
+        std::ofstream file(projectFile);
+        file << R"json({
+  "name": "EmptyProject",
+  "scene": "scenes/main.json",
+  "modules": []
+})json";
+    }
+
+    RuntimeProject project;
+    std::string error;
+    ASSERT_TRUE(RuntimeProject::Load(projectFile, project, error)) << error;
+    EXPECT_TRUE(project.modules.empty());
+
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+}

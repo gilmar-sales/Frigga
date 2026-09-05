@@ -297,17 +297,14 @@ struct Health: fr::Component
     {
         std::ostringstream out;
         out << "# " << desc.name << "\n\n";
-        out << "Frigga gameplay project (" << desc.TemplateId() << " template).\n\n";
+        out << "Frigga project (" << desc.TemplateId() << " template).\n\n";
         out << "## Layout\n\n";
         out << "- `frigga.project` — project metadata\n";
         out << "- `input.json` — named Actions / Axes bindings\n";
         out << "- `ecs.json` — ECS pipeline / system layout (created on first Editor open)\n";
         out << "- `scenes/main.json` — default scene\n";
         out << "- `Resources/` — models, textures, prefabs, and fonts owned by this project\n";
-        out << "- `Modules/` — shared libraries (`gameplay`, optional extras)\n";
-        out << "- `Modules/gameplay/src/systems/` — Freyr systems\n";
-        out << "- `Modules/gameplay/src/components/` — project POD components (example: Health)\n";
-        out << "- `Modules/gameplay/src/GameplayModule.cpp` — FRI_MODULE entry\n";
+        out << "- `Modules/` — optional user-organized shared libraries\n";
         out << "- `include/frigga_user_components.hpp` — FriSet / FriTryGet helpers\n\n";
         out << "## Branding and publishing metadata\n\n";
         out << "The `publish` section of `frigga.project` controls the executable identity: "
@@ -335,7 +332,7 @@ struct Health: fr::Component
         out << "Tick order: **Simulation** (gameplay + physics) → **Main** (audio + camera) → "
                "**Render** (animation preview + draw, always last). Edit mode keeps only "
                "Render; Simulation and Main tick in Play.\n\n";
-        out << "## Build the module\n\n";
+        out << "## Build modules\n\n";
         out << "Requires a **C++26** compiler with reflection (GCC 16+ or Clang 22+), "
                "same as Frigga.\n\n";
         out << "Point CMake at the packaged self-contained `Sdk/` next to the Editor "
@@ -354,12 +351,13 @@ struct Health: fr::Component
                "(Editor binary dir with `_deps/`) for local dependency headers.\n\n";
         out << "Or use **File → Build Gameplay Module** (Ctrl+B) in the Editor "
                "(passes SDK paths and forces `gnu++26` + `-freflection`).\n\n";
-        out << "The shared library is written to `" << desc.moduleLibraryRelative << "`.\n";
-        out << "It resolves Freyr symbols from the Editor process (do not link `libfreyr.a` into the "
-               "module).\n";
-        out << "In the Editor: **File → Build Gameplay Module** (Ctrl+B), then **Reload Gameplay "
-               "Module** "
-               "(Ctrl+R), and press Play.\n\n";
+        if(!desc.modules.empty())
+        {
+            out << "The shared libraries resolve Freyr symbols from the Editor process (do not "
+                   "link `libfreyr.a` into a module).\n";
+            out << "In the Editor: **File → Build Gameplay Modules** (Ctrl+B), then **Reload "
+                   "Gameplay Modules** (Ctrl+R), and press Play.\n\n";
+        }
         out << "## Publish the game\n\n";
         out << "Use **Project → Publish Game...** in the Editor and choose an empty "
                "destination folder. The Editor configures a separate `build-release/` "
@@ -459,28 +457,6 @@ ProjectManagedWriteResult ProjectScaffold::WriteManagedFiles(
     {
         result.error = "Failed to write frigga_user_components.hpp";
         return result;
-    }
-
-    const auto gameplayRoot = projectRoot / ProjectDescriptor::ModulesDirName / "gameplay";
-    if(!WriteTextFile(gameplayRoot / "CMakeLists.txt", MakeGameplayModuleCMake()))
-    {
-        result.error = "Failed to write Modules/gameplay/CMakeLists.txt";
-        return result;
-    }
-    if(!std::filesystem::exists(gameplayRoot / ModuleCatalog::ManifestFileName))
-    {
-        DiscoveredModule gameplayManifest;
-        gameplayManifest.id              = "gameplay";
-        gameplayManifest.name            = "Gameplay";
-        gameplayManifest.target          = "gameplay";
-        gameplayManifest.libraryRelative = desc.moduleLibraryRelative.empty()
-                                               ? ProjectDescriptor::DefaultLibraryRelative("gameplay")
-                                               : desc.moduleLibraryRelative;
-        if(!ModuleCatalog::WriteManifest(gameplayRoot, gameplayManifest))
-        {
-            result.error = "Failed to write Modules/gameplay/module.json";
-            return result;
-        }
     }
 
     std::string inputError;
@@ -811,7 +787,6 @@ bool ProjectScaffold::CreateExtraModule(const std::filesystem::path &projectRoot
                                                   .libraryRelative = manifest.libraryRelative,
                                                   .enabled         = true,
                                                   .source          = ModuleSource::Project});
-    desc.EnsureGameplayModule();
     if(!SyncManagedModuleSubdirs(projectRoot, desc, error))
     {
         return false;
@@ -854,7 +829,6 @@ bool ProjectScaffold::InstallModule(const std::filesystem::path &projectRoot,
                                                                                  : discovered->target),
                                                   .enabled         = true,
                                                   .source          = ModuleSource::User});
-    desc.EnsureGameplayModule();
     return SyncManagedModuleSubdirs(projectRoot, desc, error);
 }
 
@@ -865,7 +839,6 @@ ProjectScaffoldResult ProjectScaffold::Create(const std::filesystem::path &paren
     ProjectScaffoldResult result;
     ProjectDescriptor desc = descIn;
     desc.formatVersion     = ProjectDescriptor::CurrentFormatVersion;
-    desc.EnsureGameplayModule();
 
     if(desc.name.empty())
     {
@@ -913,36 +886,6 @@ ProjectScaffoldResult ProjectScaffold::Create(const std::filesystem::path &paren
     if(!managed.ok)
     {
         result.error = managed.error;
-        return result;
-    }
-
-    if(!MaybeRewriteManagedModuleEntry(projectRoot, result.error) ||
-       !MaybeRewriteManagedGameplaySystem(projectRoot, result.error))
-    {
-        return result;
-    }
-
-    const auto gameplayRoot = projectRoot / ProjectDescriptor::ModulesDirName / "gameplay";
-    if(!WriteTextFile(gameplayRoot / "CMakeLists.txt", MakeGameplayModuleCMake()))
-    {
-        result.error = "Failed to write Modules/gameplay/CMakeLists.txt";
-        return result;
-    }
-    DiscoveredModule gameplayManifest;
-    gameplayManifest.id              = "gameplay";
-    gameplayManifest.name            = "Gameplay";
-    gameplayManifest.target          = "gameplay";
-    gameplayManifest.libraryRelative = desc.moduleLibraryRelative;
-    if(!ModuleCatalog::WriteManifest(gameplayRoot, gameplayManifest))
-    {
-        result.error = "Failed to write Modules/gameplay/module.json";
-        return result;
-    }
-
-    std::string exampleError;
-    if(!WriteExampleUserComponents(projectRoot, exampleError))
-    {
-        result.error = exampleError;
         return result;
     }
 

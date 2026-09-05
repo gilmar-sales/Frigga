@@ -1,5 +1,6 @@
 #include "ProjectFile.hpp"
 
+#include <algorithm>
 #include <cctype>
 #include <fstream>
 #include <sstream>
@@ -263,7 +264,6 @@ namespace
 bool ProjectFile::Save(const std::filesystem::path &projectFile, const ProjectDescriptor &desc)
 {
     ProjectDescriptor written = desc;
-    written.EnsureGameplayModule();
     written.SyncGameplayMirror();
     written.EnsureBranding();
 
@@ -288,10 +288,15 @@ bool ProjectFile::Save(const std::filesystem::path &projectFile, const ProjectDe
     json << "    \"iconMacOS\": \"" << EscapeJson(written.branding.iconMacOS.generic_string())
          << "\"\n";
     json << "  },\n";
-    json << "  \"module\": {\n";
-    json << "    \"target\": \"" << EscapeJson(written.moduleTarget) << "\",\n";
-    json << "    \"library\": \"" << EscapeJson(written.moduleLibraryRelative) << "\"\n";
-    json << "  },\n";
+    const auto hasGameplay = std::ranges::any_of(
+        written.modules, [](const ProjectModuleEntry &entry) { return entry.IsGameplay(); });
+    if(hasGameplay)
+    {
+        json << "  \"module\": {\n";
+        json << "    \"target\": \"" << EscapeJson(written.moduleTarget) << "\",\n";
+        json << "    \"library\": \"" << EscapeJson(written.moduleLibraryRelative) << "\"\n";
+        json << "  },\n";
+    }
     json << "  \"modules\": [\n";
     for(std::size_t i = 0; i < written.modules.size(); ++i)
     {
@@ -399,7 +404,6 @@ std::optional<ProjectDescriptor> ProjectFile::Load(const std::filesystem::path &
     desc.friggaBuild = build;
 
     ExtractModulesArray(text, desc.modules);
-    desc.EnsureGameplayModule();
     desc.SyncGameplayMirror();
     desc.EnsureBranding();
 

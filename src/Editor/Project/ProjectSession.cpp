@@ -699,8 +699,6 @@ bool ProjectSession::CreateProject(const std::filesystem::path &parentDir, std::
 #else
     desc.moduleLibraryRelative = "build/lib" + desc.moduleTarget + ".so";
 #endif
-    desc.EnsureGameplayModule();
-
     const auto result = ProjectScaffold::Create(parentDir, desc, *mScene);
     if(!result.ok)
     {
@@ -753,7 +751,6 @@ bool ProjectSession::OpenProject(const std::filesystem::path &projectFile)
     // Register gameplay types before scene deserialize so userComponents apply immediately.
     mProjectFile = projectFile;
     mDescriptor  = *loaded;
-    mDescriptor.EnsureGameplayModule();
 
     const auto root      = projectFile.parent_path();
     const auto scenePath = root / loaded->sceneRelativePath;
@@ -1506,7 +1503,6 @@ void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::pa
                 const auto target = entry.target.empty() ? entry.id : entry.target;
                 entry.libraryRelative = PublishedModuleLibrary(target);
             }
-            publishedDescriptor.EnsureGameplayModule();
             if(!ProjectFile::Save(staging / ProjectFile::FileName, publishedDescriptor))
             {
                 appendLog("Unable to write sanitized published project manifest");
@@ -1567,7 +1563,6 @@ bool ProjectSession::ReloadModule()
     if(const auto loaded = ProjectFile::Load(*mProjectFile))
     {
         auto desc = *loaded;
-        desc.EnsureGameplayModule();
         mDescriptor = std::move(desc);
     }
 
@@ -1694,11 +1689,14 @@ void ProjectSession::touchRecent()
 
 std::filesystem::path ProjectSession::moduleLibraryAbsolute() const
 {
-    ProjectModuleEntry gameplay;
-    gameplay.id              = "gameplay";
-    gameplay.target          = mDescriptor.moduleTarget.empty() ? "gameplay" : mDescriptor.moduleTarget;
-    gameplay.libraryRelative = mDescriptor.moduleLibraryRelative;
-    return moduleLibraryAbsolute(gameplay);
+    for(const auto &entry : mDescriptor.modules)
+    {
+        if(entry.IsGameplay())
+        {
+            return moduleLibraryAbsolute(entry);
+        }
+    }
+    return {};
 }
 
 std::filesystem::path ProjectSession::moduleLibraryAbsolute(const ProjectModuleEntry &entry) const
@@ -1764,7 +1762,6 @@ bool ProjectSession::anyEnabledModuleMissing() const
     }
 
     ProjectDescriptor desc = mDescriptor;
-    desc.EnsureGameplayModule();
     for(const auto &entry : desc.LoadOrder())
     {
         const auto lib = moduleLibraryAbsolute(entry);
@@ -1804,7 +1801,6 @@ bool ProjectSession::tryLoadPendingStartupScene()
 
 bool ProjectSession::loadEnabledModules()
 {
-    mDescriptor.EnsureGameplayModule();
     std::vector<fg::ModuleLoadRequest> requests;
     for(const auto &entry : mDescriptor.LoadOrder())
     {
@@ -1838,7 +1834,6 @@ bool ProjectSession::SaveDescriptor()
     {
         return false;
     }
-    mDescriptor.EnsureGameplayModule();
     return ProjectFile::Save(*mProjectFile, mDescriptor);
 }
 

@@ -4,6 +4,7 @@
 #include "ProjectFile.hpp"
 #include "ProjectScaffold.hpp"
 
+#include <algorithm>
 #include <sstream>
 
 namespace
@@ -18,22 +19,17 @@ namespace
             return false;
         }
 
-        if(!ProjectScaffold::WriteExampleUserComponents(projectRoot, error))
-        {
-            return false;
-        }
-
         if(!ProjectScaffold::EnsureDefaultInputJson(projectRoot, error))
         {
             return false;
         }
 
-        if(!ProjectScaffold::MaybeRewriteManagedModuleEntry(projectRoot, error))
-        {
-            return false;
-        }
-
-        if(!ProjectScaffold::MaybeRewriteManagedGameplaySystem(projectRoot, error))
+        const auto hasGameplay = std::ranges::any_of(
+            desc.modules, [](const ProjectModuleEntry &entry) { return entry.IsGameplay(); });
+        if(hasGameplay &&
+           (!ProjectScaffold::WriteExampleUserComponents(projectRoot, error) ||
+            !ProjectScaffold::MaybeRewriteManagedModuleEntry(projectRoot, error) ||
+            !ProjectScaffold::MaybeRewriteManagedGameplaySystem(projectRoot, error)))
         {
             return false;
         }
@@ -107,6 +103,11 @@ ProjectMigrationResult ProjectMigrator::Migrate(const std::filesystem::path &pro
         return result;
     }
 
+    if(result.fromVersion < ProjectDescriptor::CurrentFormatVersion && desc.modules.empty())
+    {
+        desc.EnsureGameplayModule();
+    }
+
     // Legacy projects used modules/ (lowercase); current projects use Modules/.
     std::string stepError;
     if(!ApplyManagedLayout(projectFile.parent_path(), desc, stepError))
@@ -133,7 +134,10 @@ ProjectMigrationResult ProjectMigrator::Migrate(const std::filesystem::path &pro
         msg << "Applied project format v" << result.toVersion
             << " (Modules/ layout, FRI_MODULE)";
     }
-    msg << ". Rebuild the gameplay module.";
+    if(!desc.modules.empty())
+    {
+        msg << ". Rebuild the project modules.";
+    }
     result.message = msg.str();
     return result;
 }
