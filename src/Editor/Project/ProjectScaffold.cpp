@@ -61,20 +61,30 @@ namespace
         return out.str();
     }
 
+    std::string MakeCmakeIdentifier(std::string value)
+    {
+        if(value.empty())
+        {
+            return "FriggaGame";
+        }
+        for(char &ch : value)
+        {
+            if(!std::isalnum(static_cast<unsigned char>(ch)) && ch != '_')
+            {
+                ch = '_';
+            }
+        }
+        if(std::isdigit(static_cast<unsigned char>(value.front())))
+        {
+            value.insert(value.begin(), '_');
+        }
+        return value;
+    }
+
     std::string MakeCMakeUserPresets(const ProjectDescriptor &desc)
     {
         const auto sdk   = EffectiveFriggaSdk(desc).generic_string();
         const auto build = EffectiveFriggaBuild(desc).generic_string();
-        auto runtimeBase = EffectiveFriggaBuild(desc);
-        if(runtimeBase.filename() == "Sdk")
-        {
-            runtimeBase = runtimeBase.parent_path();
-        }
-#ifdef _WIN32
-        const auto runtime = (runtimeBase / "Runtime.exe").generic_string();
-#else
-        const auto runtime = (runtimeBase / "Runtime").generic_string();
-#endif
         std::ostringstream out;
         out << "{\n";
         out << "  \"version\": 6,\n";
@@ -89,8 +99,16 @@ namespace
         out << "        \"CMAKE_BUILD_TYPE\": \"Debug\",\n";
         out << "        \"CMAKE_CXX_STANDARD\": \"26\",\n";
         out << "        \"FRIGGA_SDK\": \"" << EscapeJson(sdk) << "\",\n";
-        out << "        \"FRIGGA_BUILD\": \"" << EscapeJson(build) << "\",\n";
-        out << "        \"FRIGGA_RUNTIME\": \"" << EscapeJson(runtime) << "\"\n";
+        out << "        \"FRIGGA_BUILD\": \"" << EscapeJson(build) << "\"\n";
+        out << "      }\n";
+        out << "    },\n";
+        out << "    {\n";
+        out << "      \"name\": \"publish\",\n";
+        out << "      \"displayName\": \"Frigga (Release publish)\",\n";
+        out << "      \"inherits\": \"default\",\n";
+        out << "      \"binaryDir\": \"${sourceDir}/build-release\",\n";
+        out << "      \"cacheVariables\": {\n";
+        out << "        \"CMAKE_BUILD_TYPE\": \"Release\"\n";
         out << "      }\n";
         out << "    }\n";
         out << "  ]\n";
@@ -118,34 +136,54 @@ namespace
 
     std::string MakeCMakeLists(const ProjectDescriptor &desc)
     {
+        ProjectDescriptor written = desc;
+        written.EnsureBranding();
+        const auto target = MakeCmakeIdentifier(written.branding.executableName);
         std::ostringstream out;
         out << "cmake_minimum_required(VERSION 3.29)\n";
-        out << "project(" << desc.name << "Gameplay LANGUAGES CXX)\n\n";
+        out << "project(" << target << " LANGUAGES CXX)\n\n";
         out << "set(CMAKE_CXX_STANDARD 26)\n";
         out << "set(CMAKE_CXX_STANDARD_REQUIRED ON)\n";
         out << "set(CMAKE_CXX_EXTENSIONS ON)\n";
         out << "set(CMAKE_POSITION_INDEPENDENT_CODE ON)\n";
         out << "set(CMAKE_CXX_SCAN_FOR_MODULES 0)\n\n";
         out << "set(FRIGGA_SDK \"\" CACHE PATH \"Frigga SDK or source tree\")\n";
-        out << "set(FRIGGA_RUNTIME \"\" CACHE FILEPATH \"Frigga Runtime executable\")\n";
         out << "if(NOT FRIGGA_SDK AND DEFINED ENV{FRIGGA_SDK} AND NOT \"$ENV{FRIGGA_SDK}\" STREQUAL \"\")\n";
         out << "  set(FRIGGA_SDK \"$ENV{FRIGGA_SDK}\" CACHE PATH \"Frigga SDK or source tree\" FORCE)\n";
         out << "endif()\n";
         out << "if(NOT FRIGGA_SDK)\n";
         out << "  message(FATAL_ERROR \"Frigga SDK not found. Configure with -DFRIGGA_SDK=<path>, set FRIGGA_SDK, or use CMakeUserPresets.json.\")\n";
         out << "endif()\n";
-        out << "if(NOT FRIGGA_RUNTIME AND DEFINED ENV{FRIGGA_RUNTIME} AND NOT \"$ENV{FRIGGA_RUNTIME}\" STREQUAL \"\")\n";
-        out << "  set(FRIGGA_RUNTIME \"$ENV{FRIGGA_RUNTIME}\" CACHE FILEPATH \"Frigga Runtime executable\" FORCE)\n";
-        out << "endif()\n";
-        out << "if(NOT FRIGGA_RUNTIME)\n";
-        out << "  message(FATAL_ERROR \"Frigga Runtime not found. Configure with -DFRIGGA_RUNTIME=<path> or set FRIGGA_RUNTIME.\")\n";
-        out << "endif()\n";
         out << "if(NOT EXISTS \"${FRIGGA_SDK}/cmake/FriggaSdk.cmake\")\n";
         out << "  message(FATAL_ERROR \"Invalid Frigga SDK: ${FRIGGA_SDK}/cmake/FriggaSdk.cmake not found\")\n";
         out << "endif()\n";
         out << "include(\"${FRIGGA_SDK}/cmake/FriggaSdk.cmake\")\n\n";
-        out << "frigga_install_game(\"${FRIGGA_RUNTIME}\" \"" << desc.name << "\")\n\n";
+        out << "frigga_add_game(" << target << "\n";
+        out << "  NAME \"" << written.branding.executableName << "\"\n";
+        out << "  DISPLAY_NAME \"" << written.branding.displayName << "\"\n";
+        out << "  PUBLISHER \"" << written.branding.publisher << "\"\n";
+        out << "  COPYRIGHT \"" << written.branding.copyright << "\"\n";
+        out << "  VERSION \"" << written.branding.version << "\"\n";
+        out << "  IDENTIFIER \"" << written.branding.identifier << "\"\n";
+        if(!written.branding.iconWindows.empty())
+        {
+            out << "  ICON_WINDOWS \"${CMAKE_CURRENT_SOURCE_DIR}/"
+                << written.branding.iconWindows.generic_string() << "\"\n";
+        }
+        if(!written.branding.iconLinux.empty())
+        {
+            out << "  ICON_LINUX \"${CMAKE_CURRENT_SOURCE_DIR}/"
+                << written.branding.iconLinux.generic_string() << "\"\n";
+        }
+        if(!written.branding.iconMacOS.empty())
+        {
+            out << "  ICON_MACOS \"${CMAKE_CURRENT_SOURCE_DIR}/"
+                << written.branding.iconMacOS.generic_string() << "\"\n";
+        }
+        out << ")\n\n";
         out << MakeManagedModuleSubdirsBlock(desc);
+        out << "\nfrigga_install_game(" << target << " \"" << written.branding.executableName
+            << "\")\n";
         return out.str();
     }
 
@@ -271,6 +309,11 @@ struct Health: fr::Component
         out << "- `modules/gameplay/src/components/` — project POD components (example: Health)\n";
         out << "- `modules/gameplay/src/GameplayModule.cpp` — FRI_MODULE entry\n";
         out << "- `include/frigga_user_components.hpp` — FriSet / FriTryGet helpers\n\n";
+        out << "## Branding and publishing metadata\n\n";
+        out << "The `publish` section of `frigga.project` controls the executable identity: "
+               "`displayName`, `executableName`, `publisher`, `copyright`, `version`, and "
+               "`identifier`. Optional platform icons can be set with `iconWindows` (`.ico`), "
+               "`iconLinux` (`.png`), and `iconMacOS` (`.icns`).\n\n";
         out << "## Project components\n\n";
         out << "1. Declare `struct Foo : fr::Component { float x; };`\n";
         out << "2. In `FRI_MODULE`: `module.Component<Foo>()`\n";
@@ -319,9 +362,10 @@ struct Health: fr::Component
                "(Ctrl+R), and press Play.\n\n";
         out << "## Publish the game\n\n";
         out << "Use **Project → Publish Game...** in the Editor and choose an empty "
-               "destination folder. The Release build copies the standalone Runtime, "
-               "enabled gameplay modules, scene, and Resources into a distributable "
-               "folder that does not require the Editor, SDK, CMake, or source tree.\n\n";
+               "destination folder. The Editor configures a separate `build-release/` "
+               "tree and compiles the project executable and enabled modules in Release. "
+               "The result contains the project executable, scene, Resources, and modules "
+               "without requiring the Editor, SDK, CMake, or source tree.\n\n";
         out << "## Debug gameplay code\n\n";
         out << "1. Keep the Frigga Editor open on this project.\n";
         out << "2. Open this folder in VS Code with the Frigga extension.\n";

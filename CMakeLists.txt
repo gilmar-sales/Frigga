@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.29)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # CI release builds pass -DFRIGGA_VERSION=<tag without leading v>.
-set(FRIGGA_VERSION "0.10.0" CACHE STRING "Frigga package version")
+set(FRIGGA_VERSION "0.12.0" CACHE STRING "Frigga package version")
 project(Frigga LANGUAGES CXX VERSION ${FRIGGA_VERSION})
 
 if (NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
@@ -138,6 +138,47 @@ if(UNIX AND NOT APPLE)
     target_link_libraries(frigga PRIVATE pthread m)
 endif()
 
+set(_FRIGGA_SDK_BINARY_STAMP "${FRIGGA_SDK_DIR}/.engine-libraries.stamp")
+set(_FRIGGA_SDK_BINARY_TARGETS
+        frigga
+        Freya::Freya
+        freyr::freyr
+        skirnir::skirnir
+        simdjson
+        imgui::imgui
+        Jolt
+        SDL3::SDL3)
+add_custom_command(
+        OUTPUT "${_FRIGGA_SDK_BINARY_STAMP}"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${FRIGGA_SDK_DIR}/lib"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:frigga>"
+                "${FRIGGA_SDK_DIR}/lib/$<TARGET_FILE_NAME:frigga>"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:Freya::Freya>"
+                "${FRIGGA_SDK_DIR}/lib/$<TARGET_FILE_NAME:Freya::Freya>"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:freyr::freyr>"
+                "${FRIGGA_SDK_DIR}/lib/$<TARGET_FILE_NAME:freyr::freyr>"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:skirnir::skirnir>"
+                "${FRIGGA_SDK_DIR}/lib/$<TARGET_FILE_NAME:skirnir::skirnir>"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:simdjson>"
+                "${FRIGGA_SDK_DIR}/lib/$<TARGET_FILE_NAME:simdjson>"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:imgui::imgui>"
+                "${FRIGGA_SDK_DIR}/lib/$<TARGET_FILE_NAME:imgui::imgui>"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:Jolt>"
+                "${FRIGGA_SDK_DIR}/lib/$<TARGET_FILE_NAME:Jolt>"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:SDL3::SDL3>"
+                "${FRIGGA_SDK_DIR}/lib/$<TARGET_FILE_NAME:SDL3::SDL3>"
+        COMMAND ${CMAKE_COMMAND} -E touch "${_FRIGGA_SDK_BINARY_STAMP}"
+        DEPENDS ${_FRIGGA_SDK_BINARY_TARGETS})
+add_custom_target(FriggaSdkLibraries ALL DEPENDS "${_FRIGGA_SDK_BINARY_STAMP}")
+
 set_source_files_properties(
         src/Frigga/Physics/JoltPhysicsWorld.cpp
         PROPERTIES
@@ -174,6 +215,8 @@ target_compile_features(Runtime PUBLIC cxx_std_26)
 target_link_libraries(Runtime PUBLIC frigga::frigga)
 target_include_directories(Runtime PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src/Runtime")
+add_dependencies(Editor FriggaSdkLibraries)
+add_dependencies(Runtime FriggaSdkLibraries)
 
 # Expose Freyr/Frigga/Skirnir/simdjson to gameplay modules.
 # Linux: undefined refs in the .so bind to the Editor at dlopen.

@@ -2,6 +2,7 @@
 
 #include <Frigga/Scene/Scene.hpp>
 
+#include <cctype>
 #include <cstdint>
 #include <filesystem>
 #include <string>
@@ -28,18 +29,32 @@ struct ProjectModuleEntry
     }
 };
 
+struct ProjectBranding
+{
+    std::string displayName;
+    std::string executableName;
+    std::string publisher;
+    std::string copyright;
+    std::string version = "1.0.0";
+    std::string identifier;
+    std::filesystem::path iconWindows;
+    std::filesystem::path iconLinux;
+    std::filesystem::path iconMacOS;
+};
+
 struct ProjectDescriptor
 {
     /// Persistent project format version written to frigga.project.
     /// Missing / 0 on disk is treated as LegacyFormatVersion (1).
     static constexpr int LegacyFormatVersion  = 1;
-    static constexpr int CurrentFormatVersion = 1;
+    static constexpr int CurrentFormatVersion = 2;
     static constexpr std::string_view ModulesDirName   = "modules";
     static constexpr std::string_view ResourcesDirName = "Resources";
 
     int formatVersion = CurrentFormatVersion;
 
     std::string name;
+    ProjectBranding branding;
     fg::SceneTemplate sceneTemplate = fg::SceneTemplate::D3;
     std::string sceneRelativePath   = "scenes/main.json";
     std::string moduleTarget        = "gameplay";
@@ -51,6 +66,42 @@ struct ProjectDescriptor
     std::filesystem::path friggaSdk;
     std::filesystem::path friggaRoot;
     std::filesystem::path friggaBuild;
+
+    void EnsureBranding()
+    {
+        if(branding.displayName.empty())
+        {
+            branding.displayName = name;
+        }
+        if(branding.executableName.empty())
+        {
+            branding.executableName = name;
+        }
+        if(branding.publisher.empty())
+        {
+            branding.publisher = "Frigga";
+        }
+        if(branding.copyright.empty())
+        {
+            branding.copyright = "Copyright © " + branding.publisher;
+        }
+        if(branding.identifier.empty())
+        {
+            std::string id = branding.executableName;
+            for(char &ch : id)
+            {
+                if(!std::isalnum(static_cast<unsigned char>(ch)))
+                {
+                    ch = '-';
+                }
+                else
+                {
+                    ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+                }
+            }
+            branding.identifier = "com.frigga." + id;
+        }
+    }
 
     [[nodiscard]] std::string TemplateId() const
     {

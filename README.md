@@ -117,25 +117,30 @@ The archive installs `Editor` plus `Resources/` suitable for running from the ex
 ### Publish a standalone game
 
 With a project open, use **Project → Publish Game...** and choose an empty
-destination folder. The Editor configures a Release build, builds all enabled
-gameplay modules, installs the standalone `Runtime`, and copies the project
-scene and resources into the destination. The resulting folder contains no
-Editor, SDK, CMake files, source tree, or `_deps` directory.
+destination folder. The Editor configures a separate `build-release/` tree,
+compiles the project executable and all enabled gameplay modules in Release,
+and copies the platform package with its project identity and branding. The
+resulting folder contains no Editor, SDK, CMake files, source tree, or `_deps`
+directory.
 
 The same operation is available from the command line after configuring the
 project:
 
 ```bash
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
-  -DFRIGGA_SDK=/path/to/Frigga/Sdk \
-  -DFRIGGA_RUNTIME=/path/to/Frigga/Runtime
-cmake --build build --parallel
-cmake --install build --prefix /path/to/published-game
+cmake --preset publish
+cmake --build build-release --parallel
+cmake --install build-release --prefix /path/to/published-game
 ```
 
 Run the published game from its output folder. The Runtime also accepts
 `--project <frigga.project>` and `--scene <scene.json>` for diagnostics; by
 default it loads `frigga.project` and its configured startup scene.
+
+The `publish` section in `frigga.project` controls `displayName`,
+`executableName`, `publisher`, `copyright`, `version`, `identifier`, and
+optional platform icons (`.ico` on Windows, `.png` on Linux, `.icns` on
+macOS). Windows receives PE version metadata, Linux receives `.desktop` and
+AppStream metadata, and macOS is packaged as an `.app` bundle.
 
 Release build:
 

@@ -15,6 +15,12 @@ struct RuntimeModule
 struct RuntimeProject
 {
     std::string name;
+    std::string displayName;
+    std::string executableName;
+    std::string publisher;
+    std::string copyright;
+    std::string version = "1.0.0";
+    std::string identifier;
     std::filesystem::path root;
     std::filesystem::path scene = "scenes/main.json";
     std::vector<RuntimeModule> modules;

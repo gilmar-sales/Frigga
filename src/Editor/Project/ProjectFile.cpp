@@ -159,6 +159,34 @@ namespace
         return false;
     }
 
+    std::string_view ExtractJsonObject(std::string_view text, std::string_view key)
+    {
+        const std::string needle = "\"" + std::string(key) + "\"";
+        const auto keyPos        = text.find(needle);
+        if(keyPos == std::string_view::npos)
+        {
+            return {};
+        }
+        const auto open = text.find('{', keyPos + needle.size());
+        if(open == std::string_view::npos)
+        {
+            return {};
+        }
+        std::size_t depth = 0;
+        for(std::size_t i = open; i < text.size(); ++i)
+        {
+            if(text[i] == '{')
+            {
+                ++depth;
+            }
+            else if(text[i] == '}' && --depth == 0)
+            {
+                return text.substr(open, i - open + 1);
+            }
+        }
+        return {};
+    }
+
     ModuleSource ParseModuleSource(std::string_view value)
     {
         return value == "user" ? ModuleSource::User : ModuleSource::Project;
@@ -237,6 +265,7 @@ bool ProjectFile::Save(const std::filesystem::path &projectFile, const ProjectDe
     ProjectDescriptor written = desc;
     written.EnsureGameplayModule();
     written.SyncGameplayMirror();
+    written.EnsureBranding();
 
     std::ostringstream json;
     json << "{\n";
@@ -244,6 +273,21 @@ bool ProjectFile::Save(const std::filesystem::path &projectFile, const ProjectDe
     json << "  \"name\": \"" << EscapeJson(written.name) << "\",\n";
     json << "  \"template\": \"" << EscapeJson(written.TemplateId()) << "\",\n";
     json << "  \"scene\": \"" << EscapeJson(written.sceneRelativePath) << "\",\n";
+    json << "  \"publish\": {\n";
+    json << "    \"displayName\": \"" << EscapeJson(written.branding.displayName) << "\",\n";
+    json << "    \"executableName\": \"" << EscapeJson(written.branding.executableName)
+         << "\",\n";
+    json << "    \"publisher\": \"" << EscapeJson(written.branding.publisher) << "\",\n";
+    json << "    \"copyright\": \"" << EscapeJson(written.branding.copyright) << "\",\n";
+    json << "    \"version\": \"" << EscapeJson(written.branding.version) << "\",\n";
+    json << "    \"identifier\": \"" << EscapeJson(written.branding.identifier) << "\",\n";
+    json << "    \"iconWindows\": \"" << EscapeJson(written.branding.iconWindows.generic_string())
+         << "\",\n";
+    json << "    \"iconLinux\": \"" << EscapeJson(written.branding.iconLinux.generic_string())
+         << "\",\n";
+    json << "    \"iconMacOS\": \"" << EscapeJson(written.branding.iconMacOS.generic_string())
+         << "\"\n";
+    json << "  },\n";
     json << "  \"module\": {\n";
     json << "    \"target\": \"" << EscapeJson(written.moduleTarget) << "\",\n";
     json << "    \"library\": \"" << EscapeJson(written.moduleLibraryRelative) << "\"\n";
@@ -316,6 +360,30 @@ std::optional<ProjectDescriptor> ProjectFile::Load(const std::filesystem::path &
 
     ExtractJsonStringField(text, "scene", desc.sceneRelativePath);
 
+    const auto publish = ExtractJsonObject(text, "publish");
+    if(!publish.empty())
+    {
+        ExtractJsonStringField(publish, "displayName", desc.branding.displayName);
+        ExtractJsonStringField(publish, "executableName", desc.branding.executableName);
+        ExtractJsonStringField(publish, "publisher", desc.branding.publisher);
+        ExtractJsonStringField(publish, "copyright", desc.branding.copyright);
+        ExtractJsonStringField(publish, "version", desc.branding.version);
+        ExtractJsonStringField(publish, "identifier", desc.branding.identifier);
+        std::string icon;
+        if(ExtractJsonStringField(publish, "iconWindows", icon))
+        {
+            desc.branding.iconWindows = icon;
+        }
+        if(ExtractJsonStringField(publish, "iconLinux", icon))
+        {
+            desc.branding.iconLinux = icon;
+        }
+        if(ExtractJsonStringField(publish, "iconMacOS", icon))
+        {
+            desc.branding.iconMacOS = icon;
+        }
+    }
+
     // Nested module.library / module.target — keys appear as plain "target"/"library".
     ExtractJsonStringField(text, "target", desc.moduleTarget);
     ExtractJsonStringField(text, "library", desc.moduleLibraryRelative);
@@ -333,6 +401,7 @@ std::optional<ProjectDescriptor> ProjectFile::Load(const std::filesystem::path &
     ExtractModulesArray(text, desc.modules);
     desc.EnsureGameplayModule();
     desc.SyncGameplayMirror();
+    desc.EnsureBranding();
 
     return desc;
 }

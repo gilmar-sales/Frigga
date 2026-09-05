@@ -92,6 +92,33 @@ namespace
         return false;
     }
 
+    std::string_view ObjectField(std::string_view text, std::string_view key)
+    {
+        const auto keyPos = text.find("\"" + std::string(key) + "\"");
+        if(keyPos == std::string_view::npos)
+        {
+            return {};
+        }
+        const auto open = text.find('{', keyPos);
+        if(open == std::string_view::npos)
+        {
+            return {};
+        }
+        std::size_t depth = 0;
+        for(std::size_t i = open; i < text.size(); ++i)
+        {
+            if(text[i] == '{')
+            {
+                ++depth;
+            }
+            else if(text[i] == '}' && --depth == 0)
+            {
+                return text.substr(open, i - open + 1);
+            }
+        }
+        return {};
+    }
+
     void AddModule(std::string_view object, RuntimeProject &project)
     {
         RuntimeModule module;
@@ -137,6 +164,18 @@ bool RuntimeProject::Load(const std::filesystem::path &projectFile,
     {
         error = "Project file has no name: " + projectFile.string();
         return false;
+    }
+    project.displayName    = project.name;
+    project.executableName = project.name;
+    const auto publish     = ObjectField(text, "publish");
+    if(!publish.empty())
+    {
+        StringField(publish, "displayName", project.displayName);
+        StringField(publish, "executableName", project.executableName);
+        StringField(publish, "publisher", project.publisher);
+        StringField(publish, "copyright", project.copyright);
+        StringField(publish, "version", project.version);
+        StringField(publish, "identifier", project.identifier);
     }
     std::string scene;
     if(StringField(text, "scene", scene))

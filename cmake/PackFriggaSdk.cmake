@@ -54,19 +54,45 @@ file(COPY "${_FRIGGA_SDK_SIMDJSON}/include/simdjson.h"
           "${_FRIGGA_SDK_SIMDJSON}/include/simdjson"
      DESTINATION "${FRIGGA_SDK_DIR}/include")
 
-file(COPY "${_FRIGGA_SDK_FREYA}/include/Freya/Config.hpp"
-     DESTINATION "${FRIGGA_SDK_DIR}/include/Freya")
-file(WRITE "${FRIGGA_SDK_DIR}/include/Freya/Pch.hpp"
-     "#pragma once\n#ifndef FREYA_NAMESPACE\n#define FREYA_NAMESPACE fra\n#endif\n#include <cstdint>\n#include <type_traits>\n")
-file(COPY "${_FRIGGA_SDK_FREYA}/include/Freya/Events"
-     DESTINATION "${FRIGGA_SDK_DIR}/include/Freya")
+file(COPY "${_FRIGGA_SDK_FREYA}/include/Freya"
+     DESTINATION "${FRIGGA_SDK_DIR}/include")
+if(EXISTS "${CMAKE_BINARY_DIR}/_deps/sdl-src/include/SDL3")
+    file(COPY "${CMAKE_BINARY_DIR}/_deps/sdl-src/include/SDL3"
+         DESTINATION "${FRIGGA_SDK_DIR}/include")
+endif()
+if(EXISTS "${CMAKE_BINARY_DIR}/_deps/joltphysics-src/Jolt")
+    file(COPY "${CMAKE_BINARY_DIR}/_deps/joltphysics-src/Jolt"
+         DESTINATION "${FRIGGA_SDK_DIR}/include")
+endif()
+if(EXISTS "${CMAKE_BINARY_DIR}/_deps/assimp-src/include/assimp")
+    file(COPY "${CMAKE_BINARY_DIR}/_deps/assimp-src/include/assimp"
+         DESTINATION "${FRIGGA_SDK_DIR}/include")
+endif()
+if(EXISTS "${CMAKE_BINARY_DIR}/_deps/assimp-build/include/assimp")
+    file(COPY "${CMAKE_BINARY_DIR}/_deps/assimp-build/include/assimp"
+         DESTINATION "${FRIGGA_SDK_DIR}/include")
+endif()
+if(EXISTS "${CMAKE_BINARY_DIR}/_deps/imgui-src/imgui.h")
+    file(GLOB _FRIGGA_IMGUI_HEADERS
+         "${CMAKE_BINARY_DIR}/_deps/imgui-src/*.h")
+    file(COPY ${_FRIGGA_IMGUI_HEADERS}
+         DESTINATION "${FRIGGA_SDK_DIR}/include")
+endif()
 
 file(COPY "${CMAKE_SOURCE_DIR}/cmake/FriggaSdk.cmake"
      DESTINATION "${FRIGGA_SDK_DIR}/cmake")
+file(COPY "${CMAKE_SOURCE_DIR}/src/Runtime"
+     DESTINATION "${FRIGGA_SDK_DIR}")
+if(EXISTS "${CMAKE_BINARY_DIR}/Resources")
+    file(COPY "${CMAKE_BINARY_DIR}/Resources"
+         DESTINATION "${FRIGGA_SDK_DIR}")
+endif()
 file(COPY "${CMAKE_SOURCE_DIR}/src/Editor/Resources/modules"
      DESTINATION "${FRIGGA_SDK_DIR}")
 file(WRITE "${FRIGGA_SDK_DIR}/CMakeLists.txt"
      "# Frigga gameplay module SDK (packaged with Editor)\n")
+file(WRITE "${FRIGGA_SDK_DIR}/FriggaSdkConfig.cmake"
+     "set(FRIGGA_SDK_BUILD_TYPE \"${CMAKE_BUILD_TYPE}\")\n")
 
 # The Editor POST_BUILD step places a Windows import library in the SDK.
 foreach(_implib IN ITEMS libEditor.dll.a Editor.lib libEditor.lib)
@@ -74,5 +100,32 @@ foreach(_implib IN ITEMS libEditor.dll.a Editor.lib libEditor.lib)
         file(COPY "${CMAKE_BINARY_DIR}/${_implib}" DESTINATION "${FRIGGA_SDK_DIR}")
     endif()
 endforeach()
+
+file(MAKE_DIRECTORY "${FRIGGA_SDK_DIR}/lib")
+foreach(_library IN ITEMS
+        "${CMAKE_BINARY_DIR}/libfrigga.a"
+        "${CMAKE_BINARY_DIR}/_deps/freya-build/libFreya.a"
+        "${CMAKE_BINARY_DIR}/_deps/glm-build/glm/libglm.a"
+        "${CMAKE_BINARY_DIR}/_deps/assimp-build/lib/libassimp.a"
+        "${CMAKE_BINARY_DIR}/_deps/freyr-build/libfreyr.a"
+        "${CMAKE_BINARY_DIR}/_deps/skirnir-build/libskirnir.a"
+        "${CMAKE_BINARY_DIR}/_deps/simdjson-build/libsimdjson.a"
+        "${CMAKE_BINARY_DIR}/_deps/imgui-build/libimgui.a"
+        "${CMAKE_BINARY_DIR}/_deps/joltphysics-build/libJolt.a"
+        "${CMAKE_BINARY_DIR}/_deps/sdl-build/libSDL3.a")
+    if(EXISTS "${_library}")
+        file(COPY "${_library}" DESTINATION "${FRIGGA_SDK_DIR}/lib")
+    endif()
+endforeach()
+file(GLOB _FRIGGA_ENGINE_LIBRARIES
+        "${CMAKE_BINARY_DIR}/*.lib"
+        "${CMAKE_BINARY_DIR}/*.a"
+        "${CMAKE_BINARY_DIR}/_deps/*-build/*.lib"
+        "${CMAKE_BINARY_DIR}/_deps/*-build/*.a"
+        "${CMAKE_BINARY_DIR}/_deps/*-build/lib/*.lib"
+        "${CMAKE_BINARY_DIR}/_deps/*-build/lib/*.a")
+if(_FRIGGA_ENGINE_LIBRARIES)
+    file(COPY ${_FRIGGA_ENGINE_LIBRARIES} DESTINATION "${FRIGGA_SDK_DIR}/lib")
+endif()
 
 message(STATUS "Frigga gameplay SDK: ${FRIGGA_SDK_DIR}")

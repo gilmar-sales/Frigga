@@ -17,6 +17,14 @@ TEST(RuntimeProject, LoadsStartupSceneAndEnabledModules)
         std::ofstream file(projectFile);
         file << R"json({
   "name": "Published",
+  "publish": {
+    "displayName": "Published Game",
+    "executableName": "PublishedGame",
+    "publisher": "Studio",
+    "copyright": "Copyright (C) Studio",
+    "version": "3.2.1",
+    "identifier": "com.studio.published"
+  },
   "scene": "scenes/intro.json",
   "modules": [
     {"id": "camera", "name": "Camera", "library": "build/libcamera.so", "enabled": true},
@@ -29,6 +37,11 @@ TEST(RuntimeProject, LoadsStartupSceneAndEnabledModules)
     std::string error;
     ASSERT_TRUE(RuntimeProject::Load(projectFile, project, error)) << error;
     EXPECT_EQ(project.name, "Published");
+    EXPECT_EQ(project.displayName, "Published Game");
+    EXPECT_EQ(project.executableName, "PublishedGame");
+    EXPECT_EQ(project.publisher, "Studio");
+    EXPECT_EQ(project.version, "3.2.1");
+    EXPECT_EQ(project.identifier, "com.studio.published");
     EXPECT_EQ(project.ScenePath(), root / "scenes/intro.json");
     ASSERT_EQ(project.modules.size(), 2u);
     EXPECT_EQ(project.modules[0].library, "build/libcamera.so");

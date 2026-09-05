@@ -28,7 +28,9 @@ add_executable(frigga_tests
         SceneSerializerAudioSpec.cpp
         AnimGraphDefinitionSpec.cpp
         PrefabSpec.cpp
+        ProjectFileSpec.cpp
         RuntimeProjectSpec.cpp
+        ${CMAKE_SOURCE_DIR}/src/Editor/Project/ProjectFile.cpp
         ${CMAKE_SOURCE_DIR}/src/Runtime/RuntimeProject.cpp
 )
 
@@ -40,6 +42,7 @@ target_compile_definitions(frigga_tests PRIVATE
 target_include_directories(frigga_tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/src/Editor
         ${CMAKE_SOURCE_DIR}/src/Runtime
 )
 

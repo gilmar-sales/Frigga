@@ -47,15 +47,6 @@ namespace
         return path.empty() ? std::filesystem::current_path() : path.parent_path();
     }
 
-    std::filesystem::path RuntimeExecutablePath()
-    {
-#ifdef _WIN32
-        return ExecutableDirectory() / "Runtime.exe";
-#else
-        return ExecutableDirectory() / "Runtime";
-#endif
-    }
-
     std::string EscapeJson(std::string_view value)
     {
         std::string out;
@@ -1239,7 +1230,7 @@ bool ProjectSession::PublishGame(const std::filesystem::path &destination)
 
     joinBuildThread();
     const auto root     = mProjectFile->parent_path();
-    const auto buildDir = root / "build";
+    const auto buildDir = root / "build-release";
     mPublishDestination = destination;
     mPublishing.store(true, std::memory_order_release);
     mReloadAfterBuild = false;
@@ -1322,7 +1313,6 @@ void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::pa
         " -DCMAKE_CXX_EXTENSIONS=ON";
     appendCachePath(configureCmd, "FRIGGA_SDK", engine.friggaSdk);
     appendCachePath(configureCmd, "FRIGGA_BUILD", engine.friggaBuild);
-    appendCachePath(configureCmd, "FRIGGA_RUNTIME", RuntimeExecutablePath());
     if(!cxxCompiler.empty())
     {
         configureCmd += " -DCMAKE_CXX_COMPILER=\"" + cxxCompiler + "\"";

@@ -157,6 +157,11 @@ jobs:
           cp -a build/Sdk publish/
           test -f publish/Sdk/include/Frigga/Module/frigga_module.h
           test -f publish/Sdk/cmake/FriggaSdk.cmake
+          test -f publish/Sdk/Runtime/main.cpp
+          test -f publish/Sdk/FriggaSdkConfig.cmake
+          if [[ "${{ matrix.os }}" != "windows-latest" ]]; then
+            test -f publish/Sdk/lib/libfrigga.a
+          fi
           find publish/Resources/Shaders -name '*.spv' | grep -q .
 
       - name: Upload artifact
