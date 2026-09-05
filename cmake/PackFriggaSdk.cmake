@@ -92,7 +92,11 @@ file(COPY "${CMAKE_SOURCE_DIR}/src/Editor/Resources/Modules"
 file(WRITE "${FRIGGA_SDK_DIR}/CMakeLists.txt"
      "# Frigga gameplay module SDK (packaged with Editor)\n")
 file(WRITE "${FRIGGA_SDK_DIR}/FriggaSdkConfig.cmake"
-     "set(FRIGGA_SDK_BUILD_TYPE \"${CMAKE_BUILD_TYPE}\")\n")
+     "set(FRIGGA_SDK_VERSION \"${PROJECT_VERSION}\")\n"
+     "set(FRIGGA_SDK_ABI_VERSION \"${FRIGGA_SDK_ABI_VERSION}\")\n"
+     "set(FRIGGA_SDK_CXX_STANDARD \"${CMAKE_CXX_STANDARD}\")\n"
+     "set(FRIGGA_SDK_BUILD_TYPE \"${CMAKE_BUILD_TYPE}\")\n"
+     "set(FRIGGA_SDK_PLATFORM \"${CMAKE_SYSTEM_NAME}\")\n")
 
 # The Editor POST_BUILD step places a Windows import library in the SDK.
 foreach(_implib IN ITEMS libEditor.dll.a Editor.lib libEditor.lib)

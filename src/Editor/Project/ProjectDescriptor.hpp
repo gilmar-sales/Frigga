@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Frigga/Scene/Scene.hpp>
+#include <Frigga/Serialization/FormatVersions.hpp>
 
 #include <cctype>
 #include <cstdint>
@@ -46,8 +47,9 @@ struct ProjectDescriptor
 {
     /// Persistent project format version written to frigga.project.
     /// Missing / 0 on disk is treated as LegacyFormatVersion (1).
-    static constexpr int LegacyFormatVersion  = 1;
-    static constexpr int CurrentFormatVersion = 5;
+    static constexpr int LegacyFormatVersion =
+        static_cast<int>(fg::FormatVersion::LegacyProject);
+    static constexpr int CurrentFormatVersion = static_cast<int>(fg::FormatVersion::Project);
     static constexpr std::string_view ModulesDirName   = "Modules";
     static constexpr std::string_view ResourcesDirName = "Resources";
 

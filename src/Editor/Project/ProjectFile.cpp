@@ -1,5 +1,7 @@
 #include "ProjectFile.hpp"
 
+#include <simdjson.h>
+
 #include <algorithm>
 #include <cctype>
 #include <fstream>
@@ -341,69 +343,222 @@ std::optional<ProjectDescriptor> ProjectFile::Load(const std::filesystem::path &
     buffer << file.rdbuf();
     const std::string text = buffer.str();
 
+    simdjson::dom::parser parser;
+    simdjson::dom::element document;
+    if(const auto result = parser.parse(text).get(document);
+       result != simdjson::error_code::SUCCESS)
+    {
+        return std::nullopt;
+    }
+
+    simdjson::dom::object root;
+    if(const auto result = document.get_object().get(root);
+       result != simdjson::error_code::SUCCESS)
+    {
+        return std::nullopt;
+    }
+
+    auto readString = [](simdjson::dom::object object, std::string_view key,
+                         std::string &out, bool required = false) {
+        auto field = object.at_key(key);
+        if(field.error() == simdjson::error_code::NO_SUCH_FIELD)
+        {
+            return !required;
+        }
+        if(field.error() != simdjson::error_code::SUCCESS)
+        {
+            return false;
+        }
+        std::string_view value;
+        if(field.get_string().get(value) != simdjson::error_code::SUCCESS)
+        {
+            return false;
+        }
+        out = value;
+        return true;
+    };
+
+    auto readInt = [](simdjson::dom::object object, std::string_view key, int &out) {
+        auto field = object.at_key(key);
+        if(field.error() == simdjson::error_code::NO_SUCH_FIELD)
+        {
+            return true;
+        }
+        if(field.error() != simdjson::error_code::SUCCESS)
+        {
+            return false;
+        }
+        std::int64_t value = 0;
+        if(field.get_int64().get(value) != simdjson::error_code::SUCCESS)
+        {
+            return false;
+        }
+        out = static_cast<int>(value);
+        return true;
+    };
+
+    auto readObject = [](simdjson::dom::object object, std::string_view key,
+                         simdjson::dom::object &out, bool &present) {
+        auto field = object.at_key(key);
+        if(field.error() == simdjson::error_code::NO_SUCH_FIELD)
+        {
+            present = false;
+            return true;
+        }
+        if(field.error() != simdjson::error_code::SUCCESS)
+        {
+            return false;
+        }
+        present = true;
+        return field.get_object().get(out) == simdjson::error_code::SUCCESS;
+    };
+
     ProjectDescriptor desc;
-    if(!ExtractJsonStringField(text, "name", desc.name))
+    if(!readString(root, "name", desc.name, true))
     {
         return std::nullopt;
     }
 
     int version = ProjectDescriptor::LegacyFormatVersion;
-    if(ExtractJsonIntField(text, "version", version))
+    if(!readInt(root, "version", version))
     {
-        desc.formatVersion = version > 0 ? version : ProjectDescriptor::LegacyFormatVersion;
+        return std::nullopt;
     }
-    else
-    {
-        desc.formatVersion = ProjectDescriptor::LegacyFormatVersion;
-    }
+    desc.formatVersion = version > 0 ? version : ProjectDescriptor::LegacyFormatVersion;
 
     std::string templateId;
-    if(ExtractJsonStringField(text, "template", templateId))
+    if(!readString(root, "template", templateId) || !readString(root, "scene", desc.sceneRelativePath))
+    {
+        return std::nullopt;
+    }
+    if(!templateId.empty())
     {
         desc.sceneTemplate = ProjectDescriptor::TemplateFromId(templateId);
     }
 
-    ExtractJsonStringField(text, "scene", desc.sceneRelativePath);
-
-    const auto publish = ExtractJsonObject(text, "publish");
-    if(!publish.empty())
+    simdjson::dom::object publish {};
+    bool hasPublish = false;
+    if(!readObject(root, "publish", publish, hasPublish))
     {
-        ExtractJsonStringField(publish, "displayName", desc.branding.displayName);
-        ExtractJsonStringField(publish, "executableName", desc.branding.executableName);
-        ExtractJsonStringField(publish, "publisher", desc.branding.publisher);
-        ExtractJsonStringField(publish, "copyright", desc.branding.copyright);
-        ExtractJsonStringField(publish, "version", desc.branding.version);
-        ExtractJsonStringField(publish, "identifier", desc.branding.identifier);
-        std::string icon;
-        if(ExtractJsonStringField(publish, "iconWindows", icon))
+        return std::nullopt;
+    }
+    if(hasPublish &&
+       (!readString(publish, "displayName", desc.branding.displayName) ||
+        !readString(publish, "executableName", desc.branding.executableName) ||
+        !readString(publish, "publisher", desc.branding.publisher) ||
+        !readString(publish, "copyright", desc.branding.copyright) ||
+        !readString(publish, "version", desc.branding.version) ||
+        !readString(publish, "identifier", desc.branding.identifier)))
+    {
+        return std::nullopt;
+    }
+    std::string icon;
+    if(hasPublish && !readString(publish, "iconWindows", icon))
+    {
+        return std::nullopt;
+    }
+    desc.branding.iconWindows = icon;
+    if(hasPublish && !readString(publish, "iconLinux", icon))
+    {
+        return std::nullopt;
+    }
+    desc.branding.iconLinux = icon;
+    if(hasPublish && !readString(publish, "iconMacOS", icon))
+    {
+        return std::nullopt;
+    }
+    desc.branding.iconMacOS = icon;
+
+    simdjson::dom::object module {};
+    bool hasModule = false;
+    if(!readObject(root, "module", module, hasModule))
+    {
+        return std::nullopt;
+    }
+    if(hasModule &&
+       (!readString(module, "target", desc.moduleTarget) ||
+        !readString(module, "library", desc.moduleLibraryRelative)))
+    {
+        return std::nullopt;
+    }
+
+    simdjson::dom::object engine {};
+    bool hasEngine = false;
+    if(!readObject(root, "engine", engine, hasEngine))
+    {
+        return std::nullopt;
+    }
+    std::string sdk;
+    std::string engineRoot;
+    std::string build;
+    if(hasEngine &&
+       (!readString(engine, "friggaSdk", sdk) ||
+        !readString(engine, "friggaRoot", engineRoot) ||
+        !readString(engine, "friggaBuild", build)))
+    {
+        return std::nullopt;
+    }
+    desc.friggaSdk   = sdk;
+    desc.friggaRoot  = engineRoot;
+    desc.friggaBuild = build;
+
+    auto modulesField = root.at_key("modules");
+    if(modulesField.error() == simdjson::error_code::NO_SUCH_FIELD)
+    {
+        desc.SyncGameplayMirror();
+        desc.EnsureBranding();
+        return desc;
+    }
+    if(modulesField.error() != simdjson::error_code::SUCCESS)
+    {
+        return std::nullopt;
+    }
+    simdjson::dom::array modules;
+    if(modulesField.get_array().get(modules) != simdjson::error_code::SUCCESS)
+    {
+        return std::nullopt;
+    }
+    for(const auto moduleElement : modules)
+    {
+        simdjson::dom::object moduleObject;
+        if(moduleElement.get_object().get(moduleObject) != simdjson::error_code::SUCCESS)
         {
-            desc.branding.iconWindows = icon;
+            return std::nullopt;
         }
-        if(ExtractJsonStringField(publish, "iconLinux", icon))
+
+        ProjectModuleEntry entry;
+        if(!readString(moduleObject, "id", entry.id) ||
+           !readString(moduleObject, "target", entry.target) ||
+           !readString(moduleObject, "library", entry.libraryRelative))
         {
-            desc.branding.iconLinux = icon;
+            return std::nullopt;
         }
-        if(ExtractJsonStringField(publish, "iconMacOS", icon))
+        auto enabled = moduleObject.at_key("enabled");
+        if(enabled.error() == simdjson::error_code::SUCCESS &&
+           enabled.get_bool().get(entry.enabled) != simdjson::error_code::SUCCESS)
         {
-            desc.branding.iconMacOS = icon;
+            return std::nullopt;
+        }
+        std::string source;
+        if(!readString(moduleObject, "source", source))
+        {
+            return std::nullopt;
+        }
+        entry.source = ParseModuleSource(source);
+        if(entry.id.empty())
+        {
+            entry.id = entry.target;
+        }
+        if(entry.target.empty())
+        {
+            entry.target = entry.id;
+        }
+        if(!entry.id.empty() || !entry.target.empty())
+        {
+            desc.modules.push_back(std::move(entry));
         }
     }
 
-    // Nested module.library / module.target — keys appear as plain "target"/"library".
-    ExtractJsonStringField(text, "target", desc.moduleTarget);
-    ExtractJsonStringField(text, "library", desc.moduleLibraryRelative);
-
-    std::string sdk;
-    std::string root;
-    std::string build;
-    ExtractJsonStringField(text, "friggaSdk", sdk);
-    ExtractJsonStringField(text, "friggaRoot", root);
-    ExtractJsonStringField(text, "friggaBuild", build);
-    desc.friggaSdk   = sdk;
-    desc.friggaRoot  = root;
-    desc.friggaBuild = build;
-
-    ExtractModulesArray(text, desc.modules);
     desc.SyncGameplayMirror();
     desc.EnsureBranding();
 

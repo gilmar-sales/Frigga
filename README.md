@@ -2,7 +2,7 @@
 
 Personal C++ game engine and ImGui editor built on [Freyr](https://github.com/gilmar-sales/Freyr) (ECS), [Freya](https://github.com/gilmar-sales/Freya) (Vulkan renderer / windowing), and [Jolt Physics](https://github.com/jrouwe/JoltPhysics).
 
-**Status:** early prototype (v0.10.0). The Gameplay workflow is usable: author scenes of primitives, lights, and cameras; save/load JSON; run a play/edit physics simulation. Animation workflow supports clip preview and anim graphs. **Audio workflow** uses [miniaudio](https://github.com/mackron/miniaudio) (JSON event banks, clips, mixer, waveform preview). **Shading workflow** provides material browsing, PBR property editing, and an isolated preview viewport (shader graph remains a placeholder). Gameplay code is edited in VS Code (Ctrl+Shift+E) and debugged by attaching GDB to the running Editor.
+**Status:** early prototype (v0.12.0). The Gameplay workflow is usable: author scenes of primitives, lights, and cameras; save/load JSON; run a play/edit physics simulation. Animation workflow supports clip preview and anim graphs. **Audio workflow** uses [miniaudio](https://github.com/mackron/miniaudio) (JSON event banks, clips, mixer, waveform preview). **Shading workflow** provides material browsing, PBR property editing, and an isolated preview viewport (shader graph remains a placeholder). Gameplay code is edited in VS Code (Ctrl+Shift+E) and debugged by attaching GDB to the running Editor.
 
 ## Features
 
@@ -24,6 +24,21 @@ Personal C++ game engine and ImGui editor built on [Freyr](https://github.com/gi
 | **Vulkan SDK**     | Headers + loader; `glslc` on `PATH` (Freya compiles shaders)                                                                                      |
 | **Git + network**  | First configure pulls Freyr, Freya, ImGui, ImGuizmo, Jolt, and Freya’s transitive deps (SDL3, glm, Assimp, Skirnir, simdjson, …) via FetchContent |
 | **GPU / drivers**  | Vulkan-capable GPU and up-to-date drivers                                                                                                         |
+
+The engine currently supports and validates desktop Linux and Windows builds in CI. macOS
+contains build conditionals and packaging metadata but is not yet a continuously validated
+target. Android, iOS, WebAssembly, consoles, DirectX, Metal, OpenGL and WebGPU are not
+declared targets.
+
+### Format and SDK compatibility
+
+Project files use a versioned `frigga.project` format (currently v5). Scene/prefab data
+uses a versioned JSON format (currently v5). The gameplay SDK exposes an explicit ABI
+version (currently 1) and rejects projects configured with an incompatible SDK ABI.
+Imported models, textures and audio resources receive persistent IDs in
+`Resources/.frigga-assets.json`.
+Projects from older formats are migrated by **File → Migrate Project Files** when the
+managed project layout is refreshed.
 
 ### Audio workflow (miniaudio)
 

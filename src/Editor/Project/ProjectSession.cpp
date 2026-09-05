@@ -9,6 +9,7 @@
 #include "ProjectEnginePaths.hpp"
 
 #include <Frigga/Asset/AssetRegistry.hpp>
+#include <Frigga/Asset/AssetCooker.hpp>
 #include <Frigga/ECS/EcsLayout.hpp>
 #include <Frigga/Input/InputMapIO.hpp>
 
@@ -1490,6 +1491,50 @@ void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::pa
             buildCode = RunShellCapturing(installCmd, [&](std::string_view line) {
                 appendLog(line);
             });
+        }
+
+        if(buildCode == 0)
+        {
+            const auto projectResources = root / ProjectDescriptor::ResourcesDirName;
+            if(std::filesystem::exists(projectResources))
+            {
+                const auto cookedRoot = staging / ".frigga-cooked-resources";
+                const auto cooked = fg::AssetCooker::Cook(projectResources, cookedRoot);
+                if(!cooked.ok)
+                {
+                    appendLog("Unable to cook project resources: " + cooked.error);
+                    buildCode = 1;
+                }
+                else
+                {
+                    const auto publishedResources =
+                        staging / ProjectDescriptor::ResourcesDirName;
+                    std::filesystem::create_directories(publishedResources, ec);
+                    for(const auto &entry :
+                        std::filesystem::directory_iterator(cookedRoot, ec))
+                    {
+                        if(ec)
+                        {
+                            break;
+                        }
+                        std::filesystem::copy(
+                            entry.path(), publishedResources / entry.path().filename(),
+                            std::filesystem::copy_options::recursive |
+                                std::filesystem::copy_options::overwrite_existing,
+                            ec);
+                        if(ec)
+                        {
+                            break;
+                        }
+                    }
+                    std::filesystem::remove_all(cookedRoot, ec);
+                    if(ec)
+                    {
+                        appendLog("Unable to merge cooked project resources: " + ec.message());
+                        buildCode = 1;
+                    }
+                }
+            }
         }
 
         if(buildCode == 0)

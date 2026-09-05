@@ -1,4 +1,5 @@
 #include <Frigga/Scene/SceneSerializer.hpp>
+#include <Frigga/Serialization/FormatVersions.hpp>
 
 #include "Frigga/ECS/Components/AnimatorComponent.hpp"
 #include "Frigga/ECS/Components/AudioSourceComponent.hpp"
@@ -38,7 +39,7 @@ namespace FRIGGA_NAMESPACE
 {
     namespace
     {
-        constexpr int64_t kSceneVersion = 5;
+        constexpr int64_t kSceneVersion = fg::FormatVersion::Scene;
 
         struct SceneTransformDto
         {

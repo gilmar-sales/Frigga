@@ -4,6 +4,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # CI release builds pass -DFRIGGA_VERSION=<tag without leading v>.
 set(FRIGGA_VERSION "0.12.0" CACHE STRING "Frigga package version")
+set(FRIGGA_SDK_ABI_VERSION "1" CACHE STRING "Frigga gameplay SDK ABI version")
 project(Frigga LANGUAGES CXX VERSION ${FRIGGA_VERSION})
 
 if (NOT CMAKE_SIZEOF_VOID_P EQUAL 8)

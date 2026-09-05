@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Frigga/Audio/AudioTypes.hpp"
+#include "Frigga/Asset/AssetManifest.hpp"
 
 #include <Freya/Freya.hpp>
 
@@ -25,6 +26,7 @@ namespace FRIGGA_NAMESPACE
 
     struct ModelAsset
     {
+        std::string assetId;
         std::string relativePath;
         std::string label;
         std::vector<ModelSubmeshAsset> submeshes;
@@ -35,6 +37,7 @@ namespace FRIGGA_NAMESPACE
 
     struct TextureAsset
     {
+        std::string assetId;
         std::string relativePath;
         std::string label;
         std::uint32_t textureId = 0;
@@ -48,6 +51,7 @@ namespace FRIGGA_NAMESPACE
 
     struct BankAsset
     {
+        std::string assetId;
         std::string relativePath;
         std::string label;
         std::vector<std::string> eventPaths;
@@ -55,6 +59,7 @@ namespace FRIGGA_NAMESPACE
 
     struct AudioClipAsset
     {
+        std::string assetId;
         std::string relativePath;
         std::string label;
         float       durationSec = 0.0f;
@@ -213,6 +218,8 @@ namespace FRIGGA_NAMESPACE
         [[nodiscard]] static std::string normalizeRelativeKey(const std::filesystem::path &relative);
 
         void catalogMaterialIfNew(std::uint32_t materialId, std::string name);
+        [[nodiscard]] std::string assetIdFor(const std::filesystem::path &relativePath,
+                                             std::string_view type);
 
         skr::Arc<fra::MeshPool> mMeshPool;
         skr::Arc<fra::TexturePool> mTexturePool;
@@ -235,6 +242,8 @@ namespace FRIGGA_NAMESPACE
         std::uint32_t mCatalogMeshSeq     = 1000;
         std::uint32_t mCatalogTextureSeq  = 1000;
         std::uint32_t mCatalogMaterialSeq = 1000;
+        AssetManifest mManifest;
+        bool mManifestLoaded = false;
     };
 
 } // namespace FRIGGA_NAMESPACE

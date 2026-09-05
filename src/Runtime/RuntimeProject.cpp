@@ -1,5 +1,7 @@
 #include "RuntimeProject.hpp"
 
+#include <simdjson.h>
+
 #include <fstream>
 #include <sstream>
 #include <string_view>
@@ -30,107 +32,124 @@ namespace
         return true;
     }
 
-    bool StringField(std::string_view object, std::string_view key, std::string &value)
+    bool ReadString(simdjson::dom::object object, std::string_view key, std::string &value,
+                    std::string &error, bool required = false)
     {
-        const auto keyPos = object.find("\"" + std::string(key) + "\"");
-        if(keyPos == std::string_view::npos)
+        auto field = object.at_key(key);
+        if(field.error() == simdjson::error_code::NO_SUCH_FIELD)
         {
-            return false;
+            if(required)
+            {
+                error = "Missing required string field: " + std::string(key);
+            }
+            return !required;
         }
-        const auto colon = object.find(':', keyPos);
-        const auto open  = object.find('"', colon == std::string_view::npos ? keyPos : colon);
-        if(open == std::string_view::npos)
+        if(field.error() != simdjson::error_code::SUCCESS)
         {
+            error = "Unable to read field '" + std::string(key) +
+                    "': " + simdjson::error_message(field.error());
             return false;
         }
 
-        std::string raw;
-        for(std::size_t i = open + 1; i < object.size(); ++i)
+        std::string_view parsed;
+        const auto result = field.get_string().get(parsed);
+        if(result != simdjson::error_code::SUCCESS)
         {
-            if(object[i] == '\\' && i + 1 < object.size())
-            {
-                raw.push_back(object[++i]);
-                continue;
-            }
-            if(object[i] == '"')
-            {
-                value = std::move(raw);
-                return true;
-            }
-            raw.push_back(object[i]);
+            error = "Field '" + std::string(key) + "' must be a string: " +
+                    simdjson::error_message(result);
+            return false;
         }
-        return false;
+        value = parsed;
+        return true;
     }
 
-    bool BoolField(std::string_view object, std::string_view key, bool &value)
+    bool ReadBool(simdjson::dom::object object, std::string_view key, bool &value,
+                  std::string &error)
     {
-        const auto keyPos = object.find("\"" + std::string(key) + "\"");
-        if(keyPos == std::string_view::npos)
+        auto field = object.at_key(key);
+        if(field.error() == simdjson::error_code::NO_SUCH_FIELD)
         {
-            return false;
-        }
-        const auto colon = object.find(':', keyPos);
-        if(colon == std::string_view::npos)
-        {
-            return false;
-        }
-        const auto begin = object.find_first_not_of(" \t\r\n", colon + 1);
-        if(begin == std::string_view::npos)
-        {
-            return false;
-        }
-        if(object.substr(begin, 4) == "true")
-        {
-            value = true;
             return true;
         }
-        if(object.substr(begin, 5) == "false")
+        if(field.error() != simdjson::error_code::SUCCESS)
         {
-            value = false;
+            error = "Unable to read field '" + std::string(key) +
+                    "': " + simdjson::error_message(field.error());
+            return false;
+        }
+
+        const auto result = field.get_bool().get(value);
+        if(result != simdjson::error_code::SUCCESS)
+        {
+            error = "Field '" + std::string(key) + "' must be a boolean: " +
+                    simdjson::error_message(result);
+            return false;
+        }
+        return true;
+    }
+
+    bool ReadPublish(simdjson::dom::object root, RuntimeProject &project, std::string &error)
+    {
+        auto field = root.at_key("publish");
+        if(field.error() == simdjson::error_code::NO_SUCH_FIELD)
+        {
             return true;
         }
-        return false;
+        if(field.error() != simdjson::error_code::SUCCESS)
+        {
+            error = "Unable to read field 'publish': " +
+                    std::string(simdjson::error_message(field.error()));
+            return false;
+        }
+
+        simdjson::dom::object publish;
+        const auto objectResult = field.get_object().get(publish);
+        if(objectResult != simdjson::error_code::SUCCESS)
+        {
+            error = "Field 'publish' must be an object: " +
+                    std::string(simdjson::error_message(objectResult));
+            return false;
+        }
+
+        if(!ReadString(publish, "displayName", project.displayName, error) ||
+           !ReadString(publish, "executableName", project.executableName, error) ||
+           !ReadString(publish, "publisher", project.publisher, error) ||
+           !ReadString(publish, "copyright", project.copyright, error) ||
+           !ReadString(publish, "version", project.version, error) ||
+           !ReadString(publish, "identifier", project.identifier, error))
+        {
+            return false;
+        }
+        return true;
     }
 
-    std::string_view ObjectField(std::string_view text, std::string_view key)
+    bool AddModule(simdjson::dom::element element, RuntimeProject &project, std::string &error)
     {
-        const auto keyPos = text.find("\"" + std::string(key) + "\"");
-        if(keyPos == std::string_view::npos)
+        simdjson::dom::object object;
+        const auto objectResult = element.get_object().get(object);
+        if(objectResult != simdjson::error_code::SUCCESS)
         {
-            return {};
+            error = "Each entry in 'modules' must be an object: " +
+                    std::string(simdjson::error_message(objectResult));
+            return false;
         }
-        const auto open = text.find('{', keyPos);
-        if(open == std::string_view::npos)
-        {
-            return {};
-        }
-        std::size_t depth = 0;
-        for(std::size_t i = open; i < text.size(); ++i)
-        {
-            if(text[i] == '{')
-            {
-                ++depth;
-            }
-            else if(text[i] == '}' && --depth == 0)
-            {
-                return text.substr(open, i - open + 1);
-            }
-        }
-        return {};
-    }
 
-    void AddModule(std::string_view object, RuntimeProject &project)
-    {
         RuntimeModule module;
-        StringField(object, "id", module.id);
-        StringField(object, "name", module.name);
-        std::string library;
-        StringField(object, "library", library);
-        BoolField(object, "enabled", module.enabled);
-
-        if(module.id.empty())
+        if(!ReadString(object, "id", module.id, error) ||
+           !ReadString(object, "name", module.name, error))
         {
-            StringField(object, "target", module.id);
+            return false;
+        }
+        std::string library;
+        if(!ReadString(object, "library", library, error) ||
+           !ReadBool(object, "enabled", module.enabled, error))
+        {
+            return false;
+        }
+
+        if(module.id.empty() && !ReadString(object, "target", module.id, error))
+        {
+            return false;
         }
         if(module.name.empty())
         {
@@ -145,6 +164,7 @@ namespace
         {
             project.modules.push_back(std::move(module));
         }
+        return true;
     }
 } // namespace
 
@@ -158,57 +178,71 @@ bool RuntimeProject::Load(const std::filesystem::path &projectFile,
         return false;
     }
 
+    simdjson::dom::parser parser;
+    simdjson::dom::element document;
+    const auto parseResult = parser.parse(text).get(document);
+    if(parseResult != simdjson::error_code::SUCCESS)
+    {
+        error = "Invalid project JSON: " + std::string(simdjson::error_message(parseResult));
+        return false;
+    }
+
+    simdjson::dom::object root;
+    const auto objectResult = document.get_object().get(root);
+    if(objectResult != simdjson::error_code::SUCCESS)
+    {
+        error = "Project file root must be an object: " +
+                std::string(simdjson::error_message(objectResult));
+        return false;
+    }
+
     project = {};
     project.root = projectFile.parent_path();
-    if(!StringField(text, "name", project.name))
+    if(!ReadString(root, "name", project.name, error, true))
     {
-        error = "Project file has no name: " + projectFile.string();
         return false;
     }
     project.displayName    = project.name;
     project.executableName = project.name;
-    const auto publish     = ObjectField(text, "publish");
-    if(!publish.empty())
+    if(!ReadPublish(root, project, error))
     {
-        StringField(publish, "displayName", project.displayName);
-        StringField(publish, "executableName", project.executableName);
-        StringField(publish, "publisher", project.publisher);
-        StringField(publish, "copyright", project.copyright);
-        StringField(publish, "version", project.version);
-        StringField(publish, "identifier", project.identifier);
+        return false;
     }
     std::string scene;
-    if(StringField(text, "scene", scene))
+    if(!ReadString(root, "scene", scene, error))
+    {
+        return false;
+    }
+    if(!scene.empty())
     {
         project.scene = std::move(scene);
     }
 
-    const auto modulesKey = text.find("\"modules\"");
-    if(modulesKey != std::string_view::npos)
+    auto modulesField = root.at_key("modules");
+    if(modulesField.error() == simdjson::error_code::NO_SUCH_FIELD)
     {
-        const auto open = text.find('[', modulesKey);
-        const auto close = open == std::string_view::npos ? std::string_view::npos
-                                                           : text.find(']', open);
-        if(open != std::string_view::npos && close != std::string_view::npos)
+        return true;
+    }
+    if(modulesField.error() != simdjson::error_code::SUCCESS)
+    {
+        error = "Unable to read field 'modules': " +
+                std::string(simdjson::error_message(modulesField.error()));
+        return false;
+    }
+
+    simdjson::dom::array modules;
+    const auto arrayResult = modulesField.get_array().get(modules);
+    if(arrayResult != simdjson::error_code::SUCCESS)
+    {
+        error = "Field 'modules' must be an array: " +
+                std::string(simdjson::error_message(arrayResult));
+        return false;
+    }
+    for(const auto module : modules)
+    {
+        if(!AddModule(module, project, error))
         {
-            const auto body = std::string_view(text).substr(open + 1, close - open - 1);
-            std::size_t cursor = 0;
-            while(cursor < body.size())
-            {
-                const auto begin = body.find('{', cursor);
-                if(begin == std::string_view::npos)
-                {
-                    break;
-                }
-                const auto end = body.find('}', begin);
-                if(end == std::string_view::npos)
-                {
-                    error = "Malformed modules array in " + projectFile.string();
-                    return false;
-                }
-                AddModule(body.substr(begin, end - begin + 1), project);
-                cursor = end + 1;
-            }
+            return false;
         }
     }
 

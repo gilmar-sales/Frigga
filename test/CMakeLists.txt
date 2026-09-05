@@ -18,6 +18,7 @@ FetchContent_MakeAvailable(googletest)
 include(GoogleTest)
 
 add_executable(frigga_tests
+        AssetManifestSpec.cpp
         EmptyApp.hpp
         FriModuleSpec.cpp
         InputSpec.cpp

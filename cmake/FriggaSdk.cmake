@@ -15,6 +15,18 @@ endif()
 if(EXISTS "${FRIGGA_SDK}/FriggaSdkConfig.cmake")
     include("${FRIGGA_SDK}/FriggaSdkConfig.cmake")
 endif()
+set(FRIGGA_SDK_EXPECTED_ABI_VERSION "1" CACHE STRING
+    "Expected Frigga gameplay SDK ABI version")
+if(DEFINED FRIGGA_SDK_ABI_VERSION AND
+   NOT FRIGGA_SDK_ABI_VERSION STREQUAL FRIGGA_SDK_EXPECTED_ABI_VERSION)
+    message(FATAL_ERROR
+            "Incompatible Frigga SDK ABI: expected ${FRIGGA_SDK_EXPECTED_ABI_VERSION}, "
+            "got ${FRIGGA_SDK_ABI_VERSION}")
+endif()
+if(DEFINED FRIGGA_SDK_CXX_STANDARD AND FRIGGA_SDK_CXX_STANDARD LESS 26)
+    message(FATAL_ERROR
+            "Frigga SDK requires C++26, but the SDK was built with C++${FRIGGA_SDK_CXX_STANDARD}")
+endif()
 if(CMAKE_BUILD_TYPE STREQUAL "Release" AND
    DEFINED FRIGGA_SDK_BUILD_TYPE AND
    NOT FRIGGA_SDK_BUILD_TYPE STREQUAL "Release")
@@ -54,9 +66,18 @@ else()
 endif()
 if(EXISTS "${_FRIGGA_ENGINE_FILE}")
     add_library(Frigga::frigga STATIC IMPORTED GLOBAL)
+    set(_FRIGGA_INTERFACE_INCLUDES
+            "${_FRIGGA_SDK_INCLUDE}"
+            "${_FRIGGA_DEPS_INCLUDE}"
+            "${_FRIGGA_SKIRNIR_INCLUDE}"
+            "${_FRIGGA_FREYA_INCLUDE}"
+            "${_FRIGGA_GLM_INCLUDE}"
+            "${_FRIGGA_SIMDJSON_INCLUDE}")
+    list(REMOVE_DUPLICATES _FRIGGA_INTERFACE_INCLUDES)
     set_target_properties(Frigga::frigga PROPERTIES
             IMPORTED_LOCATION "${_FRIGGA_ENGINE_FILE}"
-            INTERFACE_INCLUDE_DIRECTORIES "${_FRIGGA_SDK_INCLUDE}")
+            INTERFACE_INCLUDE_DIRECTORIES "${_FRIGGA_INTERFACE_INCLUDES}"
+            INTERFACE_COMPILE_FEATURES cxx_std_26)
     foreach(_dependency IN ITEMS freya glm assimp freyr imgui skirnir simdjson jolt sdl3)
         string(TOLOWER "${_dependency}" _dependency_lower)
         string(TOUPPER "${_dependency}" _dependency_upper)

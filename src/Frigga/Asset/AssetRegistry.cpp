@@ -85,6 +85,29 @@ namespace FRIGGA_NAMESPACE
         mTexturePathById.clear();
     }
 
+    std::string AssetRegistry::assetIdFor(const std::filesystem::path &relativePath,
+                                          std::string_view type)
+    {
+        const auto root = ResourcesRoot();
+        if(!mManifestLoaded || mManifest.Root() != root)
+        {
+            std::string error;
+            if(!mManifest.Load(root, &error) && mLogger)
+            {
+                mLogger->LogWarning("Unable to load asset manifest '{}': {}", root.string(), error);
+            }
+            mManifestLoaded = true;
+        }
+        const auto key = normalizeRelativeKey(relativePath);
+        const auto id = mManifest.RecordImport(key, type, ResourcesRoot() / key);
+        std::string error;
+        if(!mManifest.Save(root, &error) && mLogger)
+        {
+            mLogger->LogWarning("Unable to save asset manifest '{}': {}", root.string(), error);
+        }
+        return id;
+    }
+
     void AssetRegistry::SetAudioEngine(const skr::Arc<IAudioEngine> &audioEngine)
     {
         mAudioEngine = audioEngine;
@@ -239,7 +262,8 @@ namespace FRIGGA_NAMESPACE
         }
 
         const auto baseLabel = relativePath.stem().string();
-        ModelAsset asset {.relativePath = key,
+        ModelAsset asset {.assetId      = assetIdFor(key, "model"),
+                          .relativePath = key,
                           .label        = relativePath.filename().string()};
 
         const auto appendSubmeshes =
@@ -327,7 +351,8 @@ namespace FRIGGA_NAMESPACE
             return mTextures[it->second];
         }
 
-        TextureAsset asset {.relativePath = key,
+        TextureAsset asset {.assetId      = assetIdFor(key, "texture"),
+                            .relativePath = key,
                             .label        = relativePath.filename().string()};
 
         if(mTexturePool == nullptr)
@@ -469,7 +494,9 @@ namespace FRIGGA_NAMESPACE
             return mBanks[it->second];
         }
 
-        BankAsset asset {.relativePath = key, .label = relativePath.filename().string()};
+        BankAsset asset {.assetId      = assetIdFor(key, "audio-bank"),
+                         .relativePath = key,
+                         .label        = relativePath.filename().string()};
 
         if(mAudioEngine != nullptr)
         {
@@ -510,7 +537,9 @@ namespace FRIGGA_NAMESPACE
             return mAudioClips[it->second];
         }
 
-        AudioClipAsset asset {.relativePath = key, .label = relativePath.filename().string()};
+        AudioClipAsset asset {.assetId      = assetIdFor(key, "audio-clip"),
+                              .relativePath = key,
+                              .label        = relativePath.filename().string()};
 
         if(mAudioEngine != nullptr)
         {
