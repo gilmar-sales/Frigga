@@ -19,6 +19,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 class ResourcesLayer;
 
@@ -112,6 +113,7 @@ class HierarchyLayer: public fg::Layer
     void requestTextureForSlot(PendingTextureSlot slot);
     void processPendingTextureImport();
     void processPendingPrefabSave();
+    void processPendingEntityParents();
     void requestSavePrefabDialog(fr::Entity entity);
     static void onTextureDialog(void *userdata, const char *const *filelist, int filter);
     static void onPrefabSaveDialog(void *userdata, const char *const *filelist, int filter);
@@ -136,4 +138,11 @@ class HierarchyLayer: public fg::Layer
     std::optional<std::filesystem::path> mPendingPrefabPath;
     fr::Entity mPendingPrefabEntity = SelectionContext::Invalid;
     std::string mDialogDefaultLocation;
+
+    struct PendingEntityParent
+    {
+        fr::Entity entity;
+        fr::Entity parent;
+    };
+    std::vector<PendingEntityParent> mPendingEntityParents;
 };

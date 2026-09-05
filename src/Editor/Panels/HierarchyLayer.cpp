@@ -323,8 +323,21 @@ void HierarchyLayer::parentNewEntity(fr::Entity entity)
     {
         return;
     }
-    mRegistry->ExecuteTasks();
-    fg::TransformUtil::SetParent(*mRegistry, entity, parent, false);
+    mPendingEntityParents.push_back({.entity = entity, .parent = parent});
+}
+
+void HierarchyLayer::processPendingEntityParents()
+{
+    if(mPendingEntityParents.empty())
+    {
+        return;
+    }
+
+    auto pending = std::move(mPendingEntityParents);
+    for(const auto &[entity, parent]: pending)
+    {
+        fg::TransformUtil::SetParent(*mRegistry, entity, parent, false);
+    }
 }
 
 void HierarchyLayer::createPrefabFromSelection()
@@ -1074,6 +1087,7 @@ void HierarchyLayer::onUpdate()
 {
     processPendingTextureImport();
     processPendingPrefabSave();
+    processPendingEntityParents();
 }
 
 void HierarchyLayer::onGui()
