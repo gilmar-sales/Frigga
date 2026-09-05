@@ -38,6 +38,15 @@ The standalone runtime accepts optional diagnostics environment variables:
 - `FRIGGA_CRASH_FILE`: crash report destination (default `frigga-crash.log`);
 - `FRIGGA_PROFILE_FILE`: Chrome trace JSON destination for runtime frame profiling.
 
+### MCP local do Editor
+
+O Editor pode ser controlado pelo Cursor através do bridge MCP configurado em
+`.cursor/mcp.json`. Inicie o Editor antes de usar as ferramentas MCP para
+inspecionar projetos, editar/capturar cenas, validar/cozinhar assets, controlar
+Play mode e consultar diagnósticos. A integração é local e autenticada por
+sessão; Streamable HTTP está preparado na interface de transporte, mas ainda
+não é exposto. Consulte [`docs/mcp-editor.md`](docs/mcp-editor.md).
+
 ### Format and SDK compatibility
 
 Project files use a versioned `frigga.project` format (currently v5). Scene/prefab data

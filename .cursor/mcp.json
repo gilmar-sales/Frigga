@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "frigga-editor": {
+      "command": "python3",
+      "args": [
+        "${workspaceFolder}/tools/frigga-mcp/server.py"
+      ]
+    }
+  }
+}

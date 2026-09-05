@@ -44,6 +44,7 @@ void EditorApplication::RenderScene()
 
 void EditorApplication::Update()
 {
+    mMcp.Poll();
     // Poll every frame: monitor moves often skip DISPLAY_SCALE_CHANGED until resize.
     EditorUiScale::Sync(mWindow->GetScale());
 

@@ -13,7 +13,10 @@
 #include "Panels/InputMapLayer.hpp"
 #include "Panels/PreferencesLayer.hpp"
 #include "Panels/ResourcesLayer.hpp"
+#include "Mcp/EditorMcpService.hpp"
+#include "Project/ProjectSession.hpp"
 
+#include <cstdio>
 class EditorApplication final: public fg::AbstractApplication
 {
   public:
@@ -22,7 +25,9 @@ class EditorApplication final: public fg::AbstractApplication
           mRegistry(serviceProvider->GetService<fr::Registry>()),
           mSystemManager(serviceProvider->GetService<fr::SystemManager>()),
           mSimulation(serviceProvider->GetService<fg::SceneSimulationState>()),
-          mInput(serviceProvider->GetService<fg::Input>())
+          mInput(serviceProvider->GetService<fg::Input>()),
+          mMcp(serviceProvider->GetService<ProjectSession>(), serviceProvider->GetService<fg::Scene>(),
+               mSimulation, serviceProvider->GetService<skr::Logger<EditorMcpService>>())
     {
         PushLayer(mScope->GetServiceProvider()->GetService<HomeLayer>());
         PushLayer(mScope->GetServiceProvider()->GetService<MainLayer>());
@@ -43,6 +48,11 @@ class EditorApplication final: public fg::AbstractApplication
 
         // Edit mode at startup: only Render (animation preview + draw) ticks.
         syncPlayPipelines();
+        std::string mcpError;
+        if(!mMcp.Start(mcpError))
+        {
+            std::fprintf(stderr, "Unable to start Editor MCP service: %s\n", mcpError.c_str());
+        }
     }
 
   protected:
@@ -58,4 +68,5 @@ class EditorApplication final: public fg::AbstractApplication
     skr::Arc<fr::SystemManager> mSystemManager;
     skr::Arc<fg::SceneSimulationState> mSimulation;
     skr::Arc<fg::Input> mInput;
+    EditorMcpService mMcp;
 };
