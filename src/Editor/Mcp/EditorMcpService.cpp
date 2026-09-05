@@ -48,6 +48,19 @@ void CloseSocket(Socket socket)
 #endif
 }
 
+void ShutdownSocket(Socket socket)
+{
+    if(socket == InvalidSocket)
+    {
+        return;
+    }
+#if defined(_WIN32)
+    ::shutdown(static_cast<SOCKET>(socket), SD_BOTH);
+#else
+    ::shutdown(static_cast<int>(socket), SHUT_RDWR);
+#endif
+}
+
 std::string JsonEscape(std::string_view value)
 {
     std::string result;
@@ -406,14 +419,19 @@ void EditorMcpService::Stop()
         return;
     }
     const auto server = mServerSocket.exchange(InvalidSocket);
+    ShutdownSocket(AsSocket(server));
     CloseSocket(AsSocket(server));
     const auto client = mClientSocket.exchange(InvalidSocket);
+    ShutdownSocket(AsSocket(client));
     CloseSocket(AsSocket(client));
+    // Resolve requests before joining. The network thread may be blocked in
+    // future::get() after it queued a request, while the UI thread is already
+    // leaving the frame loop.
+    FailPending("Editor MCP service stopped");
     if(mNetworkThread.joinable())
     {
         mNetworkThread.join();
     }
-    FailPending("Editor MCP service stopped");
     std::error_code error;
     std::filesystem::remove(mEndpointFile, error);
 #if defined(_WIN32)
@@ -470,6 +488,13 @@ void EditorMcpService::NetworkLoop()
             auto future       = request->response.get_future();
             {
                 std::lock_guard lock(mQueueMutex);
+                if(!mRunning)
+                {
+                    request->response.set_value(
+                        "{\"id\":" + request->id + ",\"result\":" +
+                        ErrorResult("Editor MCP service stopped", "service_stopped") + "}");
+                    break;
+                }
                 mRequests.push(request);
             }
             const auto response = future.get();

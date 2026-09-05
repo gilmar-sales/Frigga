@@ -135,6 +135,12 @@ TOOLS = [
     },
 ]
 
+WIRE_TOOL_NAMES = {
+    "scene_update_component": "scene.update_component",
+    "scene_delete_entity": "scene.delete_entity",
+    "scene_replace_snapshot": "scene.replace_snapshot",
+}
+
 
 class EditorRpc:
     def __init__(self, endpoint: Path, timeout: float = 5.0) -> None:
@@ -221,7 +227,13 @@ class McpServer:
             name = params.get("name")
             arguments = params.get("arguments", {})
             try:
-                result = self.rpc.call(name, arguments)
+                # Cursor normalizes dotted MCP tool names in some surfaces.
+                # Keep the wire protocol stable for the Editor either way.
+                if isinstance(name, str):
+                    wire_name = WIRE_TOOL_NAMES.get(name, name.replace("_", "."))
+                else:
+                    wire_name = name
+                result = self.rpc.call(wire_name, arguments)
                 payload = result.get("result", result)
                 is_error = not payload.get("ok", False)
                 return {
