@@ -1,7 +1,13 @@
 #pragma once
 
-namespace EditorTheme
+enum class EditorTheme
 {
-    /// Apply theme colors and modern ImGui metrics (shared across all theme presets).
-    void Apply(int themeIndex);
-} // namespace EditorTheme
+    PhantomDark  = 0,
+    PhantomLight = 1,
+    Dark         = 2,
+    Light        = 3,
+    Classic      = 4,
+    Default      = PhantomDark
+};
+
+void ApplyTheme(EditorTheme theme);

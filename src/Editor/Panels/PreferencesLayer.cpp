@@ -65,7 +65,7 @@ void PreferencesLayer::syncSsaoFinePrefsFromRenderer()
 
 void PreferencesLayer::applyTheme(int themeIndex) const
 {
-    EditorTheme::Apply(themeIndex);
+    ApplyTheme(static_cast<EditorTheme>(themeIndex));
 }
 
 void PreferencesLayer::applyPendingGraphics()

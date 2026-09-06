@@ -154,7 +154,7 @@ int main(int argc, char *argv[])
 
     auto app = appBuilder.Build<EditorApplication>();
 
-    EditorTheme::Apply(startupPreferences->appearance.themeIndex);
+    ApplyTheme(static_cast<EditorTheme>(startupPreferences->appearance.themeIndex));
 
     app->Run();
 

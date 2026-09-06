@@ -3,35 +3,30 @@
 #include <Frigga/Gui/Styles/Styles.hpp>
 #include <imgui.h>
 
-namespace EditorTheme
-{
-
-void Apply(int themeIndex)
+void ApplyTheme(EditorTheme theme)
 {
     ImGuiStyle &style = ImGui::GetStyle();
     fg::StyleModernMetrics(&style);
 
-    switch(themeIndex)
+    switch(theme)
     {
-    case 0:
+    case EditorTheme::PhantomDark:
         fg::StylePhantomDark(&style);
         break;
-    case 1:
+    case EditorTheme::PhantomLight:
         fg::StylePhantomLight(&style);
         break;
-    case 2:
+    case EditorTheme::Dark:
         ImGui::StyleColorsDark(&style);
         break;
-    case 3:
+    case EditorTheme::Light:
         ImGui::StyleColorsLight(&style);
         break;
-    case 4:
+    case EditorTheme::Classic:
         ImGui::StyleColorsClassic(&style);
         break;
     default:
-        fg::StylePhantomDark(&style);
+       ApplyTheme(EditorTheme::Default);
         break;
     }
 }
-
-} // namespace EditorTheme
