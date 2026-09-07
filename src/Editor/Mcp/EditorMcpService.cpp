@@ -2,6 +2,7 @@
 
 #include <Frigga/Asset/AssetManifest.hpp>
 #include <Frigga/Asset/AssetCooker.hpp>
+#include <Frigga/Input/InputMapIO.hpp>
 #include <Frigga/Serialization/FormatVersions.hpp>
 
 #include <simdjson.h>
@@ -319,10 +320,12 @@ std::string RandomToken()
 EditorMcpService::EditorMcpService(skr::Arc<ProjectSession> session,
                                    skr::Arc<fg::Scene> scene,
                                    skr::Arc<fg::SceneSimulationState> simulation,
+                                   skr::Arc<fg::Input> input,
                                    skr::Arc<skr::Logger<EditorMcpService>> logger)
     : mSession(std::move(session)),
       mScene(std::move(scene)),
       mSimulation(std::move(simulation)),
+      mInput(std::move(input)),
       mLogger(std::move(logger))
 {
     mEndpointFile = std::filesystem::temp_directory_path() / "frigga-editor-mcp.endpoint";
@@ -547,6 +550,10 @@ std::string EditorMcpService::Dispatch(const Request &request)
         result = ProjectInspect();
     else if(request.method == "scene.inspect")
         result = SceneInspect();
+    else if(request.method == "input.inspect")
+        result = InputInspect();
+    else if(request.method == "input.replace")
+        result = HandleInputReplace(request.params);
     else if(request.method == "scene.open")
         result = HandleSceneOpen(request.params);
     else if(request.method == "scene.create")
@@ -607,6 +614,53 @@ std::string EditorMcpService::SceneInspect() const
     }
     return OkResult("{\"path\":\"" + JsonEscape(mScene->GetPath().generic_string()) +
                     "\",\"snapshot\":" + snapshot + "}");
+}
+
+std::string EditorMcpService::InputInspect() const
+{
+    if(!mSession->HasProject())
+    {
+        return ErrorResult("No project is open", "project_not_open");
+    }
+    const auto path = *mSession->GetProjectRoot() / "input.json";
+    return OkResult("{\"path\":\"" + JsonEscape(path.generic_string()) + "\",\"map\":" +
+                    fg::SerializeInputMap(mInput->GetBindings()) + "}");
+}
+
+std::string EditorMcpService::HandleInputReplace(std::string_view params)
+{
+    if(!mSession->HasProject())
+    {
+        return ErrorResult("No project is open", "project_not_open");
+    }
+    const auto mapJson = RawObjectField(params, "map");
+    if(mapJson.empty())
+    {
+        return ErrorResult("input.replace requires map");
+    }
+
+    fg::InputMap map;
+    std::string error;
+    if(!fg::ParseInputMap(mapJson, map, &error))
+    {
+        return ErrorResult(error.empty() ? "Unable to parse input map" : error,
+                           "input_map_invalid");
+    }
+    if(BoolField(params, "dry_run"))
+    {
+        return OkResult("{\"dry_run\":true,\"path\":\"" +
+                        JsonEscape((*mSession->GetProjectRoot() / "input.json").generic_string()) +
+                        "\"}");
+    }
+
+    const auto path = *mSession->GetProjectRoot() / "input.json";
+    if(!fg::SaveInputMapFile(path, map, &error))
+    {
+        return ErrorResult(error.empty() ? "Unable to save input.json" : error,
+                           "input_save_failed");
+    }
+    mInput->LoadBindings(map);
+    return OkResult("{\"applied\":true,\"path\":\"" + JsonEscape(path.generic_string()) + "\"}");
 }
 
 std::string EditorMcpService::HandleSceneOpen(std::string_view params)

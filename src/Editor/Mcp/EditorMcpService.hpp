@@ -4,6 +4,7 @@
 
 #include "../Project/ProjectSession.hpp"
 
+#include <Frigga/Input/Input.hpp>
 #include <Frigga/Scene/Scene.hpp>
 #include <Frigga/Scene/SceneSimulationState.hpp>
 #include <Skirnir/Logging/Logger.hpp>
@@ -23,7 +24,7 @@ class EditorMcpService
 {
   public:
     EditorMcpService(skr::Arc<ProjectSession> session, skr::Arc<fg::Scene> scene,
-                     skr::Arc<fg::SceneSimulationState> simulation,
+                     skr::Arc<fg::SceneSimulationState> simulation, skr::Arc<fg::Input> input,
                      skr::Arc<skr::Logger<EditorMcpService>> logger);
     ~EditorMcpService();
 
@@ -51,6 +52,8 @@ class EditorMcpService
     std::string Dispatch(const Request &request);
     std::string ProjectInspect() const;
     std::string SceneInspect() const;
+    std::string InputInspect() const;
+    std::string HandleInputReplace(std::string_view params);
     std::string HandleSceneOpen(std::string_view params);
     std::string HandleSceneCreate(std::string_view params);
     std::string HandleSceneSave() const;
@@ -73,6 +76,7 @@ class EditorMcpService
     skr::Arc<ProjectSession> mSession;
     skr::Arc<fg::Scene> mScene;
     skr::Arc<fg::SceneSimulationState> mSimulation;
+    skr::Arc<fg::Input> mInput;
     skr::Arc<skr::Logger<EditorMcpService>> mLogger;
     std::atomic<bool> mRunning {false};
     std::thread mNetworkThread;

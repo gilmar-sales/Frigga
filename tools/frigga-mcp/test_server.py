@@ -37,6 +37,8 @@ class McpServerTests(unittest.TestCase):
         self.assertTrue(response["result"]["tools"])
         names = {tool["name"] for tool in response["result"]["tools"]}
         self.assertIn("scene.inspect", names)
+        self.assertIn("input.inspect", names)
+        self.assertIn("input.replace", names)
         self.assertIn("modules.create", names)
         self.assertIn("modules.list", names)
         self.assertIn("modules.build", names)
@@ -76,6 +78,22 @@ class McpServerTests(unittest.TestCase):
         self.assertEqual(
             self.rpc.calls,
             [("modules.set_enabled", {"id": "playeranimation", "enabled": True})],
+        )
+        self.assertFalse(response["result"]["isError"])
+
+    def test_input_replace_underscore_alias(self):
+        response = self.server.handle({
+            "jsonrpc": "2.0",
+            "id": 6,
+            "method": "tools/call",
+            "params": {
+                "name": "input_replace",
+                "arguments": {"map": {"version": 1, "actions": {}, "axes": {}}, "dry_run": True},
+            },
+        })
+        self.assertEqual(
+            self.rpc.calls,
+            [("input.replace", {"map": {"version": 1, "actions": {}, "axes": {}}, "dry_run": True})],
         )
         self.assertFalse(response["result"]["isError"])
 

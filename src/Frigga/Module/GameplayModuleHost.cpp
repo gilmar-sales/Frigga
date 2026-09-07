@@ -1,5 +1,7 @@
 #include "Frigga/Module/GameplayModuleHost.hpp"
 
+#include "Frigga/Scene/Prefab.hpp"
+
 #include <Freyr/Core/SystemManager.hpp>
 
 #include <chrono>
@@ -125,6 +127,7 @@ namespace FRIGGA_NAMESPACE
           mServices(services), mLogger(logger)
     {
         FriKeepComponentInspectorSymbols();
+        FriKeepPrefabSymbols();
     }
 
     GameplayModuleHost::~GameplayModuleHost()

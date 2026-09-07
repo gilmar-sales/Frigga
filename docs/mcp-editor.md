@@ -44,6 +44,8 @@ No Windows, o mesmo protocolo usa loopback TCP; o caminho do endpoint segue a
 - `scene.create`
 - `scene.replace_snapshot`
 - `scene.save`
+- `input.inspect`
+- `input.replace` (writes `input.json` and applies bindings; `dry_run`)
 - `assets.list`
 - `assets.validate`
 - `assets.cook`
@@ -60,8 +62,11 @@ No Windows, o mesmo protocolo usa loopback TCP; o caminho do endpoint segue a
 Operações de edição são executadas na thread principal do Editor no ponto
 seguro do frame. O bridge não executa shell, não grava diretamente arquivos
 do projeto e não aceita caminhos fora da raiz do projeto. `scene.create`,
-`assets.cook`, `modules.create`, `modules.build` e `modules.set_enabled`
-aceitam `dry_run`.
+`assets.cook`, `modules.create`, `modules.build`, `modules.set_enabled` e
+`input.replace` aceitam `dry_run`.
+
+`input.inspect` devolve o mapa ao vivo do host (`Input::GetBindings`), que
+reflete o que o Play mode usa após abrir o projeto ou após um replace.
 
 `modules.create` só gera o stub `FRI_MODULE` vazio — o código de systems /
 components ainda é escrito no projeto (ou pelo agente) depois do scaffold.

@@ -11,7 +11,7 @@ EditorApplication::EditorApplication(const skr::Arc<skr::ServiceProvider> &servi
       mSimulation(serviceProvider->GetService<fg::SceneSimulationState>()),
       mInput(GetMainServiceProvider()->GetService<fg::Input>()),
       mMcp(GetMainServiceProvider()->GetService<ProjectSession>(),
-           GetMainServiceProvider()->GetService<fg::Scene>(), mSimulation,
+           GetMainServiceProvider()->GetService<fg::Scene>(), mSimulation, mInput,
            serviceProvider->GetService<skr::Logger<EditorMcpService>>())
 {
     PushLayer(mScope->GetServiceProvider()->GetService<HomeLayer>());

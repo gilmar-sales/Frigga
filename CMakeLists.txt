@@ -246,11 +246,14 @@ add_dependencies(Editor FriggaSdkLibraries)
 add_dependencies(Runtime FriggaSdkLibraries)
 
 # Expose Freyr/Frigga/Skirnir/simdjson to gameplay modules.
-# Linux: undefined refs in the .so bind to the Editor at dlopen.
+# Linux: undefined refs in the .so bind to the host at dlopen (--export-dynamic).
+# Prefab/inspector .o files are keep-alived from GameplayModuleHost so static GC
+# does not drop APIs modules call (fg::Prefab::Load, FriComponentInspector, …).
 # Windows: PE allows ≤65535 exports, so we cannot --export-all-symbols on the
 # full Editor. cmake/GenerateModuleExports.cmake dumps the four runtime archives
 # (no namespace allowlist) into a .def that feeds ENABLE_EXPORTS' implib.
 set_target_properties(Editor PROPERTIES ENABLE_EXPORTS TRUE)
+set_target_properties(Runtime PROPERTIES ENABLE_EXPORTS TRUE)
 if (UNIX AND NOT APPLE)
     target_link_options(Editor PRIVATE -Wl,--export-dynamic)
     target_link_options(Runtime PRIVATE -Wl,--export-dynamic)
@@ -275,6 +278,7 @@ if (WIN32 AND CMAKE_NM)
             VERBATIM
             COMMENT "Generate gameplay module export table")
     target_sources(Editor PRIVATE "${_module_exports}")
+    target_sources(Runtime PRIVATE "${_module_exports}")
     add_custom_command(TARGET Editor POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "$<TARGET_LINKER_FILE:Editor>"

@@ -189,7 +189,9 @@ function(frigga_add_game TARGET)
     if(UNIX AND NOT APPLE)
         target_link_options(${TARGET} PRIVATE -Wl,--export-dynamic)
         if(CMAKE_BUILD_TYPE STREQUAL "Release")
-            target_link_options(${TARGET} PRIVATE -s)
+            # Strip debug only — keep .dynsym so gameplay modules can bind UND
+            # symbols (Prefab::Load, etc.) against the published host.
+            target_link_options(${TARGET} PRIVATE -Wl,--strip-debug)
         endif()
     elseif(APPLE)
         target_link_options(${TARGET} PRIVATE -Wl,-export_dynamic)
@@ -197,6 +199,57 @@ function(frigga_add_game TARGET)
     endif()
 
     if(WIN32)
+        find_program(_FRIGGA_NM NAMES nm llvm-nm)
+        set(_frigga_exports_script "${FRIGGA_SDK}/cmake/GenerateModuleExports.cmake")
+        if(_FRIGGA_NM AND EXISTS "${_frigga_exports_script}")
+            set(_module_exports "${CMAKE_CURRENT_BINARY_DIR}/${TARGET}_module_exports.def")
+            set(_lib_frigga "${_FRIGGA_ENGINE_FILE}")
+            set(_lib_freyr "")
+            set(_lib_skirnir "")
+            set(_lib_simdjson "")
+            foreach(_candidate IN ITEMS
+                    "${_FRIGGA_LIB_DIR}/freyr.lib"
+                    "${_FRIGGA_LIB_DIR}/libfreyr.lib"
+                    "${_FRIGGA_LIB_DIR}/libfreyr.a")
+                if(EXISTS "${_candidate}")
+                    set(_lib_freyr "${_candidate}")
+                    break()
+                endif()
+            endforeach()
+            foreach(_candidate IN ITEMS
+                    "${_FRIGGA_LIB_DIR}/skirnir.lib"
+                    "${_FRIGGA_LIB_DIR}/libskirnir.lib"
+                    "${_FRIGGA_LIB_DIR}/libskirnir.a")
+                if(EXISTS "${_candidate}")
+                    set(_lib_skirnir "${_candidate}")
+                    break()
+                endif()
+            endforeach()
+            foreach(_candidate IN ITEMS
+                    "${_FRIGGA_LIB_DIR}/simdjson.lib"
+                    "${_FRIGGA_LIB_DIR}/libsimdjson.lib"
+                    "${_FRIGGA_LIB_DIR}/libsimdjson.a")
+                if(EXISTS "${_candidate}")
+                    set(_lib_simdjson "${_candidate}")
+                    break()
+                endif()
+            endforeach()
+            add_custom_command(
+                    OUTPUT "${_module_exports}"
+                    COMMAND ${CMAKE_COMMAND}
+                    -D "NM=${_FRIGGA_NM}"
+                    -D "LIB0=${_lib_frigga}"
+                    -D "LIB1=${_lib_freyr}"
+                    -D "LIB2=${_lib_skirnir}"
+                    -D "LIB3=${_lib_simdjson}"
+                    -D "OUT=${_module_exports}"
+                    -P "${_frigga_exports_script}"
+                    DEPENDS "${_frigga_exports_script}"
+                    VERBATIM
+                    COMMENT "Generate ${TARGET} gameplay module export table")
+            target_sources(${TARGET} PRIVATE "${_module_exports}")
+        endif()
+
         string(REPLACE "." "," _version_commas "${FRIGGA_GAME_VERSION}")
         file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/${TARGET}_version.rc"
 "#include <windows.h>

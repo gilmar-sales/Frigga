@@ -119,4 +119,28 @@ namespace FRIGGA_NAMESPACE
         return SceneSerializer::InstantiatePrefab(scene, std::string_view(json.data(), json.size()),
                                                   parent, outRoot, relative.generic_string());
     }
+
+    void FriKeepPrefabSymbols()
+    {
+        volatile auto serialize          = &Prefab::Serialize;
+        volatile auto instantiate        = &Prefab::Instantiate;
+        volatile auto save               = &Prefab::Save;
+        volatile auto load               = &Prefab::Load;
+        volatile auto isPrefabExtension  = &Prefab::IsPrefabExtension;
+        volatile auto defaultDirectory   = &Prefab::DefaultDirectory;
+        volatile auto sanitizeFileStem   = &Prefab::SanitizeFileStem;
+        volatile auto uniqueAssetPath    = &Prefab::UniqueAssetPath;
+        volatile auto instantiatePrefab  = &SceneSerializer::InstantiatePrefab;
+        volatile auto serializePrefab    = &SceneSerializer::SerializePrefab;
+        (void)serialize;
+        (void)instantiate;
+        (void)save;
+        (void)load;
+        (void)isPrefabExtension;
+        (void)defaultDirectory;
+        (void)sanitizeFileStem;
+        (void)uniqueAssetPath;
+        (void)instantiatePrefab;
+        (void)serializePrefab;
+    }
 } // namespace FRIGGA_NAMESPACE

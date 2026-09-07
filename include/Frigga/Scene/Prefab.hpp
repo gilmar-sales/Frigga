@@ -34,4 +34,8 @@ namespace FRIGGA_NAMESPACE
             const std::filesystem::path &directory, std::string_view stem);
     };
 
+    /// Pulls Prefab.o into Editor / Runtime / published game hosts so gameplay
+    /// modules can resolve Prefab::* at dlopen (static archives otherwise GC it).
+    void FriKeepPrefabSymbols();
+
 } // namespace FRIGGA_NAMESPACE

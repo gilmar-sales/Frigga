@@ -28,6 +28,23 @@ TOOLS = [
         "inputSchema": {"type": "object", "properties": {}},
     },
     {
+        "name": "input.inspect",
+        "description": "Return the open project's input.json path and live input map.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "input.replace",
+        "description": "Replace the project input map (input.json) and apply it; supports dry_run.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["map"],
+            "properties": {
+                "map": {"type": "object"},
+                "dry_run": {"type": "boolean"},
+            },
+        },
+    },
+    {
         "name": "scene.open",
         "description": "Open a scene inside the current project.",
         "inputSchema": {"type": "object", "required": ["path"],
@@ -186,6 +203,7 @@ WIRE_TOOL_NAMES = {
     "scene_delete_entity": "scene.delete_entity",
     "scene_replace_snapshot": "scene.replace_snapshot",
     "modules_set_enabled": "modules.set_enabled",
+    "input_replace": "input.replace",
 }
 
 

@@ -81,6 +81,8 @@ endif()
 
 file(COPY "${CMAKE_SOURCE_DIR}/cmake/FriggaSdk.cmake"
      DESTINATION "${FRIGGA_SDK_DIR}/cmake")
+file(COPY "${CMAKE_SOURCE_DIR}/cmake/GenerateModuleExports.cmake"
+     DESTINATION "${FRIGGA_SDK_DIR}/cmake")
 file(COPY "${CMAKE_SOURCE_DIR}/src/Runtime"
      DESTINATION "${FRIGGA_SDK_DIR}")
 if(EXISTS "${CMAKE_BINARY_DIR}/Resources")
