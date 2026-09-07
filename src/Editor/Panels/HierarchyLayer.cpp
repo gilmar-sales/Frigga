@@ -555,7 +555,7 @@ void HierarchyLayer::createFullscreenEffectEntity()
         return;
     }
     const auto entity =
-        mRegistry->CreateEntity(fg::NameComponent {.name = "Cell Effect"},
+        mRegistry->CreateEntity(fg::NameComponent {.name = "Fullscreen Effect"},
                                 fg::FullscreenEffectComponent {});
     parentNewEntity(entity);
 }
@@ -1144,7 +1144,7 @@ void HierarchyLayer::onGui()
         {
             createParticleEntity();
         }
-        if(ImGui::MenuItem(ICON_BTSP_LAYERS " Cell Effect"))
+        if(ImGui::MenuItem(ICON_BTSP_LAYERS " Fullscreen Effect"))
         {
             createFullscreenEffectEntity();
         }
@@ -1532,16 +1532,42 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
             }
         }
 
-        if(ImGui::MenuItem("Add billboard"))
+        if(ImGui::BeginMenu(ICON_BTSP_IMAGE " Billboards"))
         {
-            if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
+            if(ImGui::MenuItem("Billboard"))
             {
-                mRegistry->AddComponents(entity, fg::TransformComponent {});
+                if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
+                {
+                    mRegistry->AddComponents(entity, fg::TransformComponent {});
+                }
+                if(!mRegistry->HasComponent<fg::BillboardComponent>(entity))
+                {
+                    mRegistry->AddComponents(entity, fg::BillboardComponent {});
+                }
             }
-            if(!mRegistry->HasComponent<fg::BillboardComponent>(entity))
+            if(ImGui::MenuItem("Billboard Text"))
             {
-                mRegistry->AddComponents(entity, fg::BillboardComponent {});
+                if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
+                {
+                    mRegistry->AddComponents(entity, fg::TransformComponent {});
+                }
+                if(!mRegistry->HasComponent<fg::BillboardTextComponent>(entity))
+                {
+                    mRegistry->AddComponents(entity, fg::BillboardTextComponent {});
+                }
             }
+            if(ImGui::MenuItem("Health Bar"))
+            {
+                if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
+                {
+                    mRegistry->AddComponents(entity, fg::TransformComponent {});
+                }
+                if(!mRegistry->HasComponent<fg::HealthBarComponent>(entity))
+                {
+                    mRegistry->AddComponents(entity, fg::HealthBarComponent {});
+                }
+            }
+            ImGui::EndMenu();
         }
         if(ImGui::MenuItem("Add particle emitter"))
         {
@@ -1552,28 +1578,6 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
             if(!mRegistry->HasComponent<fg::ParticleEmitterComponent>(entity))
             {
                 mRegistry->AddComponents(entity, fg::ParticleEmitterComponent {});
-            }
-        }
-        if(ImGui::MenuItem("Add health bar"))
-        {
-            if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
-            {
-                mRegistry->AddComponents(entity, fg::TransformComponent {});
-            }
-            if(!mRegistry->HasComponent<fg::HealthBarComponent>(entity))
-            {
-                mRegistry->AddComponents(entity, fg::HealthBarComponent {});
-            }
-        }
-        if(ImGui::MenuItem("Add billboard text"))
-        {
-            if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
-            {
-                mRegistry->AddComponents(entity, fg::TransformComponent {});
-            }
-            if(!mRegistry->HasComponent<fg::BillboardTextComponent>(entity))
-            {
-                mRegistry->AddComponents(entity, fg::BillboardTextComponent {});
             }
         }
         if(ImGui::MenuItem("Add fullscreen effect"))
@@ -1946,6 +1950,11 @@ void HierarchyLayer::drawComponents()
                 ImGui::DragFloat3("Offset", &bar.offset[0], 0.01f);
                 ImGui::ColorEdit4("Background", &bar.background[0]);
                 ImGui::ColorEdit4("Foreground", &bar.foreground[0]);
+                int align = static_cast<int>(bar.align);
+                if(ImGui::Combo("Align", &align, "Screen\0Cylindrical\0"))
+                {
+                    bar.align = static_cast<fra::BillboardAlign>(align);
+                }
             }
             if(!open && !mSimulation->IsPlaying())
             {

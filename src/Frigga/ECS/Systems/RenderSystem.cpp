@@ -377,7 +377,8 @@ namespace FRIGGA_NAMESPACE
                 }
                 const auto pose = TransformUtil::WorldPose(*mRegistry, entity);
                 draw.HealthBar(pose.position + bar.offset, bar.width, bar.height,
-                               std::clamp(bar.fill, 0.0f, 1.0f), bar.background, bar.foreground);
+                               std::clamp(bar.fill, 0.0f, 1.0f), bar.background, bar.foreground,
+                               bar.align);
             });
 
         mRegistry->CreateMutation()->Each(

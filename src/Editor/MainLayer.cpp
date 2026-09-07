@@ -669,7 +669,7 @@ void MainLayer::drawMenuBar()
             {
                 mHierarchy->createParticleEntity();
             }
-            if(ImGui::MenuItem(ICON_BTSP_LAYERS " Create Cell Effect"))
+            if(ImGui::MenuItem(ICON_BTSP_LAYERS " Create Fullscreen Effect"))
             {
                 mHierarchy->createFullscreenEffectEntity();
             }
@@ -702,21 +702,25 @@ void MainLayer::drawMenuBar()
                 {
                     mHierarchy->addRigidBodyToSelection();
                 }
-                if(ImGui::MenuItem("Billboard"))
+                if(ImGui::BeginMenu(ICON_BTSP_IMAGE " Billboards"))
                 {
-                    mHierarchy->addBillboardToSelection();
+                    if(ImGui::MenuItem("Billboard"))
+                    {
+                        mHierarchy->addBillboardToSelection();
+                    }
+                    if(ImGui::MenuItem("Billboard Text"))
+                    {
+                        mHierarchy->addBillboardTextToSelection();
+                    }
+                    if(ImGui::MenuItem("Health Bar"))
+                    {
+                        mHierarchy->addHealthBarToSelection();
+                    }
+                    ImGui::EndMenu();
                 }
                 if(ImGui::MenuItem("Particle Emitter"))
                 {
                     mHierarchy->addParticleEmitterToSelection();
-                }
-                if(ImGui::MenuItem("Health Bar"))
-                {
-                    mHierarchy->addHealthBarToSelection();
-                }
-                if(ImGui::MenuItem("Billboard Text"))
-                {
-                    mHierarchy->addBillboardTextToSelection();
                 }
                 if(ImGui::MenuItem("Fullscreen Effect"))
                 {

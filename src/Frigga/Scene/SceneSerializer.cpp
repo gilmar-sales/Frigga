@@ -161,6 +161,7 @@ namespace FRIGGA_NAMESPACE
             std::vector<float> offset;
             std::vector<float> background;
             std::vector<float> foreground;
+            std::string        align {"Cylindrical"};
         };
 
         struct SceneBillboardTextDto
@@ -1101,6 +1102,7 @@ namespace FRIGGA_NAMESPACE
                                     bar.background.w},
                     .foreground  = {bar.foreground.x, bar.foreground.y, bar.foreground.z,
                                     bar.foreground.w},
+                    .align       = BillboardAlignToString(bar.align),
                 };
             });
 
@@ -1696,6 +1698,11 @@ namespace FRIGGA_NAMESPACE
                 if(!barDto.foreground.empty() && !ReadVec4(barDto.foreground, bar.foreground))
                 {
                     scene.mLogger->LogError("Invalid healthBar.foreground on '{}'", entityDto.name);
+                    return false;
+                }
+                if(!barDto.align.empty() && !TryParseBillboardAlign(barDto.align, bar.align))
+                {
+                    scene.mLogger->LogError("Invalid healthBar.align on '{}'", entityDto.name);
                     return false;
                 }
                 healthBar = bar;
@@ -2403,6 +2410,7 @@ namespace FRIGGA_NAMESPACE
                                    bar.background.w},
                     .foreground = {bar.foreground.x, bar.foreground.y, bar.foreground.z,
                                    bar.foreground.w},
+                    .align      = BillboardAlignToString(bar.align),
                 };
                 found = true;
             });
@@ -2887,6 +2895,10 @@ namespace FRIGGA_NAMESPACE
                 return false;
             }
             if(!barDto.foreground.empty() && !ReadVec4(barDto.foreground, bar.foreground))
+            {
+                return false;
+            }
+            if(!barDto.align.empty() && !TryParseBillboardAlign(barDto.align, bar.align))
             {
                 return false;
             }
