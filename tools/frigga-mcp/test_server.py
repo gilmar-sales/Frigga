@@ -35,7 +35,12 @@ class McpServerTests(unittest.TestCase):
     def test_tools_list(self):
         response = self.server.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
         self.assertTrue(response["result"]["tools"])
-        self.assertIn("scene.inspect", {tool["name"] for tool in response["result"]["tools"]})
+        names = {tool["name"] for tool in response["result"]["tools"]}
+        self.assertIn("scene.inspect", names)
+        self.assertIn("modules.create", names)
+        self.assertIn("modules.list", names)
+        self.assertIn("modules.build", names)
+        self.assertIn("modules.reload", names)
 
     def test_tool_call_is_forwarded(self):
         response = self.server.handle({
@@ -47,6 +52,32 @@ class McpServerTests(unittest.TestCase):
         self.assertEqual(self.rpc.calls, [("scene.inspect", {})])
         self.assertFalse(response["result"]["isError"])
         self.assertEqual(json.loads(response["result"]["content"][0]["text"])["ok"], True)
+
+    def test_modules_create_is_forwarded(self):
+        response = self.server.handle({
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "tools/call",
+            "params": {"name": "modules.create", "arguments": {"name": "Player Animation"}},
+        })
+        self.assertEqual(self.rpc.calls, [("modules.create", {"name": "Player Animation"})])
+        self.assertFalse(response["result"]["isError"])
+
+    def test_modules_set_enabled_underscore_alias(self):
+        response = self.server.handle({
+            "jsonrpc": "2.0",
+            "id": 5,
+            "method": "tools/call",
+            "params": {
+                "name": "modules_set_enabled",
+                "arguments": {"id": "playeranimation", "enabled": True},
+            },
+        })
+        self.assertEqual(
+            self.rpc.calls,
+            [("modules.set_enabled", {"id": "playeranimation", "enabled": True})],
+        )
+        self.assertFalse(response["result"]["isError"])
 
 
 class EditorRpcReconnectTests(unittest.TestCase):

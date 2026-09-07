@@ -17,6 +17,18 @@ O Editor grava temporariamente o endpoint autenticado em
 (e de novo após uma queda de conexão) e usa o token de sessão gerado pelo
 Editor. O arquivo é removido ao encerrar o Editor.
 
+## Projetos Frigga
+
+Ao criar, migrar ou abrir um projeto, o Editor grava:
+
+- `.cursor/mcp.json` — aponta o bridge para
+  `${workspaceFolder}/tools/frigga-mcp/server.py`
+- `tools/frigga-mcp/{server.py,transports.py}` — cópia do bridge empacotado no
+  SDK (`Sdk/tools/frigga-mcp`)
+
+Assim o Cursor pode abrir a pasta do jogo como workspace e falar com o Editor
+em execução, sem precisar do repositório do engine.
+
 Fechar e reabrir o Editor **não** exige reiniciar o MCP no Cursor: o bridge
 reconecta automaticamente no próximo `tools/call`. Só é preciso reiniciar o
 servidor MCP se o processo do bridge cair ou se `.cursor/mcp.json` mudar.
@@ -36,14 +48,23 @@ No Windows, o mesmo protocolo usa loopback TCP; o caminho do endpoint segue a
 - `assets.validate`
 - `assets.cook`
 - `runtime.start`, `runtime.stop`, `runtime.status`
+- `modules.list`
+- `modules.create` (scaffolds `Modules/<id>/`, updates `frigga.project` + CMake; `dry_run`)
+- `modules.build` (async cmake; optional `target`; `dry_run`)
+- `modules.reload`
+- `modules.set_enabled`
 - `logs.recent`
 - `editor.invoke` com ações allowlisted (`save_scene`, `play`, `stop`,
-  `validate_assets`)
+  `validate_assets`, `build_modules`, `reload_modules`, `create_module`)
 
 Operações de edição são executadas na thread principal do Editor no ponto
 seguro do frame. O bridge não executa shell, não grava diretamente arquivos
-do projeto e não aceita caminhos fora da raiz do projeto. `scene.create` e
-`assets.cook` aceitam `dry_run`.
+do projeto e não aceita caminhos fora da raiz do projeto. `scene.create`,
+`assets.cook`, `modules.create`, `modules.build` e `modules.set_enabled`
+aceitam `dry_run`.
+
+`modules.create` só gera o stub `FRI_MODULE` vazio — o código de systems /
+components ainda é escrito no projeto (ou pelo agente) depois do scaffold.
 
 ## Transporte futuro
 

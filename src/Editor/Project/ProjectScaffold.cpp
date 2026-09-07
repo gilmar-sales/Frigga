@@ -366,7 +366,8 @@ struct Health: fr::Component
                "without requiring the Editor, SDK, CMake, or source tree.\n\n";
         out << "## Debug gameplay code\n\n";
         out << "1. Keep the Frigga Editor open on this project.\n";
-        out << "2. Open this folder in VS Code with the Frigga extension.\n";
+        out << "2. Open this folder in Cursor or VS Code (`.cursor/mcp.json` is scaffolded "
+               "so the Frigga Editor MCP works from the project workspace).\n";
         out << "3. Run **Frigga: Attach Debugger to Editor** (requires C/C++ extension / GDB).\n";
         out << "4. Set breakpoints in your gameplay sources and hit Play in the Editor.\n";
         return out.str();
@@ -466,6 +467,13 @@ ProjectManagedWriteResult ProjectScaffold::WriteManagedFiles(
         return result;
     }
 
+    std::string mcpError;
+    if(!EnsureCursorMcp(projectRoot, desc, mcpError))
+    {
+        result.error = mcpError;
+        return result;
+    }
+
     std::string resourcesError;
     if(!EnsureProjectResources(projectRoot, resourcesError, desc.friggaRoot))
     {
@@ -497,6 +505,85 @@ bool ProjectScaffold::EnsureDefaultInputJson(const std::filesystem::path &projec
         {
             error = "Failed to write input.json";
         }
+        return false;
+    }
+    return true;
+}
+
+namespace
+{
+    [[nodiscard]] std::filesystem::path ResolveFriggaMcpBridgeDir(const ProjectDescriptor &desc)
+    {
+        const std::filesystem::path candidates[] = {
+            desc.friggaSdk / "tools" / "frigga-mcp",
+            desc.friggaRoot / "tools" / "frigga-mcp",
+            desc.friggaBuild / "tools" / "frigga-mcp",
+        };
+        for(const auto &dir : candidates)
+        {
+            if(std::filesystem::exists(dir / "server.py") &&
+               std::filesystem::exists(dir / "transports.py"))
+            {
+                return dir;
+            }
+        }
+        return {};
+    }
+
+    bool CopyMcpBridgeFile(const std::filesystem::path &src, const std::filesystem::path &dst,
+                           std::string &error)
+    {
+        std::error_code ec;
+        std::filesystem::create_directories(dst.parent_path(), ec);
+        if(ec)
+        {
+            error = "Failed to create " + dst.parent_path().string();
+            return false;
+        }
+        std::filesystem::copy_file(src, dst, std::filesystem::copy_options::overwrite_existing,
+                                   ec);
+        if(ec)
+        {
+            error = "Failed to copy " + src.filename().string() + ": " + ec.message();
+            return false;
+        }
+        return true;
+    }
+} // namespace
+
+bool ProjectScaffold::EnsureCursorMcp(const std::filesystem::path &projectRoot,
+                                      const ProjectDescriptor &desc, std::string &error)
+{
+    const auto bridgeSrc = ResolveFriggaMcpBridgeDir(desc);
+    if(bridgeSrc.empty())
+    {
+        error = "Frigga MCP bridge not found under SDK/engine (tools/frigga-mcp). "
+                "Rebuild the Editor SDK, then migrate the project.";
+        return false;
+    }
+
+    const auto bridgeDst = projectRoot / "tools" / "frigga-mcp";
+    if(!CopyMcpBridgeFile(bridgeSrc / "server.py", bridgeDst / "server.py", error) ||
+       !CopyMcpBridgeFile(bridgeSrc / "transports.py", bridgeDst / "transports.py", error))
+    {
+        return false;
+    }
+
+    static constexpr std::string_view kMcpJson =
+        "{\n"
+        "  \"mcpServers\": {\n"
+        "    \"frigga-editor\": {\n"
+        "      \"command\": \"python3\",\n"
+        "      \"args\": [\n"
+        "        \"${workspaceFolder}/tools/frigga-mcp/server.py\"\n"
+        "      ]\n"
+        "    }\n"
+        "  }\n"
+        "}\n";
+
+    if(!WriteTextFile(projectRoot / ".cursor" / "mcp.json", kMcpJson))
+    {
+        error = "Failed to write .cursor/mcp.json";
         return false;
     }
     return true;

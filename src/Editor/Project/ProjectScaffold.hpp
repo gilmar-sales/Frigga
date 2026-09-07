@@ -55,6 +55,11 @@ class ProjectScaffold
     static bool EnsureDefaultInputJson(const std::filesystem::path &projectRoot,
                                        std::string &error);
 
+    /// Writes `.cursor/mcp.json` and syncs `tools/frigga-mcp` from the SDK/engine so
+    /// opening the project folder in Cursor can talk to a running Frigga Editor.
+    static bool EnsureCursorMcp(const std::filesystem::path &projectRoot,
+                                const ProjectDescriptor &desc, std::string &error);
+
     /// Creates `{project}/Resources/{Models,Textures,Prefabs,Fonts}` from the engine
     /// ProjectTemplate (plus optional engine default textures/font). Never overwrites
     /// files already in the project.

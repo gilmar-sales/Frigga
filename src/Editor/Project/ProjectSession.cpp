@@ -1673,6 +1673,14 @@ bool ProjectSession::enterEditor(const std::filesystem::path &projectFile, Proje
     touchRecent();
     loadProjectInputBindings(projectFile.parent_path());
 
+    {
+        std::string mcpError;
+        if(!ProjectScaffold::EnsureCursorMcp(projectFile.parent_path(), mDescriptor, mcpError))
+        {
+            mLogger->LogWarning("Cursor MCP setup skipped: {}", mcpError);
+        }
+    }
+
     std::string opened;
     if(loadModule)
     {

@@ -61,6 +61,11 @@ class EditorMcpService
     std::string HandleLogsRecent() const;
     std::string HandleRuntime(std::string_view method);
     std::string HandleEditorInvoke(std::string_view params);
+    std::string HandleModulesList() const;
+    std::string HandleModulesCreate(std::string_view params);
+    std::string HandleModulesBuild(std::string_view params);
+    std::string HandleModulesReload();
+    std::string HandleModulesSetEnabled(std::string_view params);
 
     void NetworkLoop();
     void FailPending(std::string_view message);

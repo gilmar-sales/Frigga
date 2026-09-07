@@ -568,6 +568,16 @@ std::string EditorMcpService::Dispatch(const Request &request)
         result = HandleRuntime(request.method);
     else if(request.method == "editor.invoke")
         result = HandleEditorInvoke(request.params);
+    else if(request.method == "modules.list")
+        result = HandleModulesList();
+    else if(request.method == "modules.create")
+        result = HandleModulesCreate(request.params);
+    else if(request.method == "modules.build")
+        result = HandleModulesBuild(request.params);
+    else if(request.method == "modules.reload")
+        result = HandleModulesReload();
+    else if(request.method == "modules.set_enabled")
+        result = HandleModulesSetEnabled(request.params);
     else if(request.method == "logs.recent")
         result = HandleLogsRecent();
     else
@@ -780,5 +790,155 @@ std::string EditorMcpService::HandleEditorInvoke(std::string_view params)
         return HandleRuntime(action == "play" ? "runtime.start" : "runtime.stop");
     if(action == "validate_assets")
         return HandleAssetsValidate();
+    if(action == "build_modules")
+        return HandleModulesBuild(params);
+    if(action == "reload_modules")
+        return HandleModulesReload();
+    if(action == "create_module")
+        return HandleModulesCreate(params);
     return ErrorResult("Editor action is not allowlisted", "action_forbidden");
+}
+
+namespace
+{
+    const char *ModuleSourceLabel(ModuleSource source)
+    {
+        switch(source)
+        {
+        case ModuleSource::User:
+            return "user";
+        case ModuleSource::Project:
+        default:
+            return "project";
+        }
+    }
+} // namespace
+
+std::string EditorMcpService::HandleModulesList() const
+{
+    if(!mSession->HasProject())
+    {
+        return ErrorResult("No project is open", "project_not_open");
+    }
+
+    const auto &desc = mSession->GetDescriptor();
+    std::string modules = "[";
+    bool first          = true;
+    for(const auto &entry : desc.modules)
+    {
+        if(!first)
+        {
+            modules += ',';
+        }
+        first = false;
+        modules += "{\"id\":\"" + JsonEscape(entry.id) + "\",\"target\":\"" +
+                   JsonEscape(entry.target) + "\",\"library\":\"" +
+                   JsonEscape(entry.libraryRelative) +
+                   "\",\"enabled\":" + (entry.enabled ? "true" : "false") + ",\"source\":\"" +
+                   ModuleSourceLabel(entry.source) + "\"}";
+    }
+    modules += ']';
+    return OkResult("{\"modules\":" + modules + "}");
+}
+
+std::string EditorMcpService::HandleModulesCreate(std::string_view params)
+{
+    if(!mSession->HasProject())
+    {
+        return ErrorResult("No project is open", "project_not_open");
+    }
+
+    const auto name = Field(params, "name");
+    if(name.empty())
+    {
+        return ErrorResult("modules.create requires name");
+    }
+    if(name.find('/') != std::string::npos || name.find('\\') != std::string::npos ||
+       name.find("..") != std::string::npos)
+    {
+        return ErrorResult("Module name contains a forbidden path segment", "path_forbidden");
+    }
+    if(BoolField(params, "dry_run"))
+    {
+        return OkResult("{\"dry_run\":true,\"name\":\"" + JsonEscape(name) + "\"}");
+    }
+    if(!mSession->CreateModule(name))
+    {
+        return ErrorResult(mSession->GetLastError(), "module_create_failed");
+    }
+
+    std::string id;
+    const auto &desc = mSession->GetDescriptor();
+    if(!desc.modules.empty())
+    {
+        id = desc.modules.back().id;
+    }
+    return OkResult("{\"id\":\"" + JsonEscape(id) + "\",\"name\":\"" + JsonEscape(name) +
+                    "\",\"path\":\"Modules/" + JsonEscape(id) + "\"}");
+}
+
+std::string EditorMcpService::HandleModulesBuild(std::string_view params)
+{
+    if(!mSession->HasProject())
+    {
+        return ErrorResult("No project is open", "project_not_open");
+    }
+    if(BoolField(params, "dry_run"))
+    {
+        return OkResult("{\"dry_run\":true,\"target\":\"" +
+                        JsonEscape(Field(params, "target")) + "\"}");
+    }
+    if(!mSession->BuildModule(Field(params, "target")))
+    {
+        return ErrorResult(mSession->GetLastError(), "module_build_failed");
+    }
+    return OkResult("{\"started\":true,\"target\":\"" + JsonEscape(Field(params, "target")) +
+                    "\",\"status\":\"" + JsonEscape(mSession->GetStatusMessage()) + "\"}");
+}
+
+std::string EditorMcpService::HandleModulesReload()
+{
+    if(!mSession->HasProject())
+    {
+        return ErrorResult("No project is open", "project_not_open");
+    }
+    if(!mSession->ReloadModule())
+    {
+        return ErrorResult(mSession->GetLastError().empty()
+                               ? "Unable to reload modules"
+                               : mSession->GetLastError(),
+                           "module_reload_failed");
+    }
+    return OkResult("{\"reloaded\":true,\"status\":\"" +
+                    JsonEscape(mSession->GetStatusMessage()) + "\"}");
+}
+
+std::string EditorMcpService::HandleModulesSetEnabled(std::string_view params)
+{
+    if(!mSession->HasProject())
+    {
+        return ErrorResult("No project is open", "project_not_open");
+    }
+    const auto id = Field(params, "id");
+    if(id.empty())
+    {
+        return ErrorResult("modules.set_enabled requires id");
+    }
+    const bool enabled = BoolField(params, "enabled");
+    // Absent "enabled" parses as false via BoolField; require the key explicitly.
+    if(params.find("\"enabled\"") == std::string_view::npos)
+    {
+        return ErrorResult("modules.set_enabled requires enabled");
+    }
+    if(BoolField(params, "dry_run"))
+    {
+        return OkResult("{\"dry_run\":true,\"id\":\"" + JsonEscape(id) +
+                        "\",\"enabled\":" + (enabled ? "true" : "false") + "}");
+    }
+    if(!mSession->SetModuleEnabled(id, enabled))
+    {
+        return ErrorResult(mSession->GetLastError(), "module_set_enabled_failed");
+    }
+    return OkResult("{\"id\":\"" + JsonEscape(id) +
+                    "\",\"enabled\":" + (enabled ? "true" : "false") + "}");
 }

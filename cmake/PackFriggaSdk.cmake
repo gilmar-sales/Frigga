@@ -89,6 +89,12 @@ if(EXISTS "${CMAKE_BINARY_DIR}/Resources")
 endif()
 file(COPY "${CMAKE_SOURCE_DIR}/src/Editor/Resources/Modules"
      DESTINATION "${FRIGGA_SDK_DIR}")
+if(EXISTS "${CMAKE_SOURCE_DIR}/tools/frigga-mcp/server.py")
+    file(MAKE_DIRECTORY "${FRIGGA_SDK_DIR}/tools")
+    file(COPY "${CMAKE_SOURCE_DIR}/tools/frigga-mcp/server.py"
+              "${CMAKE_SOURCE_DIR}/tools/frigga-mcp/transports.py"
+         DESTINATION "${FRIGGA_SDK_DIR}/tools/frigga-mcp")
+endif()
 file(WRITE "${FRIGGA_SDK_DIR}/CMakeLists.txt"
      "# Frigga gameplay module SDK (packaged with Editor)\n")
 file(WRITE "${FRIGGA_SDK_DIR}/FriggaSdkConfig.cmake"

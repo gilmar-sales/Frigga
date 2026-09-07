@@ -129,6 +129,52 @@ TOOLS = [
         },
     },
     {
+        "name": "modules.list",
+        "description": "List gameplay modules registered in the open project.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "modules.create",
+        "description": "Scaffold a new project module (Modules/<id>/ + frigga.project + CMake).",
+        "inputSchema": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+                "name": {"type": "string"},
+                "dry_run": {"type": "boolean"},
+            },
+        },
+    },
+    {
+        "name": "modules.build",
+        "description": "Start an async cmake build of project modules (empty target = all).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "target": {"type": "string"},
+                "dry_run": {"type": "boolean"},
+            },
+        },
+    },
+    {
+        "name": "modules.reload",
+        "description": "Reload enabled module shared libraries into the Editor.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "modules.set_enabled",
+        "description": "Enable or disable a project module entry and save frigga.project.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["id", "enabled"],
+            "properties": {
+                "id": {"type": "string"},
+                "enabled": {"type": "boolean"},
+                "dry_run": {"type": "boolean"},
+            },
+        },
+    },
+    {
         "name": "logs.recent",
         "description": "Read the Editor's latest status and error diagnostics.",
         "inputSchema": {"type": "object", "properties": {}},
@@ -139,6 +185,7 @@ WIRE_TOOL_NAMES = {
     "scene_update_component": "scene.update_component",
     "scene_delete_entity": "scene.delete_entity",
     "scene_replace_snapshot": "scene.replace_snapshot",
+    "modules_set_enabled": "modules.set_enabled",
 }
 
 

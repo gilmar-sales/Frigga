@@ -154,6 +154,14 @@ ProjectMigrationResult ProjectMigrator::Migrate(const std::filesystem::path &pro
         return result;
     }
 
+    // Always refresh Cursor MCP even when ApplyManagedLayout already ran via WriteManagedFiles.
+    // (Kept explicit for clarity if layout steps change later.)
+    if(!ProjectScaffold::EnsureCursorMcp(projectFile.parent_path(), desc, stepError))
+    {
+        result.error = stepError;
+        return result;
+    }
+
     if(!ProjectFile::Save(projectFile, desc))
     {
         result.error = "Failed to write updated frigga.project";
