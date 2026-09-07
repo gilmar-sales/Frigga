@@ -2,10 +2,53 @@
 
 #include "Editor/DockLayout.hpp"
 #include "Frigga/ECS/Components/AnimatorComponent.hpp"
+#include "Frigga/ECS/Components/HierarchyComponent.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 
 #include <cstdio>
 #include <cstring>
+
+namespace
+{
+    [[nodiscard]] std::string ModelSourceFromMesh(fg::AssetRegistry &assets, fr::Entity entity,
+                                                  fr::Registry &registry)
+    {
+        std::string source;
+        registry.TryGetComponents<fg::MeshComponent>(entity, [&](fg::MeshComponent &mesh) {
+            fg::ModelAsset model {};
+            std::uint32_t  submesh = 0;
+            if(assets.TryFindModelByMeshId(mesh.meshId, model, submesh) && model.skinned)
+            {
+                source = model.relativePath;
+            }
+        });
+        return source;
+    }
+
+    [[nodiscard]] std::string ResolveAnimatorModelSource(fg::AssetRegistry &assets,
+                                                         fr::Entity entity,
+                                                         fr::Registry &registry)
+    {
+        if(auto source = ModelSourceFromMesh(assets, entity, registry); !source.empty())
+        {
+            return source;
+        }
+
+        std::string fromChild;
+        registry.TryGetComponents<fg::HierarchyComponent>(
+            entity, [&](fg::HierarchyComponent &hierarchy) {
+                for(const auto child : hierarchy.children)
+                {
+                    fromChild = ModelSourceFromMesh(assets, child, registry);
+                    if(!fromChild.empty())
+                    {
+                        return;
+                    }
+                }
+            });
+        return fromChild;
+    }
+} // namespace
 
 AnimatorPanelLayer::AnimatorPanelLayer(skr::Arc<fg::AssetRegistry> assets,
                                        skr::Arc<SelectionContext> selection,
@@ -38,19 +81,10 @@ void AnimatorPanelLayer::onGui()
         ImGui::TextWrapped("Selected entity has no Animator component.");
         if(!mSimulation->IsPlaying() && ImGui::Button("Add Animator"))
         {
-            fg::ModelAsset model {};
-            std::uint32_t submesh = 0;
-            std::string source;
-            mRegistry->TryGetComponents<fg::MeshComponent>(
-                selection, [&](fg::MeshComponent &mesh) {
-                    if(mAssets->TryFindModelByMeshId(mesh.meshId, model, submesh) &&
-                       model.skinned)
-                    {
-                        source = model.relativePath;
-                    }
-                });
-            mRegistry->AddComponents(selection,
-                                     fg::AnimatorComponent {.modelSource = std::move(source)});
+            mRegistry->AddComponents(
+                selection,
+                fg::AnimatorComponent {
+                    .modelSource = ResolveAnimatorModelSource(*mAssets, selection, *mRegistry)});
         }
         ImGui::End();
         return;

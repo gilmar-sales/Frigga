@@ -28,6 +28,7 @@
 
 #include <algorithm>
 #include <fstream>
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -1241,6 +1242,88 @@ namespace FRIGGA_NAMESPACE
             });
         }
 
+        /// Legacy multi-submesh scenes put one Animator per child. Hoist a shared
+        /// Animator onto the parent when ≥2 direct children share the same modelSource.
+        void HoistSharedChildAnimators(fr::Registry &registry,
+                                       const std::function<void()> &flush,
+                                       const std::function<void(std::string_view, std::size_t)>
+                                           &logHoist)
+        {
+            std::vector<fr::Entity> parents;
+            registry.CreateMutation()->Each(
+                [&](fr::Entity entity, HierarchyComponent &) { parents.push_back(entity); });
+
+            for(const auto parent : parents)
+            {
+                if(registry.HasComponent<AnimatorComponent>(parent))
+                {
+                    continue;
+                }
+
+                std::vector<fr::Entity> animatedChildren;
+                std::string             sharedSource;
+                bool                    sourcesMatch = true;
+
+                registry.TryGetComponents<HierarchyComponent>(
+                    parent, [&](HierarchyComponent &hierarchy) {
+                        for(const auto child : hierarchy.children)
+                        {
+                            if(!registry.HasComponent<AnimatorComponent>(child))
+                            {
+                                continue;
+                            }
+                            std::string childSource;
+                            registry.TryGetComponents<AnimatorComponent>(
+                                child, [&](AnimatorComponent &animator) {
+                                    childSource = animator.modelSource;
+                                });
+                            if(childSource.empty())
+                            {
+                                continue;
+                            }
+                            if(sharedSource.empty())
+                            {
+                                sharedSource = childSource;
+                            }
+                            else if(sharedSource != childSource)
+                            {
+                                sourcesMatch = false;
+                                return;
+                            }
+                            animatedChildren.push_back(child);
+                        }
+                    });
+
+                if(!sourcesMatch || animatedChildren.size() < 2)
+                {
+                    continue;
+                }
+
+                AnimatorComponent hoisted {};
+                registry.TryGetComponents<AnimatorComponent>(
+                    animatedChildren.front(),
+                    [&](AnimatorComponent &animator) { hoisted = animator; });
+                hoisted.timeSec    = 0.0f;
+                hoisted.boneOffset = fra::kNoSkin;
+                hoisted.boneCount  = 0;
+
+                if(!registry.HasComponent<TransformComponent>(parent))
+                {
+                    registry.AddComponents(parent, TransformComponent {});
+                }
+                registry.AddComponents(parent, std::move(hoisted));
+                flush();
+
+                for(const auto child : animatedChildren)
+                {
+                    registry.RemoveComponent<AnimatorComponent>(child);
+                }
+                flush();
+
+                logHoist(sharedSource, animatedChildren.size());
+            }
+        }
+
     } // namespace
 
     bool SceneSerializer::Serialize(Scene &scene, std::string &outJson)
@@ -2040,6 +2123,13 @@ namespace FRIGGA_NAMESPACE
             }
         }
 
+        HoistSharedChildAnimators(
+            *registry, [&] { scene.FlushEcs(); },
+            [&](std::string_view source, std::size_t count) {
+                scene.mLogger->LogInformation(
+                    "Hoisted shared Animator ({}) onto parent from {} child meshes", source,
+                    count);
+            });
         return true;
     }
 

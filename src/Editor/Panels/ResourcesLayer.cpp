@@ -1200,6 +1200,43 @@ void ResourcesLayer::spawnModel(const std::filesystem::path &relativePath)
         return;
     }
 
+    const bool skinned =
+        model->skinned && !model->clips.empty() && model->skeleton.JointCount() > 0;
+    const glm::vec3 rootScale = model->label.find("Fox") != std::string::npos
+                                    ? glm::vec3(0.02f)
+                                    : glm::vec3(1.0f);
+
+    if(skinned)
+    {
+        const auto root = mRegistry->CreateEntity(
+            fg::NameComponent {.name = model->label},
+            fg::TransformComponent {.scale = rootScale},
+            fg::AnimatorComponent {.modelSource = model->relativePath,
+                                   .playing     = true,
+                                   .previewInEdit = true});
+
+        for(std::size_t i = 0; i < model->submeshes.size(); ++i)
+        {
+            const auto &submesh = model->submeshes[i];
+            const auto name     = model->submeshes.size() == 1
+                                      ? model->label
+                                      : std::format("{} ({})", model->label, i);
+            const auto materialId =
+                submesh.materialId != 0 ? submesh.materialId : mPrimitives->GetDefaultMaterial();
+
+            const auto child = mRegistry->CreateEntity(
+                fg::NameComponent {.name = name}, fg::TransformComponent {},
+                fg::MeshComponent {.meshId = submesh.meshId},
+                fg::MaterialComponent {.materialId = materialId});
+            fg::TransformUtil::SetParent(*mRegistry, child, root, false);
+        }
+
+        mSelection->Select(root);
+        mStatus = std::format("Spawned model '{}' ({} submeshes, skinned)", model->label,
+                              model->submeshes.size());
+        return;
+    }
+
     fr::Entity first = SelectionContext::Invalid;
     for(std::size_t i = 0; i < model->submeshes.size(); ++i)
     {
@@ -1211,26 +1248,10 @@ void ResourcesLayer::spawnModel(const std::filesystem::path &relativePath)
         const auto materialId =
             submesh.materialId != 0 ? submesh.materialId : mPrimitives->GetDefaultMaterial();
 
-        fr::Entity entity {};
-        if(model->skinned && !model->clips.empty())
-        {
-            entity = mRegistry->CreateEntity(
-                fg::NameComponent {.name = name},
-                fg::TransformComponent {.scale = model->label.find("Fox") != std::string::npos
-                                                     ? glm::vec3(0.02f)
-                                                     : glm::vec3(1.0f)},
-                fg::MeshComponent {.meshId = submesh.meshId},
-                fg::MaterialComponent {.materialId = materialId},
-                fg::AnimatorComponent {.modelSource = model->relativePath, .playing = true,
-                                       .previewInEdit = true});
-        }
-        else
-        {
-            entity = mRegistry->CreateEntity(
-                fg::NameComponent {.name = name}, fg::TransformComponent {},
-                fg::MeshComponent {.meshId = submesh.meshId},
-                fg::MaterialComponent {.materialId = materialId});
-        }
+        const auto entity = mRegistry->CreateEntity(
+            fg::NameComponent {.name = name}, fg::TransformComponent {},
+            fg::MeshComponent {.meshId = submesh.meshId},
+            fg::MaterialComponent {.materialId = materialId});
 
         if(first == SelectionContext::Invalid)
         {
@@ -1241,8 +1262,8 @@ void ResourcesLayer::spawnModel(const std::filesystem::path &relativePath)
     {
         mSelection->Select(first);
     }
-    mStatus = std::format("Spawned model '{}' ({} submeshes{})", model->label,
-                          model->submeshes.size(), model->skinned ? ", skinned" : "");
+    mStatus = std::format("Spawned model '{}' ({} submeshes)", model->label,
+                          model->submeshes.size());
 }
 
 void ResourcesLayer::spawnPrefab(const std::filesystem::path &relativePath)

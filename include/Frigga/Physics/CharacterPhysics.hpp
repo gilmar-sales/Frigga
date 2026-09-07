@@ -65,7 +65,7 @@ namespace FRIGGA_NAMESPACE
         const UserComponentInstance &instance)
     {
         PhysicsCharacterDesc desc {};
-        desc.radius          = PropertyFloat(instance, "radius", 0.35f);
+        desc.radius          = PropertyFloat(instance, "radius", 0.5f);
         desc.height          = PropertyFloat(instance, "height", 1.0f);
         desc.maxSlopeDegrees = PropertyFloat(instance, "maxSlopeDegrees", 45.0f);
         desc.mass            = PropertyFloat(instance, "mass", 70.0f);

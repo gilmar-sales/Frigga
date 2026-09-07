@@ -277,14 +277,26 @@ namespace FRIGGA_NAMESPACE
                     .castShadows = mesh.castShadows,
                 };
 
-                mRegistry->TryGetComponents<AnimatorComponent>(
-                    entity, [&](AnimatorComponent &animator) {
-                        if(animator.boneCount > 0 && animator.boneOffset != fra::kNoSkin)
-                        {
-                            upload.boneOffset = animator.boneOffset;
-                            upload.boneCount  = animator.boneCount;
-                        }
-                    });
+                // Local Animator first (compat); else inherit shared pose from an ancestor.
+                fr::Entity skinEntity = entity;
+                while(skinEntity != kInvalidEntity)
+                {
+                    bool found = false;
+                    mRegistry->TryGetComponents<AnimatorComponent>(
+                        skinEntity, [&](AnimatorComponent &animator) {
+                            if(animator.boneCount > 0 && animator.boneOffset != fra::kNoSkin)
+                            {
+                                upload.boneOffset = animator.boneOffset;
+                                upload.boneCount  = animator.boneCount;
+                                found             = true;
+                            }
+                        });
+                    if(found)
+                    {
+                        break;
+                    }
+                    skinEntity = TransformUtil::ParentOf(*mRegistry, skinEntity);
+                }
 
                 mSceneInstances.push_back(upload);
             });

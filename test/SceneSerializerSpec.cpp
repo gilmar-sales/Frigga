@@ -2,6 +2,7 @@
 
 #include <Frigga/Asset/AssetRegistry.hpp>
 #include <Frigga/Asset/PrimitiveMeshFactory.hpp>
+#include <Frigga/ECS/Components/AnimatorComponent.hpp>
 #include <Frigga/ECS/Components/BillboardComponent.hpp>
 #include <Frigga/ECS/Components/BillboardTextComponent.hpp>
 #include <Frigga/ECS/Components/CameraComponent.hpp>
@@ -230,6 +231,7 @@ class SceneSerializerSpec: public ::testing::Test
                            .WithComponent<fg::CameraComponent>()
                            .WithComponent<fg::LightComponent>()
                            .WithComponent<fg::RigidBodyComponent>()
+                           .WithComponent<fg::AnimatorComponent>()
                            .WithComponent<fg::BillboardComponent>()
                            .WithComponent<fg::BillboardTextComponent>()
                            .WithComponent<fg::HealthBarComponent>()
@@ -766,5 +768,101 @@ TEST_F(SceneSerializerSpec, RoundTrip_ParentChildPreservesLocalTransform)
     EXPECT_NEAR(world.position.x, 11.0f, kEpsilon);
     EXPECT_NEAR(world.position.y, 2.0f, kEpsilon);
     EXPECT_NEAR(world.position.z, 3.0f, kEpsilon);
+}
+
+TEST_F(SceneSerializerSpec, Deserialize_HoistsSharedChildAnimators)
+{
+    const auto parent = mRegistry->CreateEntity(fg::NameComponent {.name = "Bulbasaur"},
+                                                fg::TransformComponent {});
+    const auto eyes = mRegistry->CreateEntity(
+        fg::NameComponent {.name = "Eyes"}, fg::TransformComponent {},
+        fg::MeshComponent {.meshId = mPrimitives->GetMesh(fg::PrimitiveType::Cube)},
+        fg::MaterialComponent {.materialId = mPrimitives->GetDefaultMaterial()},
+        fg::AnimatorComponent {.modelSource = "Models/bulbasaur.glb",
+                               .clipName    = "walk",
+                               .timeSec     = 1.2f,
+                               .playing     = true});
+    const auto body = mRegistry->CreateEntity(
+        fg::NameComponent {.name = "Body"}, fg::TransformComponent {},
+        fg::MeshComponent {.meshId = mPrimitives->GetMesh(fg::PrimitiveType::Cube)},
+        fg::MaterialComponent {.materialId = mPrimitives->GetDefaultMaterial()},
+        fg::AnimatorComponent {.modelSource = "Models/bulbasaur.glb",
+                               .clipName    = "walk",
+                               .timeSec     = 0.4f,
+                               .playing     = true});
+    mRegistry->ExecuteTasks();
+    ASSERT_TRUE(fg::TransformUtil::SetParent(*mRegistry, eyes, parent, false));
+    ASSERT_TRUE(fg::TransformUtil::SetParent(*mRegistry, body, parent, false));
+
+    std::string json;
+    ASSERT_TRUE(fg::SceneSerializer::Serialize(*mScene, json));
+    ASSERT_TRUE(mScene->RestoreSnapshot(json));
+
+    fr::Entity restoredParent = fg::kInvalidEntity;
+    fr::Entity restoredEyes   = fg::kInvalidEntity;
+    fr::Entity restoredBody   = fg::kInvalidEntity;
+    mRegistry->CreateMutation()->Each([&](fr::Entity entity, fg::NameComponent &name) {
+        if(name.name == "Bulbasaur")
+        {
+            restoredParent = entity;
+        }
+        else if(name.name == "Eyes")
+        {
+            restoredEyes = entity;
+        }
+        else if(name.name == "Body")
+        {
+            restoredBody = entity;
+        }
+    });
+    ASSERT_NE(restoredParent, fg::kInvalidEntity);
+    ASSERT_NE(restoredEyes, fg::kInvalidEntity);
+    ASSERT_NE(restoredBody, fg::kInvalidEntity);
+
+    EXPECT_TRUE(mRegistry->HasComponent<fg::AnimatorComponent>(restoredParent));
+    EXPECT_FALSE(mRegistry->HasComponent<fg::AnimatorComponent>(restoredEyes));
+    EXPECT_FALSE(mRegistry->HasComponent<fg::AnimatorComponent>(restoredBody));
+
+    mRegistry->TryGetComponents<fg::AnimatorComponent>(
+        restoredParent, [](fg::AnimatorComponent &animator) {
+            EXPECT_EQ(animator.modelSource, "Models/bulbasaur.glb");
+            EXPECT_EQ(animator.clipName, "walk");
+            EXPECT_NEAR(animator.timeSec, 0.0f, kEpsilon);
+            EXPECT_TRUE(animator.playing);
+        });
+}
+
+TEST_F(SceneSerializerSpec, Deserialize_DoesNotHoistSingleChildAnimator)
+{
+    const auto parent = mRegistry->CreateEntity(fg::NameComponent {.name = "Root"},
+                                                fg::TransformComponent {});
+    const auto mesh = mRegistry->CreateEntity(
+        fg::NameComponent {.name = "Fox"}, fg::TransformComponent {},
+        fg::MeshComponent {.meshId = mPrimitives->GetMesh(fg::PrimitiveType::Cube)},
+        fg::MaterialComponent {.materialId = mPrimitives->GetDefaultMaterial()},
+        fg::AnimatorComponent {.modelSource = "Models/Fox.glb", .playing = true});
+    mRegistry->ExecuteTasks();
+    ASSERT_TRUE(fg::TransformUtil::SetParent(*mRegistry, mesh, parent, false));
+
+    std::string json;
+    ASSERT_TRUE(fg::SceneSerializer::Serialize(*mScene, json));
+    ASSERT_TRUE(mScene->RestoreSnapshot(json));
+
+    fr::Entity restoredRoot = fg::kInvalidEntity;
+    fr::Entity restoredFox  = fg::kInvalidEntity;
+    mRegistry->CreateMutation()->Each([&](fr::Entity entity, fg::NameComponent &name) {
+        if(name.name == "Root")
+        {
+            restoredRoot = entity;
+        }
+        else if(name.name == "Fox")
+        {
+            restoredFox = entity;
+        }
+    });
+    ASSERT_NE(restoredRoot, fg::kInvalidEntity);
+    ASSERT_NE(restoredFox, fg::kInvalidEntity);
+    EXPECT_FALSE(mRegistry->HasComponent<fg::AnimatorComponent>(restoredRoot));
+    EXPECT_TRUE(mRegistry->HasComponent<fg::AnimatorComponent>(restoredFox));
 }
 

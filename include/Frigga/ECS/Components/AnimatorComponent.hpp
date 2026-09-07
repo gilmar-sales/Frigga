@@ -19,6 +19,10 @@ namespace FRIGGA_NAMESPACE
      * @brief Drives skinned mesh playback from a ModelAsset loaded via
      *        AssetRegistry (skeleton + clips from Freya CreateSkinnedModelFromFile).
      *
+     * Prefer one Animator on a hierarchy root (Unity-like). Child Mesh entities
+     * without their own Animator inherit that root's bone palette via parent walk
+     * in RenderSystem. Same-entity Mesh+Animator remains supported for single meshes.
+     *
      * Runtime fields `boneOffset` / `boneCount` are written each frame by
      * AnimationSystem for RenderSystem instance uploads.
      */

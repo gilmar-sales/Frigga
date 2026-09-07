@@ -86,6 +86,9 @@ namespace FRIGGA_NAMESPACE
         /// Drop runtime when the entity is destroyed / animator removed.
         void ClearRuntime(fr::Entity entity);
 
+        /// Drop runtimes for entities that no longer have AnimatorComponent.
+        void PruneMissingAnimators();
+
         /// Rebuild the compiled Freya graph when the authored definition changes.
         void SyncAnimGraph(fr::Entity entity, const AnimatorComponent &animator,
                            const ModelAsset &model);

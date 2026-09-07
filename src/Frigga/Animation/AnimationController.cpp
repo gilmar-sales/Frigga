@@ -35,6 +35,21 @@ namespace FRIGGA_NAMESPACE
         mRuntimes.erase(entity);
     }
 
+    void AnimationController::PruneMissingAnimators()
+    {
+        for(auto it = mRuntimes.begin(); it != mRuntimes.end();)
+        {
+            if(!mRegistry->HasComponent<AnimatorComponent>(it->first))
+            {
+                it = mRuntimes.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
+    }
+
     bool AnimationController::resolveClipName(fr::Entity entity, std::string_view requested,
                                               std::string &outClipName) const
     {

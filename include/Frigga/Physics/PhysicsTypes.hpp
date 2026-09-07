@@ -54,7 +54,7 @@ namespace FRIGGA_NAMESPACE
         glm::vec3 position {0.0f};
         glm::quat rotation {1.0f, 0.0f, 0.0f, 0.0f};
 
-        float radius          = 0.35f;
+        float radius          = 0.5f;
         float height          = 1.0f; // Capsule cylinder height (excluding hemispheres)
         float maxSlopeDegrees = 45.0f;
         float mass            = 70.0f;

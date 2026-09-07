@@ -7,7 +7,7 @@
 
 struct CharacterControllerComponent: fr::Component
 {
-    float radius          = 0.35f;
+    float radius          = 0.5f;
     float height          = 1.0f;
     float maxSlopeDegrees = 45.0f;
     float mass            = 70.0f;

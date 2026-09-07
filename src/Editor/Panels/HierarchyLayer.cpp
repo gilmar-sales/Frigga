@@ -64,6 +64,59 @@ namespace
         return glm::quatLookAt(glm::vec3 {0.0f, -1.0f, 0.0f}, glm::vec3 {0.0f, 0.0f, 1.0f});
     }
 
+    [[nodiscard]] std::string ModelSourceFromMesh(fg::AssetRegistry &assets, fr::Entity entity,
+                                                  fr::Registry &registry)
+    {
+        std::string source;
+        registry.TryGetComponents<fg::MeshComponent>(entity, [&](fg::MeshComponent &mesh) {
+            fg::ModelAsset model {};
+            std::uint32_t  submesh = 0;
+            if(assets.TryFindModelByMeshId(mesh.meshId, model, submesh) && model.skinned)
+            {
+                source = model.relativePath;
+            }
+        });
+        return source;
+    }
+
+    [[nodiscard]] std::string ResolveAnimatorModelSource(fg::AssetRegistry &assets,
+                                                         fr::Entity entity,
+                                                         fr::Registry &registry)
+    {
+        if(auto source = ModelSourceFromMesh(assets, entity, registry); !source.empty())
+        {
+            return source;
+        }
+
+        std::string fromChild;
+        registry.TryGetComponents<fg::HierarchyComponent>(
+            entity, [&](fg::HierarchyComponent &hierarchy) {
+                for(const auto child : hierarchy.children)
+                {
+                    fromChild = ModelSourceFromMesh(assets, child, registry);
+                    if(!fromChild.empty())
+                    {
+                        return;
+                    }
+                }
+            });
+        return fromChild;
+    }
+
+    [[nodiscard]] bool HasAncestorAnimator(fr::Registry &registry, fr::Entity entity)
+    {
+        auto parent = fg::TransformUtil::ParentOf(registry, entity);
+        while(parent != fg::kInvalidEntity)
+        {
+            if(registry.HasComponent<fg::AnimatorComponent>(parent))
+            {
+                return true;
+            }
+            parent = fg::TransformUtil::ParentOf(registry, parent);
+        }
+        return false;
+    }
+
     void DrawNamedProperty(fg::NamedProperty &property)
     {
         ImGui::PushID(property.name.c_str());
@@ -1629,14 +1682,8 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
             if(!mRegistry->HasComponent<fg::AnimatorComponent>(entity))
             {
                 fg::AnimatorComponent animator {};
-                mRegistry->TryGetComponents<fg::MeshComponent>(entity, [&](fg::MeshComponent &mesh) {
-                    fg::ModelAsset model {};
-                    std::uint32_t submesh = 0;
-                    if(mAssets->TryFindModelByMeshId(mesh.meshId, model, submesh) && model.skinned)
-                    {
-                        animator.modelSource = model.relativePath;
-                    }
-                });
+                animator.modelSource =
+                    ResolveAnimatorModelSource(*mAssets, entity, *mRegistry);
                 mRegistry->AddComponents(entity, std::move(animator));
             }
         }
@@ -2265,6 +2312,12 @@ void HierarchyLayer::drawComponents()
             }
 
             ImGui::Checkbox("Cast Shadows", &mesh.castShadows);
+
+            if(!mRegistry->HasComponent<fg::AnimatorComponent>(selection) &&
+               HasAncestorAnimator(*mRegistry, selection))
+            {
+                ImGui::TextDisabled("Skin from parent Animator");
+            }
 
             if(!isPrimitive)
             {

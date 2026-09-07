@@ -2,7 +2,6 @@
 
 #include "Frigga/ECS/Components/AnimatorComponent.hpp"
 #include "Frigga/ECS/Components/CameraComponent.hpp"
-#include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/ECS/TransformUtil.hpp"
 
@@ -298,9 +297,14 @@ namespace FRIGGA_NAMESPACE
         std::unordered_map<std::string, std::vector<fra::GpuAnimInstance>> gpuBatches;
         std::unordered_map<std::string, const ModelAsset *> gpuBatchModels;
 
+        if(mController)
+        {
+            mController->PruneMissingAnimators();
+        }
+
+        // Animator may live on a parent root; child meshes resolve boneOffset in RenderSystem.
         mRegistry->CreateMutation()->Each(
-            [&](fr::Entity entity, TransformComponent &, MeshComponent &,
-                AnimatorComponent &animator) {
+            [&](fr::Entity entity, TransformComponent &, AnimatorComponent &animator) {
                 animator.boneOffset = fra::kNoSkin;
                 animator.boneCount  = 0;
 
