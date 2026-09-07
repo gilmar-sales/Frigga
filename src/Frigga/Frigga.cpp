@@ -26,6 +26,7 @@
 #include <Frigga/ECS/Components/TransformComponent.hpp>
 #include <Frigga/ECS/Systems/AnimationSystem.hpp>
 #include <Frigga/ECS/Systems/AudioSystem.hpp>
+#include <Frigga/ECS/Systems/PhysicsInterpolationSystem.hpp>
 #include <Frigga/ECS/Systems/PhysicsSystem.hpp>
 #include <Frigga/ECS/Systems/RenderSystem.hpp>
 #include <Frigga/ECS/UserComponentRegistry.hpp>
@@ -71,7 +72,9 @@ namespace FRIGGA_NAMESPACE
                     })
                     .WithPipeline([](fr::PipelineBuilder &pipeline) {
                         // Play mode only, display rate (e.g. third-person camera, audio).
-                        pipeline.WithName("Main").WithSystem<AudioSystem>();
+                        pipeline.WithName("Main")
+                            .WithSystem<PhysicsInterpolationSystem>()
+                            .WithSystem<AudioSystem>();
                     })
                     .WithPipeline([](fr::PipelineBuilder &pipeline) {
                         // Always: pose preview then draw. Animation stays here so Edit

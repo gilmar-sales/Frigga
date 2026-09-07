@@ -75,6 +75,14 @@ namespace FRIGGA_NAMESPACE
             PropertyFloat(instance, "stickToFloorDistance", 0.5f);
         desc.walkStairsStepHeight =
             PropertyFloat(instance, "walkStairsStepHeight", 0.4f);
+        desc.predictiveContactDistance =
+            PropertyFloat(instance, "predictiveContactDistance", 0.1f);
+        desc.characterPadding =
+            PropertyFloat(instance, "characterPadding", 0.02f);
+        desc.penetrationRecoverySpeed =
+            PropertyFloat(instance, "penetrationRecoverySpeed", 1.0f);
+        desc.enhancedInternalEdgeRemoval =
+            PropertyInt(instance, "enhancedInternalEdgeRemoval", 0) != 0;
         desc.collisionLayer  = static_cast<std::uint8_t>(
             std::clamp<std::int64_t>(PropertyInt(instance, "collisionLayer", 1), 0, 15));
         desc.collideWithLayers = static_cast<std::uint16_t>(std::clamp<std::int64_t>(

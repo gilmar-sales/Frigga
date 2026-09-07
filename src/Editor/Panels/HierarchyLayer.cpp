@@ -2471,6 +2471,12 @@ void HierarchyLayer::drawComponents()
                 ImGui::EndDisabled();
                 ImGui::DragFloat("Friction", &rigidBody.friction, 0.01f, 0.0f, 10.0f);
                 ImGui::DragFloat("Restitution", &rigidBody.restitution, 0.01f, 0.0f, 1.0f);
+                ImGui::Checkbox("Is Sensor", &rigidBody.isSensor);
+                if(ImGui::IsItemHovered())
+                {
+                    ImGui::SetTooltip(
+                        "Trigger volume: no collision response; emits enter/stay/exit events.");
+                }
 
                 int layer = rigidBody.collisionLayer;
                 if(ImGui::SliderInt("Collision Layer", &layer, 0, 15))

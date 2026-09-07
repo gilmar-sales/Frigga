@@ -6,6 +6,7 @@
 #include <Frigga/Physics/IPhysicsWorld.hpp>
 #include <Frigga/Physics/JoltPhysicsWorld.hpp>
 #include <Frigga/Physics/Physics.hpp>
+#include <Frigga/Physics/PhysicsJointHandle.hpp>
 
 #include <Freyr/Freyr.hpp>
 #include <gtest/gtest.h>
@@ -15,6 +16,7 @@
 #include <cstdint>
 #include <functional>
 #include <unordered_map>
+#include <vector>
 
 namespace
 {
@@ -26,8 +28,12 @@ namespace
             bodies.clear();
             characters.clear();
             entityCharacters.clear();
+            joints.clear();
+            pendingTriggerEvents.clear();
+            pendingContactEvents.clear();
             nextBody      = 1;
             nextCharacter = 1;
+            nextJoint     = 1;
         }
 
         void OptimizeBroadPhase() override {}
@@ -36,6 +42,11 @@ namespace
         [[nodiscard]] float GetFixedDeltaTime() const override
         {
             return 1.0f / 60.0f;
+        }
+
+        [[nodiscard]] float GetInterpolationAlpha() const override
+        {
+            return 0.0f;
         }
 
         fg::PhysicsBodyHandle CreateBody(const fg::PhysicsBodyDesc &) override
@@ -75,6 +86,20 @@ namespace
             rotation = it->second.rotation;
         }
 
+        [[nodiscard]] bool GetInterpolatedBodyPose(fg::PhysicsBodyHandle handle, float,
+                                                   glm::vec3 &position,
+                                                   glm::quat &rotation) const override
+        {
+            const auto it = bodies.find(handle.id);
+            if(it == bodies.end())
+            {
+                return false;
+            }
+            position = it->second.position;
+            rotation = it->second.rotation;
+            return true;
+        }
+
         void SetLinearVelocity(fg::PhysicsBodyHandle handle, const glm::vec3 &velocity) override
         {
             auto it = bodies.find(handle.id);
@@ -94,6 +119,27 @@ namespace
                 return {};
             }
             return it->second.linearVelocity;
+        }
+
+        void SetAngularVelocity(fg::PhysicsBodyHandle handle, const glm::vec3 &velocity) override
+        {
+            auto it = bodies.find(handle.id);
+            if(it == bodies.end())
+            {
+                return;
+            }
+            it->second.angularVelocity = velocity;
+            ++setAngularVelocityCalls;
+        }
+
+        [[nodiscard]] glm::vec3 GetAngularVelocity(fg::PhysicsBodyHandle handle) const override
+        {
+            const auto it = bodies.find(handle.id);
+            if(it == bodies.end())
+            {
+                return {};
+            }
+            return it->second.angularVelocity;
         }
 
         void AddImpulse(fg::PhysicsBodyHandle handle, const glm::vec3 &impulse) override
@@ -116,6 +162,28 @@ namespace
             }
             it->second.force += force;
             ++forceCalls;
+        }
+
+        void AddTorque(fg::PhysicsBodyHandle handle, const glm::vec3 &torque) override
+        {
+            auto it = bodies.find(handle.id);
+            if(it == bodies.end())
+            {
+                return;
+            }
+            it->second.torque += torque;
+            ++torqueCalls;
+        }
+
+        void AddAngularImpulse(fg::PhysicsBodyHandle handle, const glm::vec3 &impulse) override
+        {
+            auto it = bodies.find(handle.id);
+            if(it == bodies.end())
+            {
+                return;
+            }
+            it->second.angularImpulse += impulse;
+            ++angularImpulseCalls;
         }
 
         fg::PhysicsCharacterHandle CreateCharacter(const fg::PhysicsCharacterDesc &) override
@@ -213,6 +281,19 @@ namespace
             rotation = it->second.rotation;
         }
 
+        [[nodiscard]] bool GetInterpolatedCharacterPosition(fg::PhysicsCharacterHandle handle,
+                                                            float,
+                                                            glm::vec3 &position) const override
+        {
+            const auto it = characters.find(handle.id);
+            if(it == characters.end())
+            {
+                return false;
+            }
+            position = it->second.position;
+            return true;
+        }
+
         void SetCharacterPosition(fg::PhysicsCharacterHandle handle,
                                   const glm::vec3 &position) override
         {
@@ -287,6 +368,74 @@ namespace
             ++characterStrengthCalls;
         }
 
+        fg::PhysicsJointHandle CreateJoint(const fg::PhysicsJointDesc &desc) override
+        {
+            lastJointDesc = desc;
+            ++createJointCalls;
+            fg::PhysicsJointHandle handle {.id = nextJoint++};
+            joints[handle.id] = desc;
+            return handle;
+        }
+
+        void DestroyJoint(fg::PhysicsJointHandle handle) override
+        {
+            joints.erase(handle.id);
+            ++destroyJointCalls;
+        }
+
+        [[nodiscard]] fg::RaycastHit Raycast(const glm::vec3 &origin, const glm::vec3 &direction,
+                                             float maxDistance,
+                                             const fg::QueryFilter &filter) const override
+        {
+            lastRayOrigin      = origin;
+            lastRayDirection   = direction;
+            lastRayMaxDistance = maxDistance;
+            lastRayFilter      = filter;
+            ++raycastCalls;
+            return cannedRaycastHit;
+        }
+
+        [[nodiscard]] fg::RaycastHit SphereCast(const glm::vec3 &, const glm::vec3 &, float, float,
+                                                const fg::QueryFilter &) const override
+        {
+            return {};
+        }
+
+        [[nodiscard]] fg::RaycastHit CapsuleCast(const glm::vec3 &, const glm::vec3 &, float, float,
+                                                 float, const fg::QueryFilter &) const override
+        {
+            return {};
+        }
+
+        [[nodiscard]] std::vector<fg::OverlapHit> OverlapSphere(
+            const glm::vec3 &, float, const fg::QueryFilter &) const override
+        {
+            return {};
+        }
+
+        [[nodiscard]] std::vector<fg::OverlapHit> OverlapBox(const glm::vec3 &, const glm::vec3 &,
+                                                             const glm::quat &,
+                                                             const fg::QueryFilter &) const override
+        {
+            return {};
+        }
+
+        [[nodiscard]] std::vector<fg::TriggerEvent> DrainTriggerEvents() override
+        {
+            ++drainTriggerCalls;
+            auto events = pendingTriggerEvents;
+            pendingTriggerEvents.clear();
+            return events;
+        }
+
+        [[nodiscard]] std::vector<fg::PhysicsContactEvent> DrainContactEvents() override
+        {
+            ++drainContactCalls;
+            auto events = pendingContactEvents;
+            pendingContactEvents.clear();
+            return events;
+        }
+
         void SetGravity(const glm::vec3 &g) override
         {
             gravity = g;
@@ -307,8 +456,11 @@ namespace
             glm::vec3 position {0.0f};
             glm::quat rotation {1.0f, 0.0f, 0.0f, 0.0f};
             glm::vec3 linearVelocity {0.0f};
+            glm::vec3 angularVelocity {0.0f};
             glm::vec3 impulse {0.0f};
             glm::vec3 force {0.0f};
+            glm::vec3 torque {0.0f};
+            glm::vec3 angularImpulse {0.0f};
         };
 
         struct CharacterState
@@ -329,19 +481,39 @@ namespace
         std::unordered_map<std::uint32_t, BodyState> bodies;
         std::unordered_map<std::uint32_t, CharacterState> characters;
         std::unordered_map<std::uint64_t, fg::PhysicsCharacterHandle> entityCharacters;
+        std::unordered_map<std::uint32_t, fg::PhysicsJointDesc> joints;
         std::uint32_t nextBody      = 1;
         std::uint32_t nextCharacter = 1;
+        std::uint32_t nextJoint     = 1;
         glm::vec3 gravity {0.0f, -9.81f, 0.0f};
 
-        int setTransformCalls       = 0;
-        int setVelocityCalls        = 0;
-        int impulseCalls            = 0;
-        int forceCalls              = 0;
-        int characterVelocityCalls  = 0;
-        int characterPositionCalls  = 0;
-        int characterRotationCalls  = 0;
-        int characterShapeCalls     = 0;
-        int characterStrengthCalls  = 0;
+        mutable glm::vec3 lastRayOrigin {0.0f};
+        mutable glm::vec3 lastRayDirection {0.0f};
+        mutable float lastRayMaxDistance = 0.0f;
+        mutable fg::QueryFilter lastRayFilter {};
+        mutable int raycastCalls = 0;
+        fg::RaycastHit cannedRaycastHit {};
+
+        fg::PhysicsJointDesc lastJointDesc {};
+        std::vector<fg::TriggerEvent> pendingTriggerEvents;
+        std::vector<fg::PhysicsContactEvent> pendingContactEvents;
+
+        int setTransformCalls         = 0;
+        int setVelocityCalls          = 0;
+        int setAngularVelocityCalls   = 0;
+        int impulseCalls              = 0;
+        int forceCalls                = 0;
+        int torqueCalls               = 0;
+        int angularImpulseCalls       = 0;
+        int createJointCalls          = 0;
+        int destroyJointCalls         = 0;
+        mutable int drainTriggerCalls = 0;
+        mutable int drainContactCalls = 0;
+        int characterVelocityCalls    = 0;
+        int characterPositionCalls    = 0;
+        int characterRotationCalls    = 0;
+        int characterShapeCalls       = 0;
+        int characterStrengthCalls    = 0;
     };
 
     struct PhysicsHarness
@@ -611,5 +783,154 @@ TEST(JoltCharacter, TeleportAndFacingAndResize)
     const auto ground = world->GetCharacterGroundInfo(character);
     // After a few steps near the floor the character should report some ground query state.
     (void)ground;
+}
+
+TEST(PhysicsFacade, SetAngularVelocityForwards)
+{
+    auto harness = PhysicsHarness::Create();
+    auto entity  = harness.registry->CreateEntity(
+        fg::NameComponent {.name = "Box"}, fg::TransformComponent {}, fg::RigidBodyComponent {});
+    harness.registry->ExecuteTasks();
+
+    harness.registry->TryGetComponents<fg::RigidBodyComponent>(
+        entity, [&](fg::RigidBodyComponent &rb) {
+            rb.body = harness.world->CreateBody(fg::PhysicsBodyDesc {});
+        });
+    harness.registry->ExecuteTasks();
+
+    harness.physics->SetAngularVelocity(entity, {0.5f, 1.5f, -2.0f});
+    EXPECT_EQ(harness.world->setAngularVelocityCalls, 1);
+    const auto velocity = harness.physics->GetAngularVelocity(entity);
+    EXPECT_FLOAT_EQ(velocity.x, 0.5f);
+    EXPECT_FLOAT_EQ(velocity.y, 1.5f);
+    EXPECT_FLOAT_EQ(velocity.z, -2.0f);
+}
+
+TEST(PhysicsFacade, RaycastForwards)
+{
+    auto harness = PhysicsHarness::Create();
+
+    harness.world->cannedRaycastHit.hit      = true;
+    harness.world->cannedRaycastHit.point    = {0.0f, 1.0f, 0.0f};
+    harness.world->cannedRaycastHit.normal   = {0.0f, 1.0f, 0.0f};
+    harness.world->cannedRaycastHit.distance = 4.0f;
+    harness.world->cannedRaycastHit.fraction = 0.4f;
+
+    const glm::vec3 origin {0.0f, 5.0f, 0.0f};
+    const glm::vec3 direction {0.0f, -1.0f, 0.0f};
+    const auto hit = harness.physics->Raycast(origin, direction, 10.0f);
+
+    EXPECT_EQ(harness.world->raycastCalls, 1);
+    EXPECT_FLOAT_EQ(harness.world->lastRayOrigin.x, origin.x);
+    EXPECT_FLOAT_EQ(harness.world->lastRayOrigin.y, origin.y);
+    EXPECT_FLOAT_EQ(harness.world->lastRayOrigin.z, origin.z);
+    EXPECT_FLOAT_EQ(harness.world->lastRayDirection.x, direction.x);
+    EXPECT_FLOAT_EQ(harness.world->lastRayDirection.y, direction.y);
+    EXPECT_FLOAT_EQ(harness.world->lastRayDirection.z, direction.z);
+    EXPECT_FLOAT_EQ(harness.world->lastRayMaxDistance, 10.0f);
+    EXPECT_TRUE(hit.hit);
+    EXPECT_FLOAT_EQ(hit.point.y, 1.0f);
+    EXPECT_FLOAT_EQ(hit.distance, 4.0f);
+}
+
+TEST(PhysicsFacade, CreateJointForwards)
+{
+    auto harness = PhysicsHarness::Create();
+    auto entityA = harness.registry->CreateEntity(
+        fg::NameComponent {.name = "A"}, fg::TransformComponent {}, fg::RigidBodyComponent {});
+    auto entityB = harness.registry->CreateEntity(
+        fg::NameComponent {.name = "B"}, fg::TransformComponent {}, fg::RigidBodyComponent {});
+    harness.registry->ExecuteTasks();
+
+    fg::PhysicsBodyHandle bodyA {};
+    fg::PhysicsBodyHandle bodyB {};
+    harness.registry->TryGetComponents<fg::RigidBodyComponent>(
+        entityA, [&](fg::RigidBodyComponent &rb) {
+            rb.body = harness.world->CreateBody(fg::PhysicsBodyDesc {});
+            bodyA   = rb.body;
+        });
+    harness.registry->TryGetComponents<fg::RigidBodyComponent>(
+        entityB, [&](fg::RigidBodyComponent &rb) {
+            rb.body = harness.world->CreateBody(fg::PhysicsBodyDesc {});
+            bodyB   = rb.body;
+        });
+    harness.registry->ExecuteTasks();
+
+    const glm::vec3 anchorA {0.0f, 0.5f, 0.0f};
+    const glm::vec3 anchorB {0.0f, -0.5f, 0.0f};
+    const glm::vec3 hingeAxis {1.0f, 0.0f, 0.0f};
+    const auto joint = harness.physics->CreateJoint(entityA, entityB, fg::PhysicsJointType::Hinge,
+                                                    anchorA, anchorB, hingeAxis);
+
+    EXPECT_TRUE(joint.IsValid());
+    EXPECT_EQ(harness.world->createJointCalls, 1);
+    EXPECT_EQ(harness.world->lastJointDesc.type, fg::PhysicsJointType::Hinge);
+    EXPECT_EQ(harness.world->lastJointDesc.bodyA.id, bodyA.id);
+    EXPECT_EQ(harness.world->lastJointDesc.bodyB.id, bodyB.id);
+    EXPECT_FLOAT_EQ(harness.world->lastJointDesc.localAnchorA.y, 0.5f);
+    EXPECT_FLOAT_EQ(harness.world->lastJointDesc.localAnchorB.y, -0.5f);
+    EXPECT_FLOAT_EQ(harness.world->lastJointDesc.hingeAxisLocalA.x, 1.0f);
+}
+
+TEST(PhysicsFacade, DrainTriggerEventsForwards)
+{
+    auto harness = PhysicsHarness::Create();
+
+    fg::TriggerEvent enter {};
+    enter.type         = fg::TriggerEventType::Enter;
+    enter.sensorEntity = 10;
+    enter.otherEntity  = 20;
+    harness.world->pendingTriggerEvents.push_back(enter);
+
+    const auto events = harness.physics->DrainTriggerEvents();
+    EXPECT_EQ(harness.world->drainTriggerCalls, 1);
+    ASSERT_EQ(events.size(), 1u);
+    EXPECT_EQ(events[0].type, fg::TriggerEventType::Enter);
+    EXPECT_EQ(events[0].sensorEntity, 10u);
+    EXPECT_EQ(events[0].otherEntity, 20u);
+
+    const auto again = harness.physics->DrainTriggerEvents();
+    EXPECT_TRUE(again.empty());
+    EXPECT_EQ(harness.world->drainTriggerCalls, 2);
+}
+
+TEST(JoltPhysics, RaycastHitsFloor)
+{
+    auto world = skr::MakeArc<fg::JoltPhysicsWorld>();
+
+    fg::PhysicsBodyDesc floor {};
+    floor.motion         = fg::BodyMotionType::Static;
+    floor.shape          = fg::ColliderShape::Box;
+    floor.position       = {0.0f, -0.5f, 0.0f};
+    floor.halfExtents    = {10.0f, 0.5f, 10.0f};
+    floor.collisionLayer = 0;
+    ASSERT_TRUE(world->CreateBody(floor).IsValid());
+
+    const auto hit =
+        world->Raycast({0.0f, 5.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, 20.0f);
+    EXPECT_TRUE(hit.hit);
+    EXPECT_NEAR(hit.point.y, 0.0f, 0.05f);
+    EXPECT_GT(hit.normal.y, 0.5f);
+}
+
+TEST(JoltPhysics, AngularVelocityAfterTorque)
+{
+    auto world = skr::MakeArc<fg::JoltPhysicsWorld>();
+
+    fg::PhysicsBodyDesc desc {};
+    desc.motion         = fg::BodyMotionType::Dynamic;
+    desc.shape          = fg::ColliderShape::Box;
+    desc.position       = {0.0f, 5.0f, 0.0f};
+    desc.halfExtents    = {0.5f, 0.5f, 0.5f};
+    desc.mass           = 1.0f;
+    desc.collisionLayer = 0;
+    const auto body     = world->CreateBody(desc);
+    ASSERT_TRUE(body.IsValid());
+
+    world->AddTorque(body, {0.0f, 50.0f, 0.0f});
+    world->StepFixed(1);
+
+    const auto angular = world->GetAngularVelocity(body);
+    EXPECT_GT(glm::length(angular), 1e-3f) << "torque should produce angular velocity";
 }
 

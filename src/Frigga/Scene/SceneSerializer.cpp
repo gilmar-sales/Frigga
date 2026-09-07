@@ -121,6 +121,7 @@ namespace FRIGGA_NAMESPACE
             float              restitution       = 0.0f;
             int64_t            collisionLayer    = 1;
             int64_t            collideWithLayers = 0xffff;
+            std::optional<bool> isSensor;
         };
 
         struct SceneBillboardDto
@@ -1021,6 +1022,7 @@ namespace FRIGGA_NAMESPACE
                     .restitution       = rb.restitution,
                     .collisionLayer    = rb.collisionLayer,
                     .collideWithLayers = rb.collideWithLayers,
+                    .isSensor          = rb.isSensor,
                 };
             });
 
@@ -1606,6 +1608,7 @@ namespace FRIGGA_NAMESPACE
                     std::clamp<int64_t>(rbDto.collisionLayer, 0, 15));
                 rb.collideWithLayers = static_cast<std::uint16_t>(
                     std::clamp<int64_t>(rbDto.collideWithLayers, 0, 0xffff));
+                rb.isSensor          = rbDto.isSensor.value_or(false);
                 rigidBody = rb;
             }
 
@@ -2369,6 +2372,7 @@ namespace FRIGGA_NAMESPACE
                     .restitution       = rb.restitution,
                     .collisionLayer    = rb.collisionLayer,
                     .collideWithLayers = rb.collideWithLayers,
+                    .isSensor          = rb.isSensor,
                 };
                 found = true;
             });
@@ -2836,6 +2840,7 @@ namespace FRIGGA_NAMESPACE
                 std::clamp<int64_t>(rbDto.collisionLayer, 0, 15));
             rb.collideWithLayers = static_cast<std::uint16_t>(
                 std::clamp<int64_t>(rbDto.collideWithLayers, 0, 0xffff));
+            rb.isSensor          = rbDto.isSensor.value_or(false);
             rb.body.Reset();
             UpsertComponent(*registry, entity, rb);
             scene.FlushEcs();

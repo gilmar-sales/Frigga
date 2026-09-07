@@ -27,6 +27,9 @@ namespace FRIGGA_NAMESPACE
         /// Bitmask of layers this body collides with.
         std::uint16_t collideWithLayers = 0xffff;
 
+        /// Sensor/trigger volume (no collision response; emits trigger events).
+        bool isSensor = false;
+
         /// Runtime body id — not serialized.
         PhysicsBodyHandle body {};
     };

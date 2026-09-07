@@ -87,6 +87,33 @@ namespace FRIGGA_NAMESPACE
         return mWorld->GetLinearVelocity(handle);
     }
 
+    void Physics::SetAngularVelocity(fr::Entity entity, const glm::vec3 &velocity)
+    {
+        if(!mWorld)
+        {
+            return;
+        }
+        const auto handle = BodyHandle(mRegistry, entity);
+        if(handle.IsValid())
+        {
+            mWorld->SetAngularVelocity(handle, velocity);
+        }
+    }
+
+    glm::vec3 Physics::GetAngularVelocity(fr::Entity entity) const
+    {
+        if(!mWorld)
+        {
+            return {};
+        }
+        const auto handle = BodyHandle(mRegistry, entity);
+        if(!handle.IsValid())
+        {
+            return {};
+        }
+        return mWorld->GetAngularVelocity(handle);
+    }
+
     void Physics::AddImpulse(fr::Entity entity, const glm::vec3 &impulse)
     {
         if(!mWorld)
@@ -110,6 +137,32 @@ namespace FRIGGA_NAMESPACE
         if(handle.IsValid())
         {
             mWorld->AddForce(handle, force);
+        }
+    }
+
+    void Physics::AddTorque(fr::Entity entity, const glm::vec3 &torque)
+    {
+        if(!mWorld)
+        {
+            return;
+        }
+        const auto handle = BodyHandle(mRegistry, entity);
+        if(handle.IsValid())
+        {
+            mWorld->AddTorque(handle, torque);
+        }
+    }
+
+    void Physics::AddAngularImpulse(fr::Entity entity, const glm::vec3 &impulse)
+    {
+        if(!mWorld)
+        {
+            return;
+        }
+        const auto handle = BodyHandle(mRegistry, entity);
+        if(handle.IsValid())
+        {
+            mWorld->AddAngularImpulse(handle, impulse);
         }
     }
 
@@ -237,6 +290,120 @@ namespace FRIGGA_NAMESPACE
         {
             mWorld->SetCharacterMaxStrength(handle, maxStrength);
         }
+    }
+
+    PhysicsJointHandle Physics::CreateJoint(fr::Entity entityA, fr::Entity entityB,
+                                            PhysicsJointType type, const glm::vec3 &localAnchorA,
+                                            const glm::vec3 &localAnchorB,
+                                            const glm::vec3 &hingeAxisLocalA)
+    {
+        if(!mWorld)
+        {
+            return {};
+        }
+        const auto bodyA = BodyHandle(mRegistry, entityA);
+        const auto bodyB = BodyHandle(mRegistry, entityB);
+        if(!bodyA.IsValid() || !bodyB.IsValid())
+        {
+            return {};
+        }
+        PhysicsJointDesc desc {};
+        desc.type            = type;
+        desc.bodyA           = bodyA;
+        desc.bodyB           = bodyB;
+        desc.localAnchorA    = localAnchorA;
+        desc.localAnchorB    = localAnchorB;
+        desc.hingeAxisLocalA = hingeAxisLocalA;
+        return mWorld->CreateJoint(desc);
+    }
+
+    void Physics::DestroyJoint(PhysicsJointHandle handle)
+    {
+        if(mWorld)
+        {
+            mWorld->DestroyJoint(handle);
+        }
+    }
+
+    RaycastHit Physics::Raycast(const glm::vec3 &origin, const glm::vec3 &direction,
+                                float maxDistance, const QueryFilter &filter) const
+    {
+        if(!mWorld)
+        {
+            return {};
+        }
+        return mWorld->Raycast(origin, direction, maxDistance, filter);
+    }
+
+    RaycastHit Physics::SphereCast(const glm::vec3 &origin, const glm::vec3 &direction,
+                                   float radius, float maxDistance,
+                                   const QueryFilter &filter) const
+    {
+        if(!mWorld)
+        {
+            return {};
+        }
+        return mWorld->SphereCast(origin, direction, radius, maxDistance, filter);
+    }
+
+    RaycastHit Physics::CapsuleCast(const glm::vec3 &origin, const glm::vec3 &direction,
+                                    float radius, float height, float maxDistance,
+                                    const QueryFilter &filter) const
+    {
+        if(!mWorld)
+        {
+            return {};
+        }
+        return mWorld->CapsuleCast(origin, direction, radius, height, maxDistance, filter);
+    }
+
+    std::vector<OverlapHit> Physics::OverlapSphere(const glm::vec3 &center, float radius,
+                                                   const QueryFilter &filter) const
+    {
+        if(!mWorld)
+        {
+            return {};
+        }
+        return mWorld->OverlapSphere(center, radius, filter);
+    }
+
+    std::vector<OverlapHit> Physics::OverlapBox(const glm::vec3 &center,
+                                                const glm::vec3 &halfExtents,
+                                                const glm::quat &rotation,
+                                                const QueryFilter &filter) const
+    {
+        if(!mWorld)
+        {
+            return {};
+        }
+        return mWorld->OverlapBox(center, halfExtents, rotation, filter);
+    }
+
+    std::vector<TriggerEvent> Physics::DrainTriggerEvents()
+    {
+        if(!mWorld)
+        {
+            return {};
+        }
+        return mWorld->DrainTriggerEvents();
+    }
+
+    std::vector<PhysicsContactEvent> Physics::DrainContactEvents()
+    {
+        if(!mWorld)
+        {
+            return {};
+        }
+        return mWorld->DrainContactEvents();
+    }
+
+    float Physics::GetInterpolationAlpha() const
+    {
+        if(!mWorld)
+        {
+            return 0.0f;
+        }
+        return mWorld->GetInterpolationAlpha();
     }
 
 } // namespace FRIGGA_NAMESPACE

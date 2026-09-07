@@ -4,6 +4,7 @@
 #include "Frigga/Physics/PhysicsBodyHandle.hpp"
 
 #include <cstdint>
+#include <limits>
 #include <vector>
 
 #include <glm/glm.hpp>
@@ -35,6 +36,25 @@ namespace FRIGGA_NAMESPACE
         InAir,
     };
 
+    enum class TriggerEventType : std::uint8_t
+    {
+        Enter = 0,
+        Stay,
+        Exit,
+    };
+
+    enum class PhysicsContactKind : std::uint8_t
+    {
+        BodyBody = 0,
+        CharacterBody,
+    };
+
+    enum class PhysicsJointType : std::uint8_t
+    {
+        Fixed = 0,
+        Hinge,
+    };
+
     struct PhysicsBodyDesc
     {
         BodyMotionType motion = BodyMotionType::Dynamic;
@@ -54,6 +74,11 @@ namespace FRIGGA_NAMESPACE
 
         std::uint8_t  collisionLayer = 0; // 0..15
         std::uint16_t collideWithLayers = 0xffff;
+
+        /// Sensor/trigger volume: generates trigger events, no collision response.
+        bool isSensor = false;
+        /// Optional ECS entity id stored as body user data (0 = unset).
+        std::uint64_t entityId = 0;
 
         std::vector<glm::vec3> meshPoints; // Used when shape == Mesh
     };
@@ -87,6 +112,11 @@ namespace FRIGGA_NAMESPACE
         /// ExtendedUpdate: max step-up height for stairs. 0 disables walk-stairs.
         float walkStairsStepHeight = 0.4f;
 
+        float predictiveContactDistance = 0.1f;
+        float characterPadding          = 0.02f;
+        float penetrationRecoverySpeed  = 1.0f;
+        bool  enhancedInternalEdgeRemoval = false;
+
         std::uint8_t  collisionLayer    = 1;
         std::uint16_t collideWithLayers = 0xffff;
     };
@@ -100,6 +130,58 @@ namespace FRIGGA_NAMESPACE
         glm::vec3            normal {0.0f, 1.0f, 0.0f};
         glm::vec3            velocity {0.0f};
         PhysicsBodyHandle    groundBody {};
+    };
+
+    struct QueryFilter
+    {
+        std::uint16_t collideWithLayers = 0xffff;
+        /// When set, skip this ECS entity (body user data or bound character).
+        std::uint64_t ignoreEntity = 0;
+    };
+
+    struct RaycastHit
+    {
+        bool              hit = false;
+        glm::vec3         point {0.0f};
+        glm::vec3         normal {0.0f, 1.0f, 0.0f};
+        float             fraction = 0.0f;
+        float             distance = 0.0f;
+        PhysicsBodyHandle body {};
+        std::uint64_t     entityId = 0;
+    };
+
+    struct OverlapHit
+    {
+        PhysicsBodyHandle body {};
+        std::uint64_t     entityId = 0;
+    };
+
+    struct TriggerEvent
+    {
+        TriggerEventType type = TriggerEventType::Enter;
+        std::uint64_t    sensorEntity = 0;
+        std::uint64_t    otherEntity  = 0;
+    };
+
+    struct PhysicsContactEvent
+    {
+        PhysicsContactKind kind = PhysicsContactKind::BodyBody;
+        std::uint64_t      entityA = 0;
+        std::uint64_t      entityB = 0;
+        glm::vec3          point {0.0f};
+        glm::vec3          normal {0.0f, 1.0f, 0.0f};
+        float              penetration = 0.0f;
+    };
+
+    struct PhysicsJointDesc
+    {
+        PhysicsJointType type = PhysicsJointType::Fixed;
+        PhysicsBodyHandle bodyA {};
+        PhysicsBodyHandle bodyB {};
+        glm::vec3 localAnchorA {0.0f};
+        glm::vec3 localAnchorB {0.0f};
+        /// Hinge axis in body A local space.
+        glm::vec3 hingeAxisLocalA {0.0f, 1.0f, 0.0f};
     };
 
 } // namespace FRIGGA_NAMESPACE

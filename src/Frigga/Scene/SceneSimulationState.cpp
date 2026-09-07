@@ -245,6 +245,8 @@ namespace FRIGGA_NAMESPACE
             .restitution       = rigidBody.restitution,
             .collisionLayer    = rigidBody.collisionLayer,
             .collideWithLayers = rigidBody.collideWithLayers,
+            .isSensor          = rigidBody.isSensor,
+            .entityId          = static_cast<std::uint64_t>(entity),
         };
 
         if(rigidBody.motion == BodyMotionType::Static && desc.collisionLayer == 1)

@@ -34,6 +34,14 @@ static void DrawCharacterController(CharacterControllerComponent &c, fg::FriComp
     {
         ui.SetTooltip("Max step-up height. 0 disables stair walking.");
     }
+    ui.DragFloat("Predictive Contact", c.predictiveContactDistance, 0.001f, 0.0f, 1.0f);
+    ui.DragFloat("Character Padding", c.characterPadding, 0.001f, 0.0f, 0.2f);
+    ui.DragFloat("Penetration Recovery", c.penetrationRecoverySpeed, 0.01f, 0.0f, 1.0f);
+    int edgeRemoval = c.enhancedInternalEdgeRemoval ? 1 : 0;
+    if(ui.SliderInt("Enhanced Edge Removal", edgeRemoval, 0, 1))
+    {
+        c.enhancedInternalEdgeRemoval = edgeRemoval != 0;
+    }
     int layer = static_cast<int>(c.collisionLayer);
     if(ui.SliderInt("Collision Layer", layer, 0, 15))
     {

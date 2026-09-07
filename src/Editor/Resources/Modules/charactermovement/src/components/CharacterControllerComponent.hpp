@@ -18,6 +18,12 @@ struct CharacterControllerComponent: fr::Component
     float stickToFloorDistance = 0.5f;
     /// ExtendedUpdate max stair step height; 0 disables.
     float walkStairsStepHeight = 0.4f;
+
+    float predictiveContactDistance = 0.1f;
+    float characterPadding          = 0.02f;
+    float penetrationRecoverySpeed  = 1.0f;
+    bool  enhancedInternalEdgeRemoval = false;
+
     std::uint8_t  collisionLayer    = 1;
     std::uint16_t collideWithLayers = 0xffff;
 };

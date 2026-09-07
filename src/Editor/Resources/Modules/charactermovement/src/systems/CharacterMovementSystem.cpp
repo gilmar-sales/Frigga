@@ -71,6 +71,12 @@ void CharacterMovementSystem::Update(float)
                 desired = {horizontal * speed, 0.0f, -vertical * speed};
             }
             const bool grounded = mPhysics->IsCharacterGrounded(entity);
+            if(grounded)
+            {
+                const auto ground = mPhysics->GetCharacterGroundInfo(entity);
+                desired.x += ground.velocity.x;
+                desired.z += ground.velocity.z;
+            }
             if(jump && grounded)
             {
                 desired.y = jumpSpeed;
