@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 import json
+import tempfile
 import unittest
+from pathlib import Path
+from unittest.mock import MagicMock
 
-from server import McpServer
+from server import EditorRpc, McpServer
 
 
 class FakeRpc:
@@ -44,6 +47,78 @@ class McpServerTests(unittest.TestCase):
         self.assertEqual(self.rpc.calls, [("scene.inspect", {})])
         self.assertFalse(response["result"]["isError"])
         self.assertEqual(json.loads(response["result"]["content"][0]["text"])["ok"], True)
+
+
+class EditorRpcReconnectTests(unittest.TestCase):
+    def test_call_reconnects_after_connection_drop(self):
+        rpc = EditorRpc(Path("/tmp/frigga-mcp-test.endpoint"), timeout=1.0)
+        rpc.sock = MagicMock()
+        reads = {"n": 0}
+        connects = {"n": 0}
+
+        def fake_send(_message):
+            return None
+
+        def fake_read():
+            reads["n"] += 1
+            if reads["n"] == 1:
+                raise ConnectionError("Editor closed the MCP connection")
+            return {"result": {"ok": True, "data": {}}}
+
+        def fake_connect():
+            connects["n"] += 1
+            rpc.sock = MagicMock()
+
+        rpc._send = fake_send
+        rpc._read = fake_read
+        rpc.connect = fake_connect
+
+        result = rpc.call("scene.inspect", {})
+        self.assertTrue(result["result"]["ok"])
+        self.assertEqual(reads["n"], 2)
+        self.assertEqual(connects["n"], 1)
+        self.assertIsNotNone(rpc.sock)
+
+    def test_call_without_editor_raises_clear_error(self):
+        missing = Path(tempfile.gettempdir()) / "frigga-mcp-test-missing.endpoint"
+        if missing.exists():
+            missing.unlink()
+        rpc = EditorRpc(missing, timeout=0.2)
+        with self.assertRaises(RuntimeError) as ctx:
+            rpc.call("scene.inspect", {})
+        self.assertIn("not running", str(ctx.exception))
+
+    def test_mcp_server_survives_editor_unavailable(self):
+        missing = Path(tempfile.gettempdir()) / "frigga-mcp-test-missing.endpoint"
+        if missing.exists():
+            missing.unlink()
+        rpc = EditorRpc(missing, timeout=0.2)
+        server = McpServer(rpc)
+
+        init = server.handle({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {"protocolVersion": "2024-11-05"},
+        })
+        self.assertIn("result", init)
+
+        call = server.handle({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/call",
+            "params": {"name": "scene.inspect", "arguments": {}},
+        })
+        self.assertIn("error", call)
+        self.assertIn("not running", call["error"]["message"])
+
+        again = server.handle({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "initialize",
+            "params": {"protocolVersion": "2024-11-05"},
+        })
+        self.assertIn("result", again)
 
 
 if __name__ == "__main__":

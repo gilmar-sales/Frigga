@@ -164,20 +164,40 @@ class EditorRpc:
                     raise RuntimeError(response.get("message", "Editor authentication failed"))
                 return
             except (FileNotFoundError, ConnectionError, TimeoutError, OSError, ValueError):
+                self.close()
                 time.sleep(0.1)
-        raise RuntimeError(f"Frigga Editor MCP endpoint unavailable: {self.endpoint}")
+        raise RuntimeError(
+            "Frigga Editor is not running or MCP endpoint unavailable: "
+            f"{self.endpoint}"
+        )
 
     def close(self) -> None:
         if self.sock is not None:
-            self.sock.close()
+            try:
+                self.sock.close()
+            except OSError:
+                pass
             self.sock = None
 
     def call(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
-        if self.sock is None:
-            self.connect()
-        self.counter += 1
-        self._send({"id": self.counter, "method": method, "params": params})
-        return self._read()
+        last_error: Exception | None = None
+        for attempt in range(2):
+            try:
+                if self.sock is None:
+                    self.connect()
+                self.counter += 1
+                self._send({"id": self.counter, "method": method, "params": params})
+                return self._read()
+            except (ConnectionError, OSError, TimeoutError) as error:
+                last_error = error
+                self.close()
+                if attempt == 0:
+                    continue
+                break
+        raise RuntimeError(
+            "Frigga Editor is not running or MCP connection was lost: "
+            f"{last_error}"
+        ) from last_error
 
     def _send(self, message: dict[str, Any]) -> None:
         if self.sock is None:
@@ -262,9 +282,10 @@ def main() -> None:
     parser.add_argument("--endpoint", type=Path, default=ENDPOINT)
     parser.add_argument("--timeout", type=float, default=30.0)
     args = parser.parse_args()
+    # Connect lazily on the first tools/call so Cursor can keep this process
+    # alive across Editor restarts without reloading the MCP server.
     rpc = EditorRpc(args.endpoint, args.timeout)
     try:
-        rpc.connect()
         StdioMcpTransport().serve(McpServer(rpc).handle)
     finally:
         rpc.close()

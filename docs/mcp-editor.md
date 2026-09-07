@@ -8,13 +8,18 @@ instância do Editor por um socket TCP restrito a `127.0.0.1`.
 ## Uso
 
 1. Compile o Editor.
-2. Inicie `Editor` e abra um projeto.
-3. Configure o MCP do workspace com `.cursor/mcp.json`.
-4. Reinicie/recarregue os servidores MCP do Cursor.
+2. Configure o MCP do workspace com `.cursor/mcp.json` (uma vez).
+3. Inicie `Editor` e abra um projeto.
+4. Use as ferramentas MCP; o bridge sobe sem o Editor e conecta sob demanda.
 
 O Editor grava temporariamente o endpoint autenticado em
-`/tmp/frigga-editor-mcp.endpoint`. O bridge espera o arquivo aparecer e usa o
-token de sessão gerado pelo Editor. O arquivo é removido ao encerrar o Editor.
+`/tmp/frigga-editor-mcp.endpoint`. O bridge lê o arquivo na primeira tool call
+(e de novo após uma queda de conexão) e usa o token de sessão gerado pelo
+Editor. O arquivo é removido ao encerrar o Editor.
+
+Fechar e reabrir o Editor **não** exige reiniciar o MCP no Cursor: o bridge
+reconecta automaticamente no próximo `tools/call`. Só é preciso reiniciar o
+servidor MCP se o processo do bridge cair ou se `.cursor/mcp.json` mudar.
 
 No Windows, o mesmo protocolo usa loopback TCP; o caminho do endpoint segue a
 área temporária do sistema.
@@ -55,4 +60,6 @@ externamente exposta.
 
 Falhas de conexão normalmente indicam que o Editor ainda não foi iniciado, que
 o endpoint expirou ou que outra instância substituiu o endpoint temporário.
-Consulte `frigga.log` e `frigga-crash.log` para diagnóstico do Editor.
+Com o Editor fechado, as tool calls falham com erro claro; ao reabrir o Editor,
+a próxima chamada reconecta sem reload do MCP. Consulte `frigga.log` e
+`frigga-crash.log` para diagnóstico do Editor.
