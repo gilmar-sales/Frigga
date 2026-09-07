@@ -162,6 +162,7 @@ namespace FRIGGA_NAMESPACE
         imguiSdl3VulkanInitInfo.Device = static_cast<VkDevice>(native.device);
         imguiSdl3VulkanInitInfo.Queue =
             static_cast<VkQueue>(native.graphicsQueue);
+        imguiSdl3VulkanInitInfo.QueueFamily       = native.graphicsQueueFamily;
         imguiSdl3VulkanInitInfo.ImageCount         = imageCount;
         imguiSdl3VulkanInitInfo.MinImageCount      = native.minImageCount;
         imguiSdl3VulkanInitInfo.DescriptorPoolSize = 64;

@@ -14,11 +14,7 @@ namespace FRIGGA_NAMESPACE
     class AbstractApplication: public fra::AbstractApplication
     {
       public:
-        AbstractApplication(const skr::Arc<skr::ServiceProvider> &serviceProvider)
-            : fra::AbstractApplication(serviceProvider)
-        {
-            createScope();
-        }
+        AbstractApplication(const skr::Arc<skr::ServiceProvider> &serviceProvider);
 
         ~AbstractApplication();
 
@@ -42,13 +38,12 @@ namespace FRIGGA_NAMESPACE
             return true;
         }
 
-        void createScope()
-        {
-            mScope = mRootServiceProvider->CreateServiceScope();
+        /// Bind Frigga UI / LayerStack to Freya's main window scope (not a sibling).
+        void createScope();
 
-            mGuiLayer = mScope->GetServiceProvider()->GetService<GuiLayer>();
-            PushLayer(mGuiLayer);
-        }
+        /// Construct Freya-bound singletons from the main window provider so later
+        /// root/Freyr lookups hit the cache instead of an unseeded scope.
+        void warmFreyaBoundSingletons();
 
         skr::Arc<skr::ServiceScope> mScope;
         skr::Arc<GuiLayer>          mGuiLayer;

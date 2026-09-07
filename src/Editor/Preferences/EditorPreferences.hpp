@@ -76,8 +76,8 @@ struct GraphicsPreferences
     double ssaoBias      = 0.025;
     double ssaoPower     = 1.5;
     double ssaoIntensity = 0.5;
-    /// 0=None, 1=Blurred, 2=Raw (fra::SsaoDebugView)
-    int ssaoDebugView = 0;
+    /// fra::DeferredDebugView ordinal (0=Lit/None … 11=Shadows).
+    int deferredDebugView = 0;
 
     bool reverseZ = false;
 

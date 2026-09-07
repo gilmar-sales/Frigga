@@ -1,7 +1,20 @@
 #include <Frigga/Core/AbstractApplication.hpp>
 
+#include <Frigga/ECS/Systems/AnimationSystem.hpp>
+#include <Frigga/ECS/Systems/RenderSystem.hpp>
+#include <Frigga/Input/Input.hpp>
+#include <Frigga/Scene/Scene.hpp>
+
 namespace FRIGGA_NAMESPACE
 {
+    AbstractApplication::AbstractApplication(
+        const skr::Arc<skr::ServiceProvider> &serviceProvider)
+        : fra::AbstractApplication(serviceProvider)
+    {
+        createScope();
+        warmFreyaBoundSingletons();
+    }
+
     AbstractApplication::~AbstractApplication()
     {
         auto layerStack = mScope->GetServiceProvider()->GetService<LayerStack>();
@@ -9,6 +22,30 @@ namespace FRIGGA_NAMESPACE
         {
             layer->onDettach();
         }
+    }
+
+    void AbstractApplication::createScope()
+    {
+        // Freya 0.44+: Window / Renderer / EventManager / FreyaOptions are scoped
+        // to the main window. Nested Frigga services must share that scope.
+        mScope = GetMainScope();
+
+        mGuiLayer = mScope->GetServiceProvider()->GetService<GuiLayer>();
+        PushLayer(mGuiLayer);
+    }
+
+    void AbstractApplication::warmFreyaBoundSingletons()
+    {
+        const auto sp = GetMainServiceProvider();
+        if(!sp)
+        {
+            return;
+        }
+
+        (void)sp->GetService<Scene>();
+        (void)sp->GetService<Input>();
+        (void)sp->GetService<RenderSystem>();
+        (void)sp->GetService<AnimationSystem>();
     }
 
     void AbstractApplication::OnEvent(Event &event) {}

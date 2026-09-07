@@ -9,9 +9,10 @@ EditorApplication::EditorApplication(const skr::Arc<skr::ServiceProvider> &servi
     : AbstractApplication(serviceProvider), mRegistry(serviceProvider->GetService<fr::Registry>()),
       mSystemManager(serviceProvider->GetService<fr::SystemManager>()),
       mSimulation(serviceProvider->GetService<fg::SceneSimulationState>()),
-      mInput(serviceProvider->GetService<fg::Input>()),
-      mMcp(serviceProvider->GetService<ProjectSession>(), serviceProvider->GetService<fg::Scene>(),
-           mSimulation, serviceProvider->GetService<skr::Logger<EditorMcpService>>())
+      mInput(GetMainServiceProvider()->GetService<fg::Input>()),
+      mMcp(GetMainServiceProvider()->GetService<ProjectSession>(),
+           GetMainServiceProvider()->GetService<fg::Scene>(), mSimulation,
+           serviceProvider->GetService<skr::Logger<EditorMcpService>>())
 {
     PushLayer(mScope->GetServiceProvider()->GetService<HomeLayer>());
     PushLayer(mScope->GetServiceProvider()->GetService<MainLayer>());

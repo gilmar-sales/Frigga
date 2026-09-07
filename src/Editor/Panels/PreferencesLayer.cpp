@@ -55,12 +55,12 @@ void PreferencesLayer::persist()
 
 void PreferencesLayer::syncSsaoFinePrefsFromRenderer()
 {
-    auto &prefs          = mPreferences->graphics;
-    prefs.ssaoRadius     = mRenderer->GetSsaoRadius();
-    prefs.ssaoBias       = mRenderer->GetSsaoBias();
-    prefs.ssaoPower      = mRenderer->GetSsaoPower();
-    prefs.ssaoIntensity  = mRenderer->GetSsaoIntensity();
-    prefs.ssaoDebugView  = static_cast<int>(mRenderer->GetSsaoDebugView());
+    auto &prefs               = mPreferences->graphics;
+    prefs.ssaoRadius          = mRenderer->GetSsaoRadius();
+    prefs.ssaoBias            = mRenderer->GetSsaoBias();
+    prefs.ssaoPower           = mRenderer->GetSsaoPower();
+    prefs.ssaoIntensity       = mRenderer->GetSsaoIntensity();
+    prefs.deferredDebugView   = static_cast<int>(mRenderer->GetDeferredDebugView());
 }
 
 void PreferencesLayer::applyTheme(int themeIndex) const
@@ -327,12 +327,16 @@ void PreferencesLayer::drawGraphicsTab()
         persist();
     }
 
-    int debugView = static_cast<int>(mRenderer->GetSsaoDebugView());
-    if(ImGui::Combo("SSAO Debug", &debugView, "None\0Blurred\0Raw\0"))
+    int debugView = static_cast<int>(mRenderer->GetDeferredDebugView());
+    if(ImGui::Combo("Deferred Debug", &debugView,
+                    "Lit\0Albedo\0Normal\0Depth\0Roughness\0Metalness\0"
+                    "Material AO\0Material ID\0Velocity\0SSAO Blurred\0"
+                    "SSAO Raw\0Shadows\0"))
     {
-        const auto view = static_cast<fra::SsaoDebugView>(std::clamp(debugView, 0, 2));
-        mRenderer->SetSsaoDebugView(view);
-        prefs.ssaoDebugView = static_cast<int>(view);
+        const auto view =
+            static_cast<fra::DeferredDebugView>(std::clamp(debugView, 0, 11));
+        mRenderer->SetDeferredDebugView(view);
+        prefs.deferredDebugView = static_cast<int>(view);
         persist();
     }
 

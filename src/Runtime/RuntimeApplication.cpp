@@ -12,8 +12,8 @@ RuntimeApplication::RuntimeApplication(const skr::Arc<skr::ServiceProvider> &ser
     : fg::AbstractApplication(serviceProvider),
       mRegistry(serviceProvider->GetService<fr::Registry>()),
       mSystemManager(serviceProvider->GetService<fr::SystemManager>()),
-      mScene(serviceProvider->GetService<fg::Scene>()),
-      mInput(serviceProvider->GetService<fg::Input>()),
+      mScene(GetMainServiceProvider()->GetService<fg::Scene>()),
+      mInput(GetMainServiceProvider()->GetService<fg::Input>()),
       mSimulation(serviceProvider->GetService<fg::SceneSimulationState>())
 {
     const auto logger = serviceProvider->GetService<skr::Logger<RuntimeApplication>>();

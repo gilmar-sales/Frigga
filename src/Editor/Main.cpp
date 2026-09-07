@@ -46,8 +46,8 @@ namespace
             static_cast<fra::TaaQuality>(clampQuality(viewport.taaQuality));
         const auto bloomQuality =
             static_cast<fra::BloomQuality>(clampQuality(viewport.bloomQuality));
-        const auto ssaoDebugView = static_cast<fra::SsaoDebugView>(
-            std::clamp(graphics.ssaoDebugView, 0, 2));
+        const auto deferredDebugView = static_cast<fra::DeferredDebugView>(
+            std::clamp(graphics.deferredDebugView, 0, 11));
 
         builder.SetTitle(graphics.title)
             .SetWidth(graphics.width)
@@ -77,7 +77,7 @@ namespace
             .SetSsaoBias(static_cast<float>(graphics.ssaoBias))
             .SetSsaoPower(static_cast<float>(graphics.ssaoPower))
             .SetSsaoIntensity(static_cast<float>(graphics.ssaoIntensity))
-            .SetSsaoDebugView(ssaoDebugView)
+            .SetDeferredDebugView(deferredDebugView)
             .WithReverseZ(graphics.reverseZ)
             .SetAnimationQuality(static_cast<fra::AnimationQuality>(
                 clampQuality(graphics.animationQuality)));

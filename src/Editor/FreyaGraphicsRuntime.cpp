@@ -47,12 +47,7 @@ namespace editor
 
         if(services->Remove<fra::IBLService>())
         {
-            services->AddSingleton<fra::IBLService>(
-                [services](skr::ServiceProvider &provider) {
-                    return skr::MakeArc<fra::IBLService>(
-                        provider.GetService<fra::Device>(), services,
-                        provider.GetService<fra::FreyaOptions>());
-                });
+            services->AddScoped<fra::IBLService>();
             result.rebuiltIbl = true;
         }
 

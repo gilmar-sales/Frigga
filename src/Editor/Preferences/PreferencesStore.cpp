@@ -3,6 +3,7 @@
 #include "../Paths/EditorPaths.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <fstream>
 #include <sstream>
@@ -104,6 +105,88 @@ namespace
             .bloomQuality  = graphics.bloomQuality,
         };
         graphics.gameplayViewport = graphics.editorViewport;
+    }
+
+    /// Rewrite legacy ssaoDebugView into deferredDebugView before Skirnir Bind.
+    void RewriteLegacyDeferredDebugViewJson(std::string &text)
+    {
+        if(text.find("\"deferredDebugView\"") != std::string::npos)
+        {
+            return;
+        }
+
+        constexpr std::string_view kLegacyKey = "\"ssaoDebugView\"";
+        const auto keyPos = text.find(kLegacyKey);
+        if(keyPos == std::string::npos)
+        {
+            return;
+        }
+
+        const auto colon = text.find(':', keyPos + kLegacyKey.size());
+        if(colon == std::string::npos)
+        {
+            return;
+        }
+
+        std::size_t valueStart = colon + 1;
+        while(valueStart < text.size() &&
+              (text[valueStart] == ' ' || text[valueStart] == '\t'))
+        {
+            ++valueStart;
+        }
+
+        std::size_t valueEnd = valueStart;
+        while(valueEnd < text.size() &&
+              (std::isdigit(static_cast<unsigned char>(text[valueEnd])) ||
+               text[valueEnd] == '-'))
+        {
+            ++valueEnd;
+        }
+        if(valueStart == valueEnd)
+        {
+            return;
+        }
+
+        int legacy = 0;
+        try
+        {
+            legacy = std::stoi(text.substr(valueStart, valueEnd - valueStart));
+        }
+        catch(...)
+        {
+            return;
+        }
+
+        // Old SsaoDebugView: None=0, Blurred=1, Raw=2
+        // DeferredDebugView: None=0, SsaoBlurred=9, SsaoRaw=10
+        int migrated = legacy;
+        if(legacy == 1)
+        {
+            migrated = 9;
+        }
+        else if(legacy == 2)
+        {
+            migrated = 10;
+        }
+
+        text.replace(keyPos, kLegacyKey.size(), "\"deferredDebugView\"");
+        // Key length grew by 4 ("deferred" vs "ssao"); refresh value span.
+        const auto newKeyPos = text.find("\"deferredDebugView\"", keyPos);
+        const auto newColon  = text.find(':', newKeyPos);
+        std::size_t newValueStart = newColon + 1;
+        while(newValueStart < text.size() &&
+              (text[newValueStart] == ' ' || text[newValueStart] == '\t'))
+        {
+            ++newValueStart;
+        }
+        std::size_t newValueEnd = newValueStart;
+        while(newValueEnd < text.size() &&
+              (std::isdigit(static_cast<unsigned char>(text[newValueEnd])) ||
+               text[newValueEnd] == '-'))
+        {
+            ++newValueEnd;
+        }
+        text.replace(newValueStart, newValueEnd - newValueStart, std::to_string(migrated));
     }
 
     std::string UnescapeJsonString(std::string_view value)
@@ -314,6 +397,7 @@ skr::Arc<EditorPreferences> PreferencesStore::Load(const std::filesystem::path &
                 text.erase(eraseBegin, eraseEnd - eraseBegin);
             }
         }
+        RewriteLegacyDeferredDebugViewJson(text);
         configurationBuilder.AddJsonString(text);
     }
     auto preferences = configurationBuilder.Build()->Bind<EditorPreferences>();
@@ -439,7 +523,7 @@ void PreferencesStore::Save(const EditorPreferences &preferences,
     json << "    \"ssaoBias\": " << g.ssaoBias << ",\n";
     json << "    \"ssaoPower\": " << g.ssaoPower << ",\n";
     json << "    \"ssaoIntensity\": " << g.ssaoIntensity << ",\n";
-    json << "    \"ssaoDebugView\": " << g.ssaoDebugView << ",\n";
+    json << "    \"deferredDebugView\": " << g.deferredDebugView << ",\n";
     json << "    \"reverseZ\": " << g.reverseZ << ",\n";
     json << "    \"animationQuality\": " << g.animationQuality << "\n";
     json << "  },\n";
