@@ -179,8 +179,22 @@ namespace FRIGGA_NAMESPACE
         struct CharacterEntry
         {
             JPH::Ref<JPH::CharacterVirtual> character;
-            JPH::ObjectLayer layer = 0;
+            JPH::ObjectLayer layer                 = 0;
+            float            stickToFloorDistance = 0.5f;
+            float            walkStairsStepHeight = 0.4f;
         };
+
+        [[nodiscard]] JPH::RefConst<JPH::Shape> MakeStandingCapsule(
+            float radius, float height, const glm::vec3 &centerOffset)
+        {
+            using namespace JPH;
+            const float r          = std::max(radius, 0.001f);
+            const float halfHeight = std::max(0.5f * height, 0.001f);
+            RefConst<Shape> capsule = new CapsuleShape(halfHeight, r);
+            return new RotatedTranslatedShape(
+                Vec3(centerOffset.x, halfHeight + r + centerOffset.y, centerOffset.z),
+                Quat::sIdentity(), capsule);
+        }
     } // namespace
 
     struct JoltPhysicsWorld::Impl
@@ -294,6 +308,23 @@ namespace FRIGGA_NAMESPACE
             entry.character->SetLinearVelocity(velocity);
 
             CharacterVirtual::ExtendedUpdateSettings updateSettings;
+            if(entry.stickToFloorDistance > 0.0f)
+            {
+                updateSettings.mStickToFloorStepDown =
+                    Vec3(0.0f, -entry.stickToFloorDistance, 0.0f);
+            }
+            else
+            {
+                updateSettings.mStickToFloorStepDown = Vec3::sZero();
+            }
+            if(entry.walkStairsStepHeight > 0.0f)
+            {
+                updateSettings.mWalkStairsStepUp = Vec3(0.0f, entry.walkStairsStepHeight, 0.0f);
+            }
+            else
+            {
+                updateSettings.mWalkStairsStepUp = Vec3::sZero();
+            }
             entry.character->ExtendedUpdate(
                 kFixedDeltaTime, worldGravity, updateSettings,
                 mImpl->physicsSystem.GetDefaultBroadPhaseLayerFilter(entry.layer),
@@ -522,17 +553,13 @@ namespace FRIGGA_NAMESPACE
             static_cast<ObjectLayer>(std::min<std::uint8_t>(desc.collisionLayer, kLayerCount - 1));
         mImpl->NoteLayer(desc.collisionLayer, desc.collideWithLayers, true);
 
-        const float radius      = std::max(desc.radius, 0.001f);
-        const float halfHeight  = std::max(0.5f * desc.height, 0.001f);
-        RefConst<Shape> capsule = new CapsuleShape(halfHeight, radius);
-        // Feet at CharacterVirtual position; centerOffset shifts the capsule center further.
-        RefConst<Shape> standingShape = new RotatedTranslatedShape(
-            Vec3(desc.centerOffset.x, halfHeight + radius + desc.centerOffset.y,
-                 desc.centerOffset.z),
-            Quat::sIdentity(), capsule);
+        const float radius = std::max(desc.radius, 0.001f);
+        RefConst<Shape> standingShape =
+            MakeStandingCapsule(desc.radius, desc.height, desc.centerOffset);
 
         Ref<CharacterVirtualSettings> settings = new CharacterVirtualSettings();
         settings->mMass                        = std::max(desc.mass, 0.001f);
+        settings->mMaxStrength                 = std::max(desc.maxStrength, 0.0f);
         settings->mMaxSlopeAngle =
             JPH::DegreesToRadians(std::clamp(desc.maxSlopeDegrees, 1.0f, 89.0f));
         settings->mShape            = standingShape;
@@ -545,8 +572,12 @@ namespace FRIGGA_NAMESPACE
             new CharacterVirtual(settings, position, rotation, 0, &mImpl->physicsSystem);
 
         const std::uint32_t id = mImpl->nextCharacterId++;
-        mImpl->characters.emplace(id, CharacterEntry{.character = character, .layer = layer});
-        return PhysicsCharacterHandle{.id = id};
+        mImpl->characters.emplace(
+            id, CharacterEntry {.character             = character,
+                                .layer                 = layer,
+                                .stickToFloorDistance  = std::max(desc.stickToFloorDistance, 0.0f),
+                                .walkStairsStepHeight  = std::max(desc.walkStairsStepHeight, 0.0f)});
+        return PhysicsCharacterHandle {.id = id};
     }
 
     void JoltPhysicsWorld::DestroyCharacter(PhysicsCharacterHandle handle)
@@ -664,7 +695,98 @@ namespace FRIGGA_NAMESPACE
         rotation       = {rot.GetW(), rot.GetX(), rot.GetY(), rot.GetZ()};
     }
 
+    void JoltPhysicsWorld::SetCharacterPosition(PhysicsCharacterHandle handle,
+                                                const glm::vec3 &position)
+    {
+        if(!handle.IsValid())
+        {
+            return;
+        }
+        const auto it = mImpl->characters.find(handle.id);
+        if(it == mImpl->characters.end() || it->second.character == nullptr)
+        {
+            return;
+        }
+
+        using namespace JPH;
+        auto &entry = it->second;
+        entry.character->SetPosition(RVec3(position.x, position.y, position.z));
+        entry.character->RefreshContacts(
+            mImpl->physicsSystem.GetDefaultBroadPhaseLayerFilter(entry.layer),
+            mImpl->physicsSystem.GetDefaultLayerFilter(entry.layer), {}, {}, mImpl->tempAllocator);
+    }
+
+    void JoltPhysicsWorld::SetCharacterRotation(PhysicsCharacterHandle handle,
+                                                const glm::quat &rotation)
+    {
+        if(!handle.IsValid())
+        {
+            return;
+        }
+        const auto it = mImpl->characters.find(handle.id);
+        if(it == mImpl->characters.end() || it->second.character == nullptr)
+        {
+            return;
+        }
+        it->second.character->SetRotation(
+            JPH::Quat(rotation.x, rotation.y, rotation.z, rotation.w));
+    }
+
     bool JoltPhysicsWorld::IsCharacterGrounded(PhysicsCharacterHandle handle) const
+    {
+        return GetCharacterGroundInfo(handle).grounded;
+    }
+
+    CharacterGroundInfo JoltPhysicsWorld::GetCharacterGroundInfo(
+        PhysicsCharacterHandle handle) const
+    {
+        CharacterGroundInfo info {};
+        if(!handle.IsValid())
+        {
+            return info;
+        }
+        const auto it = mImpl->characters.find(handle.id);
+        if(it == mImpl->characters.end() || it->second.character == nullptr)
+        {
+            return info;
+        }
+
+        const auto *character = it->second.character.GetPtr();
+        switch(character->GetGroundState())
+        {
+        case JPH::CharacterBase::EGroundState::OnGround:
+            info.state = CharacterGroundState::OnGround;
+            break;
+        case JPH::CharacterBase::EGroundState::OnSteepGround:
+            info.state = CharacterGroundState::OnSteepGround;
+            break;
+        case JPH::CharacterBase::EGroundState::NotSupported:
+            info.state = CharacterGroundState::NotSupported;
+            break;
+        case JPH::CharacterBase::EGroundState::InAir:
+        default:
+            info.state = CharacterGroundState::InAir;
+            break;
+        }
+
+        info.grounded = character->IsSupported();
+        const auto pos = character->GetGroundPosition();
+        const auto n   = character->GetGroundNormal();
+        const auto v   = character->GetGroundVelocity();
+        info.position  = {pos.GetX(), pos.GetY(), pos.GetZ()};
+        info.normal    = {n.GetX(), n.GetY(), n.GetZ()};
+        info.velocity  = {v.GetX(), v.GetY(), v.GetZ()};
+
+        const JPH::BodyID groundId = character->GetGroundBodyID();
+        if(!groundId.IsInvalid())
+        {
+            info.groundBody = PhysicsBodyHandle {.id = groundId.GetIndexAndSequenceNumber()};
+        }
+        return info;
+    }
+
+    bool JoltPhysicsWorld::SetCharacterShape(PhysicsCharacterHandle handle,
+                                             const PhysicsCharacterShapeDesc &shape)
     {
         if(!handle.IsValid())
         {
@@ -675,7 +797,31 @@ namespace FRIGGA_NAMESPACE
         {
             return false;
         }
-        return it->second.character->IsSupported();
+
+        using namespace JPH;
+        auto &entry                     = it->second;
+        RefConst<Shape> standingShape =
+            MakeStandingCapsule(shape.radius, shape.height, shape.centerOffset);
+        constexpr float kMaxPenetration = 0.1f;
+        const bool ok                   = entry.character->SetShape(
+            standingShape, kMaxPenetration,
+            mImpl->physicsSystem.GetDefaultBroadPhaseLayerFilter(entry.layer),
+            mImpl->physicsSystem.GetDefaultLayerFilter(entry.layer), {}, {}, mImpl->tempAllocator);
+        return ok;
+    }
+
+    void JoltPhysicsWorld::SetCharacterMaxStrength(PhysicsCharacterHandle handle, float maxStrength)
+    {
+        if(!handle.IsValid())
+        {
+            return;
+        }
+        const auto it = mImpl->characters.find(handle.id);
+        if(it == mImpl->characters.end() || it->second.character == nullptr)
+        {
+            return;
+        }
+        it->second.character->SetMaxStrength(std::max(maxStrength, 0.0f));
     }
 
     void JoltPhysicsWorld::SetGravity(const glm::vec3 &gravity)

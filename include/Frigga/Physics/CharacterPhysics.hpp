@@ -69,7 +69,12 @@ namespace FRIGGA_NAMESPACE
         desc.height          = PropertyFloat(instance, "height", 1.0f);
         desc.maxSlopeDegrees = PropertyFloat(instance, "maxSlopeDegrees", 45.0f);
         desc.mass            = PropertyFloat(instance, "mass", 70.0f);
+        desc.maxStrength     = PropertyFloat(instance, "maxStrength", 100.0f);
         desc.centerOffset    = PropertyVec3(instance, "centerOffset", {});
+        desc.stickToFloorDistance =
+            PropertyFloat(instance, "stickToFloorDistance", 0.5f);
+        desc.walkStairsStepHeight =
+            PropertyFloat(instance, "walkStairsStepHeight", 0.4f);
         desc.collisionLayer  = static_cast<std::uint8_t>(
             std::clamp<std::int64_t>(PropertyInt(instance, "collisionLayer", 1), 0, 15));
         desc.collideWithLayers = static_cast<std::uint16_t>(std::clamp<std::int64_t>(

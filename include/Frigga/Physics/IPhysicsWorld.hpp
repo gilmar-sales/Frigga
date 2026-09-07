@@ -51,7 +51,19 @@ namespace FRIGGA_NAMESPACE
             PhysicsCharacterHandle handle) const = 0;
         virtual void GetCharacterTransform(PhysicsCharacterHandle handle, glm::vec3 &position,
                                            glm::quat &rotation) const = 0;
+        /// Instantly place the character (no sweep). Refreshes contacts when supported.
+        virtual void SetCharacterPosition(PhysicsCharacterHandle handle,
+                                          const glm::vec3 &position) = 0;
+        /// Push gameplay facing into the CharacterVirtual (yaw for upright capsules).
+        virtual void SetCharacterRotation(PhysicsCharacterHandle handle,
+                                          const glm::quat &rotation) = 0;
         [[nodiscard]] virtual bool IsCharacterGrounded(PhysicsCharacterHandle handle) const = 0;
+        [[nodiscard]] virtual CharacterGroundInfo GetCharacterGroundInfo(
+            PhysicsCharacterHandle handle) const = 0;
+        /// Resize capsule (e.g. crouch). Returns false if the new shape would penetrate too deeply.
+        virtual bool SetCharacterShape(PhysicsCharacterHandle handle,
+                                       const PhysicsCharacterShapeDesc &shape) = 0;
+        virtual void SetCharacterMaxStrength(PhysicsCharacterHandle handle, float maxStrength) = 0;
 
         virtual void SetGravity(const glm::vec3 &gravity) = 0;
         [[nodiscard]] virtual glm::vec3 GetGravity() const = 0;

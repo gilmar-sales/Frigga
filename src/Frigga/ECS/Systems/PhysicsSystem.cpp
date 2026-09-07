@@ -41,6 +41,18 @@ namespace FRIGGA_NAMESPACE
                 }
             });
 
+        // Gameplay owns character facing: push Transform rotation into CharacterVirtual.
+        mPhysicsWorld->ForEachCharacter(
+            [&](std::uint64_t rawEntity, PhysicsCharacterHandle character) {
+                const auto entity = static_cast<fr::Entity>(rawEntity);
+                if(!character.IsValid() || !mRegistry->HasComponent<TransformComponent>(entity))
+                {
+                    return;
+                }
+                const auto pose = TransformUtil::WorldPose(*mRegistry, entity);
+                mPhysicsWorld->SetCharacterRotation(character, pose.rotation);
+            });
+
         if(stepOnce)
         {
             mPhysicsWorld->StepFixed(1);
@@ -67,7 +79,7 @@ namespace FRIGGA_NAMESPACE
                 TransformUtil::SetWorldPose(*mRegistry, entity, position, rotation);
             });
 
-        // CharacterVirtual owns pose for entities with a character controller.
+        // Physics owns character position only; preserve ECS facing/yaw.
         mPhysicsWorld->ForEachCharacter(
             [&](std::uint64_t rawEntity, PhysicsCharacterHandle character) {
                 const auto entity = static_cast<fr::Entity>(rawEntity);
@@ -78,7 +90,7 @@ namespace FRIGGA_NAMESPACE
                 glm::vec3 position {};
                 glm::quat rotation {1.0f, 0.0f, 0.0f, 0.0f};
                 mPhysicsWorld->GetCharacterTransform(character, position, rotation);
-                TransformUtil::SetWorldPose(*mRegistry, entity, position, rotation);
+                TransformUtil::SetWorldPosition(*mRegistry, entity, position);
             });
     }
 

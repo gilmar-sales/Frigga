@@ -126,6 +126,45 @@ namespace FRIGGA_NAMESPACE
         }
     }
 
+    void Physics::TeleportCharacter(fr::Entity entity, const glm::vec3 &worldPosition)
+    {
+        if(!mRegistry || !mWorld)
+        {
+            return;
+        }
+
+        const auto handle = CharacterHandle(mWorld, entity);
+        if(handle.IsValid())
+        {
+            mWorld->SetCharacterPosition(handle, worldPosition);
+        }
+
+        if(mRegistry->HasComponent<TransformComponent>(entity))
+        {
+            TransformUtil::SetWorldPosition(*mRegistry, entity, worldPosition);
+        }
+    }
+
+    void Physics::SetCharacterFacing(fr::Entity entity, const glm::quat &worldRotation)
+    {
+        if(!mRegistry || !mWorld)
+        {
+            return;
+        }
+
+        if(mRegistry->HasComponent<TransformComponent>(entity))
+        {
+            const auto pose = TransformUtil::WorldPose(*mRegistry, entity);
+            TransformUtil::SetWorldPose(*mRegistry, entity, pose.position, worldRotation);
+        }
+
+        const auto handle = CharacterHandle(mWorld, entity);
+        if(handle.IsValid())
+        {
+            mWorld->SetCharacterRotation(handle, worldRotation);
+        }
+    }
+
     bool Physics::IsCharacterGrounded(fr::Entity entity) const
     {
         if(!mWorld)
@@ -152,6 +191,52 @@ namespace FRIGGA_NAMESPACE
             return {};
         }
         return mWorld->GetCharacterVelocity(handle);
+    }
+
+    CharacterGroundInfo Physics::GetCharacterGroundInfo(fr::Entity entity) const
+    {
+        if(!mWorld)
+        {
+            return {};
+        }
+        const auto handle = CharacterHandle(mWorld, entity);
+        if(!handle.IsValid())
+        {
+            return {};
+        }
+        return mWorld->GetCharacterGroundInfo(handle);
+    }
+
+    bool Physics::SetCharacterShape(fr::Entity entity, float radius, float height,
+                                    const glm::vec3 &centerOffset)
+    {
+        if(!mWorld)
+        {
+            return false;
+        }
+        const auto handle = CharacterHandle(mWorld, entity);
+        if(!handle.IsValid())
+        {
+            return false;
+        }
+        PhysicsCharacterShapeDesc shape {};
+        shape.radius       = radius;
+        shape.height       = height;
+        shape.centerOffset = centerOffset;
+        return mWorld->SetCharacterShape(handle, shape);
+    }
+
+    void Physics::SetCharacterMaxStrength(fr::Entity entity, float maxStrength)
+    {
+        if(!mWorld)
+        {
+            return;
+        }
+        const auto handle = CharacterHandle(mWorld, entity);
+        if(handle.IsValid())
+        {
+            mWorld->SetCharacterMaxStrength(handle, maxStrength);
+        }
     }
 
 } // namespace FRIGGA_NAMESPACE

@@ -7,6 +7,7 @@
 #include <Frigga/ECS/TransformUtil.hpp>
 
 #include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
 #include <cmath>
 
 CharacterMovementSystem::CharacterMovementSystem(const skr::Arc<fr::Registry> &registry,
@@ -78,6 +79,16 @@ void CharacterMovementSystem::Update(float)
             {
                 desired.y = mPhysics->GetCharacterVelocity(entity).y;
             }
+
+            const glm::vec3 planar {desired.x, 0.0f, desired.z};
+            if(glm::dot(planar, planar) > 1e-6f)
+            {
+                const glm::vec3 dir = glm::normalize(planar);
+                const glm::quat facing =
+                    glm::quatLookAt(dir, glm::vec3 {0.0f, 1.0f, 0.0f});
+                mPhysics->SetCharacterFacing(entity, facing);
+            }
+
             mPhysics->MoveCharacter(entity, desired);
         });
 }

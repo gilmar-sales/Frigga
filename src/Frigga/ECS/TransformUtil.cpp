@@ -229,6 +229,12 @@ namespace FRIGGA_NAMESPACE::TransformUtil
         SetWorldMatrix(registry, entity, world);
     }
 
+    void SetWorldPosition(fr::Registry &registry, fr::Entity entity, const glm::vec3 &position)
+    {
+        const auto current = WorldPose(registry, entity);
+        SetWorldPose(registry, entity, position, current.rotation);
+    }
+
     bool SetParent(fr::Registry &registry, fr::Entity entity, fr::Entity newParent,
                    bool preserveWorld)
     {

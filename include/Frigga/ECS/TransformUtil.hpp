@@ -32,6 +32,8 @@ namespace FRIGGA_NAMESPACE::TransformUtil
     void SetWorldMatrix(fr::Registry &registry, fr::Entity entity, const glm::mat4 &world);
     void SetWorldPose(fr::Registry &registry, fr::Entity entity, const glm::vec3 &position,
                       const glm::quat &rotation);
+    /// Writes world position only; preserves world rotation and scale.
+    void SetWorldPosition(fr::Registry &registry, fr::Entity entity, const glm::vec3 &position);
 
     bool SetParent(fr::Registry &registry, fr::Entity entity, fr::Entity newParent,
                    bool preserveWorld = true);

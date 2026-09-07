@@ -19,6 +19,21 @@ static void DrawCharacterController(CharacterControllerComponent &c, fg::FriComp
     }
     ui.DragFloat("Max Slope", c.maxSlopeDegrees, 0.5f, 1.0f, 89.0f);
     ui.DragFloat("Mass", c.mass, 0.5f, 1.0f, 500.0f);
+    ui.DragFloat("Max Strength", c.maxStrength, 1.0f, 0.0f, 10000.0f);
+    if(ui.IsItemHovered())
+    {
+        ui.SetTooltip("Max force (N) when pushing dynamic bodies.");
+    }
+    ui.DragFloat("Stick To Floor", c.stickToFloorDistance, 0.01f, 0.0f, 2.0f);
+    if(ui.IsItemHovered())
+    {
+        ui.SetTooltip("Downward snap distance while grounded. 0 disables.");
+    }
+    ui.DragFloat("Walk Stairs Height", c.walkStairsStepHeight, 0.01f, 0.0f, 2.0f);
+    if(ui.IsItemHovered())
+    {
+        ui.SetTooltip("Max step-up height. 0 disables stair walking.");
+    }
     int layer = static_cast<int>(c.collisionLayer);
     if(ui.SliderInt("Collision Layer", layer, 0, 15))
     {

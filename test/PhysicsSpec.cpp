@@ -10,6 +10,8 @@
 #include <Freyr/Freyr.hpp>
 #include <gtest/gtest.h>
 
+#include <glm/gtc/quaternion.hpp>
+
 #include <cstdint>
 #include <functional>
 #include <unordered_map>
@@ -211,14 +213,78 @@ namespace
             rotation = it->second.rotation;
         }
 
+        void SetCharacterPosition(fg::PhysicsCharacterHandle handle,
+                                  const glm::vec3 &position) override
+        {
+            auto it = characters.find(handle.id);
+            if(it == characters.end())
+            {
+                return;
+            }
+            it->second.position = position;
+            ++characterPositionCalls;
+        }
+
+        void SetCharacterRotation(fg::PhysicsCharacterHandle handle,
+                                  const glm::quat &rotation) override
+        {
+            auto it = characters.find(handle.id);
+            if(it == characters.end())
+            {
+                return;
+            }
+            it->second.rotation = rotation;
+            ++characterRotationCalls;
+        }
+
         [[nodiscard]] bool IsCharacterGrounded(fg::PhysicsCharacterHandle handle) const override
         {
+            return GetCharacterGroundInfo(handle).grounded;
+        }
+
+        [[nodiscard]] fg::CharacterGroundInfo GetCharacterGroundInfo(
+            fg::PhysicsCharacterHandle handle) const override
+        {
+            fg::CharacterGroundInfo info {};
             const auto it = characters.find(handle.id);
+            if(it == characters.end())
+            {
+                return info;
+            }
+            info.grounded  = it->second.grounded;
+            info.state      = it->second.grounded ? fg::CharacterGroundState::OnGround
+                                                 : fg::CharacterGroundState::InAir;
+            info.position  = it->second.position;
+            info.normal    = it->second.groundNormal;
+            info.velocity  = it->second.groundVelocity;
+            info.groundBody = it->second.groundBody;
+            return info;
+        }
+
+        bool SetCharacterShape(fg::PhysicsCharacterHandle handle,
+                               const fg::PhysicsCharacterShapeDesc &shape) override
+        {
+            auto it = characters.find(handle.id);
             if(it == characters.end())
             {
                 return false;
             }
-            return it->second.grounded;
+            it->second.radius       = shape.radius;
+            it->second.height       = shape.height;
+            it->second.centerOffset = shape.centerOffset;
+            ++characterShapeCalls;
+            return true;
+        }
+
+        void SetCharacterMaxStrength(fg::PhysicsCharacterHandle handle, float maxStrength) override
+        {
+            auto it = characters.find(handle.id);
+            if(it == characters.end())
+            {
+                return;
+            }
+            it->second.maxStrength = maxStrength;
+            ++characterStrengthCalls;
         }
 
         void SetGravity(const glm::vec3 &g) override
@@ -251,6 +317,13 @@ namespace
             glm::quat rotation {1.0f, 0.0f, 0.0f, 0.0f};
             glm::vec3 velocity {0.0f};
             bool      grounded = false;
+            glm::vec3 groundNormal {0.0f, 1.0f, 0.0f};
+            glm::vec3 groundVelocity {0.0f};
+            fg::PhysicsBodyHandle groundBody {};
+            float radius       = 0.5f;
+            float height       = 1.0f;
+            glm::vec3 centerOffset {0.0f};
+            float maxStrength  = 100.0f;
         };
 
         std::unordered_map<std::uint32_t, BodyState> bodies;
@@ -265,6 +338,10 @@ namespace
         int impulseCalls            = 0;
         int forceCalls              = 0;
         int characterVelocityCalls  = 0;
+        int characterPositionCalls  = 0;
+        int characterRotationCalls  = 0;
+        int characterShapeCalls     = 0;
+        int characterStrengthCalls  = 0;
     };
 
     struct PhysicsHarness
@@ -378,6 +455,92 @@ TEST(PhysicsFacade, MoveCharacterForwardsVelocity)
     EXPECT_FLOAT_EQ(velocity.z, -1.0f);
 }
 
+TEST(PhysicsFacade, TeleportCharacterUpdatesTransformAndWorld)
+{
+    auto harness = PhysicsHarness::Create();
+    auto entity  = harness.registry->CreateEntity(
+        fg::NameComponent {.name = "Hero"},
+        fg::TransformComponent {.position = {1.0f, 0.0f, 0.0f}});
+    harness.registry->ExecuteTasks();
+
+    const auto handle = harness.world->CreateCharacter(fg::PhysicsCharacterDesc {});
+    harness.world->BindCharacter(static_cast<std::uint64_t>(entity), handle);
+
+    const glm::vec3 dest {9.0f, 2.0f, -3.0f};
+    harness.physics->TeleportCharacter(entity, dest);
+
+    EXPECT_EQ(harness.world->characterPositionCalls, 1);
+    harness.registry->TryGetComponents<fg::TransformComponent>(
+        entity, [&](fg::TransformComponent &transform) {
+            EXPECT_FLOAT_EQ(transform.position.x, dest.x);
+            EXPECT_FLOAT_EQ(transform.position.y, dest.y);
+            EXPECT_FLOAT_EQ(transform.position.z, dest.z);
+        });
+}
+
+TEST(PhysicsFacade, SetCharacterFacingUpdatesTransformAndWorld)
+{
+    auto harness = PhysicsHarness::Create();
+    auto entity  = harness.registry->CreateEntity(
+        fg::NameComponent {.name = "Hero"}, fg::TransformComponent {});
+    harness.registry->ExecuteTasks();
+
+    const auto handle = harness.world->CreateCharacter(fg::PhysicsCharacterDesc {});
+    harness.world->BindCharacter(static_cast<std::uint64_t>(entity), handle);
+
+    const glm::quat facing = glm::angleAxis(glm::radians(90.0f), glm::vec3 {0.0f, 1.0f, 0.0f});
+    harness.physics->SetCharacterFacing(entity, facing);
+
+    EXPECT_EQ(harness.world->characterRotationCalls, 1);
+    harness.registry->TryGetComponents<fg::TransformComponent>(
+        entity, [&](fg::TransformComponent &transform) {
+            EXPECT_NEAR(transform.rotation.w, facing.w, 1e-5f);
+            EXPECT_NEAR(transform.rotation.x, facing.x, 1e-5f);
+            EXPECT_NEAR(transform.rotation.y, facing.y, 1e-5f);
+            EXPECT_NEAR(transform.rotation.z, facing.z, 1e-5f);
+        });
+}
+
+TEST(PhysicsFacade, CharacterShapeAndStrengthForward)
+{
+    auto harness = PhysicsHarness::Create();
+    auto entity  = harness.registry->CreateEntity(
+        fg::NameComponent {.name = "Hero"}, fg::TransformComponent {});
+    harness.registry->ExecuteTasks();
+
+    const auto handle = harness.world->CreateCharacter(fg::PhysicsCharacterDesc {});
+    harness.world->BindCharacter(static_cast<std::uint64_t>(entity), handle);
+
+    EXPECT_TRUE(harness.physics->SetCharacterShape(entity, 0.4f, 0.6f, {0.0f, 0.1f, 0.0f}));
+    EXPECT_EQ(harness.world->characterShapeCalls, 1);
+    EXPECT_FLOAT_EQ(harness.world->characters.begin()->second.radius, 0.4f);
+    EXPECT_FLOAT_EQ(harness.world->characters.begin()->second.height, 0.6f);
+
+    harness.physics->SetCharacterMaxStrength(entity, 250.0f);
+    EXPECT_EQ(harness.world->characterStrengthCalls, 1);
+    EXPECT_FLOAT_EQ(harness.world->characters.begin()->second.maxStrength, 250.0f);
+}
+
+TEST(PhysicsFacade, GetCharacterGroundInfo)
+{
+    auto harness = PhysicsHarness::Create();
+    auto entity  = harness.registry->CreateEntity(
+        fg::NameComponent {.name = "Hero"}, fg::TransformComponent {});
+    harness.registry->ExecuteTasks();
+
+    const auto handle = harness.world->CreateCharacter(fg::PhysicsCharacterDesc {});
+    harness.world->BindCharacter(static_cast<std::uint64_t>(entity), handle);
+    auto &state           = harness.world->characters.begin()->second;
+    state.grounded        = true;
+    state.groundNormal    = {0.0f, 1.0f, 0.0f};
+    state.groundVelocity  = {1.0f, 0.0f, 0.0f};
+
+    const auto info = harness.physics->GetCharacterGroundInfo(entity);
+    EXPECT_TRUE(info.grounded);
+    EXPECT_EQ(info.state, fg::CharacterGroundState::OnGround);
+    EXPECT_FLOAT_EQ(info.velocity.x, 1.0f);
+}
+
 TEST(JoltCharacter, StepAppliesGravityToCharacterVelocity)
 {
     auto world = skr::MakeArc<fg::JoltPhysicsWorld>();
@@ -407,3 +570,46 @@ TEST(JoltCharacter, StepAppliesGravityToCharacterVelocity)
     world->GetCharacterTransform(character, position, rotation);
     EXPECT_LT(position.y, 2.0f) << "character should move downward";
 }
+
+TEST(JoltCharacter, TeleportAndFacingAndResize)
+{
+    auto world = skr::MakeArc<fg::JoltPhysicsWorld>();
+    fg::PhysicsBodyDesc floor {};
+    floor.motion         = fg::BodyMotionType::Static;
+    floor.shape          = fg::ColliderShape::Box;
+    floor.position       = {0.0f, -0.5f, 0.0f};
+    floor.halfExtents    = {10.0f, 0.5f, 10.0f};
+    floor.collisionLayer = 0;
+    ASSERT_TRUE(world->CreateBody(floor).IsValid());
+
+    fg::PhysicsCharacterDesc desc {};
+    desc.position       = {0.0f, 1.0f, 0.0f};
+    desc.collisionLayer = 1;
+    desc.maxStrength    = 150.0f;
+    const auto character = world->CreateCharacter(desc);
+    ASSERT_TRUE(character.IsValid());
+
+    world->SetCharacterPosition(character, {3.0f, 1.0f, -2.0f});
+    const glm::quat facing = glm::angleAxis(glm::radians(45.0f), glm::vec3 {0.0f, 1.0f, 0.0f});
+    world->SetCharacterRotation(character, facing);
+
+    glm::vec3 position {};
+    glm::quat rotation {};
+    world->GetCharacterTransform(character, position, rotation);
+    EXPECT_FLOAT_EQ(position.x, 3.0f);
+    EXPECT_FLOAT_EQ(position.z, -2.0f);
+    EXPECT_NEAR(rotation.w, facing.w, 1e-5f);
+    EXPECT_NEAR(rotation.y, facing.y, 1e-5f);
+
+    world->SetCharacterMaxStrength(character, 300.0f);
+    fg::PhysicsCharacterShapeDesc crouch {};
+    crouch.radius = 0.5f;
+    crouch.height = 0.5f;
+    EXPECT_TRUE(world->SetCharacterShape(character, crouch));
+
+    world->StepFixed(5);
+    const auto ground = world->GetCharacterGroundInfo(character);
+    // After a few steps near the floor the character should report some ground query state.
+    (void)ground;
+}
+

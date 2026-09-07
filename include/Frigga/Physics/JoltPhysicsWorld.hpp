@@ -50,7 +50,16 @@ namespace FRIGGA_NAMESPACE
         [[nodiscard]] glm::vec3 GetCharacterVelocity(PhysicsCharacterHandle handle) const override;
         void GetCharacterTransform(PhysicsCharacterHandle handle, glm::vec3 &position,
                                    glm::quat &rotation) const override;
+        void SetCharacterPosition(PhysicsCharacterHandle handle,
+                                  const glm::vec3 &position) override;
+        void SetCharacterRotation(PhysicsCharacterHandle handle,
+                                  const glm::quat &rotation) override;
         [[nodiscard]] bool IsCharacterGrounded(PhysicsCharacterHandle handle) const override;
+        [[nodiscard]] CharacterGroundInfo GetCharacterGroundInfo(
+            PhysicsCharacterHandle handle) const override;
+        bool SetCharacterShape(PhysicsCharacterHandle handle,
+                               const PhysicsCharacterShapeDesc &shape) override;
+        void SetCharacterMaxStrength(PhysicsCharacterHandle handle, float maxStrength) override;
 
         void SetGravity(const glm::vec3 &gravity) override;
         [[nodiscard]] glm::vec3 GetGravity() const override;
