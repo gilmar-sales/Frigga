@@ -434,6 +434,14 @@ static void CreateOrResizeBuffer(VkBuffer& buffer, VkDeviceMemory& buffer_memory
     ImGui_ImplVulkan_Data* bd = ImGui_ImplVulkan_GetBackendData();
     ImGui_ImplVulkan_InitInfo* v = &bd->VulkanInitInfo;
     VkResult err;
+    // Frigga: wait before replacing host-visible frame buffers — FiF reuse alone
+    // is not enough when ImageCount and Freya frame slots briefly diverge (resize /
+    // skipped UI frames), which otherwise trips VUID-vkDestroyBuffer-buffer-00922.
+    if (buffer != VK_NULL_HANDLE || buffer_memory != VK_NULL_HANDLE)
+    {
+        err = vkDeviceWaitIdle(v->Device);
+        check_vk_result(err);
+    }
     if (buffer != VK_NULL_HANDLE)
         vkDestroyBuffer(v->Device, buffer, v->Allocator);
     if (buffer_memory != VK_NULL_HANDLE)

@@ -1,6 +1,7 @@
 #include <Frigga/Gui/GuiLayer.hpp>
 
 #include <Frigga/Gui/Styles/Styles.hpp>
+#include <Frigga/Gui/ImGuiVulkanLifetime.hpp>
 
 #include <Frigga/Gui/Backends/imgui_impl_sdl3.h>
 #include <Frigga/Gui/Backends/imgui_impl_vulkan.h>
@@ -19,6 +20,8 @@
 #include <Freya/Events/Window.hpp>
 #include <Freya/FreyaOptions.hpp>
 
+#include <vulkan/vulkan.h>
+
 namespace FRIGGA_NAMESPACE
 {
     struct PendingImGuiSdlEvents
@@ -35,6 +38,12 @@ namespace FRIGGA_NAMESPACE
             bool alt      = false;
             bool capsLock = false;
         };
+
+        bool &PendingPipelineRecreate()
+        {
+            static bool pending = false;
+            return pending;
+        }
 
         /// Freya's Window::pollEvents drops SDL wheel/text events before ImGui
         /// sees them. Capture via SDL_AddEventWatch and flush in begin().
@@ -156,6 +165,7 @@ namespace FRIGGA_NAMESPACE
         }
         imageCount = std::max(imageCount, mRenderer->GetFrameCount());
         imageCount = std::max(imageCount, 2u);
+        ImGuiVulkanLifetime::SetFramesInFlight(imageCount);
 
         auto imguiSdl3VulkanInitInfo     = ImGui_ImplVulkan_InitInfo{};
         imguiSdl3VulkanInitInfo.Instance = static_cast<VkInstance>(native.instance);
@@ -204,9 +214,11 @@ namespace FRIGGA_NAMESPACE
                     [windowId](const fra::MouseMoveEvent &event) {
                         DispatchImGuiMouseMove(event, windowId);
                     });
+                // Defer until end(): Freya rebuilds the UI render pass in
+                // BeginFrame on resize; recreating here would bind the old pass.
                 events->Subscribe<fra::WindowResizeEvent>(
-                    [renderer = mRenderer](const fra::WindowResizeEvent &) {
-                        RecreateMainPipeline(renderer);
+                    [](const fra::WindowResizeEvent &) {
+                        RequestRecreateMainPipeline();
                     });
             }
             mEventCallbackRegistered = true;
@@ -226,12 +238,25 @@ namespace FRIGGA_NAMESPACE
             return;
         }
 
+        VkDevice device = VK_NULL_HANDLE;
+        if(mRenderer)
+        {
+            const fra::ImGuiNativeHandles native =
+                fra::Advanced(*mRenderer).GetImGuiNativeHandles();
+            device = static_cast<VkDevice>(native.device);
+        }
+
+        // Drain deferred viewport descriptors and idle before ImGui tears down
+        // frame buffers / pipeline still referenced by Freya command buffers.
+        ImGuiVulkanLifetime::FlushImmediate(device);
+
         // ViewportsEnable requires an explicit destroy while the platform +
         // renderer backends are still alive (DestroyContext alone asserts).
         ImGui::DestroyPlatformWindows();
         ImGui_ImplVulkan_Shutdown();
         ImGui_ImplSDL3_Shutdown();
         ImGui::DestroyContext();
+        PendingPipelineRecreate() = false;
     }
 
     void GuiLayer::onEvent(Event &event)
@@ -244,6 +269,11 @@ namespace FRIGGA_NAMESPACE
         }
     }
 
+    void GuiLayer::RequestRecreateMainPipeline()
+    {
+        PendingPipelineRecreate() = true;
+    }
+
     void GuiLayer::RecreateMainPipeline(const skr::Arc<fra::Renderer> &renderer)
     {
         if(renderer == nullptr || ImGui::GetCurrentContext() == nullptr)
@@ -253,9 +283,27 @@ namespace FRIGGA_NAMESPACE
 
         const fra::ImGuiNativeHandles native =
             fra::Advanced(*renderer).GetImGuiNativeHandles();
+        if(native.device == nullptr || native.renderPass == nullptr)
+        {
+            return;
+        }
+
+        // CreateMainPipeline destroys the previous VkPipeline immediately.
+        vkDeviceWaitIdle(static_cast<VkDevice>(native.device));
+
         ImGui_ImplVulkan_PipelineInfo pipelineInfo {};
         pipelineInfo.RenderPass = static_cast<VkRenderPass>(native.renderPass);
         ImGui_ImplVulkan_CreateMainPipeline(&pipelineInfo);
+        PendingPipelineRecreate() = false;
+    }
+
+    void GuiLayer::flushPendingPipelineRecreate()
+    {
+        if(!PendingPipelineRecreate() || mRenderer == nullptr)
+        {
+            return;
+        }
+        RecreateMainPipeline(mRenderer);
     }
 
     void GuiLayer::begin()
@@ -268,6 +316,8 @@ namespace FRIGGA_NAMESPACE
             }
             mPendingSdlEvents->events.clear();
         }
+
+        ImGuiVulkanLifetime::Tick();
 
         ImGui_ImplVulkan_NewFrame();
         ImGui_ImplSDL3_NewFrame();
@@ -285,6 +335,9 @@ namespace FRIGGA_NAMESPACE
         // FramebufferScale apply twice: soft viewports and mis-scaled UI.
 
         ImGui::Render();
+
+        // After Freya BeginFrame (possible swapchain/UI-pass rebuild).
+        flushPendingPipelineRecreate();
 
         ImDrawData *drawData = ImGui::GetDrawData();
         if(drawData != nullptr && drawData->TotalVtxCount > 0)

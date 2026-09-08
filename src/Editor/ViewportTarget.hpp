@@ -2,6 +2,7 @@
 
 #include <Frigga/Frigga.hpp>
 #include <Frigga/Gui/Backends/imgui_impl_vulkan.h>
+#include <Frigga/Gui/ImGuiVulkanLifetime.hpp>
 
 #include <Freya/Advanced.hpp>
 
@@ -274,18 +275,13 @@ namespace fg
             mBoundView                           = static_cast<const void *>(img.imageView);
             mBoundSampler                        = static_cast<const void *>(img.sampler);
 
-            if(oldTextureId != VK_NULL_HANDLE)
-            {
-                ImGui_ImplVulkan_RemoveTexture(oldTextureId);
-            }
+            // Defer free: in-flight ImGui draws may still sample the old set.
+            ImGuiVulkanLifetime::DeferRemoveTexture(oldTextureId);
         }
 
         void releaseTexture()
         {
-            if(mTextureId != VK_NULL_HANDLE)
-            {
-                ImGui_ImplVulkan_RemoveTexture(mTextureId);
-            }
+            ImGuiVulkanLifetime::DeferRemoveTexture(mTextureId);
             mTextureId    = VK_NULL_HANDLE;
             mBoundView    = nullptr;
             mBoundSampler = nullptr;
