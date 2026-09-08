@@ -5,6 +5,8 @@
 #include "Frigga/ECS/TransformUtil.hpp"
 #include "Frigga/Physics/IPhysicsWorld.hpp"
 
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
 
 namespace FRIGGA_NAMESPACE
@@ -25,14 +27,83 @@ namespace FRIGGA_NAMESPACE
             return handle;
         }
 
-        PhysicsCharacterHandle CharacterHandle(const skr::Arc<IPhysicsWorld> &world,
-                                               fr::Entity entity)
+        float CharacterProbeRadius(const RigidBodyComponent &rb)
         {
-            if(!world)
+            if(rb.shape == ColliderShape::Box)
             {
-                return {};
+                return std::max({rb.halfExtents.x, rb.halfExtents.z, 0.05f});
             }
-            return world->FindCharacter(static_cast<std::uint64_t>(entity));
+            return std::max(rb.radius, 0.05f);
+        }
+
+        float CharacterHalfHeight(const RigidBodyComponent &rb)
+        {
+            switch(rb.shape)
+            {
+            case ColliderShape::Capsule:
+                return std::max(0.5f * rb.height, 0.0f) + std::max(rb.radius, 0.05f);
+            case ColliderShape::Sphere:
+                return std::max(rb.radius, 0.05f);
+            case ColliderShape::Box:
+                return std::max(rb.halfExtents.y, 0.05f);
+            default:
+                return 0.5f;
+            }
+        }
+
+        CharacterGroundInfo GroundInfoFromBody(const skr::Arc<IPhysicsWorld> &world,
+                                               fr::Entity entity, const RigidBodyComponent &rb,
+                                               float maxSlopeDegrees)
+        {
+            CharacterGroundInfo info {};
+            if(!world || !rb.body.IsValid())
+            {
+                return info;
+            }
+
+            glm::vec3 position {};
+            glm::quat rotation {1.0f, 0.0f, 0.0f, 0.0f};
+            world->GetTransform(rb.body, position, rotation);
+            info.position = position;
+            info.velocity = world->GetLinearVelocity(rb.body);
+
+            const float halfHeight = CharacterHalfHeight(rb);
+            const float radius     = CharacterProbeRadius(rb);
+            const float skin       = 0.08f;
+            const glm::vec3 origin = position + glm::vec3 {0.0f, 0.05f, 0.0f};
+            const float maxDist    = halfHeight + skin + 0.05f;
+
+            QueryFilter filter {};
+            filter.ignoreEntity = static_cast<std::uint64_t>(entity);
+
+            RaycastHit hit = world->SphereCast(origin, {0.0f, -1.0f, 0.0f}, radius * 0.85f,
+                                               maxDist, filter);
+            if(!hit.hit)
+            {
+                hit = world->Raycast(origin, {0.0f, -1.0f, 0.0f}, maxDist, filter);
+            }
+            if(!hit.hit)
+            {
+                info.state = CharacterGroundState::InAir;
+                return info;
+            }
+
+            info.normal     = hit.normal;
+            info.groundBody = hit.body;
+            const float maxSlopeRad =
+                glm::radians(std::clamp(maxSlopeDegrees, 1.0f, 89.0f));
+            const float minY = std::cos(maxSlopeRad);
+            if(hit.normal.y >= minY)
+            {
+                info.grounded = true;
+                info.state     = CharacterGroundState::OnGround;
+            }
+            else
+            {
+                info.grounded = false;
+                info.state     = CharacterGroundState::OnSteepGround;
+            }
+            return info;
         }
     } // namespace
 
@@ -168,15 +239,7 @@ namespace FRIGGA_NAMESPACE
 
     void Physics::MoveCharacter(fr::Entity entity, const glm::vec3 &desiredWorldVelocity)
     {
-        if(!mWorld)
-        {
-            return;
-        }
-        const auto handle = CharacterHandle(mWorld, entity);
-        if(handle.IsValid())
-        {
-            mWorld->SetCharacterVelocity(handle, desiredWorldVelocity);
-        }
+        SetLinearVelocity(entity, desiredWorldVelocity);
     }
 
     void Physics::TeleportCharacter(fr::Entity entity, const glm::vec3 &worldPosition)
@@ -186,15 +249,19 @@ namespace FRIGGA_NAMESPACE
             return;
         }
 
-        const auto handle = CharacterHandle(mWorld, entity);
-        if(handle.IsValid())
-        {
-            mWorld->SetCharacterPosition(handle, worldPosition);
-        }
-
+        glm::quat rotation {1.0f, 0.0f, 0.0f, 0.0f};
         if(mRegistry->HasComponent<TransformComponent>(entity))
         {
+            rotation = TransformUtil::WorldPose(*mRegistry, entity).rotation;
             TransformUtil::SetWorldPosition(*mRegistry, entity, worldPosition);
+        }
+
+        const auto handle = BodyHandle(mRegistry, entity);
+        if(handle.IsValid())
+        {
+            mWorld->SetTransform(handle, worldPosition, rotation);
+            mWorld->SetLinearVelocity(handle, {});
+            mWorld->SetAngularVelocity(handle, {});
         }
     }
 
@@ -205,91 +272,68 @@ namespace FRIGGA_NAMESPACE
             return;
         }
 
+        glm::vec3 position {};
         if(mRegistry->HasComponent<TransformComponent>(entity))
         {
             const auto pose = TransformUtil::WorldPose(*mRegistry, entity);
+            position        = pose.position;
             TransformUtil::SetWorldPose(*mRegistry, entity, pose.position, worldRotation);
         }
 
-        const auto handle = CharacterHandle(mWorld, entity);
+        const auto handle = BodyHandle(mRegistry, entity);
         if(handle.IsValid())
         {
-            mWorld->SetCharacterRotation(handle, worldRotation);
+            if(position == glm::vec3 {})
+            {
+                glm::quat ignored {1.0f, 0.0f, 0.0f, 0.0f};
+                mWorld->GetTransform(handle, position, ignored);
+            }
+            mWorld->SetTransform(handle, position, worldRotation);
+            mWorld->SetAngularVelocity(handle, {});
         }
     }
 
     bool Physics::IsCharacterGrounded(fr::Entity entity) const
     {
-        if(!mWorld)
-        {
-            return false;
-        }
-        const auto handle = CharacterHandle(mWorld, entity);
-        if(!handle.IsValid())
-        {
-            return false;
-        }
-        return mWorld->IsCharacterGrounded(handle);
+        return GetCharacterGroundInfo(entity).grounded;
     }
 
     glm::vec3 Physics::GetCharacterVelocity(fr::Entity entity) const
     {
-        if(!mWorld)
-        {
-            return {};
-        }
-        const auto handle = CharacterHandle(mWorld, entity);
-        if(!handle.IsValid())
-        {
-            return {};
-        }
-        return mWorld->GetCharacterVelocity(handle);
+        return GetLinearVelocity(entity);
     }
 
     CharacterGroundInfo Physics::GetCharacterGroundInfo(fr::Entity entity) const
     {
-        if(!mWorld)
+        if(!mRegistry || !mWorld)
         {
             return {};
         }
-        const auto handle = CharacterHandle(mWorld, entity);
-        if(!handle.IsValid())
-        {
-            return {};
-        }
-        return mWorld->GetCharacterGroundInfo(handle);
+
+        CharacterGroundInfo info {};
+        mRegistry->TryGetComponents<RigidBodyComponent>(entity, [&](RigidBodyComponent &rb) {
+            info = GroundInfoFromBody(mWorld, entity, rb, 45.0f);
+        });
+        return info;
     }
 
     bool Physics::SetCharacterShape(fr::Entity entity, float radius, float height,
                                     const glm::vec3 &centerOffset)
     {
-        if(!mWorld)
+        if(!mRegistry)
         {
             return false;
         }
-        const auto handle = CharacterHandle(mWorld, entity);
-        if(!handle.IsValid())
-        {
-            return false;
-        }
-        PhysicsCharacterShapeDesc shape {};
-        shape.radius       = radius;
-        shape.height       = height;
-        shape.centerOffset = centerOffset;
-        return mWorld->SetCharacterShape(handle, shape);
-    }
-
-    void Physics::SetCharacterMaxStrength(fr::Entity entity, float maxStrength)
-    {
-        if(!mWorld)
-        {
-            return;
-        }
-        const auto handle = CharacterHandle(mWorld, entity);
-        if(handle.IsValid())
-        {
-            mWorld->SetCharacterMaxStrength(handle, maxStrength);
-        }
+        bool updated = false;
+        mRegistry->TryGetComponents<RigidBodyComponent>(entity, [&](RigidBodyComponent &rb) {
+            rb.shape        = ColliderShape::Capsule;
+            rb.radius       = std::max(radius, 0.001f);
+            rb.height       = std::max(height, 0.0f);
+            rb.centerOffset = centerOffset;
+            updated         = true;
+        });
+        // Runtime shape swap on an existing body is not supported yet — values apply next Play.
+        return updated;
     }
 
     PhysicsJointHandle Physics::CreateJoint(fr::Entity entityA, fr::Entity entityB,

@@ -17,14 +17,14 @@ namespace FRIGGA_NAMESPACE
 
     class IPhysicsWorld;
 
-    /// Gameplay-facing physics facade. Resolves RigidBody / CharacterController on entities.
+    /// Gameplay-facing physics facade. Resolves RigidBody on entities.
     /// Backing engine (Jolt) stays behind IPhysicsWorld — plugins only see this type.
     ///
-    /// Character ownership contract:
-    /// - Physics owns world position, linear velocity, grounded/support, and capsule collision.
+    /// Character ownership contract (Dynamic RigidBody + CharacterControllerComponent):
+    /// - Physics owns world position, linear velocity, grounded/support, and collision.
     /// - Gameplay owns Transform yaw/facing (and mesh/animation).
-    /// - After each step, PhysicsSystem writes character position only and preserves ECS rotation.
-    /// - Before each step, ECS facing is pushed into the CharacterVirtual.
+    /// - MoveCharacter sets body linear velocity; AddImpulse/AddForce work on the body.
+    /// - Ground queries use a short downward cast (max slope via CharacterController).
     class Physics
     {
       public:
@@ -47,7 +47,7 @@ namespace FRIGGA_NAMESPACE
         void AddTorque(fr::Entity entity, const glm::vec3 &torque);
         void AddAngularImpulse(fr::Entity entity, const glm::vec3 &impulse);
 
-        // --- Character controllers ---
+        // --- Character controllers (Dynamic RigidBody locomotion helpers) ---
 
         void MoveCharacter(fr::Entity entity, const glm::vec3 &desiredWorldVelocity);
         void TeleportCharacter(fr::Entity entity, const glm::vec3 &worldPosition);
@@ -57,7 +57,6 @@ namespace FRIGGA_NAMESPACE
         [[nodiscard]] CharacterGroundInfo GetCharacterGroundInfo(fr::Entity entity) const;
         bool SetCharacterShape(fr::Entity entity, float radius, float height,
                                const glm::vec3 &centerOffset = {});
-        void SetCharacterMaxStrength(fr::Entity entity, float maxStrength);
 
         // --- Joints ---
 

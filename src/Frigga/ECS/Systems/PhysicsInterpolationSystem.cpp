@@ -25,15 +25,7 @@ namespace FRIGGA_NAMESPACE
 
         mRegistry->CreateMutation()->Each(
             [&](fr::Entity entity, TransformComponent &, RigidBodyComponent &rigidBody) {
-                if(!rigidBody.body.IsValid())
-                {
-                    return;
-                }
-                if(mPhysicsWorld->FindCharacter(static_cast<std::uint64_t>(entity)).IsValid())
-                {
-                    return;
-                }
-                if(rigidBody.motion == BodyMotionType::Kinematic)
+                if(!rigidBody.body.IsValid() || rigidBody.motion == BodyMotionType::Kinematic)
                 {
                     return;
                 }
@@ -45,21 +37,6 @@ namespace FRIGGA_NAMESPACE
                     return;
                 }
                 TransformUtil::SetWorldPose(*mRegistry, entity, position, rotation);
-            });
-
-        mPhysicsWorld->ForEachCharacter(
-            [&](std::uint64_t rawEntity, PhysicsCharacterHandle character) {
-                const auto entity = static_cast<fr::Entity>(rawEntity);
-                if(!character.IsValid() || !mRegistry->HasComponent<TransformComponent>(entity))
-                {
-                    return;
-                }
-                glm::vec3 position {};
-                if(!mPhysicsWorld->GetInterpolatedCharacterPosition(character, alpha, position))
-                {
-                    return;
-                }
-                TransformUtil::SetWorldPosition(*mRegistry, entity, position);
             });
     }
 

@@ -83,6 +83,12 @@ namespace FRIGGA_NAMESPACE
         /// Optional ECS entity id stored as body user data (0 = unset).
         std::uint64_t entityId = 0;
 
+        /// When true on a Dynamic body, lock rotation around the corresponding world axis
+        /// via Jolt EAllowedDOFs (see BodyCreationSettings::mAllowedDOFs).
+        bool lockRotationX = false;
+        bool lockRotationY = false;
+        bool lockRotationZ = false;
+
         std::vector<glm::vec3> meshPoints; // Used when shape == Mesh
     };
 

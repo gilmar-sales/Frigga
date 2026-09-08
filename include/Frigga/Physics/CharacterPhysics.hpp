@@ -33,7 +33,8 @@ namespace FRIGGA_NAMESPACE
     }
 
     [[nodiscard]] inline glm::vec3 PropertyVec3(const UserComponentInstance &instance,
-                                                std::string_view name, const glm::vec3 &fallback)
+                                                const std::string_view name,
+                                                const glm::vec3 &fallback)
     {
         const auto *property = FindProperty(instance, name);
         if(property == nullptr || property->value.kind != PropertyKind::Vec3)
@@ -62,30 +63,16 @@ namespace FRIGGA_NAMESPACE
         return fallback;
     }
 
-    /// Locomotion-only fields from CharacterControllerComponent (+ legacy shape props if present).
+    /// Locomotion fields from CharacterControllerComponent (+ legacy shape props if present).
     [[nodiscard]] inline PhysicsCharacterDesc CharacterDescFromInstance(
         const UserComponentInstance &instance)
     {
         PhysicsCharacterDesc desc {};
-        // Legacy shape fields — preferred source is RigidBodyComponent via ApplyRigidBodyToDesc.
         desc.radius          = PropertyFloat(instance, "radius", 0.5f);
         desc.height          = PropertyFloat(instance, "height", 1.0f);
         desc.maxSlopeDegrees = PropertyFloat(instance, "maxSlopeDegrees", 45.0f);
         desc.mass            = PropertyFloat(instance, "mass", 70.0f);
-        desc.maxStrength     = PropertyFloat(instance, "maxStrength", 100.0f);
         desc.centerOffset    = PropertyVec3(instance, "centerOffset", {});
-        desc.stickToFloorDistance =
-            PropertyFloat(instance, "stickToFloorDistance", 0.5f);
-        desc.walkStairsStepHeight =
-            PropertyFloat(instance, "walkStairsStepHeight", 0.4f);
-        desc.predictiveContactDistance =
-            PropertyFloat(instance, "predictiveContactDistance", 0.1f);
-        desc.characterPadding =
-            PropertyFloat(instance, "characterPadding", 0.02f);
-        desc.penetrationRecoverySpeed =
-            PropertyFloat(instance, "penetrationRecoverySpeed", 1.0f);
-        desc.enhancedInternalEdgeRemoval =
-            PropertyInt(instance, "enhancedInternalEdgeRemoval", 0) != 0;
         desc.collisionLayer  = static_cast<std::uint8_t>(
             std::clamp<std::int64_t>(PropertyInt(instance, "collisionLayer", 1), 0, 15));
         desc.collideWithLayers = static_cast<std::uint16_t>(std::clamp<std::int64_t>(
@@ -93,27 +80,9 @@ namespace FRIGGA_NAMESPACE
         return desc;
     }
 
-    /// Overlay capsule / mass / layers from the required RigidBody presence collider.
-    inline void ApplyRigidBodyToCharacterDesc(PhysicsCharacterDesc &desc,
-                                              const RigidBodyComponent &rigidBody)
-    {
-        if(rigidBody.shape == ColliderShape::Capsule || rigidBody.shape == ColliderShape::Sphere)
-        {
-            desc.radius = rigidBody.radius;
-            if(rigidBody.shape == ColliderShape::Capsule)
-            {
-                desc.height = rigidBody.height;
-            }
-        }
-        desc.centerOffset      = rigidBody.centerOffset;
-        desc.mass              = rigidBody.mass > 0.0f ? rigidBody.mass : desc.mass;
-        desc.collisionLayer    = rigidBody.collisionLayer;
-        desc.collideWithLayers = rigidBody.collideWithLayers;
-    }
-
     [[nodiscard]] inline glm::vec3 CapsuleCenterLocalFromDesc(const PhysicsCharacterDesc &desc)
     {
-        const float radius    = std::max(desc.radius, 0.001f);
+        const float radius     = std::max(desc.radius, 0.001f);
         const float halfHeight = std::max(0.5f * desc.height, 0.001f);
         return desc.centerOffset + glm::vec3 {0.0f, halfHeight + radius, 0.0f};
     }
@@ -129,7 +98,7 @@ namespace FRIGGA_NAMESPACE
     [[nodiscard]] inline RigidBodyComponent MakeDefaultCharacterRigidBody()
     {
         RigidBodyComponent rb {};
-        rb.motion            = BodyMotionType::Kinematic;
+        rb.motion            = BodyMotionType::Dynamic;
         rb.shape             = ColliderShape::Capsule;
         rb.radius            = 0.5f;
         rb.height            = 1.0f;

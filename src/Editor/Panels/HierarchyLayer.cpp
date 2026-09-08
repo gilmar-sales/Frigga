@@ -316,7 +316,7 @@ fg::RigidBodyComponent HierarchyLayer::makeDefaultRigidBody(fr::Entity entity) c
 fg::RigidBodyComponent HierarchyLayer::makeDefaultCharacterRigidBody() const
 {
     fg::RigidBodyComponent rigidBody {};
-    rigidBody.motion            = fg::BodyMotionType::Kinematic;
+    rigidBody.motion            = fg::BodyMotionType::Dynamic;
     rigidBody.shape             = fg::ColliderShape::Capsule;
     rigidBody.radius            = 0.5f;
     rigidBody.height            = 1.0f;
@@ -336,7 +336,7 @@ void HierarchyLayer::ensureCharacterRigidBody(fr::Entity entity)
     }
 
     mRegistry->TryGetComponents<fg::RigidBodyComponent>(entity, [&](fg::RigidBodyComponent &rb) {
-        rb.motion = fg::BodyMotionType::Kinematic;
+        rb.motion = fg::BodyMotionType::Dynamic;
         if(rb.shape != fg::ColliderShape::Capsule && rb.shape != fg::ColliderShape::Sphere &&
            rb.shape != fg::ColliderShape::Box)
         {
@@ -2658,11 +2658,16 @@ void HierarchyLayer::drawComponents()
                 if(ops.drawInspector)
                 {
                     fg::FriComponentInspector ui;
-                    ui.entity       = selection;
-                    ui.playing      = mSimulation->IsPlaying();
-                    const auto handle = mSimulation->CharacterHandleOf(selection);
-                    ui.hasCharacter = handle.IsValid();
-                    ui.characterId  = handle.id;
+                    ui.entity  = selection;
+                    ui.playing = mSimulation->IsPlaying();
+                    if(mRegistry->HasComponent<fg::RigidBodyComponent>(selection))
+                    {
+                        mRegistry->TryGetComponents<fg::RigidBodyComponent>(
+                            selection, [&](fg::RigidBodyComponent &rb) {
+                                ui.hasCharacter = rb.body.IsValid();
+                                ui.characterId  = rb.body.id;
+                            });
+                    }
                     ops.drawInspector(*mRegistry, selection, ui);
                 }
                 else

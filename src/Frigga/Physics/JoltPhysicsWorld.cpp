@@ -8,7 +8,6 @@
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Body/BodyFilter.h>
 #include <Jolt/Physics/Body/BodyLock.h>
-#include <Jolt/Physics/Character/CharacterVirtual.h>
 #include <Jolt/Physics/Collision/CastResult.h>
 #include <Jolt/Physics/Collision/CollideShape.h>
 #include <Jolt/Physics/Collision/CollisionCollectorImpl.h>
@@ -267,19 +266,6 @@ namespace FRIGGA_NAMESPACE
             });
         }
 
-        struct CharacterEntry
-        {
-            JPH::Ref<JPH::CharacterVirtual> character;
-            JPH::ObjectLayer                layer                 = 0;
-            float                           stickToFloorDistance  = 0.5f;
-            float                           walkStairsStepHeight  = 0.4f;
-            std::uint64_t                   entityId              = 0;
-            /// ECS RigidBody used as broadphase presence (ignored during ExtendedUpdate).
-            PhysicsBodyHandle               presenceBody {};
-            glm::vec3                       prevPosition {0.0f};
-            glm::vec3                       currPosition {0.0f};
-        };
-
         struct BodyPoseSample
         {
             glm::vec3 prevPosition {0.0f};
@@ -293,18 +279,6 @@ namespace FRIGGA_NAMESPACE
             std::uint64_t sensorEntity = 0;
             std::uint64_t otherEntity  = 0;
         };
-
-        [[nodiscard]] JPH::RefConst<JPH::Shape> MakeStandingCapsule(
-            float radius, float height, const glm::vec3 &centerOffset)
-        {
-            using namespace JPH;
-            const float r          = std::max(radius, 0.001f);
-            const float halfHeight = std::max(0.5f * height, 0.001f);
-            RefConst<Shape> capsule = new CapsuleShape(halfHeight, r);
-            return new RotatedTranslatedShape(
-                Vec3(centerOffset.x, halfHeight + r + centerOffset.y, centerOffset.z),
-                Quat::sIdentity(), capsule);
-        }
 
         template <typename VecT>
         [[nodiscard]] glm::vec3 ToGlmVec(const VecT &v)
@@ -354,69 +328,6 @@ namespace FRIGGA_NAMESPACE
             }
         };
 
-        struct WorldCharacterContactListener final: public JPH::CharacterContactListener
-        {
-            Impl *owner = nullptr;
-
-            void OnContactAdded(const JPH::CharacterVirtual *character, const JPH::BodyID &bodyId,
-                                const JPH::SubShapeID &, JPH::RVec3Arg contactPosition,
-                                JPH::Vec3Arg contactNormal,
-                                JPH::CharacterContactSettings &settings) override
-            {
-                settings.mCanPushCharacter    = true;
-                settings.mCanReceiveImpulses  = true;
-                if(owner != nullptr)
-                {
-                    owner->HandleCharacterContact(character, bodyId, contactPosition, contactNormal,
-                                                  0.0f);
-                }
-            }
-
-            void OnContactPersisted(const JPH::CharacterVirtual *character,
-                                    const JPH::BodyID &bodyId, const JPH::SubShapeID &,
-                                    JPH::RVec3Arg contactPosition, JPH::Vec3Arg contactNormal,
-                                    JPH::CharacterContactSettings &settings) override
-            {
-                settings.mCanPushCharacter   = true;
-                settings.mCanReceiveImpulses = true;
-                if(owner != nullptr)
-                {
-                    owner->HandleCharacterContact(character, bodyId, contactPosition, contactNormal,
-                                                  0.0f);
-                }
-            }
-
-            void OnCharacterContactAdded(const JPH::CharacterVirtual *character,
-                                         const JPH::CharacterVirtual *other,
-                                         const JPH::SubShapeID &, JPH::RVec3Arg contactPosition,
-                                         JPH::Vec3Arg contactNormal,
-                                         JPH::CharacterContactSettings &settings) override
-            {
-                settings.mCanPushCharacter   = true;
-                settings.mCanReceiveImpulses = true;
-                if(owner != nullptr)
-                {
-                    owner->HandleCharacterCharacterContact(character, other, contactPosition,
-                                                           contactNormal, 0.0f);
-                }
-            }
-
-            void OnCharacterContactPersisted(const JPH::CharacterVirtual *character,
-                                             const JPH::CharacterVirtual *other,
-                                             const JPH::SubShapeID &, JPH::RVec3Arg contactPosition,
-                                             JPH::Vec3Arg contactNormal,
-                                             JPH::CharacterContactSettings &settings) override
-            {
-                settings.mCanPushCharacter   = true;
-                settings.mCanReceiveImpulses = true;
-                if(owner != nullptr)
-                {
-                    owner->HandleCharacterCharacterContact(character, other, contactPosition,
-                                                           contactNormal, 0.0f);
-                }
-            }
-        };
-
         Impl()
             : tempAllocator(64 * 1024 * 1024),
               jobSystem(JPH::cMaxPhysicsJobs, JPH::cMaxPhysicsBarriers,
@@ -432,8 +343,7 @@ namespace FRIGGA_NAMESPACE
                                objectVsBroadphase, objectVsObject);
             physicsSystem.SetGravity(JPH::Vec3(0.0f, -9.81f, 0.0f));
 
-            contactListener.owner          = this;
-            characterContactListener.owner = this;
+            contactListener.owner = this;
             physicsSystem.SetContactListener(&contactListener);
         }
 
@@ -532,86 +442,6 @@ namespace FRIGGA_NAMESPACE
             activeTriggers.erase(it);
         }
 
-        void HandleCharacterContact(const JPH::CharacterVirtual *character,
-                                    const JPH::BodyID &bodyId, JPH::RVec3Arg contactPosition,
-                                    JPH::Vec3Arg contactNormal, float penetration)
-        {
-            if(character == nullptr)
-            {
-                return;
-            }
-
-            const auto characterEntity = static_cast<std::uint64_t>(character->GetUserData());
-            if(characterEntity == 0)
-            {
-                return;
-            }
-
-            auto &bodyInterface = physicsSystem.GetBodyInterface();
-            if(!bodyInterface.IsAdded(bodyId))
-            {
-                return;
-            }
-
-            const auto bodyEntity = static_cast<std::uint64_t>(bodyInterface.GetUserData(bodyId));
-            if(bodyEntity == 0)
-            {
-                return;
-            }
-
-            const auto pairKey = SortedEntityPair(characterEntity, bodyEntity);
-
-            std::lock_guard lock(eventMutex);
-            if(!contactDedupe.insert(pairKey).second)
-            {
-                return;
-            }
-
-            pendingContacts.push_back(PhysicsContactEvent {
-                .kind        = PhysicsContactKind::CharacterBody,
-                .entityA     = characterEntity,
-                .entityB     = bodyEntity,
-                .point       = ToGlmVec(contactPosition),
-                .normal      = ToGlmVec(contactNormal),
-                .penetration = penetration,
-            });
-        }
-
-        void HandleCharacterCharacterContact(const JPH::CharacterVirtual *character,
-                                             const JPH::CharacterVirtual *other,
-                                             JPH::RVec3Arg contactPosition,
-                                             JPH::Vec3Arg contactNormal, float penetration)
-        {
-            if(character == nullptr || other == nullptr)
-            {
-                return;
-            }
-
-            const auto entityA = static_cast<std::uint64_t>(character->GetUserData());
-            const auto entityB = static_cast<std::uint64_t>(other->GetUserData());
-            if(entityA == 0 || entityB == 0 || entityA == entityB)
-            {
-                return;
-            }
-
-            const auto pairKey = SortedEntityPair(entityA, entityB);
-
-            std::lock_guard lock(eventMutex);
-            if(!contactDedupe.insert(pairKey).second)
-            {
-                return;
-            }
-
-            pendingContacts.push_back(PhysicsContactEvent {
-                .kind        = PhysicsContactKind::CharacterCharacter,
-                .entityA     = entityA,
-                .entityB     = entityB,
-                .point       = ToGlmVec(contactPosition),
-                .normal      = ToGlmVec(contactNormal),
-                .penetration = penetration,
-            });
-        }
-
         JPH::TempAllocatorImpl tempAllocator;
         JPH::JobSystemThreadPool jobSystem;
         std::array<bool, kLayerCount> layerIsMoving {};
@@ -622,14 +452,10 @@ namespace FRIGGA_NAMESPACE
         ObjectLayerPairFilterImpl objectVsObject;
         JPH::PhysicsSystem physicsSystem;
         WorldContactListener contactListener;
-        WorldCharacterContactListener characterContactListener;
-        JPH::CharacterVsCharacterCollisionSimple characterVsCharacter;
 
         float accumulator         = 0.0f;
         float interpolationAlpha  = 0.0f;
 
-        std::unordered_map<std::uint32_t, CharacterEntry> characters;
-        std::unordered_map<std::uint64_t, PhysicsCharacterHandle> entityCharacters;
         std::unordered_map<std::uint32_t, BodyPoseSample> bodyPoses;
         std::unordered_map<std::uint32_t, JPH::Ref<JPH::Constraint>> joints;
 
@@ -641,8 +467,7 @@ namespace FRIGGA_NAMESPACE
         std::vector<PhysicsContactEvent> pendingContacts;
         std::vector<PhysicsContactEvent> readyContacts;
 
-        std::uint32_t nextCharacterId = 1;
-        std::uint32_t nextJointId     = 1;
+        std::uint32_t nextJointId = 1;
     };
 
     JoltPhysicsWorld::JoltPhysicsWorld()
@@ -667,19 +492,6 @@ namespace FRIGGA_NAMESPACE
             }
         }
         mImpl->joints.clear();
-
-        for(auto &[id, entry]: mImpl->characters)
-        {
-            if(entry.character != nullptr)
-            {
-                entry.character->SetListener(nullptr);
-                entry.character->SetCharacterVsCharacterCollision(nullptr);
-                mImpl->characterVsCharacter.Remove(entry.character);
-            }
-        }
-        mImpl->characters.clear();
-        mImpl->entityCharacters.clear();
-        mImpl->characterVsCharacter.mCharacters.clear();
 
         {
             std::lock_guard lock(mImpl->eventMutex);
@@ -707,7 +519,6 @@ namespace FRIGGA_NAMESPACE
         mImpl->layerBodyCount.fill(0);
         mImpl->accumulator        = 0.0f;
         mImpl->interpolationAlpha = 0.0f;
-        mImpl->nextCharacterId    = 1;
         mImpl->nextJointId        = 1;
     }
 
@@ -724,74 +535,6 @@ namespace FRIGGA_NAMESPACE
     float JoltPhysicsWorld::GetInterpolationAlpha() const
     {
         return mImpl->interpolationAlpha;
-    }
-
-    void JoltPhysicsWorld::updateCharactersFixed()
-    {
-        using namespace JPH;
-
-        const Vec3 worldGravity = mImpl->physicsSystem.GetGravity();
-        auto &bodyInterface     = mImpl->physicsSystem.GetBodyInterface();
-
-        for(auto &[id, entry]: mImpl->characters)
-        {
-            if(entry.character == nullptr)
-            {
-                continue;
-            }
-
-            // CharacterVirtual does not integrate freefall gravity; callers must.
-            // inGravity on ExtendedUpdate only pushes down onto supporting bodies.
-            Vec3 velocity = entry.character->GetLinearVelocity();
-            velocity += worldGravity * kFixedDeltaTime;
-            entry.character->SetLinearVelocity(velocity);
-
-            CharacterVirtual::ExtendedUpdateSettings updateSettings;
-            if(entry.stickToFloorDistance > 0.0f)
-            {
-                updateSettings.mStickToFloorStepDown =
-                    Vec3(0.0f, -entry.stickToFloorDistance, 0.0f);
-            }
-            else
-            {
-                updateSettings.mStickToFloorStepDown = Vec3::sZero();
-            }
-            if(entry.walkStairsStepHeight > 0.0f)
-            {
-                updateSettings.mWalkStairsStepUp = Vec3(0.0f, entry.walkStairsStepHeight, 0.0f);
-            }
-            else
-            {
-                updateSettings.mWalkStairsStepUp = Vec3::sZero();
-            }
-
-            // Ignore the ECS RigidBody presence collider so the character does not collide
-            // with itself; other characters' bodies remain solid obstacles.
-            BodyID ignoreId;
-            if(entry.presenceBody.IsValid())
-            {
-                ignoreId = BodyID(entry.presenceBody.id);
-            }
-            const IgnoreSingleBodyFilter bodyFilter(ignoreId);
-
-            entry.character->ExtendedUpdate(
-                kFixedDeltaTime, worldGravity, updateSettings,
-                mImpl->physicsSystem.GetDefaultBroadPhaseLayerFilter(entry.layer),
-                mImpl->physicsSystem.GetDefaultLayerFilter(entry.layer), bodyFilter, {},
-                mImpl->tempAllocator);
-
-            if(entry.presenceBody.IsValid())
-            {
-                const BodyID presenceId(entry.presenceBody.id);
-                if(bodyInterface.IsAdded(presenceId))
-                {
-                    const RVec3 pos = entry.character->GetPosition();
-                    const Quat  rot = entry.character->GetRotation();
-                    bodyInterface.SetPositionAndRotation(presenceId, pos, rot,
-                                                         EActivation::Activate);
-                }
-            }
-        }
     }
 
     void JoltPhysicsWorld::updateBodyInterpolationSamples()
@@ -831,19 +574,6 @@ namespace FRIGGA_NAMESPACE
         }
     }
 
-    void JoltPhysicsWorld::updateCharacterInterpolationSamples()
-    {
-        for(auto &[id, entry]: mImpl->characters)
-        {
-            if(entry.character == nullptr)
-            {
-                continue;
-            }
-            entry.prevPosition = entry.currPosition;
-            entry.currPosition = ToGlmVec(entry.character->GetPosition());
-        }
-    }
-
     void JoltPhysicsWorld::flushPendingEvents()
     {
         std::lock_guard lock(mImpl->eventMutex);
@@ -867,9 +597,7 @@ namespace FRIGGA_NAMESPACE
 
             mImpl->physicsSystem.Update(kFixedDeltaTime, 1, &mImpl->tempAllocator,
                                         &mImpl->jobSystem);
-            updateCharactersFixed();
             updateBodyInterpolationSamples();
-            updateCharacterInterpolationSamples();
             flushPendingEvents();
         }
     }
@@ -978,6 +706,21 @@ namespace FRIGGA_NAMESPACE
         {
             settings.mOverrideMassProperties       = EOverrideMassProperties::CalculateInertia;
             settings.mMassPropertiesOverride.mMass = std::max(desc.mass, 0.001f);
+
+            EAllowedDOFs dofs = EAllowedDOFs::All;
+            if(desc.lockRotationX)
+            {
+                dofs &= ~EAllowedDOFs::RotationX;
+            }
+            if(desc.lockRotationY)
+            {
+                dofs &= ~EAllowedDOFs::RotationY;
+            }
+            if(desc.lockRotationZ)
+            {
+                dofs &= ~EAllowedDOFs::RotationZ;
+            }
+            settings.mAllowedDOFs = dofs;
         }
 
         BodyInterface &bodyInterface = mImpl->physicsSystem.GetBodyInterface();
@@ -1173,400 +916,6 @@ namespace FRIGGA_NAMESPACE
         const JPH::BodyID id(handle.id);
         auto &bodyInterface = mImpl->physicsSystem.GetBodyInterface();
         bodyInterface.AddAngularImpulse(id, JPH::Vec3(impulse.x, impulse.y, impulse.z));
-    }
-
-    PhysicsCharacterHandle JoltPhysicsWorld::CreateCharacter(const PhysicsCharacterDesc &desc)
-    {
-        using namespace JPH;
-
-        const auto layer =
-            static_cast<ObjectLayer>(std::min<std::uint8_t>(desc.collisionLayer, kLayerCount - 1));
-        mImpl->NoteLayer(desc.collisionLayer, desc.collideWithLayers, true);
-
-        const float radius = std::max(desc.radius, 0.001f);
-        RefConst<Shape> standingShape =
-            MakeStandingCapsule(desc.radius, desc.height, desc.centerOffset);
-
-        Ref<CharacterVirtualSettings> settings = new CharacterVirtualSettings();
-        settings->mMass                        = std::max(desc.mass, 0.001f);
-        settings->mMaxStrength                 = std::max(desc.maxStrength, 0.0f);
-        settings->mMaxSlopeAngle =
-            JPH::DegreesToRadians(std::clamp(desc.maxSlopeDegrees, 1.0f, 89.0f));
-        settings->mShape                       = standingShape;
-        settings->mSupportingVolume            = Plane(Vec3::sAxisY(), -radius);
-        settings->mPredictiveContactDistance   = std::max(desc.predictiveContactDistance, 0.0f);
-        settings->mCharacterPadding            = std::max(desc.characterPadding, 0.0f);
-        settings->mPenetrationRecoverySpeed =
-            std::clamp(desc.penetrationRecoverySpeed, 0.0f, 1.0f);
-        settings->mEnhancedInternalEdgeRemoval = desc.enhancedInternalEdgeRemoval;
-
-        const RVec3 position(desc.position.x, desc.position.y, desc.position.z);
-        const Quat rotation(desc.rotation.x, desc.rotation.y, desc.rotation.z, desc.rotation.w);
-
-        Ref<CharacterVirtual> character =
-            new CharacterVirtual(settings, position, rotation, 0, &mImpl->physicsSystem);
-        character->SetCharacterVsCharacterCollision(&mImpl->characterVsCharacter);
-        mImpl->characterVsCharacter.Add(character);
-
-        const std::uint32_t id = mImpl->nextCharacterId++;
-        mImpl->characters.emplace(
-            id, CharacterEntry {.character            = character,
-                                .layer                = layer,
-                                .stickToFloorDistance = std::max(desc.stickToFloorDistance, 0.0f),
-                                .walkStairsStepHeight = std::max(desc.walkStairsStepHeight, 0.0f),
-                                .entityId             = 0,
-                                .presenceBody         = {},
-                                .prevPosition         = desc.position,
-                                .currPosition         = desc.position});
-        return PhysicsCharacterHandle {.id = id};
-    }
-
-    void JoltPhysicsWorld::DestroyCharacter(PhysicsCharacterHandle handle)
-    {
-        if(!handle.IsValid())
-        {
-            return;
-        }
-
-        const auto it = mImpl->characters.find(handle.id);
-        if(it != mImpl->characters.end() && it->second.character != nullptr)
-        {
-            it->second.character->SetListener(nullptr);
-            it->second.character->SetCharacterVsCharacterCollision(nullptr);
-            mImpl->characterVsCharacter.Remove(it->second.character);
-        }
-
-        mImpl->characters.erase(handle.id);
-        for(auto itEntity = mImpl->entityCharacters.begin();
-            itEntity != mImpl->entityCharacters.end();)
-        {
-            if(itEntity->second.id == handle.id)
-            {
-                itEntity = mImpl->entityCharacters.erase(itEntity);
-            }
-            else
-            {
-                ++itEntity;
-            }
-        }
-    }
-
-    void JoltPhysicsWorld::BindCharacter(std::uint64_t entity, PhysicsCharacterHandle handle,
-                                         PhysicsBodyHandle presenceBody)
-    {
-        if(!handle.IsValid())
-        {
-            UnbindCharacter(entity);
-            return;
-        }
-
-        const auto it = mImpl->characters.find(handle.id);
-        if(it == mImpl->characters.end() || it->second.character == nullptr)
-        {
-            return;
-        }
-
-        // Drop any previous binding of this handle to another entity.
-        for(auto itEntity = mImpl->entityCharacters.begin();
-            itEntity != mImpl->entityCharacters.end();)
-        {
-            if(itEntity->second.id == handle.id && itEntity->first != entity)
-            {
-                itEntity = mImpl->entityCharacters.erase(itEntity);
-            }
-            else
-            {
-                ++itEntity;
-            }
-        }
-
-        it->second.entityId      = entity;
-        it->second.presenceBody  = presenceBody;
-        it->second.character->SetUserData(entity);
-        it->second.character->SetListener(&mImpl->characterContactListener);
-        mImpl->entityCharacters[entity] = handle;
-
-        // Keep presence body aligned immediately after bind / teleport.
-        if(presenceBody.IsValid())
-        {
-            auto &bodyInterface = mImpl->physicsSystem.GetBodyInterface();
-            const JPH::BodyID presenceId(presenceBody.id);
-            if(bodyInterface.IsAdded(presenceId))
-            {
-                bodyInterface.SetPositionAndRotation(presenceId, it->second.character->GetPosition(),
-                                                     it->second.character->GetRotation(),
-                                                     JPH::EActivation::Activate);
-            }
-        }
-    }
-
-    void JoltPhysicsWorld::UnbindCharacter(std::uint64_t entity)
-    {
-        const auto bound = mImpl->entityCharacters.find(entity);
-        if(bound != mImpl->entityCharacters.end())
-        {
-            const auto it = mImpl->characters.find(bound->second.id);
-            if(it != mImpl->characters.end() && it->second.character != nullptr)
-            {
-                it->second.entityId = 0;
-                it->second.character->SetUserData(0);
-                it->second.character->SetListener(nullptr);
-            }
-            mImpl->entityCharacters.erase(bound);
-        }
-    }
-
-    PhysicsCharacterHandle JoltPhysicsWorld::FindCharacter(std::uint64_t entity) const
-    {
-        const auto it = mImpl->entityCharacters.find(entity);
-        if(it == mImpl->entityCharacters.end())
-        {
-            return {};
-        }
-        return it->second;
-    }
-
-    void JoltPhysicsWorld::ForEachCharacter(
-        const std::function<void(std::uint64_t, PhysicsCharacterHandle)> &visit) const
-    {
-        if(!visit)
-        {
-            return;
-        }
-
-        std::vector<std::pair<std::uint64_t, PhysicsCharacterHandle>> snapshot;
-        snapshot.reserve(mImpl->entityCharacters.size());
-
-        for(const auto &[entity, handle]: mImpl->entityCharacters)
-        {
-            snapshot.emplace_back(entity, handle);
-        }
-
-        for(const auto &[entity, handle]: snapshot)
-        {
-            visit(entity, handle);
-        }
-    }
-
-    void JoltPhysicsWorld::SetCharacterVelocity(PhysicsCharacterHandle handle,
-                                                const glm::vec3 &velocity)
-    {
-        if(!handle.IsValid())
-        {
-            return;
-        }
-        const auto it = mImpl->characters.find(handle.id);
-        if(it == mImpl->characters.end() || it->second.character == nullptr)
-        {
-            return;
-        }
-        it->second.character->SetLinearVelocity(JPH::Vec3(velocity.x, velocity.y, velocity.z));
-    }
-
-    glm::vec3 JoltPhysicsWorld::GetCharacterVelocity(PhysicsCharacterHandle handle) const
-    {
-        if(!handle.IsValid())
-        {
-            return {};
-        }
-        const auto it = mImpl->characters.find(handle.id);
-        if(it == mImpl->characters.end() || it->second.character == nullptr)
-        {
-            return {};
-        }
-        return ToGlmVec(it->second.character->GetLinearVelocity());
-    }
-
-    void JoltPhysicsWorld::GetCharacterTransform(PhysicsCharacterHandle handle, glm::vec3 &position,
-                                                 glm::quat &rotation) const
-    {
-        if(!handle.IsValid())
-        {
-            return;
-        }
-        const auto it = mImpl->characters.find(handle.id);
-        if(it == mImpl->characters.end() || it->second.character == nullptr)
-        {
-            return;
-        }
-        position = ToGlmVec(it->second.character->GetPosition());
-        rotation = ToGlmQuat(it->second.character->GetRotation());
-    }
-
-    bool JoltPhysicsWorld::GetInterpolatedCharacterPosition(PhysicsCharacterHandle handle,
-                                                            float alpha, glm::vec3 &position) const
-    {
-        if(!handle.IsValid())
-        {
-            return false;
-        }
-        const auto it = mImpl->characters.find(handle.id);
-        if(it == mImpl->characters.end() || it->second.character == nullptr)
-        {
-            return false;
-        }
-
-        const float t = std::clamp(alpha, 0.0f, 1.0f);
-        position      = glm::mix(it->second.prevPosition, it->second.currPosition, t);
-        return true;
-    }
-
-    void JoltPhysicsWorld::SetCharacterPosition(PhysicsCharacterHandle handle,
-                                                const glm::vec3 &position)
-    {
-        if(!handle.IsValid())
-        {
-            return;
-        }
-        const auto it = mImpl->characters.find(handle.id);
-        if(it == mImpl->characters.end() || it->second.character == nullptr)
-        {
-            return;
-        }
-
-        using namespace JPH;
-        auto &entry = it->second;
-        entry.character->SetPosition(RVec3(position.x, position.y, position.z));
-        entry.prevPosition = position;
-        entry.currPosition = position;
-
-        BodyID ignoreId;
-        if(entry.presenceBody.IsValid())
-        {
-            ignoreId = BodyID(entry.presenceBody.id);
-        }
-        const IgnoreSingleBodyFilter bodyFilter(ignoreId);
-        entry.character->RefreshContacts(
-            mImpl->physicsSystem.GetDefaultBroadPhaseLayerFilter(entry.layer),
-            mImpl->physicsSystem.GetDefaultLayerFilter(entry.layer), bodyFilter, {},
-            mImpl->tempAllocator);
-
-        if(entry.presenceBody.IsValid())
-        {
-            auto &bodyInterface = mImpl->physicsSystem.GetBodyInterface();
-            const BodyID presenceId(entry.presenceBody.id);
-            if(bodyInterface.IsAdded(presenceId))
-            {
-                bodyInterface.SetPositionAndRotation(presenceId, entry.character->GetPosition(),
-                                                     entry.character->GetRotation(),
-                                                     EActivation::Activate);
-            }
-        }
-    }
-
-    void JoltPhysicsWorld::SetCharacterRotation(PhysicsCharacterHandle handle,
-                                                const glm::quat &rotation)
-    {
-        if(!handle.IsValid())
-        {
-            return;
-        }
-        const auto it = mImpl->characters.find(handle.id);
-        if(it == mImpl->characters.end() || it->second.character == nullptr)
-        {
-            return;
-        }
-        it->second.character->SetRotation(
-            JPH::Quat(rotation.x, rotation.y, rotation.z, rotation.w));
-        if(it->second.presenceBody.IsValid())
-        {
-            auto &bodyInterface = mImpl->physicsSystem.GetBodyInterface();
-            const JPH::BodyID presenceId(it->second.presenceBody.id);
-            if(bodyInterface.IsAdded(presenceId))
-            {
-                bodyInterface.SetPositionAndRotation(presenceId, it->second.character->GetPosition(),
-                                                     it->second.character->GetRotation(),
-                                                     JPH::EActivation::Activate);
-            }
-        }
-    }
-
-    bool JoltPhysicsWorld::IsCharacterGrounded(PhysicsCharacterHandle handle) const
-    {
-        return GetCharacterGroundInfo(handle).grounded;
-    }
-
-    CharacterGroundInfo JoltPhysicsWorld::GetCharacterGroundInfo(
-        PhysicsCharacterHandle handle) const
-    {
-        CharacterGroundInfo info {};
-        if(!handle.IsValid())
-        {
-            return info;
-        }
-        const auto it = mImpl->characters.find(handle.id);
-        if(it == mImpl->characters.end() || it->second.character == nullptr)
-        {
-            return info;
-        }
-
-        const auto *character = it->second.character.GetPtr();
-        switch(character->GetGroundState())
-        {
-        case JPH::CharacterBase::EGroundState::OnGround:
-            info.state = CharacterGroundState::OnGround;
-            break;
-        case JPH::CharacterBase::EGroundState::OnSteepGround:
-            info.state = CharacterGroundState::OnSteepGround;
-            break;
-        case JPH::CharacterBase::EGroundState::NotSupported:
-            info.state = CharacterGroundState::NotSupported;
-            break;
-        case JPH::CharacterBase::EGroundState::InAir:
-        default:
-            info.state = CharacterGroundState::InAir;
-            break;
-        }
-
-        info.grounded  = character->IsSupported();
-        info.position  = ToGlmVec(character->GetGroundPosition());
-        info.normal    = ToGlmVec(character->GetGroundNormal());
-        info.velocity  = ToGlmVec(character->GetGroundVelocity());
-
-        const JPH::BodyID groundId = character->GetGroundBodyID();
-        if(!groundId.IsInvalid())
-        {
-            info.groundBody = PhysicsBodyHandle {.id = groundId.GetIndexAndSequenceNumber()};
-        }
-        return info;
-    }
-
-    bool JoltPhysicsWorld::SetCharacterShape(PhysicsCharacterHandle handle,
-                                             const PhysicsCharacterShapeDesc &shape)
-    {
-        if(!handle.IsValid())
-        {
-            return false;
-        }
-        const auto it = mImpl->characters.find(handle.id);
-        if(it == mImpl->characters.end() || it->second.character == nullptr)
-        {
-            return false;
-        }
-
-        using namespace JPH;
-        auto &entry = it->second;
-        RefConst<Shape> standingShape =
-            MakeStandingCapsule(shape.radius, shape.height, shape.centerOffset);
-        constexpr float kMaxPenetration = 0.1f;
-        return entry.character->SetShape(
-            standingShape, kMaxPenetration,
-            mImpl->physicsSystem.GetDefaultBroadPhaseLayerFilter(entry.layer),
-            mImpl->physicsSystem.GetDefaultLayerFilter(entry.layer), {}, {}, mImpl->tempAllocator);
-    }
-
-    void JoltPhysicsWorld::SetCharacterMaxStrength(PhysicsCharacterHandle handle, float maxStrength)
-    {
-        if(!handle.IsValid())
-        {
-            return;
-        }
-        const auto it = mImpl->characters.find(handle.id);
-        if(it == mImpl->characters.end() || it->second.character == nullptr)
-        {
-            return;
-        }
-        it->second.character->SetMaxStrength(std::max(maxStrength, 0.0f));
     }
 
     PhysicsJointHandle JoltPhysicsWorld::CreateJoint(const PhysicsJointDesc &desc)

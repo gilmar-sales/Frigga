@@ -83,13 +83,11 @@ void CharacterMovementSystem::Update(float)
                 desired.x += ground.velocity.x;
                 desired.z += ground.velocity.z;
             }
+            // Only touch Y on jump — leave gravity / fall velocity to the Dynamic body.
+            desired.y = mPhysics->GetCharacterVelocity(entity).y;
             if(jump && grounded)
             {
                 desired.y = jumpSpeed;
-            }
-            else if(!grounded)
-            {
-                desired.y = mPhysics->GetCharacterVelocity(entity).y;
             }
 
             const glm::vec3 planar {desired.x, 0.0f, desired.z};

@@ -5,7 +5,6 @@
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/ECS/UserComponentRegistry.hpp"
 #include "Frigga/Physics/IPhysicsWorld.hpp"
-#include "Frigga/Physics/PhysicsCharacterHandle.hpp"
 #include "Frigga/Scene/Scene.hpp"
 
 #include <Freyr/Freyr.hpp>
@@ -111,8 +110,6 @@ namespace FRIGGA_NAMESPACE
         /// Enter play from Edit; pause/resume while already in a play session.
         void TogglePlayPause();
         void Step();
-
-        [[nodiscard]] PhysicsCharacterHandle CharacterHandleOf(fr::Entity entity) const;
 
       private:
         enum class PendingCommand : std::uint8_t

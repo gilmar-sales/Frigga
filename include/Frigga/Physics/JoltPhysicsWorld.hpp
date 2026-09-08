@@ -46,33 +46,6 @@ namespace FRIGGA_NAMESPACE
         void AddTorque(PhysicsBodyHandle handle, const glm::vec3 &torque) override;
         void AddAngularImpulse(PhysicsBodyHandle handle, const glm::vec3 &impulse) override;
 
-        PhysicsCharacterHandle CreateCharacter(const PhysicsCharacterDesc &desc) override;
-        void DestroyCharacter(PhysicsCharacterHandle handle) override;
-        void BindCharacter(std::uint64_t entity, PhysicsCharacterHandle handle,
-                           PhysicsBodyHandle presenceBody = {}) override;
-        void UnbindCharacter(std::uint64_t entity) override;
-        [[nodiscard]] PhysicsCharacterHandle FindCharacter(std::uint64_t entity) const override;
-        void ForEachCharacter(
-            const std::function<void(std::uint64_t, PhysicsCharacterHandle)> &visit) const override;
-        void SetCharacterVelocity(PhysicsCharacterHandle handle,
-                                  const glm::vec3 &velocity) override;
-        [[nodiscard]] glm::vec3 GetCharacterVelocity(PhysicsCharacterHandle handle) const override;
-        void GetCharacterTransform(PhysicsCharacterHandle handle, glm::vec3 &position,
-                                   glm::quat &rotation) const override;
-        [[nodiscard]] bool GetInterpolatedCharacterPosition(PhysicsCharacterHandle handle,
-                                                            float alpha,
-                                                            glm::vec3 &position) const override;
-        void SetCharacterPosition(PhysicsCharacterHandle handle,
-                                  const glm::vec3 &position) override;
-        void SetCharacterRotation(PhysicsCharacterHandle handle,
-                                  const glm::quat &rotation) override;
-        [[nodiscard]] bool IsCharacterGrounded(PhysicsCharacterHandle handle) const override;
-        [[nodiscard]] CharacterGroundInfo GetCharacterGroundInfo(
-            PhysicsCharacterHandle handle) const override;
-        bool SetCharacterShape(PhysicsCharacterHandle handle,
-                               const PhysicsCharacterShapeDesc &shape) override;
-        void SetCharacterMaxStrength(PhysicsCharacterHandle handle, float maxStrength) override;
-
         PhysicsJointHandle CreateJoint(const PhysicsJointDesc &desc) override;
         void DestroyJoint(PhysicsJointHandle handle) override;
 
@@ -102,9 +75,7 @@ namespace FRIGGA_NAMESPACE
 
       private:
         void stepFixedInternal(int steps);
-        void updateCharactersFixed();
         void updateBodyInterpolationSamples();
-        void updateCharacterInterpolationSamples();
         void flushPendingEvents();
 
         struct Impl;

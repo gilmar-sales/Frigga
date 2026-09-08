@@ -192,15 +192,6 @@ namespace FRIGGA_NAMESPACE
         mStepRequested = true;
     }
 
-    PhysicsCharacterHandle SceneSimulationState::CharacterHandleOf(fr::Entity entity) const
-    {
-        if(!mPhysicsWorld)
-        {
-            return {};
-        }
-        return mPhysicsWorld->FindCharacter(static_cast<std::uint64_t>(entity));
-    }
-
     void SceneSimulationState::snapshotScene()
     {
         mEditSceneSnapshot.clear();
@@ -250,6 +241,19 @@ namespace FRIGGA_NAMESPACE
             .entityId          = static_cast<std::uint64_t>(entity),
         };
 
+        if(mUserComponents &&
+           EntityHasCharacterController(*mRegistry, *mUserComponents, entity))
+        {
+            // Gameplay owns yaw via SetCharacterFacing; freeze physics rotation.
+            desc.lockRotationX = true;
+            desc.lockRotationY = true;
+            desc.lockRotationZ = true;
+            if(desc.motion != BodyMotionType::Dynamic)
+            {
+                desc.motion = BodyMotionType::Dynamic;
+            }
+        }
+
         if(rigidBody.motion == BodyMotionType::Static && desc.collisionLayer == 1)
         {
             desc.collisionLayer = 0;
@@ -276,7 +280,7 @@ namespace FRIGGA_NAMESPACE
     {
         mPhysicsWorld->Clear();
 
-        // CharacterController requires a RigidBody presence collider — ensure one exists.
+        // CharacterController requires a Dynamic RigidBody — ensure one exists.
         if(mUserComponents)
         {
             const auto ops = mUserComponents->Find(kCharacterControllerTypeId);
@@ -297,7 +301,7 @@ namespace FRIGGA_NAMESPACE
                     {
                         mRegistry->TryGetComponents<RigidBodyComponent>(
                             entity, [&](RigidBodyComponent &rb) {
-                                rb.motion = BodyMotionType::Kinematic;
+                                rb.motion = BodyMotionType::Dynamic;
                             });
                     }
                 });
@@ -310,7 +314,7 @@ namespace FRIGGA_NAMESPACE
                 if(mUserComponents &&
                    EntityHasCharacterController(*mRegistry, *mUserComponents, entity))
                 {
-                    rigidBody.motion = BodyMotionType::Kinematic;
+                    rigidBody.motion = BodyMotionType::Dynamic;
                     if(rigidBody.shape != ColliderShape::Capsule &&
                        rigidBody.shape != ColliderShape::Sphere &&
                        rigidBody.shape != ColliderShape::Box)
@@ -331,66 +335,12 @@ namespace FRIGGA_NAMESPACE
                 }
             });
 
-        // Characters: loco settings from CC, shape/mass/layers from the linked RigidBody only.
-        if(mUserComponents)
-        {
-            const auto ops = mUserComponents->Find(kCharacterControllerTypeId);
-            if(ops && ops->has && ops->toInstance)
-            {
-                mRegistry->CreateMutation()->Each(
-                    [&](fr::Entity entity, TransformComponent &, RigidBodyComponent &rigidBody) {
-                        if(!ops->has(*mRegistry, entity))
-                        {
-                            return;
-                        }
-                        if(!rigidBody.body.IsValid())
-                        {
-                            std::string name = "entity";
-                            mRegistry->TryGetComponents<NameComponent>(
-                                entity, [&](NameComponent &n) { name = n.name; });
-                            mLogger->LogWarning(
-                                "CharacterController on '{}' has no RigidBody body handle", name);
-                            return;
-                        }
-
-                        UserComponentInstance instance {};
-                        if(!ops->toInstance(*mRegistry, entity, instance))
-                        {
-                            return;
-                        }
-                        const auto pose = TransformUtil::WorldPose(*mRegistry, entity);
-                        auto desc       = CharacterDescFromInstance(instance);
-                        ApplyRigidBodyToCharacterDesc(desc, rigidBody);
-                        desc.position = pose.position;
-                        desc.rotation = pose.rotation;
-                        const auto handle = mPhysicsWorld->CreateCharacter(desc);
-                        mPhysicsWorld->BindCharacter(static_cast<std::uint64_t>(entity), handle,
-                                                     rigidBody.body);
-                        if(!handle.IsValid())
-                        {
-                            std::string name = "entity";
-                            mRegistry->TryGetComponents<NameComponent>(
-                                entity, [&](NameComponent &n) { name = n.name; });
-                            mLogger->LogWarning(
-                                "Failed to create character controller for '{}'", name);
-                        }
-                    });
-            }
-        }
-
         mPhysicsWorld->OptimizeBroadPhase();
         mRegistry->ExecuteTasks();
     }
 
     void SceneSimulationState::teardownPhysicsWorld()
     {
-        mPhysicsWorld->ForEachCharacter(
-            [&](std::uint64_t, PhysicsCharacterHandle handle) {
-                if(handle.IsValid())
-                {
-                    mPhysicsWorld->DestroyCharacter(handle);
-                }
-            });
         mRegistry->CreateMutation()->Each(
             [&](RigidBodyComponent &rigidBody) {
                 if(rigidBody.body.IsValid())

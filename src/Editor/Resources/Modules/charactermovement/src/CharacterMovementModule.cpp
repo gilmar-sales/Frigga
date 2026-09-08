@@ -9,21 +9,10 @@ static void DrawCharacterController(CharacterControllerComponent &c, fg::FriComp
 {
     ui.BeginDisabled(ui.playing);
     ui.DragFloat("Max Slope", c.maxSlopeDegrees, 0.5f, 1.0f, 89.0f);
-    ui.DragFloat("Max Strength", c.maxStrength, 1.0f, 0.0f, 10000.0f);
     if(ui.IsItemHovered())
     {
-        ui.SetTooltip("Max force (N) when pushing dynamic bodies.\n"
-                      "Capsule shape, mass, and layers live on RigidBody.");
-    }
-    ui.DragFloat("Stick To Floor", c.stickToFloorDistance, 0.01f, 0.0f, 2.0f);
-    if(ui.IsItemHovered())
-    {
-        ui.SetTooltip("Downward snap distance while grounded. 0 disables.");
-    }
-    ui.DragFloat("Walk Stairs Height", c.walkStairsStepHeight, 0.01f, 0.0f, 2.0f);
-    if(ui.IsItemHovered())
-    {
-        ui.SetTooltip("Max step-up height. 0 disables stair walking.");
+        ui.SetTooltip("Max walkable ground slope (degrees).\n"
+                      "Shape, mass, and layers live on Dynamic RigidBody.");
     }
     ui.Checkbox("Locomotion Locked", c.locomotionLocked);
     ui.EndDisabled();
@@ -31,14 +20,14 @@ static void DrawCharacterController(CharacterControllerComponent &c, fg::FriComp
     if(ui.hasCharacter)
     {
         char id[64];
-        std::snprintf(id, sizeof(id), "Character ID: %u", ui.characterId);
+        std::snprintf(id, sizeof(id), "Body ID: %u", ui.characterId);
         ui.TextDisabled(id);
     }
     else if(ui.playing)
     {
         ui.TextDisabled("Controller edits apply after Stop");
     }
-    ui.TextDisabled("Requires RigidBody (capsule presence)");
+    ui.TextDisabled("Requires Dynamic RigidBody");
 }
 
 FRI_MODULE(module)

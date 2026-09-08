@@ -2729,11 +2729,11 @@ namespace FRIGGA_NAMESPACE
 
             if(userDto.typeId == kCharacterControllerTypeId)
             {
-                // CharacterController requires a RigidBody presence collider.
+                // CharacterController requires a Dynamic RigidBody.
                 if(!registry->HasComponent<RigidBodyComponent>(entity))
                 {
                     RigidBodyComponent rb {};
-                    rb.motion            = BodyMotionType::Kinematic;
+                    rb.motion            = BodyMotionType::Dynamic;
                     rb.shape             = ColliderShape::Capsule;
                     rb.radius            = 0.5f;
                     rb.height            = 1.0f;
@@ -2746,7 +2746,7 @@ namespace FRIGGA_NAMESPACE
                 {
                     registry->TryGetComponents<RigidBodyComponent>(
                         entity, [&](RigidBodyComponent &rb) {
-                            rb.motion = BodyMotionType::Kinematic;
+                            rb.motion = BodyMotionType::Dynamic;
                         });
                 }
             }
