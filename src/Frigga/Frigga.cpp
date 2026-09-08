@@ -34,7 +34,6 @@
 #include <Frigga/Physics/IPhysicsWorld.hpp>
 #include <Frigga/Physics/JoltPhysicsWorld.hpp>
 #include <Frigga/Physics/Physics.hpp>
-#include <Frigga/Module/GameplayModuleBridge.hpp>
 #include <Frigga/Module/GameplayModuleHost.hpp>
 #include <Frigga/Scene/Scene.hpp>
 #include <Frigga/Scene/SceneSimulationState.hpp>
@@ -64,10 +63,8 @@ namespace FRIGGA_NAMESPACE
                     .WithComponent<PrefabComponent>()
                     .WithPipeline([](fr::PipelineBuilder &pipeline) {
                         // Play mode only (Editor disables this pipeline while editing).
-                        // Gameplay runs first so fg::Physics intents apply before the step.
                         pipeline.WithName("Simulation")
                             .WithRate(60)
-                            .WithSystem<GameplayModuleBridge>()
                             .WithSystem<PhysicsSystem>();
                     })
                     .WithPipeline([](fr::PipelineBuilder &pipeline) {

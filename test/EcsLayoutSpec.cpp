@@ -49,7 +49,7 @@ TEST(EcsLayout, ParseSerializeRoundTrip)
         .name     = "Simulation",
         .hz       = 60.0f,
         .enabled  = true,
-        .systems  = {"GameplayModuleBridge", "PhysicsSystem"},
+        .systems  = {"PhysicsSystem"},
     });
 
     std::string json;
@@ -60,8 +60,8 @@ TEST(EcsLayout, ParseSerializeRoundTrip)
     EXPECT_EQ(parsed.defaultPipeline, "Simulation");
     ASSERT_EQ(parsed.pipelines.size(), 2u);
     EXPECT_EQ(parsed.pipelines[1].hz, 60.0f);
-    ASSERT_EQ(parsed.pipelines[1].systems.size(), 2u);
-    EXPECT_EQ(parsed.pipelines[1].systems[0], "GameplayModuleBridge");
+    ASSERT_EQ(parsed.pipelines[1].systems.size(), 1u);
+    EXPECT_EQ(parsed.pipelines[1].systems[0], "PhysicsSystem");
 }
 
 TEST(EcsLayout, EnforceLocksSimulationAt60AndPinsRenderLast)

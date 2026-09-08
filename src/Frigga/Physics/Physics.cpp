@@ -336,6 +336,74 @@ namespace FRIGGA_NAMESPACE
         return updated;
     }
 
+    bool Physics::EnsureBody(fr::Entity entity, bool lockRotation)
+    {
+        if(!mRegistry || !mWorld || !mRegistry->HasComponent<RigidBodyComponent>(entity))
+        {
+            return false;
+        }
+
+        bool ok = false;
+        mRegistry->TryGetComponents<RigidBodyComponent>(entity, [&](RigidBodyComponent &rb) {
+            if(rb.body.IsValid())
+            {
+                ok = true;
+                return;
+            }
+            if(!mRegistry->HasComponent<TransformComponent>(entity))
+            {
+                return;
+            }
+
+            const auto pose = TransformUtil::WorldPose(*mRegistry, entity);
+            PhysicsBodyDesc desc {};
+            desc.motion            = rb.motion;
+            desc.shape             = rb.shape;
+            desc.position          = pose.position;
+            desc.rotation          = pose.rotation;
+            desc.scale             = pose.scale;
+            desc.halfExtents       = rb.halfExtents;
+            desc.radius            = rb.radius;
+            desc.height            = rb.height;
+            desc.centerOffset      = rb.centerOffset;
+            desc.mass              = rb.mass;
+            desc.friction          = rb.friction;
+            desc.restitution       = rb.restitution;
+            desc.collisionLayer    = rb.collisionLayer;
+            desc.collideWithLayers = rb.collideWithLayers;
+            desc.isSensor          = rb.isSensor;
+            desc.entityId          = static_cast<std::uint64_t>(entity);
+            if(lockRotation)
+            {
+                desc.lockRotationX = true;
+                desc.lockRotationY = true;
+                desc.lockRotationZ = true;
+            }
+            if(desc.motion != BodyMotionType::Static && desc.collisionLayer == 0)
+            {
+                desc.collisionLayer = 1;
+            }
+            rb.body = mWorld->CreateBody(desc);
+            ok      = rb.body.IsValid();
+        });
+        return ok;
+    }
+
+    void Physics::DestroyBody(fr::Entity entity)
+    {
+        if(!mRegistry || !mWorld)
+        {
+            return;
+        }
+        mRegistry->TryGetComponents<RigidBodyComponent>(entity, [&](RigidBodyComponent &rb) {
+            if(rb.body.IsValid())
+            {
+                mWorld->DestroyBody(rb.body);
+                rb.body.Reset();
+            }
+        });
+    }
+
     PhysicsJointHandle Physics::CreateJoint(fr::Entity entityA, fr::Entity entityB,
                                             PhysicsJointType type, const glm::vec3 &localAnchorA,
                                             const glm::vec3 &localAnchorB,

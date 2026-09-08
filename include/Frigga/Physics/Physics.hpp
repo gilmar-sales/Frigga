@@ -58,6 +58,10 @@ namespace FRIGGA_NAMESPACE
         bool SetCharacterShape(fr::Entity entity, float radius, float height,
                                const glm::vec3 &centerOffset = {});
 
+        /// Create the Jolt body from RigidBodyComponent + Transform if missing (mid-play spawns).
+        bool EnsureBody(fr::Entity entity, bool lockRotation = false);
+        void DestroyBody(fr::Entity entity);
+
         // --- Joints ---
 
         PhysicsJointHandle CreateJoint(fr::Entity entityA, fr::Entity entityB,

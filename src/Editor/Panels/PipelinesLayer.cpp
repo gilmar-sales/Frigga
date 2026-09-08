@@ -6,7 +6,6 @@
 #include "Frigga/ECS/Systems/AnimationSystem.hpp"
 #include "Frigga/ECS/Systems/PhysicsSystem.hpp"
 #include "Frigga/ECS/Systems/RenderSystem.hpp"
-#include "Frigga/Module/GameplayModuleBridge.hpp"
 
 #include <imgui.h>
 
@@ -53,8 +52,6 @@ namespace
         {"AnimationSystem", "Render", &IsRegistered<fg::AnimationSystem>,
          &RegisterInto<fg::AnimationSystem>},
         {"RenderSystem", "Render", &IsRegistered<fg::RenderSystem>, &RegisterInto<fg::RenderSystem>},
-        {"GameplayModuleBridge", "Simulation", &IsRegistered<fg::GameplayModuleBridge>,
-         &RegisterInto<fg::GameplayModuleBridge>},
         {"PhysicsSystem", "Simulation", &IsRegistered<fg::PhysicsSystem>,
          &RegisterInto<fg::PhysicsSystem>},
     };
