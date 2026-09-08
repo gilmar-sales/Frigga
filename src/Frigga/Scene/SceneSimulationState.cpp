@@ -276,14 +276,49 @@ namespace FRIGGA_NAMESPACE
     {
         mPhysicsWorld->Clear();
 
+        // CharacterController requires a RigidBody presence collider — ensure one exists.
+        if(mUserComponents)
+        {
+            const auto ops = mUserComponents->Find(kCharacterControllerTypeId);
+            if(ops && ops->forEachEntity)
+            {
+                ops->forEachEntity(*mRegistry, [&](fr::Entity entity) {
+                    if(!mRegistry->HasComponent<RigidBodyComponent>(entity))
+                    {
+                        std::string name = "entity";
+                        mRegistry->TryGetComponents<NameComponent>(
+                            entity, [&](NameComponent &n) { name = n.name; });
+                        mLogger->LogWarning(
+                            "CharacterController on '{}' requires RigidBody; adding default capsule",
+                            name);
+                        mRegistry->AddComponents(entity, MakeDefaultCharacterRigidBody());
+                    }
+                    else
+                    {
+                        mRegistry->TryGetComponents<RigidBodyComponent>(
+                            entity, [&](RigidBodyComponent &rb) {
+                                rb.motion = BodyMotionType::Kinematic;
+                            });
+                    }
+                });
+                mRegistry->ExecuteTasks();
+            }
+        }
+
         mRegistry->CreateMutation()->Each(
             [&](fr::Entity entity, TransformComponent &transform, RigidBodyComponent &rigidBody) {
                 if(mUserComponents &&
                    EntityHasCharacterController(*mRegistry, *mUserComponents, entity))
                 {
-                    // Character owns locomotion; skip rigid-body creation.
-                    rigidBody.body.Reset();
-                    return;
+                    rigidBody.motion = BodyMotionType::Kinematic;
+                    if(rigidBody.shape != ColliderShape::Capsule &&
+                       rigidBody.shape != ColliderShape::Sphere &&
+                       rigidBody.shape != ColliderShape::Box)
+                    {
+                        rigidBody.shape  = ColliderShape::Capsule;
+                        rigidBody.radius = rigidBody.radius > 0.0f ? rigidBody.radius : 0.5f;
+                        rigidBody.height = rigidBody.height > 0.0f ? rigidBody.height : 1.0f;
+                    }
                 }
                 const auto desc = makeBodyDesc(transform, rigidBody, entity);
                 rigidBody.body  = mPhysicsWorld->CreateBody(desc);
@@ -296,35 +331,50 @@ namespace FRIGGA_NAMESPACE
                 }
             });
 
+        // Characters: loco settings from CC, shape/mass/layers from the linked RigidBody only.
         if(mUserComponents)
         {
             const auto ops = mUserComponents->Find(kCharacterControllerTypeId);
-            if(ops && ops->forEachEntity && ops->toInstance)
+            if(ops && ops->has && ops->toInstance)
             {
-                ops->forEachEntity(*mRegistry, [&](fr::Entity entity) {
-                    if(!mRegistry->HasComponent<TransformComponent>(entity))
-                    {
-                        return;
-                    }
-                    UserComponentInstance instance {};
-                    if(!ops->toInstance(*mRegistry, entity, instance))
-                    {
-                        return;
-                    }
-                    const auto pose = TransformUtil::WorldPose(*mRegistry, entity);
-                    auto desc       = CharacterDescFromInstance(instance);
-                    desc.position   = pose.position;
-                    desc.rotation   = pose.rotation;
-                    const auto handle = mPhysicsWorld->CreateCharacter(desc);
-                    mPhysicsWorld->BindCharacter(static_cast<std::uint64_t>(entity), handle);
-                    if(!handle.IsValid())
-                    {
-                        std::string name = "entity";
-                        mRegistry->TryGetComponents<NameComponent>(
-                            entity, [&](NameComponent &n) { name = n.name; });
-                        mLogger->LogWarning("Failed to create character controller for '{}'", name);
-                    }
-                });
+                mRegistry->CreateMutation()->Each(
+                    [&](fr::Entity entity, TransformComponent &, RigidBodyComponent &rigidBody) {
+                        if(!ops->has(*mRegistry, entity))
+                        {
+                            return;
+                        }
+                        if(!rigidBody.body.IsValid())
+                        {
+                            std::string name = "entity";
+                            mRegistry->TryGetComponents<NameComponent>(
+                                entity, [&](NameComponent &n) { name = n.name; });
+                            mLogger->LogWarning(
+                                "CharacterController on '{}' has no RigidBody body handle", name);
+                            return;
+                        }
+
+                        UserComponentInstance instance {};
+                        if(!ops->toInstance(*mRegistry, entity, instance))
+                        {
+                            return;
+                        }
+                        const auto pose = TransformUtil::WorldPose(*mRegistry, entity);
+                        auto desc       = CharacterDescFromInstance(instance);
+                        ApplyRigidBodyToCharacterDesc(desc, rigidBody);
+                        desc.position = pose.position;
+                        desc.rotation = pose.rotation;
+                        const auto handle = mPhysicsWorld->CreateCharacter(desc);
+                        mPhysicsWorld->BindCharacter(static_cast<std::uint64_t>(entity), handle,
+                                                     rigidBody.body);
+                        if(!handle.IsValid())
+                        {
+                            std::string name = "entity";
+                            mRegistry->TryGetComponents<NameComponent>(
+                                entity, [&](NameComponent &n) { name = n.name; });
+                            mLogger->LogWarning(
+                                "Failed to create character controller for '{}'", name);
+                        }
+                    });
             }
         }
 

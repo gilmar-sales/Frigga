@@ -30,6 +30,7 @@ namespace FRIGGA_NAMESPACE
         void DragFloat3(const char *label, glm::vec3 &value, float speed = 0.01f);
         bool InputText(const char *label, std::string &value);
         bool SliderInt(const char *label, int &value, int vmin, int vmax);
+        bool Checkbox(const char *label, bool &value);
         void TextDisabled(const char *text);
         [[nodiscard]] bool IsItemHovered() const;
         void SetTooltip(const char *text);

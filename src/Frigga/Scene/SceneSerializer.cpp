@@ -2729,7 +2729,26 @@ namespace FRIGGA_NAMESPACE
 
             if(userDto.typeId == kCharacterControllerTypeId)
             {
-                StripRigidBody(*registry, entity);
+                // CharacterController requires a RigidBody presence collider.
+                if(!registry->HasComponent<RigidBodyComponent>(entity))
+                {
+                    RigidBodyComponent rb {};
+                    rb.motion            = BodyMotionType::Kinematic;
+                    rb.shape             = ColliderShape::Capsule;
+                    rb.radius            = 0.5f;
+                    rb.height            = 1.0f;
+                    rb.mass              = 70.0f;
+                    rb.collisionLayer    = 1;
+                    rb.collideWithLayers = 0xffff;
+                    registry->AddComponents(entity, rb);
+                }
+                else
+                {
+                    registry->TryGetComponents<RigidBodyComponent>(
+                        entity, [&](RigidBodyComponent &rb) {
+                            rb.motion = BodyMotionType::Kinematic;
+                        });
+                }
             }
 
             ops->fromInstance(*registry, entity, instance);
@@ -2884,7 +2903,7 @@ namespace FRIGGA_NAMESPACE
 
         if(document.kind == "rigidBody" && document.rigidBody)
         {
-            StripCharacterController(scene.mUserComponents, *registry, entity);
+            // RigidBody can coexist with CharacterController (CC requires RB).
 
             const auto &rbDto = *document.rigidBody;
             RigidBodyComponent rb {};

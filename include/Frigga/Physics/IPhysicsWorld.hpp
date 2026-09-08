@@ -51,7 +51,8 @@ namespace FRIGGA_NAMESPACE
 
         virtual PhysicsCharacterHandle CreateCharacter(const PhysicsCharacterDesc &desc) = 0;
         virtual void DestroyCharacter(PhysicsCharacterHandle handle) = 0;
-        virtual void BindCharacter(std::uint64_t entity, PhysicsCharacterHandle handle) = 0;
+        virtual void BindCharacter(std::uint64_t entity, PhysicsCharacterHandle handle,
+                                   PhysicsBodyHandle presenceBody = {}) = 0;
         virtual void UnbindCharacter(std::uint64_t entity) = 0;
         [[nodiscard]] virtual PhysicsCharacterHandle FindCharacter(std::uint64_t entity) const = 0;
         virtual void ForEachCharacter(

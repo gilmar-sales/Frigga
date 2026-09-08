@@ -100,6 +100,8 @@ class HierarchyLayer: public fg::Layer
     static fg::LightComponent makeDefaultLight(fra::LightType type);
     static fg::TransformComponent makeDefaultLightTransform(fra::LightType type);
     [[nodiscard]] fg::RigidBodyComponent makeDefaultRigidBody(fr::Entity entity) const;
+    [[nodiscard]] fg::RigidBodyComponent makeDefaultCharacterRigidBody() const;
+    void ensureCharacterRigidBody(fr::Entity entity);
 
     [[nodiscard]] bool entityHasVisibleComponents(fr::Entity entity) const;
     void ensureTransformForPaste(fr::Entity entity);

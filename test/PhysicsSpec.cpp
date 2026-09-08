@@ -209,7 +209,8 @@ namespace
             }
         }
 
-        void BindCharacter(std::uint64_t entity, fg::PhysicsCharacterHandle handle) override
+        void BindCharacter(std::uint64_t entity, fg::PhysicsCharacterHandle handle,
+                           fg::PhysicsBodyHandle = {}) override
         {
             if(!handle.IsValid())
             {
@@ -932,5 +933,99 @@ TEST(JoltPhysics, AngularVelocityAfterTorque)
 
     const auto angular = world->GetAngularVelocity(body);
     EXPECT_GT(glm::length(angular), 1e-3f) << "torque should produce angular velocity";
+}
+
+TEST(JoltCharacter, PresenceBodyIsHitByRaycast)
+{
+    auto world = skr::MakeArc<fg::JoltPhysicsWorld>();
+
+    fg::PhysicsBodyDesc floor {};
+    floor.motion         = fg::BodyMotionType::Static;
+    floor.shape          = fg::ColliderShape::Box;
+    floor.position       = {0.0f, -0.5f, 0.0f};
+    floor.halfExtents    = {10.0f, 0.5f, 10.0f};
+    floor.collisionLayer = 0;
+    ASSERT_TRUE(world->CreateBody(floor).IsValid());
+
+    constexpr std::uint64_t kEntity = 42;
+    fg::PhysicsBodyDesc presence {};
+    presence.motion            = fg::BodyMotionType::Kinematic;
+    presence.shape             = fg::ColliderShape::Capsule;
+    presence.position          = {0.0f, 0.0f, 0.0f};
+    presence.radius            = 0.5f;
+    presence.height            = 1.0f;
+    presence.mass              = 70.0f;
+    presence.collisionLayer    = 1;
+    presence.collideWithLayers = 0xffff;
+    presence.entityId          = kEntity;
+    const auto body            = world->CreateBody(presence);
+    ASSERT_TRUE(body.IsValid());
+
+    fg::PhysicsCharacterDesc desc {};
+    desc.position       = {0.0f, 0.0f, 0.0f};
+    desc.radius         = 0.5f;
+    desc.height         = 1.0f;
+    desc.collisionLayer = 1;
+    const auto character = world->CreateCharacter(desc);
+    ASSERT_TRUE(character.IsValid());
+    world->BindCharacter(kEntity, character, body);
+
+    const auto hit = world->Raycast({0.0f, 1.0f, 5.0f}, {0.0f, 0.0f, -1.0f}, 20.0f);
+    EXPECT_TRUE(hit.hit);
+    EXPECT_EQ(hit.entityId, kEntity);
+}
+
+TEST(JoltCharacter, CharactersDoNotTunnelThroughPresenceBodies)
+{
+    auto world = skr::MakeArc<fg::JoltPhysicsWorld>();
+
+    fg::PhysicsBodyDesc floor {};
+    floor.motion         = fg::BodyMotionType::Static;
+    floor.shape          = fg::ColliderShape::Box;
+    floor.position       = {0.0f, -0.5f, 0.0f};
+    floor.halfExtents    = {20.0f, 0.5f, 20.0f};
+    floor.collisionLayer = 0;
+    ASSERT_TRUE(world->CreateBody(floor).IsValid());
+
+    auto spawn = [&](std::uint64_t entity, const glm::vec3 &pos) {
+        fg::PhysicsBodyDesc presence {};
+        presence.motion            = fg::BodyMotionType::Kinematic;
+        presence.shape             = fg::ColliderShape::Capsule;
+        presence.position          = pos;
+        presence.radius            = 0.5f;
+        presence.height            = 1.0f;
+        presence.mass              = 70.0f;
+        presence.collisionLayer    = 1;
+        presence.collideWithLayers = 0xffff;
+        presence.entityId          = entity;
+        const auto body            = world->CreateBody(presence);
+        EXPECT_TRUE(body.IsValid());
+
+        fg::PhysicsCharacterDesc desc {};
+        desc.position       = pos;
+        desc.radius         = 0.5f;
+        desc.height         = 1.0f;
+        desc.collisionLayer = 1;
+        const auto character = world->CreateCharacter(desc);
+        EXPECT_TRUE(character.IsValid());
+        world->BindCharacter(entity, character, body);
+        return character;
+    };
+
+    const auto left  = spawn(1, {-1.0f, 0.0f, 0.0f});
+    const auto right = spawn(2, {1.0f, 0.0f, 0.0f});
+
+    world->SetCharacterVelocity(left, {6.0f, 0.0f, 0.0f});
+    world->SetCharacterVelocity(right, {-6.0f, 0.0f, 0.0f});
+    world->StepFixed(30);
+
+    glm::vec3 leftPos {};
+    glm::vec3 rightPos {};
+    glm::quat rot {};
+    world->GetCharacterTransform(left, leftPos, rot);
+    world->GetCharacterTransform(right, rightPos, rot);
+
+    const float separation = glm::length(glm::vec3 {rightPos.x - leftPos.x, 0.0f, rightPos.z - leftPos.z});
+    EXPECT_GE(separation, 0.85f) << "characters should not fully overlap through presence bodies";
 }
 

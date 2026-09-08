@@ -274,6 +274,8 @@ namespace FRIGGA_NAMESPACE
             float                           stickToFloorDistance  = 0.5f;
             float                           walkStairsStepHeight  = 0.4f;
             std::uint64_t                   entityId              = 0;
+            /// ECS RigidBody used as broadphase presence (ignored during ExtendedUpdate).
+            PhysicsBodyHandle               presenceBody {};
             glm::vec3                       prevPosition {0.0f};
             glm::vec3                       currPosition {0.0f};
         };
@@ -359,8 +361,10 @@ namespace FRIGGA_NAMESPACE
             void OnContactAdded(const JPH::CharacterVirtual *character, const JPH::BodyID &bodyId,
                                 const JPH::SubShapeID &, JPH::RVec3Arg contactPosition,
                                 JPH::Vec3Arg contactNormal,
-                                JPH::CharacterContactSettings &) override
+                                JPH::CharacterContactSettings &settings) override
             {
+                settings.mCanPushCharacter    = true;
+                settings.mCanReceiveImpulses  = true;
                 if(owner != nullptr)
                 {
                     owner->HandleCharacterContact(character, bodyId, contactPosition, contactNormal,
@@ -371,12 +375,44 @@ namespace FRIGGA_NAMESPACE
             void OnContactPersisted(const JPH::CharacterVirtual *character,
                                     const JPH::BodyID &bodyId, const JPH::SubShapeID &,
                                     JPH::RVec3Arg contactPosition, JPH::Vec3Arg contactNormal,
-                                    JPH::CharacterContactSettings &) override
+                                    JPH::CharacterContactSettings &settings) override
             {
+                settings.mCanPushCharacter   = true;
+                settings.mCanReceiveImpulses = true;
                 if(owner != nullptr)
                 {
                     owner->HandleCharacterContact(character, bodyId, contactPosition, contactNormal,
                                                   0.0f);
+                }
+            }
+
+            void OnCharacterContactAdded(const JPH::CharacterVirtual *character,
+                                         const JPH::CharacterVirtual *other,
+                                         const JPH::SubShapeID &, JPH::RVec3Arg contactPosition,
+                                         JPH::Vec3Arg contactNormal,
+                                         JPH::CharacterContactSettings &settings) override
+            {
+                settings.mCanPushCharacter   = true;
+                settings.mCanReceiveImpulses = true;
+                if(owner != nullptr)
+                {
+                    owner->HandleCharacterCharacterContact(character, other, contactPosition,
+                                                           contactNormal, 0.0f);
+                }
+            }
+
+            void OnCharacterContactPersisted(const JPH::CharacterVirtual *character,
+                                             const JPH::CharacterVirtual *other,
+                                             const JPH::SubShapeID &, JPH::RVec3Arg contactPosition,
+                                             JPH::Vec3Arg contactNormal,
+                                             JPH::CharacterContactSettings &settings) override
+            {
+                settings.mCanPushCharacter   = true;
+                settings.mCanReceiveImpulses = true;
+                if(owner != nullptr)
+                {
+                    owner->HandleCharacterCharacterContact(character, other, contactPosition,
+                                                           contactNormal, 0.0f);
                 }
             }
         };
@@ -541,6 +577,41 @@ namespace FRIGGA_NAMESPACE
             });
         }
 
+        void HandleCharacterCharacterContact(const JPH::CharacterVirtual *character,
+                                             const JPH::CharacterVirtual *other,
+                                             JPH::RVec3Arg contactPosition,
+                                             JPH::Vec3Arg contactNormal, float penetration)
+        {
+            if(character == nullptr || other == nullptr)
+            {
+                return;
+            }
+
+            const auto entityA = static_cast<std::uint64_t>(character->GetUserData());
+            const auto entityB = static_cast<std::uint64_t>(other->GetUserData());
+            if(entityA == 0 || entityB == 0 || entityA == entityB)
+            {
+                return;
+            }
+
+            const auto pairKey = SortedEntityPair(entityA, entityB);
+
+            std::lock_guard lock(eventMutex);
+            if(!contactDedupe.insert(pairKey).second)
+            {
+                return;
+            }
+
+            pendingContacts.push_back(PhysicsContactEvent {
+                .kind        = PhysicsContactKind::CharacterCharacter,
+                .entityA     = entityA,
+                .entityB     = entityB,
+                .point       = ToGlmVec(contactPosition),
+                .normal      = ToGlmVec(contactNormal),
+                .penetration = penetration,
+            });
+        }
+
         JPH::TempAllocatorImpl tempAllocator;
         JPH::JobSystemThreadPool jobSystem;
         std::array<bool, kLayerCount> layerIsMoving {};
@@ -552,6 +623,7 @@ namespace FRIGGA_NAMESPACE
         JPH::PhysicsSystem physicsSystem;
         WorldContactListener contactListener;
         WorldCharacterContactListener characterContactListener;
+        JPH::CharacterVsCharacterCollisionSimple characterVsCharacter;
 
         float accumulator         = 0.0f;
         float interpolationAlpha  = 0.0f;
@@ -601,10 +673,13 @@ namespace FRIGGA_NAMESPACE
             if(entry.character != nullptr)
             {
                 entry.character->SetListener(nullptr);
+                entry.character->SetCharacterVsCharacterCollision(nullptr);
+                mImpl->characterVsCharacter.Remove(entry.character);
             }
         }
         mImpl->characters.clear();
         mImpl->entityCharacters.clear();
+        mImpl->characterVsCharacter.mCharacters.clear();
 
         {
             std::lock_guard lock(mImpl->eventMutex);
@@ -656,6 +731,7 @@ namespace FRIGGA_NAMESPACE
         using namespace JPH;
 
         const Vec3 worldGravity = mImpl->physicsSystem.GetGravity();
+        auto &bodyInterface     = mImpl->physicsSystem.GetBodyInterface();
 
         for(auto &[id, entry]: mImpl->characters)
         {
@@ -688,11 +764,33 @@ namespace FRIGGA_NAMESPACE
             {
                 updateSettings.mWalkStairsStepUp = Vec3::sZero();
             }
+
+            // Ignore the ECS RigidBody presence collider so the character does not collide
+            // with itself; other characters' bodies remain solid obstacles.
+            BodyID ignoreId;
+            if(entry.presenceBody.IsValid())
+            {
+                ignoreId = BodyID(entry.presenceBody.id);
+            }
+            const IgnoreSingleBodyFilter bodyFilter(ignoreId);
+
             entry.character->ExtendedUpdate(
                 kFixedDeltaTime, worldGravity, updateSettings,
                 mImpl->physicsSystem.GetDefaultBroadPhaseLayerFilter(entry.layer),
-                mImpl->physicsSystem.GetDefaultLayerFilter(entry.layer), {}, {},
+                mImpl->physicsSystem.GetDefaultLayerFilter(entry.layer), bodyFilter, {},
                 mImpl->tempAllocator);
+
+            if(entry.presenceBody.IsValid())
+            {
+                const BodyID presenceId(entry.presenceBody.id);
+                if(bodyInterface.IsAdded(presenceId))
+                {
+                    const RVec3 pos = entry.character->GetPosition();
+                    const Quat  rot = entry.character->GetRotation();
+                    bodyInterface.SetPositionAndRotation(presenceId, pos, rot,
+                                                         EActivation::Activate);
+                }
+            }
         }
     }
 
@@ -1107,6 +1205,8 @@ namespace FRIGGA_NAMESPACE
 
         Ref<CharacterVirtual> character =
             new CharacterVirtual(settings, position, rotation, 0, &mImpl->physicsSystem);
+        character->SetCharacterVsCharacterCollision(&mImpl->characterVsCharacter);
+        mImpl->characterVsCharacter.Add(character);
 
         const std::uint32_t id = mImpl->nextCharacterId++;
         mImpl->characters.emplace(
@@ -1115,6 +1215,7 @@ namespace FRIGGA_NAMESPACE
                                 .stickToFloorDistance = std::max(desc.stickToFloorDistance, 0.0f),
                                 .walkStairsStepHeight = std::max(desc.walkStairsStepHeight, 0.0f),
                                 .entityId             = 0,
+                                .presenceBody         = {},
                                 .prevPosition         = desc.position,
                                 .currPosition         = desc.position});
         return PhysicsCharacterHandle {.id = id};
@@ -1131,6 +1232,8 @@ namespace FRIGGA_NAMESPACE
         if(it != mImpl->characters.end() && it->second.character != nullptr)
         {
             it->second.character->SetListener(nullptr);
+            it->second.character->SetCharacterVsCharacterCollision(nullptr);
+            mImpl->characterVsCharacter.Remove(it->second.character);
         }
 
         mImpl->characters.erase(handle.id);
@@ -1148,7 +1251,8 @@ namespace FRIGGA_NAMESPACE
         }
     }
 
-    void JoltPhysicsWorld::BindCharacter(std::uint64_t entity, PhysicsCharacterHandle handle)
+    void JoltPhysicsWorld::BindCharacter(std::uint64_t entity, PhysicsCharacterHandle handle,
+                                         PhysicsBodyHandle presenceBody)
     {
         if(!handle.IsValid())
         {
@@ -1176,10 +1280,24 @@ namespace FRIGGA_NAMESPACE
             }
         }
 
-        it->second.entityId = entity;
+        it->second.entityId      = entity;
+        it->second.presenceBody  = presenceBody;
         it->second.character->SetUserData(entity);
         it->second.character->SetListener(&mImpl->characterContactListener);
         mImpl->entityCharacters[entity] = handle;
+
+        // Keep presence body aligned immediately after bind / teleport.
+        if(presenceBody.IsValid())
+        {
+            auto &bodyInterface = mImpl->physicsSystem.GetBodyInterface();
+            const JPH::BodyID presenceId(presenceBody.id);
+            if(bodyInterface.IsAdded(presenceId))
+            {
+                bodyInterface.SetPositionAndRotation(presenceId, it->second.character->GetPosition(),
+                                                     it->second.character->GetRotation(),
+                                                     JPH::EActivation::Activate);
+            }
+        }
     }
 
     void JoltPhysicsWorld::UnbindCharacter(std::uint64_t entity)
@@ -1311,9 +1429,29 @@ namespace FRIGGA_NAMESPACE
         entry.character->SetPosition(RVec3(position.x, position.y, position.z));
         entry.prevPosition = position;
         entry.currPosition = position;
+
+        BodyID ignoreId;
+        if(entry.presenceBody.IsValid())
+        {
+            ignoreId = BodyID(entry.presenceBody.id);
+        }
+        const IgnoreSingleBodyFilter bodyFilter(ignoreId);
         entry.character->RefreshContacts(
             mImpl->physicsSystem.GetDefaultBroadPhaseLayerFilter(entry.layer),
-            mImpl->physicsSystem.GetDefaultLayerFilter(entry.layer), {}, {}, mImpl->tempAllocator);
+            mImpl->physicsSystem.GetDefaultLayerFilter(entry.layer), bodyFilter, {},
+            mImpl->tempAllocator);
+
+        if(entry.presenceBody.IsValid())
+        {
+            auto &bodyInterface = mImpl->physicsSystem.GetBodyInterface();
+            const BodyID presenceId(entry.presenceBody.id);
+            if(bodyInterface.IsAdded(presenceId))
+            {
+                bodyInterface.SetPositionAndRotation(presenceId, entry.character->GetPosition(),
+                                                     entry.character->GetRotation(),
+                                                     EActivation::Activate);
+            }
+        }
     }
 
     void JoltPhysicsWorld::SetCharacterRotation(PhysicsCharacterHandle handle,
@@ -1330,6 +1468,17 @@ namespace FRIGGA_NAMESPACE
         }
         it->second.character->SetRotation(
             JPH::Quat(rotation.x, rotation.y, rotation.z, rotation.w));
+        if(it->second.presenceBody.IsValid())
+        {
+            auto &bodyInterface = mImpl->physicsSystem.GetBodyInterface();
+            const JPH::BodyID presenceId(it->second.presenceBody.id);
+            if(bodyInterface.IsAdded(presenceId))
+            {
+                bodyInterface.SetPositionAndRotation(presenceId, it->second.character->GetPosition(),
+                                                     it->second.character->GetRotation(),
+                                                     JPH::EActivation::Activate);
+            }
+        }
     }
 
     bool JoltPhysicsWorld::IsCharacterGrounded(PhysicsCharacterHandle handle) const

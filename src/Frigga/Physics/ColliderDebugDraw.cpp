@@ -323,7 +323,8 @@ namespace FRIGGA_NAMESPACE
                 }
             });
 
-        // Character capsules: Transform is feet; CapsuleCenterLocal includes centerOffset.
+        // Character presence is the RigidBodyComponent capsule — do not draw a second ghost capsule
+        // from CharacterController defaults (shape lives on the linked RigidBody).
         if(userComponents)
         {
             const auto ops = userComponents->Find(kCharacterControllerTypeId);
@@ -331,6 +332,11 @@ namespace FRIGGA_NAMESPACE
             {
                 ops->forEachEntity(*registry, [&](fr::Entity entity) {
                     if(!registry->HasComponent<TransformComponent>(entity))
+                    {
+                        return;
+                    }
+                    // Linked RigidBody already drawn above.
+                    if(registry->HasComponent<RigidBodyComponent>(entity))
                     {
                         return;
                     }

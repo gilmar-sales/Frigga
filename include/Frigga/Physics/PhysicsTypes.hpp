@@ -47,6 +47,7 @@ namespace FRIGGA_NAMESPACE
     {
         BodyBody = 0,
         CharacterBody,
+        CharacterCharacter,
     };
 
     enum class PhysicsJointType : std::uint8_t
@@ -99,6 +100,7 @@ namespace FRIGGA_NAMESPACE
         glm::vec3 position {0.0f};
         glm::quat rotation {1.0f, 0.0f, 0.0f, 0.0f};
 
+        /// Capsule shape — typically copied from the entity's RigidBodyComponent.
         float radius          = 0.5f;
         float height          = 1.0f; // Capsule cylinder height (excluding hemispheres)
         float maxSlopeDegrees = 45.0f;

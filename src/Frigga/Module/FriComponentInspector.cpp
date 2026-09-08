@@ -44,6 +44,11 @@ namespace FRIGGA_NAMESPACE
         return ImGui::SliderInt(label, &value, vmin, vmax);
     }
 
+    bool FriComponentInspector::Checkbox(const char *label, bool &value)
+    {
+        return ImGui::Checkbox(label, &value);
+    }
+
     void FriComponentInspector::TextDisabled(const char *text)
     {
         ImGui::TextDisabled("%s", text);
@@ -68,6 +73,7 @@ namespace FRIGGA_NAMESPACE
         volatile auto dragFloat3    = &T::DragFloat3;
         volatile auto inputText     = &T::InputText;
         volatile auto sliderInt     = &T::SliderInt;
+        volatile auto checkbox      = &T::Checkbox;
         volatile auto textDisabled  = &T::TextDisabled;
         volatile auto hovered       = &T::IsItemHovered;
         volatile auto tooltip       = &T::SetTooltip;
@@ -77,6 +83,7 @@ namespace FRIGGA_NAMESPACE
         (void)dragFloat3;
         (void)inputText;
         (void)sliderInt;
+        (void)checkbox;
         (void)textDisabled;
         (void)hovered;
         (void)tooltip;

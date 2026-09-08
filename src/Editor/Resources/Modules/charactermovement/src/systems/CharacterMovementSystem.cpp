@@ -3,6 +3,7 @@
 #include "components/CharacterControllerComponent.hpp"
 
 #include <Frigga/ECS/Components/NameComponent.hpp>
+#include <Frigga/ECS/Components/RigidBodyComponent.hpp>
 #include <Frigga/ECS/Components/TransformComponent.hpp>
 #include <Frigga/ECS/TransformUtil.hpp>
 
@@ -43,8 +44,13 @@ void CharacterMovementSystem::Update(float)
         });
 
     mRegistry->CreateMutation()->Each(
-        [&](fr::Entity entity, fg::NameComponent &name, CharacterControllerComponent &) {
+        [&](fr::Entity entity, fg::NameComponent &name, CharacterControllerComponent &controller,
+            fg::RigidBodyComponent &) {
             if(name.name != "Player")
+            {
+                return;
+            }
+            if(controller.locomotionLocked)
             {
                 return;
             }

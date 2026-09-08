@@ -313,6 +313,44 @@ fg::RigidBodyComponent HierarchyLayer::makeDefaultRigidBody(fr::Entity entity) c
     return rigidBody;
 }
 
+fg::RigidBodyComponent HierarchyLayer::makeDefaultCharacterRigidBody() const
+{
+    fg::RigidBodyComponent rigidBody {};
+    rigidBody.motion            = fg::BodyMotionType::Kinematic;
+    rigidBody.shape             = fg::ColliderShape::Capsule;
+    rigidBody.radius            = 0.5f;
+    rigidBody.height            = 1.0f;
+    rigidBody.mass              = 70.0f;
+    rigidBody.collisionLayer    = 1;
+    rigidBody.collideWithLayers = 0xffff;
+    return rigidBody;
+}
+
+void HierarchyLayer::ensureCharacterRigidBody(fr::Entity entity)
+{
+    if(!mRegistry->HasComponent<fg::RigidBodyComponent>(entity))
+    {
+        mRegistry->AddComponents(entity, makeDefaultCharacterRigidBody());
+        mRegistry->ExecuteTasks();
+        return;
+    }
+
+    mRegistry->TryGetComponents<fg::RigidBodyComponent>(entity, [&](fg::RigidBodyComponent &rb) {
+        rb.motion = fg::BodyMotionType::Kinematic;
+        if(rb.shape != fg::ColliderShape::Capsule && rb.shape != fg::ColliderShape::Sphere &&
+           rb.shape != fg::ColliderShape::Box)
+        {
+            rb.shape  = fg::ColliderShape::Capsule;
+            rb.radius = rb.radius > 0.0f ? rb.radius : 0.5f;
+            rb.height = rb.height > 0.0f ? rb.height : 1.0f;
+        }
+        if(rb.mass <= 0.0f)
+        {
+            rb.mass = 70.0f;
+        }
+    });
+}
+
 const char *HierarchyLayer::resolveEntityIcon(fr::Entity entity) const
 {
     const char *icon = nullptr;
@@ -625,15 +663,7 @@ void HierarchyLayer::addRigidBodyToSelection()
     {
         mRegistry->AddComponents(entity, fg::TransformComponent {});
     }
-    if(hasUserComponentType(kCharacterControllerTypeId))
-    {
-        const auto ops = mUserComponents->Find(kCharacterControllerTypeId);
-        if(ops && ops->has && ops->has(*mRegistry, entity) && ops->remove)
-        {
-            ops->remove(*mRegistry, entity);
-            mRegistry->ExecuteTasks();
-        }
-    }
+    // CharacterController requires RigidBody — keep both when CC is present.
     if(!mRegistry->HasComponent<fg::RigidBodyComponent>(entity))
     {
         mRegistry->AddComponents(entity, makeDefaultRigidBody(entity));
@@ -652,11 +682,7 @@ void HierarchyLayer::addCharacterControllerToSelection()
     {
         mRegistry->AddComponents(entity, fg::TransformComponent {});
     }
-    if(mRegistry->HasComponent<fg::RigidBodyComponent>(entity))
-    {
-        mRegistry->RemoveComponent<fg::RigidBodyComponent>(entity);
-        mRegistry->ExecuteTasks();
-    }
+    ensureCharacterRigidBody(entity);
     if(hasUserComponentType(kCharacterControllerTypeId))
     {
         addUserComponentToEntity(entity, kCharacterControllerTypeId);
@@ -843,11 +869,7 @@ void HierarchyLayer::addUserComponentToEntity(fr::Entity entity, std::string_vie
         {
             mRegistry->AddComponents(entity, fg::TransformComponent {});
         }
-        if(mRegistry->HasComponent<fg::RigidBodyComponent>(entity))
-        {
-            mRegistry->RemoveComponent<fg::RigidBodyComponent>(entity);
-            mRegistry->ExecuteTasks();
-        }
+        ensureCharacterRigidBody(entity);
     }
     else if(typeId == kThirdPersonCameraTypeId)
     {
@@ -1662,18 +1684,23 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
             {
                 mRegistry->AddComponents(entity, fg::TransformComponent {});
             }
-            if(hasUserComponentType(kCharacterControllerTypeId))
-            {
-                const auto ops = mUserComponents->Find(kCharacterControllerTypeId);
-                if(ops && ops->has && ops->has(*mRegistry, entity) && ops->remove)
-                {
-                    ops->remove(*mRegistry, entity);
-                    mRegistry->ExecuteTasks();
-                }
-            }
+            // CharacterController requires RigidBody — keep both when CC is present.
             if(!mRegistry->HasComponent<fg::RigidBodyComponent>(entity))
             {
-                mRegistry->AddComponents(entity, makeDefaultRigidBody(entity));
+                const bool hasCharacter =
+                    hasUserComponentType(kCharacterControllerTypeId) &&
+                    [&]() {
+                        const auto ops = mUserComponents->Find(kCharacterControllerTypeId);
+                        return ops && ops->has && ops->has(*mRegistry, entity);
+                    }();
+                if(hasCharacter)
+                {
+                    mRegistry->AddComponents(entity, makeDefaultCharacterRigidBody());
+                }
+                else
+                {
+                    mRegistry->AddComponents(entity, makeDefaultRigidBody(entity));
+                }
             }
         }
 

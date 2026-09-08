@@ -28,9 +28,15 @@ namespace FRIGGA_NAMESPACE
         }
 
         // Push kinematic transforms authored by gameplay / editor into the world.
+        // CharacterController entities own their linked RigidBody via CharacterVirtual sync —
+        // do not overwrite that presence body from Transform here (would fight / look like a 2nd body).
         mRegistry->CreateMutation()->Each(
             [&](fr::Entity entity, TransformComponent &, RigidBodyComponent &rigidBody) {
                 if(!rigidBody.body.IsValid())
+                {
+                    return;
+                }
+                if(mPhysicsWorld->FindCharacter(static_cast<std::uint64_t>(entity)).IsValid())
                 {
                     return;
                 }
