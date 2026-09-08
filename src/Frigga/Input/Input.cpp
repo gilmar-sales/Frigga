@@ -84,6 +84,16 @@ namespace FRIGGA_NAMESPACE
         return it != mAxes.end() ? it->second : 0.0f;
     }
 
+    void Input::SetCursorLocked(bool locked)
+    {
+        mCursorLocked = locked;
+    }
+
+    void Input::ToggleCursorLocked()
+    {
+        mCursorLocked = !mCursorLocked;
+    }
+
     void Input::BeginFrame(float deltaTime)
     {
         if(keyboardMouseAllowed() && ImGui::GetCurrentContext() != nullptr)
@@ -97,6 +107,7 @@ namespace FRIGGA_NAMESPACE
 
         if(!playing || !running)
         {
+            mCursorLocked = false;
             for(auto &[name, state] : mActions)
             {
                 state.pressed  = false;

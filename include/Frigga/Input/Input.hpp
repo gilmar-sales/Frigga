@@ -49,6 +49,14 @@ namespace FRIGGA_NAMESPACE
             mGameplayViewportHovered = hovered;
         }
 
+        /// Relative mouse / cursor lock for gameplay cameras (published Runtime + Editor).
+        void SetCursorLocked(bool locked);
+        void ToggleCursorLocked();
+        [[nodiscard]] bool IsCursorLocked() const
+        {
+            return mCursorLocked;
+        }
+
         /// Test / tooling: inject device state without SDL.
         void InjectKey(fra::KeyCode key, bool down);
         void InjectMouseButton(fra::MouseButton button, bool down);
@@ -106,6 +114,7 @@ namespace FRIGGA_NAMESPACE
         float mMouseScroll = 0.0f;
 
         bool mGameplayViewportHovered = false;
+        bool mCursorLocked            = false;
     };
 
 } // namespace FRIGGA_NAMESPACE

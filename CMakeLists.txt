@@ -245,6 +245,14 @@ target_include_directories(Runtime PRIVATE
 add_dependencies(Editor FriggaSdkLibraries)
 add_dependencies(Runtime FriggaSdkLibraries)
 
+# Publish builds the game host from Sdk/Runtime sources (not the Editor Runtime
+# binary). Keep those sources in sync whenever Runtime is rebuilt.
+add_custom_command(TARGET Runtime POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_CURRENT_SOURCE_DIR}/src/Runtime"
+                "${FRIGGA_SDK_DIR}/Runtime"
+        COMMENT "Sync Runtime sources into Sdk for game publish")
+
 # Expose Freyr/Frigga/Skirnir/simdjson to gameplay modules.
 # Linux: undefined refs in the .so bind to the host at dlopen (--export-dynamic).
 # Prefab/inspector .o files are keep-alived from GameplayModuleHost so static GC

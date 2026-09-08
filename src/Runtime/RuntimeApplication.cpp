@@ -113,6 +113,11 @@ RuntimeApplication::RuntimeApplication(const skr::Arc<skr::ServiceProvider> &ser
         }
     }
     mSimulation->Play();
+    // Published games start with relative mouse so LookX/LookY work without an Editor viewport.
+    if(mInput)
+    {
+        mInput->SetCursorLocked(true);
+    }
 }
 
 void RuntimeApplication::RenderScene()
@@ -135,6 +140,17 @@ void RuntimeApplication::RenderScene()
     }
     mRegistry->ExecuteTasks();
     mRegistry->Update(mWindow->GetDeltaTime());
+
+    // Apply gameplay cursor lock to the OS window (published builds have no Editor GameplayLayer).
+    if(mInput && mWindow)
+    {
+        const bool wantGrab = mInput->IsCursorLocked();
+        if(wantGrab != mWindow->IsMouseGrab())
+        {
+            mWindow->SetMouseGrab(wantGrab);
+        }
+    }
+
     if(mProfiler)
     {
         mProfiler->Record("RuntimeFrame", std::chrono::steady_clock::now() - frameStarted);

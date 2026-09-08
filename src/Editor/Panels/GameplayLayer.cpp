@@ -263,10 +263,15 @@ void GameplayLayer::drawToolbar()
     }
 
     ImGui::SameLine();
-    if(ImGui::Checkbox(ICON_BTSP_MOUSE " Cursor Lock", &mCursorLocked))
+    bool cursorLocked = mInput && mInput->IsCursorLocked();
+    if(ImGui::Checkbox(ICON_BTSP_MOUSE " Cursor Lock", &cursorLocked))
     {
-        // Applied next syncMouseCapture; force grab update immediately.
-        if(!mCursorLocked && mWindow && mMouseGrabbed &&
+        if(mInput)
+        {
+            mInput->SetCursorLocked(cursorLocked);
+        }
+        mCursorLocked = cursorLocked;
+        if(!cursorLocked && mWindow && mMouseGrabbed &&
            !(mViewportHovered && ImGui::IsMouseDown(ImGuiMouseButton_Right)))
         {
             mWindow->SetMouseGrab(false);
@@ -374,10 +379,9 @@ void GameplayLayer::syncMouseCapture()
         return;
     }
 
-    if(mInput && mInput->WasPressed("ToggleCursorLock"))
-    {
-        mCursorLocked = !mCursorLocked;
-    }
+    // ToggleCursorLock is handled by gameplay (ThirdPersonCameraSystem) via Input.
+    const bool cursorLocked = mInput && mInput->IsCursorLocked();
+    mCursorLocked           = cursorLocked;
 
     const bool holdLook =
         mViewportHovered && ImGui::IsMouseDown(ImGuiMouseButton_Right) &&
@@ -385,7 +389,7 @@ void GameplayLayer::syncMouseCapture()
 
     const bool wantGrab =
         mSimulation->IsPlaying() && mSimulation->IsRunning() &&
-        (mCursorLocked || holdLook);
+        (cursorLocked || holdLook);
 
     if(wantGrab && !mMouseGrabbed)
     {
