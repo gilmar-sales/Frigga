@@ -23,6 +23,7 @@ class EditorApplication final: public fg::AbstractApplication
     void RenderScene() override;
     void Update() override;
     void OnAfterGuiLayout() override;
+    void OnAfterBeginFrame() override;
     [[nodiscard]] bool ShouldBootstrapViewportFallback() const override;
 
   private:

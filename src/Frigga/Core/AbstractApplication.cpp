@@ -96,6 +96,8 @@ namespace FRIGGA_NAMESPACE
 
         mRenderer->BeginFrame();
 
+        OnAfterBeginFrame();
+
         RenderScene();
 
         mRenderer->EndScene();

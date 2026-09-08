@@ -276,11 +276,13 @@ namespace FRIGGA_NAMESPACE
 
     void GuiLayer::end()
     {
-        auto window = mServiceProvider->GetService<fra::Window>();
         auto renderer = mServiceProvider->GetService<fra::Renderer>();
 
-        ImGuiIO &io    = ImGui::GetIO();
-        io.DisplaySize = ImVec2((float)window->GetWidth(), (float)window->GetHeight());
+        // Do not overwrite io.DisplaySize here. ImGui_ImplSDL3_NewFrame already
+        // sets DisplaySize (SDL window points) and DisplayFramebufferScale
+        // (pixels/points). Freya's Window::GetWidth/Height track drawable pixels
+        // after resize — stomping DisplaySize with that on HiDPI (4K@200%) makes
+        // FramebufferScale apply twice: soft viewports and mis-scaled UI.
 
         ImGui::Render();
 
@@ -297,6 +299,7 @@ namespace FRIGGA_NAMESPACE
             }
         }
 
+        ImGuiIO &io = ImGui::GetIO();
         if(io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
         {
             ImGui::UpdatePlatformWindows();

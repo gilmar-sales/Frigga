@@ -32,6 +32,9 @@ namespace FRIGGA_NAMESPACE
         /// Called after onGuiBegin and before BeginFrame (editor: apply viewport claims).
         virtual void OnAfterGuiLayout() {}
 
+        /// Called after Renderer::BeginFrame (editor: reassert panel RT if swapchain rebuild resized it).
+        virtual void OnAfterBeginFrame() {}
+
         /// When false, skip bootstrapping a full-window viewport if the offscreen image is invalid.
         [[nodiscard]] virtual bool ShouldBootstrapViewportFallback() const
         {

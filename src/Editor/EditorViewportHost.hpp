@@ -21,6 +21,12 @@ namespace EditorViewportHost
         return requests;
     }
 
+    inline ClaimRequest &ActiveClaim()
+    {
+        static ClaimRequest active;
+        return active;
+    }
+
     inline void BeginFrame()
     {
         Requests().clear();
@@ -50,6 +56,8 @@ namespace EditorViewportHost
             }
         }
 
+        ActiveClaim() = ClaimRequest {winner, winW, winH, winner != nullptr};
+
         for(const ClaimRequest &req : Requests())
         {
             if(req.target == nullptr)
@@ -65,6 +73,18 @@ namespace EditorViewportHost
             {
                 req.target->Suspend();
             }
+        }
+    }
+
+    /// BeginFrame may RebuildSwapChain and resize Freya's shared offscreen target
+    /// (e.g. to the full window). Re-apply the panel claim so the scene is not
+    /// rendered into a window-sized RT and then minified into the ImGui image.
+    inline void ReassertActiveClaim()
+    {
+        const ClaimRequest &active = ActiveClaim();
+        if(active.target != nullptr && active.active && active.width > 0 && active.height > 0)
+        {
+            active.target->Claim(active.width, active.height);
         }
     }
 

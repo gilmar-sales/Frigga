@@ -22,6 +22,8 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <imgui.h>
 
+#include <Freya/Advanced.hpp>
+
 namespace
 {
     constexpr float kPitchLimitDegrees     = 89.0f;
@@ -242,6 +244,16 @@ void EditorLayer::drawToolbar()
     if(ImGui::Checkbox(ICON_BTSP_BOUNDINGBOX " Colliders", &showColliders))
     {
         mSimulation->SetShowColliders(showColliders);
+    }
+
+    ImGui::SameLine();
+    ImGui::Spacing();
+    ImGui::SameLine();
+    {
+        const ImVec2 fb  = EditorViewport::FramebufferScale();
+        const auto   img = fra::Advanced(*mRenderer).GetViewportImage();
+        ImGui::TextDisabled("claim %ux%u  img %ux%u  fb %.2f", mPendingWidth, mPendingHeight,
+                            img.valid ? img.width : 0u, img.valid ? img.height : 0u, fb.x);
     }
 
     ImGui::SameLine();

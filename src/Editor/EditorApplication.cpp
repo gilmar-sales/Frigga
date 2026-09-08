@@ -111,6 +111,11 @@ void EditorApplication::OnAfterGuiLayout()
     EditorViewportHost::ApplyClaims();
 }
 
+void EditorApplication::OnAfterBeginFrame()
+{
+    EditorViewportHost::ReassertActiveClaim();
+}
+
 bool EditorApplication::ShouldBootstrapViewportFallback() const
 {
     return !EditorViewportHost::HasActiveClaim();
