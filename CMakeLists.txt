@@ -58,6 +58,7 @@ FetchContent_Declare(
         GIT_TAG "v0.37.1"
         GIT_SHALLOW TRUE
 )
+set(FREYR_PROFILING ON CACHE BOOL "Enables Freyr Perfetto profiling" FORCE)
 FetchContent_MakeAvailable(freyr)
 
 FetchContent_Declare(

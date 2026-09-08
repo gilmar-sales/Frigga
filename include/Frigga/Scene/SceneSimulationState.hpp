@@ -71,6 +71,22 @@ namespace FRIGGA_NAMESPACE
             mShowColliders = !mShowColliders;
         }
 
+        /// When true, the next Play session starts a Freyr Perfetto profiling trace.
+        [[nodiscard]] bool GetProfileOnPlay() const
+        {
+            return mProfileOnPlay;
+        }
+
+        void SetProfileOnPlay(bool profile)
+        {
+            mProfileOnPlay = profile;
+        }
+
+        [[nodiscard]] bool IsProfiling() const
+        {
+            return mProfilingActive;
+        }
+
         /// Cleared after a successful read. Used by the Gameplay viewport to steal focus on Play.
         [[nodiscard]] bool ConsumeFocusGameplayRequest()
         {
@@ -147,6 +163,8 @@ namespace FRIGGA_NAMESPACE
         bool mPaused                 = false;
         bool mStepRequested          = false;
         bool mShowColliders          = false;
+        bool mProfileOnPlay          = false;
+        bool mProfilingActive        = false;
         bool mFocusGameplayRequested = false;
         bool mFocusEditorRequested   = false;
         bool mDeferModeChanges       = false;

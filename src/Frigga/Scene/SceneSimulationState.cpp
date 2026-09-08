@@ -109,6 +109,12 @@ namespace FRIGGA_NAMESPACE
         mMode                   = SimulationMode::Play;
         mPaused                 = false;
         mStepRequested          = false;
+        mProfilingActive        = mProfileOnPlay;
+        if(mProfilingActive)
+        {
+            mRegistry->BeginProfiling();
+            mLogger->LogInformation("Freyr profiling started (trace on Stop)");
+        }
         mFocusGameplayRequested = true;
         mScene->PreferGameplayCamera();
         mLogger->LogInformation("Entered Play mode");
@@ -163,6 +169,14 @@ namespace FRIGGA_NAMESPACE
         if(mAudioController)
         {
             mAudioController->StopAllPlayback();
+        }
+
+        if(mProfilingActive)
+        {
+            mRegistry->EndProfiling();
+            mProfilingActive = false;
+            mLogger->LogInformation(
+                "Freyr profiling stopped (wrote freyr_trace_*.pftrace in working directory)");
         }
 
         teardownPhysicsWorld();

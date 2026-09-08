@@ -247,6 +247,21 @@ void EditorLayer::drawToolbar()
     }
 
     ImGui::SameLine();
+    bool profileOnPlay = mSimulation->GetProfileOnPlay();
+    ImGui::BeginDisabled(mSimulation->IsPlaying());
+    if(ImGui::Checkbox(ICON_BTSP_ACTIVITY " Profile", &profileOnPlay))
+    {
+        mSimulation->SetProfileOnPlay(profileOnPlay);
+    }
+    ImGui::EndDisabled();
+    if(ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+    {
+        ImGui::SetTooltip(mSimulation->IsProfiling()
+                              ? "Freyr Perfetto trace recording (ends on Stop)"
+                              : "Record a Freyr Perfetto trace for the next Play session");
+    }
+
+    ImGui::SameLine();
     ImGui::Spacing();
     ImGui::SameLine();
     {

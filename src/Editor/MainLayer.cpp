@@ -801,6 +801,12 @@ void MainLayer::drawMenuBar()
             {
                 mSimulation->SetShowColliders(!showColliders);
             }
+            bool profileOnPlay = mSimulation->GetProfileOnPlay();
+            if(ImGui::MenuItem(ICON_BTSP_ACTIVITY " Profile on Play", nullptr, profileOnPlay,
+                               !mSimulation->IsPlaying()))
+            {
+                mSimulation->SetProfileOnPlay(!profileOnPlay);
+            }
             ImGui::EndMenu();
         }
 
