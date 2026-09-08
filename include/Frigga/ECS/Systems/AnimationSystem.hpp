@@ -6,9 +6,9 @@
 #include "Frigga/Scene/Scene.hpp"
 #include "Frigga/Scene/SceneSimulationState.hpp"
 
+#include <Freya/Advanced.hpp>
 #include <Freya/Asset/BakedAnimation.hpp>
 #include <Freya/Asset/GpuAnimation.hpp>
-#include <Freya/Freya.hpp>
 #include <Freyr/Freyr.hpp>
 
 #include <cstdint>

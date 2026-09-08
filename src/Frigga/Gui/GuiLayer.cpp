@@ -11,6 +11,7 @@
 #include <memory>
 #include <vector>
 
+#include <Freya/Advanced.hpp>
 #include <Freya/Events/EventManager.hpp>
 #include <Freya/Events/Gamepad.hpp>
 #include <Freya/Events/Keyboard.hpp>
@@ -140,7 +141,8 @@ namespace FRIGGA_NAMESPACE
         StylePhantomDark();
 
         mRenderer = mServiceProvider->GetService<fra::Renderer>();
-        const fra::ImGuiNativeHandles native = mRenderer->GetImGuiNativeHandles();
+        const fra::ImGuiNativeHandles native =
+            fra::Advanced(*mRenderer).GetImGuiNativeHandles();
 
         auto sdlWindow              = static_cast<SDL_Window *>(native.window);
         const SDL_WindowID windowId = SDL_GetWindowID(sdlWindow);
@@ -249,7 +251,8 @@ namespace FRIGGA_NAMESPACE
             return;
         }
 
-        const fra::ImGuiNativeHandles native = renderer->GetImGuiNativeHandles();
+        const fra::ImGuiNativeHandles native =
+            fra::Advanced(*renderer).GetImGuiNativeHandles();
         ImGui_ImplVulkan_PipelineInfo pipelineInfo {};
         pipelineInfo.RenderPass = static_cast<VkRenderPass>(native.renderPass);
         ImGui_ImplVulkan_CreateMainPipeline(&pipelineInfo);
@@ -284,12 +287,13 @@ namespace FRIGGA_NAMESPACE
         ImDrawData *drawData = ImGui::GetDrawData();
         if(drawData != nullptr && drawData->TotalVtxCount > 0)
         {
-            if(renderer->BeginUI())
+            auto advanced = fra::Advanced(*renderer);
+            if(advanced.BeginUI())
             {
                 ImGui_ImplVulkan_RenderDrawData(
                     drawData,
-                    static_cast<VkCommandBuffer>(renderer->NativeCommandBuffer()));
-                renderer->EndUI();
+                    static_cast<VkCommandBuffer>(advanced.NativeCommandBuffer()));
+                advanced.EndUI();
             }
         }
 

@@ -1,4 +1,5 @@
 #include <Frigga/Asset/AssetRegistry.hpp>
+#include <Frigga/Asset/FreyaHandles.hpp>
 
 #include "Frigga/Audio/IAudioEngine.hpp"
 
@@ -270,17 +271,19 @@ namespace FRIGGA_NAMESPACE
             [&](const std::vector<fra::ModelSubmesh> &parts) {
                 for(std::size_t i = 0; i < parts.size(); ++i)
                 {
+                    const auto meshId     = FromHandle(parts[i].mesh);
+                    const auto materialId = FromHandle(parts[i].material);
                     asset.submeshes.push_back(ModelSubmeshAsset {
-                        .meshId     = parts[i].meshId,
-                        .materialId = parts[i].materialId,
+                        .meshId     = meshId,
+                        .materialId = materialId,
                     });
-                    if(parts[i].materialId != 0)
+                    if(materialId != 0)
                     {
                         const auto matName =
                             parts.size() == 1
                                 ? std::format("{} Material", baseLabel)
                                 : std::format("{} Material {}", baseLabel, i);
-                        catalogMaterialIfNew(parts[i].materialId, matName);
+                        catalogMaterialIfNew(materialId, matName);
                     }
                 }
             };
@@ -370,7 +373,7 @@ namespace FRIGGA_NAMESPACE
                 }
                 return std::nullopt;
             }
-            asset.textureId = *loaded;
+            asset.textureId = FromHandle(*loaded);
         }
 
         mTextureIndexByPath.emplace(key, mTextures.size());
@@ -692,7 +695,7 @@ namespace FRIGGA_NAMESPACE
         }
         else
         {
-            materialId = mMaterialPool->Create(createInfo);
+            materialId = FromHandle(mMaterialPool->Create(createInfo));
         }
 
         if(listInBrowser)
@@ -718,7 +721,7 @@ namespace FRIGGA_NAMESPACE
         {
             return;
         }
-        mMaterialPool->Update(materialId, createInfo);
+        mMaterialPool->Update(AsMaterialHandle(materialId), createInfo);
     }
 
     fra::MaterialCreateInfo AssetRegistry::GetMaterialCreateInfo(std::uint32_t materialId) const
@@ -727,7 +730,7 @@ namespace FRIGGA_NAMESPACE
         {
             return {};
         }
-        return mMaterialPool->GetCreateInfo(materialId);
+        return mMaterialPool->GetCreateInfo(AsMaterialHandle(materialId));
     }
 
     void AssetRegistry::catalogMaterialIfNew(std::uint32_t materialId, std::string name)

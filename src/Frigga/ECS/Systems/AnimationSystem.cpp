@@ -5,6 +5,7 @@
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/ECS/TransformUtil.hpp"
 
+#include <Freya/Advanced.hpp>
 #include <Freya/Asset/AnimGraph.hpp>
 #include <Freya/Asset/AnimationClip.hpp>
 #include <Freya/Asset/Pose.hpp>
@@ -53,13 +54,12 @@ namespace FRIGGA_NAMESPACE
             }
         }
 
-        void UploadSkeletonForModel(fra::Renderer &renderer, const ModelAsset &model)
+        void UploadSkeletonForModel(fra::GpuAnimationSystem &gpu, const ModelAsset &model)
         {
-            renderer.UploadGpuAnimSkeleton(fra::PackSkeleton(model.skeleton));
+            gpu.UploadSkeleton(fra::PackSkeleton(model.skeleton));
             const auto root = fra::FindRootJoint(model.skeleton);
-            renderer.SetGpuAnimRigIndices(
-                0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-                root >= 0 ? static_cast<std::uint32_t>(root) : 0u);
+            gpu.SetRigIndices(0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
+                              root >= 0 ? static_cast<std::uint32_t>(root) : 0u);
         }
 
         [[nodiscard]] bool TryPackClipGpu(fra::GpuAnimInstance &instance,
@@ -67,10 +67,10 @@ namespace FRIGGA_NAMESPACE
                                           const fra::AnimationClip &clip, float timeSec,
                                           bool loop, std::uint32_t boneOffset,
                                           std::uint32_t jointCount, const glm::mat4 &modelWorld,
-                                          fra::Renderer &renderer, const fra::BakedClip &bake)
+                                          fra::GpuAnimationSystem &gpu, const fra::BakedClip &bake)
         {
-            const auto slot = renderer.EnsureGpuAnimClipResident(
-                ClipGpuKey(model.relativePath, clip.name), bake);
+            const auto slot =
+                gpu.EnsureClipResident(ClipGpuKey(model.relativePath, clip.name), bake);
             if(slot == kInvalidGpuClipSlot)
             {
                 return false;
@@ -90,7 +90,7 @@ namespace FRIGGA_NAMESPACE
         [[nodiscard]] bool TryPackGraphGpu(
             fra::GpuAnimInstance &instance, fra::AnimGraph &graph, const ModelAsset &model,
             std::uint32_t boneOffset, std::uint32_t jointCount, const glm::mat4 &modelWorld,
-            bool loop, fra::Renderer &renderer,
+            bool loop,
             const std::function<std::uint32_t(const fra::AnimationClip *)> &clipSlot)
         {
             fra::AnimLocoGpuSample loco {};
@@ -291,8 +291,9 @@ namespace FRIGGA_NAMESPACE
 
         const bool editMode = !mSimulation->IsPlaying();
 
-        const std::uint32_t gpuMaxJoints = mRenderer->GetGpuAnimJointsPerClipSlot();
-        mRenderer->SetGpuAnimEnabled(false);
+        auto &gpu = fra::Advanced(*mRenderer).GpuAnimation();
+        const std::uint32_t gpuMaxJoints = gpu.GetJointsPerClipSlot();
+        gpu.SetEnabled(false);
 
         std::unordered_map<std::string, std::vector<fra::GpuAnimInstance>> gpuBatches;
         std::unordered_map<std::string, const ModelAsset *> gpuBatchModels;
@@ -361,13 +362,13 @@ namespace FRIGGA_NAMESPACE
                 const bool crossFading = runtime != nullptr && runtime->crossFading;
 
                 const auto clipSlotFn =
-                    [this, model](const fra::AnimationClip *clip) -> std::uint32_t {
+                    [this, model, &gpu](const fra::AnimationClip *clip) -> std::uint32_t {
                     if(clip == nullptr)
                     {
                         return kInvalidGpuClipSlot;
                     }
                     const auto *bake = ensureBake(*model, *clip);
-                    return mRenderer->EnsureGpuAnimClipResident(
+                    return gpu.EnsureClipResident(
                         ClipGpuKey(model->relativePath, clip->name), *bake);
                 };
 
@@ -425,7 +426,7 @@ namespace FRIGGA_NAMESPACE
                     fra::GpuAnimInstance gpuInst {};
                     if(canGpu &&
                        TryPackGraphGpu(gpuInst, *graph, *model, boneOffset, jointCount,
-                                       modelWorld, animator.loop, *mRenderer, clipSlotFn) &&
+                                       modelWorld, animator.loop, clipSlotFn) &&
                        tryQueueGpu(gpuInst))
                     {
                         return;
@@ -481,7 +482,7 @@ namespace FRIGGA_NAMESPACE
                     const auto *bake = ensureBake(*model, *clip);
                     fra::GpuAnimInstance gpuInst {};
                     if(TryPackClipGpu(gpuInst, *model, *clip, animator.timeSec, animator.loop,
-                                      boneOffset, jointCount, modelWorld, *mRenderer, *bake) &&
+                                      boneOffset, jointCount, modelWorld, gpu, *bake) &&
                        tryQueueGpu(gpuInst))
                     {
                         return;
@@ -528,7 +529,7 @@ namespace FRIGGA_NAMESPACE
 
         if(gpuBatches.empty())
         {
-            mRenderer->SetGpuAnimEnabled(false);
+            gpu.SetEnabled(false);
             return;
         }
 
@@ -558,20 +559,20 @@ namespace FRIGGA_NAMESPACE
                 continue;
             }
 
-            UploadSkeletonForModel(*mRenderer, *model);
+            UploadSkeletonForModel(gpu, *model);
 
             auto &batch = gpuBatches[source];
             if(i == 0)
             {
                 mGpuInstances = std::move(batch);
-                mRenderer->SetGpuAnimCopyPrevBones(carryPrevBones);
-                mRenderer->UploadGpuAnimInstances(mGpuInstances);
-                mRenderer->SetGpuAnimEnabled(true);
+                gpu.SetCopyPrevBones(carryPrevBones);
+                gpu.UploadInstances(mGpuInstances);
+                gpu.SetEnabled(true);
             }
             else
             {
-                mRenderer->SetGpuAnimCopyPrevBones(false);
-                (void)mRenderer->DispatchGpuAnimImmediate(batch, frameIndex);
+                gpu.SetCopyPrevBones(false);
+                (void)gpu.DispatchImmediate(batch, frameIndex);
             }
         }
     }

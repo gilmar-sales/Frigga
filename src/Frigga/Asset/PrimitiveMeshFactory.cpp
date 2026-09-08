@@ -1,4 +1,5 @@
 #include <Frigga/Asset/PrimitiveMeshFactory.hpp>
+#include <Frigga/Asset/FreyaHandles.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -81,10 +82,10 @@ namespace FRIGGA_NAMESPACE
         const auto roughness =
             mTexturePool->CreateTextureFromFile("./Resources/Textures/default_roughness.png");
 
-        mDefaultMaterial = mMaterialPool->Create({
+        mDefaultMaterial = FromHandle(mMaterialPool->Create({
             .albedo    = albedo,
             .roughness = roughness,
-        });
+        }));
     }
 
     std::uint32_t PrimitiveMeshFactory::GetDefaultMaterial() const
@@ -98,7 +99,7 @@ namespace FRIGGA_NAMESPACE
         {
             return ++mCatalogMaterialSeq;
         }
-        return mMaterialPool->Create(createInfo);
+        return FromHandle(mMaterialPool->Create(createInfo));
     }
 
     std::uint32_t PrimitiveMeshFactory::DuplicateMaterial(std::uint32_t materialId)
@@ -113,7 +114,7 @@ namespace FRIGGA_NAMESPACE
         {
             return;
         }
-        mMaterialPool->Update(materialId, createInfo);
+        mMaterialPool->Update(AsMaterialHandle(materialId), createInfo);
     }
 
     fra::MaterialCreateInfo PrimitiveMeshFactory::GetMaterialCreateInfo(
@@ -123,7 +124,7 @@ namespace FRIGGA_NAMESPACE
         {
             return {};
         }
-        return mMaterialPool->GetCreateInfo(materialId);
+        return mMaterialPool->GetCreateInfo(AsMaterialHandle(materialId));
     }
 
     std::uint32_t PrimitiveMeshFactory::GetMesh(PrimitiveType type)
@@ -326,7 +327,7 @@ namespace FRIGGA_NAMESPACE
         pushQuad(vertices, indices, {-0.5f, -0.5f, -0.5f}, {0.5f, -0.5f, -0.5f},
                  {0.5f, -0.5f, 0.5f}, {-0.5f, -0.5f, 0.5f}, {0.0f, -1.0f, 0.0f});
 
-        return mMeshPool->CreateMesh(vertices, indices);
+        return FromHandle(mMeshPool->CreateMesh(vertices, indices));
     }
 
     std::uint32_t PrimitiveMeshFactory::createSphere(std::uint32_t segments, std::uint32_t rings)
@@ -367,7 +368,7 @@ namespace FRIGGA_NAMESPACE
         }
 
         invertTriangles(indices);
-        return mMeshPool->CreateMesh(vertices, indices);
+        return FromHandle(mMeshPool->CreateMesh(vertices, indices));
     }
 
     std::uint32_t PrimitiveMeshFactory::createCapsule(std::uint32_t segments, std::uint32_t rings)
@@ -440,7 +441,7 @@ namespace FRIGGA_NAMESPACE
         }
 
         invertTriangles(indices);
-        return mMeshPool->CreateMesh(vertices, indices);
+        return FromHandle(mMeshPool->CreateMesh(vertices, indices));
     }
 
     std::uint32_t PrimitiveMeshFactory::createCylinder(std::uint32_t segments)
@@ -513,7 +514,7 @@ namespace FRIGGA_NAMESPACE
         }
 
         invertTriangles(indices);
-        return mMeshPool->CreateMesh(vertices, indices);
+        return FromHandle(mMeshPool->CreateMesh(vertices, indices));
     }
 
     std::uint32_t PrimitiveMeshFactory::createCone(std::uint32_t segments)
@@ -564,7 +565,7 @@ namespace FRIGGA_NAMESPACE
         }
 
         invertTriangles(indices);
-        return mMeshPool->CreateMesh(vertices, indices);
+        return FromHandle(mMeshPool->CreateMesh(vertices, indices));
     }
 
     std::uint32_t PrimitiveMeshFactory::createPlane()
@@ -578,7 +579,7 @@ namespace FRIGGA_NAMESPACE
         vertices[1].texCoord = {10.0f, 10.0f};
         vertices[2].texCoord = {10.0f, 0.0f};
         vertices[3].texCoord = {0.0f, 0.0f};
-        return mMeshPool->CreateMesh(vertices, indices);
+        return FromHandle(mMeshPool->CreateMesh(vertices, indices));
     }
 
     std::uint32_t PrimitiveMeshFactory::createQuad()
@@ -588,7 +589,7 @@ namespace FRIGGA_NAMESPACE
         pushQuad(vertices, indices, {-0.5f, -0.5f, 0.0f}, {0.5f, -0.5f, 0.0f},
                  {0.5f, 0.5f, 0.0f}, {-0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f});
         invertTriangles(indices);
-        return mMeshPool->CreateMesh(vertices, indices);
+        return FromHandle(mMeshPool->CreateMesh(vertices, indices));
     }
 
 } // namespace FRIGGA_NAMESPACE

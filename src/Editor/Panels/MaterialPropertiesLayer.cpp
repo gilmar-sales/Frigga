@@ -2,6 +2,7 @@
 
 #include "Editor/DockLayout.hpp"
 #include "Editor/Ui/MaterialInspector.hpp"
+#include "Frigga/Asset/FreyaHandles.hpp"
 
 #include <SDL3/SDL_dialog.h>
 
@@ -155,22 +156,22 @@ void MaterialPropertiesLayer::processPendingTextureImport()
     switch(slot)
     {
     case EditorMaterialUi::TextureSlot::Albedo:
-        info.albedo = texture->textureId;
+        info.albedo = fg::AsTextureHandle(texture->textureId);
         break;
     case EditorMaterialUi::TextureSlot::Normal:
-        info.normal = texture->textureId;
+        info.normal = fg::AsTextureHandle(texture->textureId);
         break;
     case EditorMaterialUi::TextureSlot::Roughness:
-        info.roughness = texture->textureId;
+        info.roughness = fg::AsTextureHandle(texture->textureId);
         break;
     case EditorMaterialUi::TextureSlot::Emissive:
-        info.emissive = texture->textureId;
+        info.emissive = fg::AsTextureHandle(texture->textureId);
         break;
     case EditorMaterialUi::TextureSlot::Metalness:
-        info.metalness = texture->textureId;
+        info.metalness = fg::AsTextureHandle(texture->textureId);
         break;
     case EditorMaterialUi::TextureSlot::Occlusion:
-        info.occlusion = texture->textureId;
+        info.occlusion = fg::AsTextureHandle(texture->textureId);
         break;
     }
     mAssets->UpdateMaterial(mMaterialSelection->Get(), info);

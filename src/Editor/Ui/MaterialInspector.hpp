@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Frigga/Asset/AssetRegistry.hpp"
+#include "Frigga/Asset/FreyaHandles.hpp"
 
 #include <Freya/Freya.hpp>
 
@@ -28,7 +29,7 @@ namespace EditorMaterialUi
     };
 
     void DrawTextureSlot(const char *label, TextureSlot slot,
-                         std::optional<std::uint32_t> &textureId, bool &changed,
+                         std::optional<fra::TextureHandle> &textureSlot, bool &changed,
                          const TextureSlotContext &ctx);
 
     bool DrawMaterialCreateInfo(fra::MaterialCreateInfo &info, bool editingLocked,

@@ -5,6 +5,8 @@
 #include <Frigga/Input/Input.hpp>
 #include <Frigga/Scene/Scene.hpp>
 
+#include <Freya/Advanced.hpp>
+
 namespace FRIGGA_NAMESPACE
 {
     AbstractApplication::AbstractApplication(
@@ -85,9 +87,11 @@ namespace FRIGGA_NAMESPACE
 
         OnAfterGuiLayout();
 
-        if(!mRenderer->GetViewportImage().valid && mWindow && ShouldBootstrapViewportFallback())
+        if(!fra::Advanced(*mRenderer).GetViewportImage().valid && mWindow &&
+           ShouldBootstrapViewportFallback())
         {
-            (void)mRenderer->SetViewportTarget(mWindow->GetWidth(), mWindow->GetHeight());
+            (void)fra::Advanced(*mRenderer)
+                .SetViewportTarget(mWindow->GetWidth(), mWindow->GetHeight());
         }
 
         mRenderer->BeginFrame();

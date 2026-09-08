@@ -2,8 +2,7 @@
 
 #include "Frigga/ECS/Components/FullscreenEffectComponent.hpp"
 
-#include <Freya/Builders/PostProcessBuilder.hpp>
-#include <Freya/Core/PostProcess.hpp>
+#include <Freya/Advanced.hpp>
 
 #include <cstdint>
 #include <string>

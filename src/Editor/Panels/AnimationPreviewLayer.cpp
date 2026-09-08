@@ -4,6 +4,7 @@
 #include "Editor/EditorViewportHost.hpp"
 #include "Editor/ViewportDpi.hpp"
 #include "Editor/ViewportQuality.hpp"
+#include "Frigga/Asset/FreyaHandles.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/Gui/Backends/imgui_impl_vulkan.h"
@@ -175,7 +176,7 @@ AnimationPreviewLayer::FrameBounds AnimationPreviewLayer::computeSelectionBounds
         hasMesh = true;
     });
 
-    if(!hasMesh || mMeshPool == nullptr || !mMeshPool->Contains(meshId))
+    if(!hasMesh || mMeshPool == nullptr || !mMeshPool->Contains(fg::AsMeshHandle(meshId)))
     {
         const float extent = std::max(
             {std::abs(transform.scale.x), std::abs(transform.scale.y), std::abs(transform.scale.z),
@@ -184,7 +185,7 @@ AnimationPreviewLayer::FrameBounds AnimationPreviewLayer::computeSelectionBounds
         return bounds;
     }
 
-    const auto &mesh = mMeshPool->GetMesh(meshId);
+    const auto &mesh = mMeshPool->GetMesh(fg::AsMeshHandle(meshId));
     const glm::mat4 model = glm::translate(glm::mat4(1.0f), transform.position) *
                             glm::mat4_cast(transform.rotation) * glm::scale(glm::mat4(1.0f), transform.scale);
 

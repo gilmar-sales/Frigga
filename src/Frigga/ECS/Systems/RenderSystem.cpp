@@ -13,6 +13,7 @@
 #include <Frigga/ECS/Systems/../Components/ParticleEmitterComponent.hpp>
 #include <Frigga/ECS/Systems/../Components/TransformComponent.hpp>
 #include "Frigga/Asset/AssetRegistry.hpp"
+#include "Frigga/Asset/FreyaHandles.hpp"
 #include "Frigga/ECS/TransformUtil.hpp"
 #include "Frigga/Scene/Scene.hpp"
 
@@ -209,9 +210,8 @@ namespace FRIGGA_NAMESPACE
 
     void RenderSystem::syncLights()
     {
-        // Do not call ClearLights()/RemoveLight() every frame. Freya memcpy's an
-        // empty UBO into every in-flight ring slot, so the GPU lighting pass
-        // often samples zeros. Click/pick waitIdle then shows one correct frame.
+        // Do not ClearLights()/RemoveLight every frame into empty UBO slots —
+        // Freya may leave in-flight frames sampling zeros until waitIdle.
         const bool isolate = mScene->IsUsingPreviewCamera() && mScene->HasRenderIsolation();
         const fr::Entity isolatedEntity = isolate ? mScene->GetRenderIsolation()
                                                     : static_cast<fr::Entity>(-1);
@@ -232,22 +232,22 @@ namespace FRIGGA_NAMESPACE
             wanted.resize(maxLights);
         }
 
-        auto current = mLightService->GetLightCount();
         for(std::uint32_t i = 0; i < wanted.size(); ++i)
         {
-            if(i < current)
+            if(i < mLightHandles.size())
             {
-                mLightService->UpdateLight(i, wanted[i]);
+                mLightService->UpdateLight(mLightHandles[i], wanted[i]);
             }
             else
             {
-                mLightService->AddLight(wanted[i]);
+                mLightHandles.push_back(mLightService->AddLight(wanted[i]));
             }
         }
 
-        while(mLightService->GetLightCount() > wanted.size())
+        while(mLightHandles.size() > wanted.size())
         {
-            mLightService->RemoveLight(mLightService->GetLightCount() - 1U);
+            mLightService->RemoveLight(mLightHandles.back());
+            mLightHandles.pop_back();
         }
     }
 
@@ -271,8 +271,8 @@ namespace FRIGGA_NAMESPACE
 
                 fra::SceneInstanceUpload upload {
                     .model       = model,
-                    .meshId      = mesh.meshId,
-                    .materialId  = material.materialId,
+                    .mesh        = AsMeshHandle(mesh.meshId),
+                    .material    = AsMaterialHandle(material.materialId),
                     .entityId    = static_cast<std::uint32_t>(entity),
                     .castShadows = mesh.castShadows,
                 };
@@ -304,25 +304,20 @@ namespace FRIGGA_NAMESPACE
         // Prefer entityId order so Freya resolves TAA prevModel by entity.
         std::sort(mSceneInstances.begin(), mSceneInstances.end(),
                   [](const fra::SceneInstanceUpload &a, const fra::SceneInstanceUpload &b) {
-                      if(a.meshId != b.meshId)
+                      if(a.mesh != b.mesh)
                       {
-                          return a.meshId < b.meshId;
+                          return a.mesh < b.mesh;
                       }
                       return a.entityId < b.entityId;
                   });
 
-        mRenderer->UploadSceneInstances(mSceneInstances);
+        fra::Advanced(*mRenderer).UploadSceneInstances(mSceneInstances);
     }
 
     std::uint32_t RenderSystem::textureHeapIndex(std::optional<std::uint32_t> textureId) const
     {
-        if(!textureId || *textureId == 0)
-        {
-            return 0;
-        }
-        // Bindless heap slots 0/1 are reserved (white/black); TexturePool ids
-        // start at 2, so the heap index is simply the texture id.
-        return *textureId + 2;
+        return fra::TexturePool::BindlessIndex(textureId ? AsTextureHandle(*textureId)
+                                                         : fra::TextureHandle {});
     }
 
     const fra::FontAtlas *RenderSystem::fontFor(const std::string &relativePath)
@@ -338,6 +333,7 @@ namespace FRIGGA_NAMESPACE
             const auto absolute = AssetRegistry::ToAbsoluteResourcePath(relativePath);
             it->second          = fra::FontAtlas::Create(*mTextures, absolute.string());
         }
+        // Valid() tracks TextureHandle engagement (pool ids may be 0 in Freya 0.46).
         return it->second.Valid() ? &it->second : nullptr;
     }
 
@@ -445,6 +441,8 @@ namespace FRIGGA_NAMESPACE
             return;
         }
 
+        auto advanced = fra::Advanced(*mRenderer);
+
         std::unordered_set<fr::Entity> live;
         mRegistry->CreateMutation()->Each(
             [&](fr::Entity entity, FullscreenEffectComponent &comp) {
@@ -471,10 +469,10 @@ namespace FRIGGA_NAMESPACE
                         auto stage = runtime.effect->MakeStage();
                         const bool replaced =
                             !previousName.empty() &&
-                            mRenderer->ReplaceFrameStage(previousName.c_str(), stage);
+                            advanced.ReplaceFrameStage(previousName.c_str(), stage);
                         if(!replaced)
                         {
-                            mRenderer->InsertFrameStage("BillboardVfx", std::move(stage));
+                            advanced.InsertFrameStage("BillboardVfx", std::move(stage));
                         }
                     }
                 }

@@ -6,10 +6,11 @@
 namespace EditorMaterialUi
 {
     void DrawTextureSlot(const char *label, TextureSlot slot,
-                         std::optional<std::uint32_t> &textureId, bool &changed,
+                         std::optional<fra::TextureHandle> &textureSlot, bool &changed,
                          const TextureSlotContext &ctx)
     {
         std::string pathLabel = "(none)";
+        const auto textureId  = fg::FromTextureSlot(textureSlot);
         if(textureId)
         {
             std::string path;
@@ -39,7 +40,7 @@ namespace EditorMaterialUi
         ImGui::BeginDisabled(!textureId.has_value());
         if(ImGui::Button("Clear"))
         {
-            textureId.reset();
+            textureSlot.reset();
             changed = true;
         }
         ImGui::EndDisabled();
@@ -51,8 +52,8 @@ namespace EditorMaterialUi
                 const bool selected = textureId && *textureId == texture.textureId;
                 if(ImGui::Selectable(texture.relativePath.c_str(), selected))
                 {
-                    textureId = texture.textureId;
-                    changed   = true;
+                    textureSlot = fg::AsTextureHandle(texture.textureId);
+                    changed     = true;
                 }
             }
             ImGui::EndCombo();

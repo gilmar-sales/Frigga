@@ -1,4 +1,5 @@
 #include <Frigga/Scene/SceneSerializer.hpp>
+#include <Frigga/Asset/FreyaHandles.hpp>
 #include <Frigga/Serialization/FormatVersions.hpp>
 
 #include "Frigga/ECS/Components/AnimatorComponent.hpp"
@@ -825,12 +826,12 @@ namespace FRIGGA_NAMESPACE
 
             const auto info = primitives->GetMaterialCreateInfo(materialId);
             SceneMaterialDto dto {.isDefault = false};
-            dto.albedo    = TexturePathOrNull(assets, info.albedo);
-            dto.normal    = TexturePathOrNull(assets, info.normal);
-            dto.roughness = TexturePathOrNull(assets, info.roughness);
-            dto.emissive  = TexturePathOrNull(assets, info.emissive);
-            dto.metalness = TexturePathOrNull(assets, info.metalness);
-            dto.occlusion = TexturePathOrNull(assets, info.occlusion);
+            dto.albedo    = TexturePathOrNull(assets, FromTextureSlot(info.albedo));
+            dto.normal    = TexturePathOrNull(assets, FromTextureSlot(info.normal));
+            dto.roughness = TexturePathOrNull(assets, FromTextureSlot(info.roughness));
+            dto.emissive  = TexturePathOrNull(assets, FromTextureSlot(info.emissive));
+            dto.metalness = TexturePathOrNull(assets, FromTextureSlot(info.metalness));
+            dto.occlusion = TexturePathOrNull(assets, FromTextureSlot(info.occlusion));
             dto.albedoFactor = std::vector<float> {info.albedoFactor.x, info.albedoFactor.y,
                                                    info.albedoFactor.z, info.albedoFactor.w};
             dto.roughnessFactor = info.roughnessFactor;
@@ -878,7 +879,7 @@ namespace FRIGGA_NAMESPACE
 
             fra::MaterialCreateInfo info {};
             auto loadSlot = [&](const std::optional<std::string> &path,
-                                std::optional<std::uint32_t> &slot) {
+                                std::optional<fra::TextureHandle> &slot) {
                 if(!path || path->empty())
                 {
                     return true;
@@ -889,7 +890,7 @@ namespace FRIGGA_NAMESPACE
                     logger->LogError("Failed to load material texture '{}'", *path);
                     return false;
                 }
-                slot = textureId;
+                slot = AsTextureHandle(textureId);
                 return true;
             };
 

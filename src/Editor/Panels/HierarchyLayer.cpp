@@ -7,6 +7,7 @@
 #include "Editor/Ui/ComponentClipboard.hpp"
 #include "Editor/Ui/MaterialInspector.hpp"
 #include "Editor/UiScale.hpp"
+#include "Frigga/Asset/FreyaHandles.hpp"
 #include "Frigga/ECS/Components/CameraComponent.hpp"
 #include "Frigga/ECS/Components/LightComponent.hpp"
 #include "Frigga/ECS/Components/AudioSourceComponent.hpp"
@@ -1117,22 +1118,22 @@ void HierarchyLayer::processPendingTextureImport()
         switch(slot)
         {
         case PendingTextureSlot::Albedo:
-            info.albedo = texture->textureId;
+            info.albedo = fg::AsTextureHandle(texture->textureId);
             break;
         case PendingTextureSlot::Normal:
-            info.normal = texture->textureId;
+            info.normal = fg::AsTextureHandle(texture->textureId);
             break;
         case PendingTextureSlot::Roughness:
-            info.roughness = texture->textureId;
+            info.roughness = fg::AsTextureHandle(texture->textureId);
             break;
         case PendingTextureSlot::Emissive:
-            info.emissive = texture->textureId;
+            info.emissive = fg::AsTextureHandle(texture->textureId);
             break;
         case PendingTextureSlot::Metalness:
-            info.metalness = texture->textureId;
+            info.metalness = fg::AsTextureHandle(texture->textureId);
             break;
         case PendingTextureSlot::Occlusion:
-            info.occlusion = texture->textureId;
+            info.occlusion = fg::AsTextureHandle(texture->textureId);
             break;
         case PendingTextureSlot::Billboard:
         case PendingTextureSlot::Particle:

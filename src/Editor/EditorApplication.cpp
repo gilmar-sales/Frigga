@@ -83,6 +83,14 @@ void EditorApplication::Update()
     // Poll every frame: monitor moves often skip DISPLAY_SCALE_CHANGED until resize.
     EditorUiScale::Sync(mWindow->GetScale());
 
+    // Apply Play/Stop queued on the previous GUI frame before viewport claims so
+    // Editor vs Gameplay exclusivity matches the new mode immediately.
+    if(mSimulation)
+    {
+        mSimulation->FlushPending();
+        syncPlayPipelines();
+    }
+
     EditorViewportHost::BeginFrame();
 
     if(mSimulation)

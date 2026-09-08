@@ -3,6 +3,8 @@
 #include <Frigga/Frigga.hpp>
 #include <Frigga/Gui/Backends/imgui_impl_vulkan.h>
 
+#include <Freya/Advanced.hpp>
+
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
@@ -17,13 +19,12 @@ namespace fg
         glm::mat4 projection{1.0f};
     };
 
-    /// Thick wrapper around Freya v0.43's renderer-owned offscreen viewport.
+    /// Thick wrapper around Freya v0.46's renderer-owned offscreen viewport.
     ///
-    /// v0.43 removed the app-owned `RenderTarget`/`SetOutputTarget` API; the
-    /// renderer owns the viewport target and exposes it through
-    /// `SetViewportTarget` / `GetViewportImage`. Each editor viewport panel
-    /// claims the shared target while it is the active view and displays the
-    /// composite through a Dear ImGui descriptor.
+    /// The renderer owns the viewport target and exposes it through
+    /// `fra::Advanced(*renderer).SetViewportTarget` / `GetViewportImage`. Each
+    /// editor viewport panel claims the shared target while it is the active
+    /// view and displays the composite through a Dear ImGui descriptor.
     ///
     /// Tab / play-mode switches call Suspend() so the shared Freya target stays
     /// allocated. Only the ImGui descriptor is dropped; Release() tears down GPU
@@ -59,13 +60,19 @@ namespace fg
             }
 
             const bool reactivating = !mClaimed;
-            const bool resizeNeeded = reactivating || !mImageValid || SizeChanged(width, height);
+            // Compare against Freya's live extent too: swapchain rebuilds (or
+            // another panel) can change the shared target underneath while our
+            // cached mWidth/mHeight still match the request — leaving a soft,
+            // wrong-resolution ImGui blit after play/stop.
+            const bool resizeNeeded =
+                reactivating || !mImageValid || SizeChanged(width, height) ||
+                FreyaExtentMismatched(width, height);
 
             if(mClaimed)
             {
                 if(resizeNeeded)
                 {
-                    if(!mRenderer->SetViewportTarget(width, height))
+                    if(!fra::Advanced(*mRenderer).SetViewportTarget(width, height))
                     {
                         mImageValid = false;
                     }
@@ -77,7 +84,7 @@ namespace fg
             }
             else
             {
-                if(!mRenderer->SetViewportTarget(width, height))
+                if(!fra::Advanced(*mRenderer).SetViewportTarget(width, height))
                 {
                     return;
                 }
@@ -107,7 +114,7 @@ namespace fg
             releaseTexture();
             if(mRenderer && mClaimed)
             {
-                mRenderer->ClearOutputTarget();
+                fra::Advanced(*mRenderer).ClearOutputTarget();
             }
             mClaimed    = false;
             mImageValid = false;
@@ -127,9 +134,24 @@ namespace fg
             ImVec2 uv1 {1.0f, 1.0f};
             ImVec2 displaySize = size;
 
-            if(mWidth > 0 && mHeight > 0)
+            // Prefer Freya's live extent for letterboxing — cached mWidth/mHeight
+            // can briefly disagree after a shared-target handoff.
+            std::uint32_t texW = mWidth;
+            std::uint32_t texH = mHeight;
+            if(mRenderer)
             {
-                const float texAspect   = static_cast<float>(mWidth) / static_cast<float>(mHeight);
+                const fra::ImGuiViewportImage img =
+                    fra::Advanced(*mRenderer).GetViewportImage();
+                if(img.valid && img.width > 0 && img.height > 0)
+                {
+                    texW = img.width;
+                    texH = img.height;
+                }
+            }
+
+            if(texW > 0 && texH > 0)
+            {
+                const float texAspect   = static_cast<float>(texW) / static_cast<float>(texH);
                 const float availAspect = size.x / size.y;
                 if(std::abs(texAspect - availAspect) > 1.0e-3f)
                 {
@@ -203,9 +225,26 @@ namespace fg
                    delta(mHeight, height) >= kResizeThreshold;
         }
 
+        [[nodiscard]] bool FreyaExtentMismatched(std::uint32_t width,
+                                                 std::uint32_t height) const
+        {
+            const fra::ImGuiViewportImage img =
+                fra::Advanced(*mRenderer).GetViewportImage();
+            if(!img.valid)
+            {
+                return true;
+            }
+            const auto delta = [](std::uint32_t a, std::uint32_t b) {
+                return static_cast<std::uint32_t>(std::abs(static_cast<int>(a) - static_cast<int>(b)));
+            };
+            return delta(img.width, width) >= kResizeThreshold ||
+                   delta(img.height, height) >= kResizeThreshold;
+        }
+
         void refreshTexture(bool forceRebind)
         {
-            const fra::ImGuiViewportImage img = mRenderer->GetViewportImage();
+            const fra::ImGuiViewportImage img =
+                fra::Advanced(*mRenderer).GetViewportImage();
             if(!img.valid || img.imageView == nullptr)
             {
                 releaseTexture();

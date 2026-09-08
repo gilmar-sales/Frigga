@@ -3,7 +3,7 @@
 #include "Frigga/ECS/Components/FullscreenEffectComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 
-#include <Freya/Freya.hpp>
+#include <Freya/Advanced.hpp>
 #include <Freya/Asset/FontAtlas.hpp>
 #include <Freyr/Freyr.hpp>
 #include <glm/glm.hpp>
@@ -64,6 +64,7 @@ namespace FRIGGA_NAMESPACE
         skr::Arc<fra::TexturePool> mTextures;
         skr::Arc<fra::PostProcessBuilder> mEffectBuilder;
         std::vector<fra::SceneInstanceUpload> mSceneInstances;
+        std::vector<fra::LightHandle> mLightHandles;
         std::unordered_map<fr::Entity, fra::ParticleEmitter> mEmitters;
         std::unordered_map<fr::Entity, EffectRuntime> mEffects;
         std::unordered_map<fr::Entity, float> mEffectTimeSec;

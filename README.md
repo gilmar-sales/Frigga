@@ -238,7 +238,7 @@ CMakeLists.txt
 
 Gameplay assets (models, textures, prefabs, fonts) live in each project's `Resources/`, not in the engine tree.
 
-Pinned FetchContent tags (see root `CMakeLists.txt`): Freyr `v0.37.1`, Freya `v0.44.1`, Jolt `v5.3.0`, ImGui `docking` fork.
+Pinned FetchContent tags (see root `CMakeLists.txt`): Freyr `v0.37.1`, Freya `v0.46.0`, Jolt `v5.3.0`, ImGui `docking` fork.
 
 ## License
 
