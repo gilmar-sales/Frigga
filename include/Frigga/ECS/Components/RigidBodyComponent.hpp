@@ -17,6 +17,8 @@ namespace FRIGGA_NAMESPACE
         glm::vec3 halfExtents {0.5f, 0.5f, 0.5f};
         float     radius = 0.5f;
         float     height = 1.0f;
+        /// Local-space offset of the collider relative to the entity transform.
+        glm::vec3 centerOffset {0.0f, 0.0f, 0.0f};
 
         float mass        = 1.0f;
         float friction    = 0.5f;

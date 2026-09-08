@@ -62,4 +62,6 @@ class GameplayLayer: public fg::Layer
     ImVec2 mLayoutImageMin {};
     bool mViewportHovered          = false;
     bool mMouseGrabbed             = false;
+    /// Toggle via ToggleCursorLock (M): keep relative mouse while playing.
+    bool mCursorLocked             = false;
 };

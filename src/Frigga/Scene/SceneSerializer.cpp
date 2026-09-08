@@ -122,7 +122,67 @@ namespace FRIGGA_NAMESPACE
             int64_t            collisionLayer    = 1;
             int64_t            collideWithLayers = 0xffff;
             std::optional<bool> isSensor;
+            /// Injected by MigrateRigidBodyCenterOffset for pre-v6 scenes.
+            std::vector<float> centerOffset;
         };
+
+        /// simdjson static reflection rejects missing required vector fields and
+        /// optional<vector> next to sibling ints is unreliable here — patch JSON.
+        [[nodiscard]] std::string MigrateRigidBodyCenterOffset(std::string json)
+        {
+            constexpr std::string_view kRigidBody = "\"rigidBody\"";
+            constexpr std::string_view kCenterOffset = "\"centerOffset\"";
+            constexpr std::string_view kInject = ",\"centerOffset\":[0.0,0.0,0.0]";
+
+            std::size_t searchFrom = 0;
+            while(searchFrom < json.size())
+            {
+                const auto rb = json.find(kRigidBody, searchFrom);
+                if(rb == std::string::npos)
+                {
+                    break;
+                }
+                const auto brace = json.find('{', rb);
+                if(brace == std::string::npos)
+                {
+                    break;
+                }
+
+                int         depth = 0;
+                std::size_t end   = brace;
+                for(; end < json.size(); ++end)
+                {
+                    if(json[end] == '{')
+                    {
+                        ++depth;
+                    }
+                    else if(json[end] == '}')
+                    {
+                        --depth;
+                        if(depth == 0)
+                        {
+                            break;
+                        }
+                    }
+                }
+                if(end >= json.size())
+                {
+                    break;
+                }
+
+                const auto object = std::string_view(json).substr(brace, end - brace + 1);
+                if(object.find(kCenterOffset) == std::string_view::npos)
+                {
+                    json.insert(end, kInject);
+                    searchFrom = end + kInject.size() + 1;
+                }
+                else
+                {
+                    searchFrom = end + 1;
+                }
+            }
+            return json;
+        }
 
         struct SceneBillboardDto
         {
@@ -1023,6 +1083,7 @@ namespace FRIGGA_NAMESPACE
                     .collisionLayer    = rb.collisionLayer,
                     .collideWithLayers = rb.collideWithLayers,
                     .isSensor          = rb.isSensor,
+                    .centerOffset      = {rb.centerOffset.x, rb.centerOffset.y, rb.centerOffset.z},
                 };
             });
 
@@ -1397,7 +1458,8 @@ namespace FRIGGA_NAMESPACE
 
     bool SceneSerializer::Deserialize(Scene &scene, std::string_view json)
     {
-        const simdjson::padded_string padded(json);
+        const auto migrated = MigrateRigidBodyCenterOffset(std::string(json));
+        const simdjson::padded_string padded(migrated);
         SceneDocument document {};
         if(const auto error = simdjson::from(padded).get(document); error)
         {
@@ -1597,6 +1659,11 @@ namespace FRIGGA_NAMESPACE
                 else if(!ReadVec3(rbDto.halfExtents, rb.halfExtents))
                 {
                     scene.mLogger->LogError("Invalid halfExtents on '{}'", entityDto.name);
+                    return false;
+                }
+                if(!rbDto.centerOffset.empty() && !ReadVec3(rbDto.centerOffset, rb.centerOffset))
+                {
+                    scene.mLogger->LogError("Invalid centerOffset on '{}'", entityDto.name);
                     return false;
                 }
                 rb.radius            = rbDto.radius;
@@ -2373,6 +2440,7 @@ namespace FRIGGA_NAMESPACE
                     .collisionLayer    = rb.collisionLayer,
                     .collideWithLayers = rb.collideWithLayers,
                     .isSensor          = rb.isSensor,
+                    .centerOffset      = {rb.centerOffset.x, rb.centerOffset.y, rb.centerOffset.z},
                 };
                 found = true;
             });
@@ -2586,7 +2654,8 @@ namespace FRIGGA_NAMESPACE
 
     bool SceneSerializer::PasteComponent(Scene &scene, fr::Entity entity, std::string_view json)
     {
-        const simdjson::padded_string padded(json);
+        const auto migrated = MigrateRigidBodyCenterOffset(std::string(json));
+        const simdjson::padded_string padded(migrated);
         ComponentClipboardDocument document {};
         if(const auto error = simdjson::from(padded).get(document); error)
         {
@@ -2828,6 +2897,10 @@ namespace FRIGGA_NAMESPACE
                 rb.halfExtents = {0.5f, 0.5f, 0.5f};
             }
             else if(!ReadVec3(rbDto.halfExtents, rb.halfExtents))
+            {
+                return false;
+            }
+            if(!rbDto.centerOffset.empty() && !ReadVec3(rbDto.centerOffset, rb.centerOffset))
             {
                 return false;
             }
@@ -3171,7 +3244,8 @@ namespace FRIGGA_NAMESPACE
                                             fr::Entity &outRoot, std::string_view prefabSource)
     {
         outRoot = kInvalidEntity;
-        const simdjson::padded_string padded(json);
+        const auto migrated = MigrateRigidBodyCenterOffset(std::string(json));
+        const simdjson::padded_string padded(migrated);
         PrefabDocument document {};
         if(const auto error = simdjson::from(padded).get(document); error)
         {

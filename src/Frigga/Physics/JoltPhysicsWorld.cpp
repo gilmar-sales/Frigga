@@ -859,6 +859,15 @@ namespace FRIGGA_NAMESPACE
         }
         }
 
+        const glm::vec3 scaledOffset {desc.centerOffset.x * desc.scale.x,
+                                      desc.centerOffset.y * desc.scale.y,
+                                      desc.centerOffset.z * desc.scale.z};
+        if(scaledOffset.x != 0.0f || scaledOffset.y != 0.0f || scaledOffset.z != 0.0f)
+        {
+            shape = new RotatedTranslatedShape(
+                Vec3(scaledOffset.x, scaledOffset.y, scaledOffset.z), Quat::sIdentity(), shape);
+        }
+
         const RVec3 position(desc.position.x, desc.position.y, desc.position.z);
         const Quat rotation(desc.rotation.x, desc.rotation.y, desc.rotation.z, desc.rotation.w);
 

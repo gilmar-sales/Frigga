@@ -296,11 +296,21 @@ namespace FRIGGA_NAMESPACE
 
         std::unordered_map<std::string, std::vector<fra::GpuAnimInstance>> gpuBatches;
         std::unordered_map<std::string, const ModelAsset *> gpuBatchModels;
+        // When any animator writes CPU skin into mBonePalette, GpuAnimPass must
+        // not carry prev→current (that GPU copy wipes UploadBoneMatrices and
+        // leaves CPU actors — e.g. the player — stuck in bind/T-pose).
+        bool wroteCpuSkin = false;
 
         if(mController)
         {
             mController->PruneMissingAnimators();
         }
+
+        auto writeCpuSkin = [&](std::uint32_t boneOffset, const std::vector<glm::mat4> &skin) {
+            std::copy(skin.begin(), skin.end(),
+                      mBonePalette.begin() + static_cast<std::ptrdiff_t>(boneOffset));
+            wroteCpuSkin = true;
+        };
 
         // Animator may live on a parent root; child meshes resolve boneOffset in RenderSystem.
         mRegistry->CreateMutation()->Each(
@@ -424,10 +434,8 @@ namespace FRIGGA_NAMESPACE
                     if(mustEval || !canGpu)
                     {
                         const auto pose = graph->SampleCurrent();
-                        const auto skin = fra::PoseToSkinMatrices(model->skeleton, pose);
-                        std::copy(skin.begin(), skin.end(),
-                                  mBonePalette.begin() +
-                                      static_cast<std::ptrdiff_t>(boneOffset));
+                        writeCpuSkin(boneOffset,
+                                     fra::PoseToSkinMatrices(model->skeleton, pose));
                     }
                     return;
                 }
@@ -510,8 +518,7 @@ namespace FRIGGA_NAMESPACE
                     return;
                 }
 
-                std::copy(skin.begin(), skin.end(),
-                          mBonePalette.begin() + static_cast<std::ptrdiff_t>(boneOffset));
+                writeCpuSkin(boneOffset, skin);
             });
 
         if(!mBonePalette.empty())
@@ -538,6 +545,9 @@ namespace FRIGGA_NAMESPACE
                   });
 
         const auto frameIndex = mRenderer->GetCurrentFrameIndex();
+        // All-GPU frames: carry prev palette for sparse/overflow continuity.
+        // Mixed CPU+GPU: keep the fresh UploadBoneMatrices (player) intact.
+        const bool carryPrevBones = !wroteCpuSkin;
 
         for(std::size_t i = 0; i < batchOrder.size(); ++i)
         {
@@ -554,7 +564,7 @@ namespace FRIGGA_NAMESPACE
             if(i == 0)
             {
                 mGpuInstances = std::move(batch);
-                mRenderer->SetGpuAnimCopyPrevBones(true);
+                mRenderer->SetGpuAnimCopyPrevBones(carryPrevBones);
                 mRenderer->UploadGpuAnimInstances(mGpuInstances);
                 mRenderer->SetGpuAnimEnabled(true);
             }

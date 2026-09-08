@@ -189,6 +189,7 @@ namespace
                 ExpectVec3Near(actual[i].rigidBody.halfExtents, expected[i].rigidBody.halfExtents);
                 EXPECT_NEAR(actual[i].rigidBody.radius, expected[i].rigidBody.radius, kEpsilon);
                 EXPECT_NEAR(actual[i].rigidBody.height, expected[i].rigidBody.height, kEpsilon);
+                ExpectVec3Near(actual[i].rigidBody.centerOffset, expected[i].rigidBody.centerOffset);
                 EXPECT_NEAR(actual[i].rigidBody.mass, expected[i].rigidBody.mass, kEpsilon);
                 EXPECT_NEAR(actual[i].rigidBody.friction, expected[i].rigidBody.friction, kEpsilon);
                 EXPECT_NEAR(actual[i].rigidBody.restitution, expected[i].rigidBody.restitution,

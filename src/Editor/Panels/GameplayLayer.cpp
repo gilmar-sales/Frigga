@@ -53,6 +53,7 @@ void GameplayLayer::onDettach()
         mWindow->SetMouseGrab(false);
         mMouseGrabbed = false;
     }
+    mCursorLocked = false;
     if(mInput)
     {
         mInput->SetGameplayViewportHovered(false);
@@ -73,6 +74,7 @@ void GameplayLayer::onSuspend()
         mWindow->SetMouseGrab(false);
         mMouseGrabbed = false;
     }
+    mCursorLocked = false;
     mViewport.Suspend();
 }
 
@@ -90,6 +92,7 @@ void GameplayLayer::onUpdate()
             mWindow->SetMouseGrab(false);
             mMouseGrabbed = false;
         }
+        mCursorLocked = false;
         return;
     }
 
@@ -120,6 +123,7 @@ void GameplayLayer::onGuiBegin()
             mWindow->SetMouseGrab(false);
             mMouseGrabbed = false;
         }
+        mCursorLocked = false;
         EditorViewportHost::Request({&mViewport, 0, 0, false});
         return;
     }
@@ -160,6 +164,7 @@ void GameplayLayer::onGuiBegin()
             mWindow->SetMouseGrab(false);
             mMouseGrabbed = false;
         }
+        mCursorLocked = false;
         EditorViewportHost::Request({&mViewport, 0, 0, false});
     }
 }
@@ -176,7 +181,7 @@ void GameplayLayer::onGuiEnd()
         if(mViewport.IsActive())
         {
             mViewport.present(mLayoutAvail);
-            mViewportHovered = ImGui::IsItemHovered();
+            mViewportHovered = ImGui::IsItemHovered() || mCursorLocked;
             if(mInput)
             {
                 mInput->SetGameplayViewportHovered(mViewportHovered);
@@ -255,6 +260,22 @@ void GameplayLayer::drawToolbar()
     if(ImGui::Checkbox(ICON_BTSP_BOUNDINGBOX " Colliders", &showColliders))
     {
         mSimulation->SetShowColliders(showColliders);
+    }
+
+    ImGui::SameLine();
+    if(ImGui::Checkbox(ICON_BTSP_MOUSE " Cursor Lock", &mCursorLocked))
+    {
+        // Applied next syncMouseCapture; force grab update immediately.
+        if(!mCursorLocked && mWindow && mMouseGrabbed &&
+           !(mViewportHovered && ImGui::IsMouseDown(ImGuiMouseButton_Right)))
+        {
+            mWindow->SetMouseGrab(false);
+            mMouseGrabbed = false;
+        }
+    }
+    if(ImGui::IsItemHovered())
+    {
+        ImGui::SetTooltip("Lock mouse to gameplay viewport (M)");
     }
 
     ImGui::SameLine();
@@ -353,10 +374,18 @@ void GameplayLayer::syncMouseCapture()
         return;
     }
 
-    const bool wantGrab =
-        mSimulation->IsPlaying() && mSimulation->IsRunning() && mViewportHovered &&
-        ImGui::IsMouseDown(ImGuiMouseButton_Right) &&
+    if(mInput && mInput->WasPressed("ToggleCursorLock"))
+    {
+        mCursorLocked = !mCursorLocked;
+    }
+
+    const bool holdLook =
+        mViewportHovered && ImGui::IsMouseDown(ImGuiMouseButton_Right) &&
         !ImGui::IsAnyItemActive();
+
+    const bool wantGrab =
+        mSimulation->IsPlaying() && mSimulation->IsRunning() &&
+        (mCursorLocked || holdLook);
 
     if(wantGrab && !mMouseGrabbed)
     {

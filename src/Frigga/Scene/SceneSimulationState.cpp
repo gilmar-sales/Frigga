@@ -240,6 +240,7 @@ namespace FRIGGA_NAMESPACE
             .halfExtents       = rigidBody.halfExtents,
             .radius            = rigidBody.radius,
             .height            = rigidBody.height,
+            .centerOffset      = rigidBody.centerOffset,
             .mass              = rigidBody.mass,
             .friction          = rigidBody.friction,
             .restitution       = rigidBody.restitution,

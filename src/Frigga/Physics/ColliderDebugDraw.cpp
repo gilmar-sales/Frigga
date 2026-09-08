@@ -283,7 +283,12 @@ namespace FRIGGA_NAMESPACE
                 const ImU32 color =
                     AdjustColor(ColorForMotion(rigidBody.motion), selected, inactive);
                 const float thickness = selected ? 3.0f : 1.5f;
-                const glm::mat4 model = TransformUtil::WorldMatrix(*registry, entity);
+                glm::mat4 model       = TransformUtil::WorldMatrix(*registry, entity);
+                if(rigidBody.centerOffset.x != 0.0f || rigidBody.centerOffset.y != 0.0f ||
+                   rigidBody.centerOffset.z != 0.0f)
+                {
+                    model = model * glm::translate(glm::mat4(1.0f), rigidBody.centerOffset);
+                }
 
                 switch(rigidBody.shape)
                 {

@@ -2466,6 +2466,13 @@ void HierarchyLayer::drawComponents()
                     break;
                 }
 
+                ImGui::DragFloat3("Center Offset", &rigidBody.centerOffset[0], 0.01f);
+                if(ImGui::IsItemHovered())
+                {
+                    ImGui::SetTooltip(
+                        "Local-space offset of the collider relative to the entity transform.");
+                }
+
                 ImGui::BeginDisabled(rigidBody.motion == fg::BodyMotionType::Static);
                 ImGui::DragFloat("Mass", &rigidBody.mass, 0.01f, 0.001f, 100000.0f);
                 ImGui::EndDisabled();

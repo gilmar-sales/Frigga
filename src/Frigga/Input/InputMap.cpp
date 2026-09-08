@@ -18,6 +18,11 @@ namespace FRIGGA_NAMESPACE
             .mouseButtons   = {fra::MouseButton::Left},
             .gamepadButtons = {fra::GamepadButton::GamepadButtonRightShoulder},
         };
+        map.actions["ToggleCursorLock"] = InputActionBinding {
+            .keys           = {fra::KeyCode::M},
+            .mouseButtons   = {},
+            .gamepadButtons = {},
+        };
 
         map.axes["Horizontal"] = InputAxisBinding {
             .negativeKeys   = {fra::KeyCode::A, fra::KeyCode::Left},
