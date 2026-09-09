@@ -440,6 +440,8 @@ namespace FRIGGA_NAMESPACE
                 return "Vec3";
             case PropertyKind::Vec4:
                 return "Vec4";
+            case PropertyKind::Entity:
+                return "Entity";
             }
             return "Float";
         }
@@ -481,6 +483,11 @@ namespace FRIGGA_NAMESPACE
                 out = PropertyKind::Vec4;
                 return true;
             }
+            if(name == "Entity")
+            {
+                out = PropertyKind::Entity;
+                return true;
+            }
             return false;
         }
 
@@ -494,6 +501,7 @@ namespace FRIGGA_NAMESPACE
                 dto.boolValue = property.value.boolValue;
                 break;
             case PropertyKind::Int64:
+            case PropertyKind::Entity:
                 dto.intValue = property.value.intValue;
                 break;
             case PropertyKind::Float:
@@ -538,6 +546,9 @@ namespace FRIGGA_NAMESPACE
                 break;
             case PropertyKind::Int64:
                 property.value.intValue = dto.intValue.value_or(0);
+                break;
+            case PropertyKind::Entity:
+                property.value.intValue = dto.intValue.value_or(-1);
                 break;
             case PropertyKind::Float:
                 property.value.floatValue = dto.floatValue.value_or(0.0f);
@@ -1295,6 +1306,78 @@ namespace FRIGGA_NAMESPACE
             }
         }
 
+        void AssignEntityRefIndices(const std::vector<fr::Entity> &entities,
+                                    std::vector<SceneEntityDto> &dtos)
+        {
+            std::unordered_map<fr::Entity, int64_t> indexByEntity;
+            indexByEntity.reserve(entities.size());
+            for(int64_t i = 0; i < static_cast<int64_t>(entities.size()); ++i)
+            {
+                indexByEntity[entities[static_cast<std::size_t>(i)]] = i;
+            }
+
+            for(auto &dto : dtos)
+            {
+                if(!dto.userComponents)
+                {
+                    continue;
+                }
+                for(auto &userDto : *dto.userComponents)
+                {
+                    for(auto &propertyDto : userDto.properties)
+                    {
+                        PropertyKind kind = PropertyKind::Float;
+                        if(!TryParsePropertyKind(propertyDto.kind, kind) ||
+                           kind != PropertyKind::Entity)
+                        {
+                            continue;
+                        }
+                        const auto raw = propertyDto.intValue.value_or(-1);
+                        if(raw < 0)
+                        {
+                            propertyDto.intValue = -1;
+                            continue;
+                        }
+                        const auto entity = static_cast<fr::Entity>(raw);
+                        if(entity == kInvalidEntity)
+                        {
+                            propertyDto.intValue = -1;
+                            continue;
+                        }
+                        if(const auto found = indexByEntity.find(entity);
+                           found != indexByEntity.end())
+                        {
+                            propertyDto.intValue = found->second;
+                        }
+                        else
+                        {
+                            propertyDto.intValue = -1;
+                        }
+                    }
+                }
+            }
+        }
+
+        void RemapEntityPropertiesToEntities(UserComponentInstance &instance,
+                                             const std::vector<fr::Entity> &createdEntities)
+        {
+            for(auto &property : instance.properties)
+            {
+                if(property.value.kind != PropertyKind::Entity)
+                {
+                    continue;
+                }
+                if(property.value.intValue < 0 ||
+                   static_cast<std::size_t>(property.value.intValue) >= createdEntities.size())
+                {
+                    property.value.intValue = -1;
+                    continue;
+                }
+                property.value.intValue = static_cast<std::int64_t>(
+                    createdEntities[static_cast<std::size_t>(property.value.intValue)]);
+            }
+        }
+
         void CollectSubtree(fr::Registry &registry, fr::Entity root, std::vector<fr::Entity> &out)
         {
             out.push_back(root);
@@ -1414,6 +1497,7 @@ namespace FRIGGA_NAMESPACE
         });
 
         AssignParentIndices(*registry, serializedEntities, document.entities);
+        AssignEntityRefIndices(serializedEntities, document.entities);
 
         outJson.clear();
         if(const auto error = simdjson::to_json(document, outJson); error)
@@ -1499,6 +1583,13 @@ namespace FRIGGA_NAMESPACE
         bool foundPrimaryCamera       = false;
         std::vector<fr::Entity> createdEntities;
         std::vector<std::optional<int64_t>> parentIndices;
+        struct PendingUserComponent
+        {
+            fr::Entity            entity = 0;
+            std::string           entityName;
+            UserComponentInstance instance {};
+        };
+        std::vector<PendingUserComponent> pendingUserComponents;
         createdEntities.reserve(document.entities.size());
         parentIndices.reserve(document.entities.size());
 
@@ -2096,6 +2187,7 @@ namespace FRIGGA_NAMESPACE
             }
 
             // Plugin gameplay components (Freyr SoA) via type-erased ops.
+            // Entity refs are scene indices until createdEntities is complete — apply later.
             if(entityDto.userComponents && !entityDto.userComponents->empty())
             {
                 if(!scene.mUserComponents)
@@ -2114,7 +2206,6 @@ namespace FRIGGA_NAMESPACE
                                                     entityDto.name);
                             return false;
                         }
-                        const auto ops = scene.mUserComponents->Find(userDto.typeId);
                         UserComponentInstance instance {.typeId = userDto.typeId};
                         instance.properties.reserve(userDto.properties.size());
                         for(const auto &propertyDto : userDto.properties)
@@ -2129,19 +2220,10 @@ namespace FRIGGA_NAMESPACE
                             }
                             instance.properties.push_back(std::move(property));
                         }
-
-                        if(!ops || !ops->fromInstance)
-                        {
-                            scene.mUserComponents->EnqueueDeferred(entity, std::move(instance));
-                            scene.mLogger->LogWarning(
-                                "Deferred gameplay component '{}' on '{}' until the module "
-                                "registers it",
-                                userDto.typeId, entityDto.name);
-                            continue;
-                        }
-
-                        ops->fromInstance(*registry, entity, instance);
-                        scene.FlushEcs();
+                        pendingUserComponents.push_back(
+                            PendingUserComponent {.entity       = entity,
+                                                  .entityName   = entityDto.name,
+                                                  .instance     = std::move(instance)});
                     }
                 }
             }
@@ -2192,6 +2274,22 @@ namespace FRIGGA_NAMESPACE
                                         document.entities[i].name);
                 return false;
             }
+        }
+
+        for(auto &pending : pendingUserComponents)
+        {
+            RemapEntityPropertiesToEntities(pending.instance, createdEntities);
+            const auto ops = scene.mUserComponents->Find(pending.instance.typeId);
+            if(!ops || !ops->fromInstance)
+            {
+                scene.mUserComponents->EnqueueDeferred(pending.entity, std::move(pending.instance));
+                scene.mLogger->LogWarning(
+                    "Deferred gameplay component '{}' on '{}' until the module registers it",
+                    pending.instance.typeId, pending.entityName);
+                continue;
+            }
+            ops->fromInstance(*registry, pending.entity, pending.instance);
+            scene.FlushEcs();
         }
 
         HoistSharedChildAnimators(
@@ -3245,6 +3343,7 @@ namespace FRIGGA_NAMESPACE
         }
 
         AssignParentIndices(*registry, entities, document.entities);
+        AssignEntityRefIndices(entities, document.entities);
         if(!document.entities.empty())
         {
             document.entities.front().parent.reset();

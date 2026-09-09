@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Frigga/ECS/Components/EntityRef.hpp>
 #include <Freyr/Freyr.hpp>
 #include <glm/glm.hpp>
 
@@ -7,8 +8,8 @@
 
 struct ThirdPersonCameraComponent: fr::Component
 {
-    std::string targetName = "Player";
-    glm::vec3   pivotOffset {0.0f, 1.4f, 0.0f};
+    fg::EntityRef target {};
+    glm::vec3     pivotOffset {0.0f, 1.4f, 0.0f};
 
     float distance    = 6.0f;
     float minDistance = 1.5f;

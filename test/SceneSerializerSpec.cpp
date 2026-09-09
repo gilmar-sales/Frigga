@@ -9,6 +9,7 @@
 #include <Frigga/ECS/Components/FullscreenEffectComponent.hpp>
 #include <Frigga/ECS/Components/HealthBarComponent.hpp>
 #include <Frigga/ECS/Components/HierarchyComponent.hpp>
+#include <Frigga/ECS/Components/EntityRef.hpp>
 #include <Frigga/ECS/Components/LightComponent.hpp>
 #include <Frigga/ECS/Components/MaterialComponent.hpp>
 #include <Frigga/ECS/Components/MeshComponent.hpp>
@@ -210,11 +211,11 @@ struct SpecHealth: fr::Component
 
 struct SpecOrbit: fr::Component
 {
-    std::string targetName = "Player";
-    glm::vec3   pivotOffset {0.0f, 1.4f, 0.0f};
-    float       distance = 6.0f;
-    float       yaw      = 0.0f;
-    float       pitch    = 18.0f;
+    fg::EntityRef target {};
+    glm::vec3     pivotOffset {0.0f, 1.4f, 0.0f};
+    float         distance = 6.0f;
+    float         yaw      = 0.0f;
+    float         pitch    = 18.0f;
 };
 
 class SceneSerializerSpec: public ::testing::Test
@@ -614,6 +615,10 @@ TEST_F(SceneSerializerSpec, RoundTrip_ThirdPersonCamera)
     fg::FriRegisterUserComponent<SpecOrbit>(*mRegistry, *mUserComponents,
                                             "ThirdPersonCameraComponent", "Third Person Camera");
 
+    const auto player =
+        mRegistry->CreateEntity(fg::NameComponent {.name = "Player"}, fg::TransformComponent {});
+    mRegistry->ExecuteTasks();
+
     bool attached = false;
     mRegistry->CreateMutation()->Each([&](fr::Entity entity, fg::NameComponent &name) {
         if(name.name != "Main Camera" || attached)
@@ -635,7 +640,7 @@ TEST_F(SceneSerializerSpec, RoundTrip_ThirdPersonCamera)
                 return;
             }
             found             = true;
-            orbit.targetName  = "Player";
+            orbit.target.id   = player;
             orbit.distance    = 8.25f;
             orbit.yaw         = 42.0f;
             orbit.pitch       = 12.5f;
@@ -646,7 +651,17 @@ TEST_F(SceneSerializerSpec, RoundTrip_ThirdPersonCamera)
 
     std::string json;
     ASSERT_TRUE(fg::SceneSerializer::Serialize(*mScene, json));
+    EXPECT_NE(json.find("\"kind\":\"Entity\""), std::string::npos);
     ASSERT_TRUE(mScene->RestoreSnapshot(json));
+
+    fr::Entity restoredPlayer = fg::kInvalidEntity;
+    mRegistry->CreateMutation()->Each([&](fr::Entity entity, fg::NameComponent &name) {
+        if(name.name == "Player")
+        {
+            restoredPlayer = entity;
+        }
+    });
+    ASSERT_NE(restoredPlayer, fg::kInvalidEntity);
 
     found = false;
     mRegistry->CreateMutation()->Each(
@@ -656,7 +671,7 @@ TEST_F(SceneSerializerSpec, RoundTrip_ThirdPersonCamera)
                 return;
             }
             found = true;
-            EXPECT_EQ(orbit.targetName, "Player");
+            EXPECT_EQ(orbit.target.id, restoredPlayer);
             EXPECT_NEAR(orbit.distance, 8.25f, kEpsilon);
             EXPECT_NEAR(orbit.yaw, 42.0f, kEpsilon);
             EXPECT_NEAR(orbit.pitch, 12.5f, kEpsilon);

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Frigga/ECS/Components/EntityRef.hpp"
 #include "Frigga/Macro.hpp"
 
 #include <Freyr/Freyr.hpp>
@@ -17,10 +18,11 @@ namespace FRIGGA_NAMESPACE
     class FriComponentInspector
     {
       public:
-        fr::Entity    entity        = 0;
-        bool          playing       = false;
-        bool          hasCharacter  = false;
-        std::uint32_t characterId   = 0;
+        fr::Entity     entity       = 0;
+        fr::Registry  *registry     = nullptr;
+        bool           playing      = false;
+        bool           hasCharacter = false;
+        std::uint32_t  characterId  = 0;
 
         void BeginDisabled(bool disabled);
         void EndDisabled();
@@ -31,6 +33,9 @@ namespace FRIGGA_NAMESPACE
         bool InputText(const char *label, std::string &value);
         bool SliderInt(const char *label, int &value, int vmin, int vmax);
         bool Checkbox(const char *label, bool &value);
+        /// Entity picker: shows name, accepts Hierarchy drag-drop, Clear button.
+        /// @return true if the reference changed.
+        bool EntityField(const char *label, EntityRef &value);
         void TextDisabled(const char *text);
         [[nodiscard]] bool IsItemHovered() const;
         void SetTooltip(const char *text);

@@ -23,6 +23,8 @@ namespace FRIGGA_NAMESPACE
         Vec2,
         Vec3,
         Vec4,
+        /// Scene JSON stores a scene-entity index in intValue (-1 = none). Runtime uses Freyr id.
+        Entity,
     };
 
     struct PropertyValue

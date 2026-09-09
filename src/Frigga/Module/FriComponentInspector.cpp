@@ -1,7 +1,12 @@
 #include "Frigga/Module/FriComponentInspector.hpp"
 
+#include "Frigga/ECS/Components/HierarchyComponent.hpp"
+#include "Frigga/ECS/Components/NameComponent.hpp"
+
 #include <cstdio>
+#include <format>
 #include <imgui.h>
+#include <string>
 
 namespace FRIGGA_NAMESPACE
 {
@@ -49,6 +54,59 @@ namespace FRIGGA_NAMESPACE
         return ImGui::Checkbox(label, &value);
     }
 
+    bool FriComponentInspector::EntityField(const char *label, EntityRef &value)
+    {
+        bool changed = false;
+
+        std::string display = "None";
+        if(value.id != kInvalidEntity)
+        {
+            display = std::format("#{}", value.id);
+            if(registry)
+            {
+                registry->TryGetComponents<NameComponent>(
+                    value.id, [&](NameComponent &name) { display = name.name; });
+            }
+        }
+
+        ImGui::PushID(label);
+        ImGui::TextUnformatted(label);
+        ImGui::SameLine();
+
+        const ImVec2 size = ImVec2(ImGui::GetContentRegionAvail().x -
+                                       ImGui::CalcTextSize("Clear").x - ImGui::GetStyle().ItemSpacing.x * 2.0f,
+                                   0.0f);
+        ImGui::Button(display.c_str(), size);
+        if(ImGui::BeginDragDropTarget())
+        {
+            if(const ImGuiPayload *payload =
+                   ImGui::AcceptDragDropPayload(kHierarchyEntityDragPayload))
+            {
+                if(payload->DataSize == static_cast<int>(sizeof(fr::Entity)))
+                {
+                    value.id = *static_cast<const fr::Entity *>(payload->Data);
+                    changed  = true;
+                }
+            }
+            ImGui::EndDragDropTarget();
+        }
+        if(ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("Drag an entity from Hierarchy");
+        }
+
+        ImGui::SameLine();
+        ImGui::BeginDisabled(value.id == kInvalidEntity);
+        if(ImGui::SmallButton("Clear"))
+        {
+            value.id = kInvalidEntity;
+            changed  = true;
+        }
+        ImGui::EndDisabled();
+        ImGui::PopID();
+        return changed;
+    }
+
     void FriComponentInspector::TextDisabled(const char *text)
     {
         ImGui::TextDisabled("%s", text);
@@ -74,6 +132,7 @@ namespace FRIGGA_NAMESPACE
         volatile auto inputText     = &T::InputText;
         volatile auto sliderInt     = &T::SliderInt;
         volatile auto checkbox      = &T::Checkbox;
+        volatile auto entityField   = &T::EntityField;
         volatile auto textDisabled  = &T::TextDisabled;
         volatile auto hovered       = &T::IsItemHovered;
         volatile auto tooltip       = &T::SetTooltip;
@@ -84,6 +143,7 @@ namespace FRIGGA_NAMESPACE
         (void)inputText;
         (void)sliderInt;
         (void)checkbox;
+        (void)entityField;
         (void)textDisabled;
         (void)hovered;
         (void)tooltip;

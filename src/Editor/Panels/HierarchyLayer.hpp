@@ -3,6 +3,7 @@
 #include "Editor/SelectionContext.hpp"
 #include "Frigga/Asset/AssetRegistry.hpp"
 #include "Frigga/Asset/PrimitiveMeshFactory.hpp"
+#include "Frigga/ECS/Components/EntityRef.hpp"
 #include "Frigga/ECS/Components/LightComponent.hpp"
 #include "Frigga/ECS/Components/NameComponent.hpp"
 #include "Frigga/ECS/Components/RigidBodyComponent.hpp"
@@ -63,7 +64,7 @@ class HierarchyLayer: public fg::Layer
     void createPrefabFromSelection();
     void drawEntityNode(fr::Entity entity, fg::NameComponent &name);
 
-    static constexpr const char *kDragPayloadId = "FRIGGA_HIERARCHY_ENTITY";
+    static constexpr const char *kDragPayloadId = fg::kHierarchyEntityDragPayload;
 
     void drawComponents();
     void drawComponentsPanelActions();
@@ -132,6 +133,8 @@ class HierarchyLayer: public fg::Layer
     skr::Arc<fg::AudioController> mAudioController;
     fr::Entity nodeToRename;
     std::string mActiveComponentKind;
+    /// True while an entity Hierarchy drag is active (skip select-on-release).
+    bool mHierarchyEntityDragActive = false;
 
     std::mutex mDialogMutex;
     PendingTextureSlot mPendingTextureSlot = PendingTextureSlot::None;

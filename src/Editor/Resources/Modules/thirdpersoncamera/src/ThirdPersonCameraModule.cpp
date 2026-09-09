@@ -5,7 +5,7 @@
 
 static void DrawThirdPersonCamera(ThirdPersonCameraComponent &c, fg::FriComponentInspector &ui)
 {
-    ui.InputText("Target", c.targetName);
+    ui.EntityField("Target", c.target);
     ui.DragFloat3("Pivot Offset", c.pivotOffset, 0.01f);
     ui.DragFloat("Distance", c.distance, 0.05f, c.minDistance, c.maxDistance);
     ui.DragFloat("Min Distance", c.minDistance, 0.05f, 0.1f, 50.0f);
@@ -17,7 +17,7 @@ static void DrawThirdPersonCamera(ThirdPersonCameraComponent &c, fg::FriComponen
     ui.InputText("Look X Axis", c.lookXAxis);
     ui.InputText("Look Y Axis", c.lookYAxis);
     ui.InputText("Zoom Axis", c.zoomAxis);
-    ui.TextDisabled("Uses Input Map LookX / LookY / Zoom");
+    ui.TextDisabled("Drag a Hierarchy entity onto Target");
 }
 
 FRI_MODULE(module)

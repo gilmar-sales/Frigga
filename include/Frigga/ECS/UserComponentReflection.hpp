@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Frigga/ECS/Components/EntityRef.hpp"
 #include "Frigga/ECS/Components/UserDataComponent.hpp"
 #include "Frigga/ECS/UserComponentRegistry.hpp"
 #include "Frigga/Module/FriComponentInspector.hpp"
@@ -42,9 +43,12 @@ namespace FRIGGA_NAMESPACE
         concept IsVec4 = std::same_as<std::remove_cvref_t<T>, glm::vec4>;
 
         template <typename T>
+        concept IsEntityRef = std::same_as<std::remove_cvref_t<T>, EntityRef>;
+
+        template <typename T>
         concept IsSupportedField =
             IsBool<T> || IsInteger<T> || IsFloat<T> || IsString<T> || IsVec2<T> || IsVec3<T> ||
-            IsVec4<T>;
+            IsVec4<T> || IsEntityRef<T>;
 
         template <typename T>
             requires IsSupportedField<T>
@@ -54,6 +58,10 @@ namespace FRIGGA_NAMESPACE
             if constexpr(IsBool<U>)
             {
                 return PropertyKind::Bool;
+            }
+            else if constexpr(IsEntityRef<U>)
+            {
+                return PropertyKind::Entity;
             }
             else if constexpr(IsInteger<U>)
             {
@@ -92,6 +100,11 @@ namespace FRIGGA_NAMESPACE
             {
                 value.boolValue = field;
             }
+            else if constexpr(IsEntityRef<U>)
+            {
+                value.intValue =
+                    field.id == kInvalidEntity ? -1 : static_cast<std::int64_t>(field.id);
+            }
             else if constexpr(IsInteger<U>)
             {
                 value.intValue = static_cast<std::int64_t>(field);
@@ -129,6 +142,14 @@ namespace FRIGGA_NAMESPACE
                 if(value.kind == PropertyKind::Bool)
                 {
                     field = value.boolValue;
+                }
+            }
+            else if constexpr(IsEntityRef<U>)
+            {
+                if(value.kind == PropertyKind::Entity)
+                {
+                    field.id = value.intValue < 0 ? kInvalidEntity
+                                                  : static_cast<fr::Entity>(value.intValue);
                 }
             }
             else if constexpr(IsInteger<U>)

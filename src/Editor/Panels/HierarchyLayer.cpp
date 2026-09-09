@@ -26,6 +26,7 @@
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/ECS/TransformUtil.hpp"
 #include "Frigga/ECS/Components/UserDataComponent.hpp"
+#include "Frigga/ECS/Components/EntityRef.hpp"
 #include "Frigga/Module/FriComponentInspector.hpp"
 #include "Frigga/Module/GameplayTypeIds.hpp"
 #include "Frigga/Rendering/FullscreenEffectCatalog.hpp"
@@ -118,7 +119,7 @@ namespace
         return false;
     }
 
-    void DrawNamedProperty(fg::NamedProperty &property)
+    void DrawNamedProperty(fg::NamedProperty &property, fr::Registry *registry)
     {
         ImGui::PushID(property.name.c_str());
         auto &value = property.value;
@@ -158,6 +159,20 @@ namespace
         case fg::PropertyKind::Vec4:
             ImGui::DragFloat4(property.name.c_str(), &value.vec4Value[0], 0.01f);
             break;
+        case fg::PropertyKind::Entity:
+        {
+            fg::EntityRef ref {};
+            ref.id = value.intValue < 0 ? fg::kInvalidEntity
+                                        : static_cast<fr::Entity>(value.intValue);
+            fg::FriComponentInspector ui;
+            ui.registry = registry;
+            if(ui.EntityField(property.name.c_str(), ref))
+            {
+                value.intValue =
+                    ref.id == fg::kInvalidEntity ? -1 : static_cast<std::int64_t>(ref.id);
+            }
+            break;
+        }
         }
         ImGui::PopID();
     }
@@ -1173,7 +1188,10 @@ void HierarchyLayer::onGui()
 
     ImGui::Begin(hierarchyTitle.c_str());
 
-    if(ImGui::IsMouseDown(0) && ImGui::IsWindowHovered())
+    // Clear empty-space selection on release so mouse-down can start a drag without
+    // wiping the Components panel target mid-gesture.
+    if(ImGui::IsMouseReleased(ImGuiMouseButton_Left) && ImGui::IsWindowHovered() &&
+       !ImGui::IsAnyItemHovered() && !mHierarchyEntityDragActive)
     {
         mSelection->Clear();
     }
@@ -1274,6 +1292,11 @@ void HierarchyLayer::onGui()
             fg::TransformUtil::SetParent(*mRegistry, child, fg::kInvalidEntity, true);
         }
         ImGui::EndDragDropTarget();
+    }
+
+    if(ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+    {
+        mHierarchyEntityDragActive = false;
     }
 
     ImGui::End();
@@ -1499,6 +1522,7 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
 
     if(ImGui::BeginDragDropSource())
     {
+        mHierarchyEntityDragActive = true;
         ImGui::SetDragDropPayload(HierarchyLayer::kDragPayloadId, &entity, sizeof(entity));
         ImGui::TextUnformatted(name.name.c_str());
         ImGui::EndDragDropSource();
@@ -1745,7 +1769,13 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
         ImGui::EndPopup();
     }
 
-    if(!renaming && (ImGui::IsItemClicked() || ImGui::IsItemClicked(1)))
+    // Select on mouse-up so a press+drag to Components does not steal selection.
+    if(!renaming && ImGui::IsItemHovered() &&
+       ImGui::IsMouseReleased(ImGuiMouseButton_Left) && !mHierarchyEntityDragActive)
+    {
+        mSelection->Select(entity);
+    }
+    if(!renaming && ImGui::IsItemClicked(ImGuiMouseButton_Right))
     {
         mSelection->Select(entity);
     }
@@ -2659,8 +2689,9 @@ void HierarchyLayer::drawComponents()
                 if(ops.drawInspector)
                 {
                     fg::FriComponentInspector ui;
-                    ui.entity  = selection;
-                    ui.playing = mSimulation->IsPlaying();
+                    ui.entity   = selection;
+                    ui.registry = mRegistry.get();
+                    ui.playing  = mSimulation->IsPlaying();
                     if(mRegistry->HasComponent<fg::RigidBodyComponent>(selection))
                     {
                         mRegistry->TryGetComponents<fg::RigidBodyComponent>(
@@ -2679,7 +2710,7 @@ void HierarchyLayer::drawComponents()
                         ImGui::BeginDisabled(mSimulation->IsPlaying());
                         for(auto &property : instance.properties)
                         {
-                            DrawNamedProperty(property);
+                            DrawNamedProperty(property, mRegistry.get());
                         }
                         ImGui::EndDisabled();
                         if(!mSimulation->IsPlaying() && ops.fromInstance)

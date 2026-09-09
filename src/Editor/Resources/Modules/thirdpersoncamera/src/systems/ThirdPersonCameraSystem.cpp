@@ -2,7 +2,7 @@
 
 #include "components/ThirdPersonCameraComponent.hpp"
 
-#include <Frigga/ECS/Components/NameComponent.hpp>
+#include <Frigga/ECS/Components/HierarchyComponent.hpp>
 #include <Frigga/ECS/Components/TransformComponent.hpp>
 #include <Frigga/ECS/TransformUtil.hpp>
 
@@ -10,8 +10,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <string>
-#include <unordered_map>
 
 ThirdPersonCameraSystem::ThirdPersonCameraSystem(const skr::Arc<fr::Registry> &registry,
                                                  const skr::Arc<fg::Input> &input)
@@ -31,12 +29,6 @@ void ThirdPersonCameraSystem::Update(float)
         mInput->ToggleCursorLocked();
     }
 
-    std::unordered_map<std::string, glm::vec3> namedPositions;
-    mRegistry->CreateMutation()->Each(
-        [&](fr::Entity entity, fg::NameComponent &name, fg::TransformComponent &) {
-            namedPositions[name.name] = fg::TransformUtil::WorldPose(*mRegistry, entity).position;
-        });
-
     mRegistry->CreateMutation()->Each(
         [&](fr::Entity entity, fg::TransformComponent &, ThirdPersonCameraComponent &orbit) {
             orbit.yaw -= mInput->GetAxis(orbit.lookXAxis);
@@ -47,10 +39,11 @@ void ThirdPersonCameraSystem::Update(float)
             orbit.distance = std::clamp(orbit.distance, orbit.minDistance, orbit.maxDistance);
 
             glm::vec3 targetPos = fg::TransformUtil::WorldPose(*mRegistry, entity).position;
-            if(const auto found = namedPositions.find(orbit.targetName);
-               found != namedPositions.end())
+            if(orbit.target.id != fg::kInvalidEntity &&
+               mRegistry->HasComponent<fg::TransformComponent>(orbit.target.id))
             {
-                targetPos = found->second;
+                targetPos =
+                    fg::TransformUtil::WorldPose(*mRegistry, orbit.target.id).position;
             }
 
             const glm::vec3 pivot = targetPos + orbit.pivotOffset;

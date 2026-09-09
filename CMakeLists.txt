@@ -176,8 +176,7 @@ set(_FRIGGA_SDK_BINARY_TARGETS
         imgui::imgui
         Jolt
         SDL3::SDL3)
-add_custom_command(
-        OUTPUT "${_FRIGGA_SDK_BINARY_STAMP}"
+set(_FRIGGA_SDK_COPY_COMMANDS
         COMMAND ${CMAKE_COMMAND} -E make_directory "${FRIGGA_SDK_DIR}/lib"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "$<TARGET_FILE:frigga>"
@@ -202,7 +201,17 @@ add_custom_command(
                 "${FRIGGA_SDK_DIR}/lib/$<TARGET_FILE_NAME:Jolt>"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "$<TARGET_FILE:SDL3::SDL3>"
-                "${FRIGGA_SDK_DIR}/lib/$<TARGET_FILE_NAME:SDL3::SDL3>"
+                "${FRIGGA_SDK_DIR}/lib/$<TARGET_FILE_NAME:SDL3::SDL3>")
+if(TARGET perfetto)
+    list(APPEND _FRIGGA_SDK_BINARY_TARGETS perfetto)
+    list(APPEND _FRIGGA_SDK_COPY_COMMANDS
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "$<TARGET_FILE:perfetto>"
+                    "${FRIGGA_SDK_DIR}/lib/$<TARGET_FILE_NAME:perfetto>")
+endif()
+add_custom_command(
+        OUTPUT "${_FRIGGA_SDK_BINARY_STAMP}"
+        ${_FRIGGA_SDK_COPY_COMMANDS}
         COMMAND ${CMAKE_COMMAND} -E touch "${_FRIGGA_SDK_BINARY_STAMP}"
         DEPENDS ${_FRIGGA_SDK_BINARY_TARGETS})
 add_custom_target(FriggaSdkLibraries ALL DEPENDS "${_FRIGGA_SDK_BINARY_STAMP}")

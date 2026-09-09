@@ -99,12 +99,18 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/tools/frigga-mcp/server.py")
 endif()
 file(WRITE "${FRIGGA_SDK_DIR}/CMakeLists.txt"
      "# Frigga gameplay module SDK (packaged with Editor)\n")
-file(WRITE "${FRIGGA_SDK_DIR}/FriggaSdkConfig.cmake"
+set(_FRIGGA_SDK_CONFIG
      "set(FRIGGA_SDK_VERSION \"${PROJECT_VERSION}\")\n"
      "set(FRIGGA_SDK_ABI_VERSION \"${FRIGGA_SDK_ABI_VERSION}\")\n"
      "set(FRIGGA_SDK_CXX_STANDARD \"${CMAKE_CXX_STANDARD}\")\n"
      "set(FRIGGA_SDK_BUILD_TYPE \"${CMAKE_BUILD_TYPE}\")\n"
      "set(FRIGGA_SDK_PLATFORM \"${CMAKE_SYSTEM_NAME}\")\n")
+if(FREYR_PROFILING)
+    string(APPEND _FRIGGA_SDK_CONFIG "set(FRIGGA_SDK_FREYR_PROFILING ON)\n")
+else()
+    string(APPEND _FRIGGA_SDK_CONFIG "set(FRIGGA_SDK_FREYR_PROFILING OFF)\n")
+endif()
+file(WRITE "${FRIGGA_SDK_DIR}/FriggaSdkConfig.cmake" ${_FRIGGA_SDK_CONFIG})
 
 # The Editor POST_BUILD step places a Windows import library in the SDK.
 foreach(_implib IN ITEMS libEditor.dll.a Editor.lib libEditor.lib)
@@ -120,6 +126,7 @@ foreach(_library IN ITEMS
         "${CMAKE_BINARY_DIR}/_deps/glm-build/glm/libglm.a"
         "${CMAKE_BINARY_DIR}/_deps/assimp-build/lib/libassimp.a"
         "${CMAKE_BINARY_DIR}/_deps/freyr-build/libfreyr.a"
+        "${CMAKE_BINARY_DIR}/_deps/freyr-build/vendor/perfetto/libperfetto.a"
         "${CMAKE_BINARY_DIR}/_deps/skirnir-build/libskirnir.a"
         "${CMAKE_BINARY_DIR}/_deps/simdjson-build/libsimdjson.a"
         "${CMAKE_BINARY_DIR}/_deps/imgui-build/libimgui.a"
@@ -135,9 +142,14 @@ file(GLOB _FRIGGA_ENGINE_LIBRARIES
         "${CMAKE_BINARY_DIR}/_deps/*-build/*.lib"
         "${CMAKE_BINARY_DIR}/_deps/*-build/*.a"
         "${CMAKE_BINARY_DIR}/_deps/*-build/lib/*.lib"
-        "${CMAKE_BINARY_DIR}/_deps/*-build/lib/*.a")
+        "${CMAKE_BINARY_DIR}/_deps/*-build/lib/*.a"
+        "${CMAKE_BINARY_DIR}/_deps/*-build/vendor/*/*.lib"
+        "${CMAKE_BINARY_DIR}/_deps/*-build/vendor/*/*.a")
 if(_FRIGGA_ENGINE_LIBRARIES)
     file(COPY ${_FRIGGA_ENGINE_LIBRARIES} DESTINATION "${FRIGGA_SDK_DIR}/lib")
 endif()
 
 message(STATUS "Frigga gameplay SDK: ${FRIGGA_SDK_DIR}")
+if(FREYR_PROFILING)
+    message(STATUS "Frigga SDK: Freyr Perfetto profiling enabled (pack libperfetto)")
+endif()
