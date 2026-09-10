@@ -3,7 +3,9 @@
 #include "Frigga/ECS/Components/NameComponent.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <cstddef>
 #include <unordered_set>
 #include <vector>
 
@@ -178,25 +180,37 @@ namespace FRIGGA_NAMESPACE::TransformUtil
 
     glm::mat4 WorldMatrix(fr::Registry &registry, fr::Entity entity)
     {
-        std::vector<fr::Entity> chain;
-        std::unordered_set<fr::Entity> seen;
+        constexpr std::size_t kMaxHierarchyDepth = 64;
+        std::array<fr::Entity, kMaxHierarchyDepth> chain {};
+        std::size_t count = 0;
+
         auto current = entity;
-        while(current != kInvalidEntity)
+        while(current != kInvalidEntity && count < kMaxHierarchyDepth)
         {
-            if(!seen.insert(current).second)
+            bool cycle = false;
+            for(std::size_t i = 0; i < count; ++i)
+            {
+                if(chain[i] == current)
+                {
+                    cycle = true;
+                    break;
+                }
+            }
+            if(cycle)
             {
                 break;
             }
-            chain.push_back(current);
-            current = ParentOf(registry, current);
+            chain[count++] = current;
+            current        = ParentOf(registry, current);
         }
 
         glm::mat4 world(1.0f);
-        for(auto it = chain.rbegin(); it != chain.rend(); ++it)
+        for(std::size_t i = count; i > 0; --i)
         {
-            registry.TryGetComponents<TransformComponent>(*it, [&](TransformComponent &transform) {
-                world = world * LocalMatrix(transform);
-            });
+            registry.TryGetComponents<TransformComponent>(
+                chain[i - 1], [&](TransformComponent &transform) {
+                    world = world * LocalMatrix(transform);
+                });
         }
         return world;
     }

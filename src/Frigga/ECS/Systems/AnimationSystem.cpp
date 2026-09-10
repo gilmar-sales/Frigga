@@ -227,37 +227,35 @@ namespace FRIGGA_NAMESPACE
             return mScene->GetPreviewCamera().transform.position;
         }
 
-        glm::vec3     position = mScene->GetEditorCamera().transform.position;
-        bool          found    = false;
-        fr::Entity    primary  = static_cast<fr::Entity>(-1);
+        glm::vec3  fallback = mScene->GetEditorCamera().transform.position;
+        fr::Entity primary  = static_cast<fr::Entity>(-1);
+        fr::Entity first    = static_cast<fr::Entity>(-1);
 
         mRegistry->CreateMutation()->Each(
             [&](fr::Entity entity, TransformComponent &, CameraComponent &camera) {
+                if(first == static_cast<fr::Entity>(-1))
+                {
+                    first = entity;
+                }
                 if(camera.primary)
                 {
                     primary = entity;
                 }
             });
 
-        if(primary != static_cast<fr::Entity>(-1))
+        const fr::Entity chosen =
+            primary != static_cast<fr::Entity>(-1) ? primary : first;
+        if(chosen != static_cast<fr::Entity>(-1))
         {
-            return TransformUtil::WorldPose(*mRegistry, primary).position;
+            return glm::vec3(TransformUtil::WorldMatrix(*mRegistry, chosen)[3]);
         }
 
-        mRegistry->CreateMutation()->Each(
-            [&](fr::Entity entity, TransformComponent &, CameraComponent &) {
-                if(!found)
-                {
-                    position = TransformUtil::WorldPose(*mRegistry, entity).position;
-                    found    = true;
-                }
-            });
-
-        return position;
+        return fallback;
     }
 
     bool AnimationSystem::consumeAnimationTick(float deltaTime, fr::Entity entity,
-                                               const glm::vec3 &actorPosition, bool ticking,
+                                               const glm::vec3 &actorPosition,
+                                               const glm::vec3 &cameraPos, bool ticking,
                                                float &outAdvanceDt)
     {
         outAdvanceDt = 0.0f;
@@ -272,7 +270,7 @@ namespace FRIGGA_NAMESPACE
         }
 
         auto &lod = mLodStates[entity];
-        const float dist = glm::length(actorPosition - cameraPosition());
+        const float dist = glm::length(actorPosition - cameraPos);
         fra::UpdateAnimLodTier(*mOptions, lod.tier, dist);
         const float hz = fra::AnimLodHz(*mOptions, lod.tier);
         if(!fra::ConsumeAnimLodTick(lod.accum, deltaTime, hz))
@@ -290,6 +288,8 @@ namespace FRIGGA_NAMESPACE
         mGpuInstances.clear();
 
         const bool editMode = !mSimulation->IsPlaying();
+        const bool animLod  = mOptions && mOptions->enableAnimLod;
+        const glm::vec3 camPos = animLod ? cameraPosition() : glm::vec3(0.0f);
 
         auto &gpu = fra::Advanced(*mRenderer).GpuAnimation();
         const std::uint32_t gpuMaxJoints = gpu.GetJointsPerClipSlot();
@@ -306,6 +306,14 @@ namespace FRIGGA_NAMESPACE
         {
             mController->PruneMissingAnimators();
         }
+
+        const auto pruneOrphanMaps = [this](auto &map) {
+            std::erase_if(map, [this](const auto &entry) {
+                return !mRegistry->HasComponent<AnimatorComponent>(entry.first);
+            });
+        };
+        pruneOrphanMaps(mLodStates);
+        pruneOrphanMaps(mClipTimePrev);
 
         auto writeCpuSkin = [&](std::uint32_t boneOffset, const std::vector<glm::mat4> &skin) {
             std::copy(skin.begin(), skin.end(),
@@ -345,11 +353,12 @@ namespace FRIGGA_NAMESPACE
                 const bool ticking =
                     animator.playing && (allowPreview || mSimulation->IsRunning());
 
-                const auto worldPose = TransformUtil::WorldPose(*mRegistry, entity);
-                const auto modelWorld = TransformUtil::WorldMatrix(*mRegistry, entity);
+                const glm::mat4 modelWorld = TransformUtil::WorldMatrix(*mRegistry, entity);
+                const glm::vec3 actorPos =
+                    animLod ? glm::vec3(modelWorld[3]) : glm::vec3(0.0f);
                 float      advanceDt = 0.0f;
                 const bool mustEval =
-                    consumeAnimationTick(deltaTime, entity, worldPose.position, ticking,
+                    consumeAnimationTick(deltaTime, entity, actorPos, camPos, ticking,
                                          advanceDt);
 
                 const auto jointCount = model->skeleton.JointCount();

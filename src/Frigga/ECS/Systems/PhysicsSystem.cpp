@@ -28,8 +28,8 @@ namespace FRIGGA_NAMESPACE
         }
 
         // Push kinematic transforms authored by gameplay / editor into the world.
-        mRegistry->CreateMutation()->Each(
-            [&](fr::Entity entity, TransformComponent &, RigidBodyComponent &rigidBody) {
+        mRegistry->CreateMutation()->EachAsync(
+            [this](fr::Entity entity, const TransformComponent &, const RigidBodyComponent &rigidBody) {
                 if(!rigidBody.body.IsValid() || rigidBody.motion != BodyMotionType::Kinematic)
                 {
                     return;
@@ -38,6 +38,7 @@ namespace FRIGGA_NAMESPACE
                 mPhysicsWorld->SetTransform(rigidBody.body, pose.position, pose.rotation);
             });
 
+            mRegistry->ExecuteTasks();
         if(stepOnce)
         {
             mPhysicsWorld->StepFixed(1);
@@ -48,8 +49,8 @@ namespace FRIGGA_NAMESPACE
         }
 
         // Write dynamic simulation poses back to ECS transforms.
-        mRegistry->CreateMutation()->Each(
-            [&](fr::Entity entity, TransformComponent &, RigidBodyComponent &rigidBody) {
+        mRegistry->CreateMutation()->EachAsync(
+            [this](fr::Entity entity, TransformComponent &, RigidBodyComponent &rigidBody) {
                 if(!rigidBody.body.IsValid() || rigidBody.motion == BodyMotionType::Kinematic)
                 {
                     return;
@@ -59,6 +60,7 @@ namespace FRIGGA_NAMESPACE
                 mPhysicsWorld->GetTransform(rigidBody.body, position, rotation);
                 TransformUtil::SetWorldPose(*mRegistry, entity, position, rotation);
             });
+            mRegistry->ExecuteTasks();
     }
 
 } // namespace FRIGGA_NAMESPACE
