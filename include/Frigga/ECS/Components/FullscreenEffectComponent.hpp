@@ -2,7 +2,9 @@
 
 #include "Frigga/Macro.hpp"
 
+#include <Freya/Core/PostProcess.hpp>
 #include <Freyr/Freyr.hpp>
+#include <Skirnir/Skirnir.hpp>
 
 #include <glm/glm.hpp>
 
@@ -63,6 +65,13 @@ namespace FRIGGA_NAMESPACE
         float     glowFill      = 0.25f;
         glm::vec4 glowColor {1.0f, 0.85f, 0.25f, 1.0f};
         float     muGlowLevel   = 13.0f;
+
+        /// Built Freya pass + stage bookkeeping; not serialized.
+        skr::Arc<fra::PostProcess> runtimeEffect;
+        std::string                runtimeFragment;
+        std::string                runtimeStageName;
+        FullscreenEffectKind       runtimeKind = FullscreenEffectKind::Cell;
+        float                      timeSec     = 0.0f;
     };
 
 } // namespace FRIGGA_NAMESPACE

@@ -36,14 +36,6 @@ namespace FRIGGA_NAMESPACE
         void Update(float deltaTime) override;
 
       private:
-        struct EffectRuntime
-        {
-            skr::Arc<fra::PostProcess> effect;
-            std::string                fragment;
-            std::string                stageName;
-            FullscreenEffectKind       kind = FullscreenEffectKind::Cell;
-        };
-
         void updateCamera();
         void applyCameraPose(const glm::vec3 &position, const glm::quat &rotation, float fovDegrees,
                              float nearPlane, float farPlane);
@@ -64,10 +56,7 @@ namespace FRIGGA_NAMESPACE
         skr::Arc<fra::TexturePool> mTextures;
         skr::Arc<fra::PostProcessBuilder> mEffectBuilder;
         std::vector<fra::SceneInstanceUpload> mSceneInstances;
-        std::vector<fra::LightHandle> mLightHandles;
-        std::unordered_map<fr::Entity, fra::ParticleEmitter> mEmitters;
-        std::unordered_map<fr::Entity, EffectRuntime> mEffects;
-        std::unordered_map<fr::Entity, float> mEffectTimeSec;
+        /// Font atlases keyed by asset path (not per-entity).
         std::unordered_map<std::string, fra::FontAtlas> mFonts;
     };
 

@@ -20,7 +20,9 @@ namespace FRIGGA_NAMESPACE
         /// Area light rectangle half-extents (Freya LTC).
         float halfWidth   = 1.0f;
         float halfHeight  = 1.0f;
-        bool  castShadows = false;
+        bool            castShadows = true;
+        /// Runtime Freya light slot; not serialized.
+        fra::LightHandle handle {};
     };
 
 } // namespace FRIGGA_NAMESPACE

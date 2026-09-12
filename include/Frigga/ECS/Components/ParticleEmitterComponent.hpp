@@ -3,6 +3,7 @@
 #include "Frigga/Macro.hpp"
 
 #include <Freya/Core/BillboardDraw.hpp>
+#include <Freya/Core/ParticleEmitter.hpp>
 #include <Freyr/Freyr.hpp>
 
 #include <cstdint>
@@ -26,6 +27,9 @@ namespace FRIGGA_NAMESPACE
         std::optional<std::uint32_t> textureId;
         std::uint32_t maxParticles = 256;
         bool          playing      = true;
+
+        /// Runtime Freya emitter (live particles); not serialized.
+        fra::ParticleEmitter runtime {};
     };
 
 } // namespace FRIGGA_NAMESPACE

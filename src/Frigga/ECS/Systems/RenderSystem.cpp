@@ -23,7 +23,6 @@
 #include <cmath>
 #include <cstdint>
 #include <format>
-#include <unordered_set>
 #include <vector>
 
 namespace FRIGGA_NAMESPACE
@@ -210,45 +209,91 @@ namespace FRIGGA_NAMESPACE
 
     void RenderSystem::syncLights()
     {
-        // Do not ClearLights()/RemoveLight every frame into empty UBO slots —
-        // Freya may leave in-flight frames sampling zeros until waitIdle.
+        // Do not wipe the Freya light UBO every frame — FiF slots may still
+        // sample until waitIdle. Handles live on LightComponent; ClearLights
+        // only when the visible set changes so pool indices stay dense (Spot /
+        // Point shadow indices must match the packed light UBO).
         const bool isolate = mScene->IsUsingPreviewCamera() && mScene->HasRenderIsolation();
         const fr::Entity isolatedEntity = isolate ? mScene->GetRenderIsolation()
                                                     : static_cast<fr::Entity>(-1);
+        const auto maxLights = mLightService->GetMaxLights();
 
-        std::vector<fra::Light> wanted;
+        const auto isVisible = [&](fr::Entity entity) {
+            return !isolate || IsInIsolatedSubtree(*mRegistry, entity, isolatedEntity);
+        };
+
+        std::uint32_t visibleCount   = 0;
+        std::uint32_t handlesInEcs   = 0;
+        bool          setChanged     = false;
+
         mRegistry->CreateMutation()->Each(
             [&](fr::Entity entity, TransformComponent &, LightComponent &light) {
-                if(isolate && !IsInIsolatedSubtree(*mRegistry, entity, isolatedEntity))
+                if(light.handle)
+                {
+                    ++handlesInEcs;
+                }
+                if(!isVisible(entity))
+                {
+                    if(light.handle)
+                    {
+                        setChanged = true;
+                    }
+                    return;
+                }
+                ++visibleCount;
+                if(!light.handle)
+                {
+                    setChanged = true;
+                }
+            });
+
+        const auto cappedVisible = std::min(visibleCount, maxLights);
+        if(cappedVisible != visibleCount)
+        {
+            setChanged = true;
+        }
+        if(handlesInEcs != mLightService->GetLightCount())
+        {
+            // Destroyed entities left orphan slots in LightService.
+            setChanged = true;
+        }
+        if(cappedVisible != mLightService->GetLightCount())
+        {
+            setChanged = true;
+        }
+
+        if(setChanged)
+        {
+            mLightService->ClearLights();
+            mRegistry->CreateMutation()->Each(
+                [&](fr::Entity, TransformComponent &, LightComponent &light) {
+                    light.handle = {};
+                });
+
+            std::uint32_t added = 0;
+            mRegistry->CreateMutation()->Each(
+                [&](fr::Entity entity, TransformComponent &, LightComponent &light) {
+                    if(!isVisible(entity) || added >= maxLights)
+                    {
+                        return;
+                    }
+                    light.handle = mLightService->AddLight(
+                        MakeGpuLight(TransformUtil::WorldPose(*mRegistry, entity), light));
+                    ++added;
+                });
+            return;
+        }
+
+        mRegistry->CreateMutation()->Each(
+            [&](fr::Entity entity, TransformComponent &, LightComponent &light) {
+                if(!isVisible(entity) || !light.handle)
                 {
                     return;
                 }
-                wanted.push_back(MakeGpuLight(TransformUtil::WorldPose(*mRegistry, entity), light));
+                mLightService->UpdateLight(
+                    light.handle,
+                    MakeGpuLight(TransformUtil::WorldPose(*mRegistry, entity), light));
             });
-
-        const auto maxLights = mLightService->GetMaxLights();
-        if(wanted.size() > maxLights)
-        {
-            wanted.resize(maxLights);
-        }
-
-        for(std::uint32_t i = 0; i < wanted.size(); ++i)
-        {
-            if(i < mLightHandles.size())
-            {
-                mLightService->UpdateLight(mLightHandles[i], wanted[i]);
-            }
-            else
-            {
-                mLightHandles.push_back(mLightService->AddLight(wanted[i]));
-            }
-        }
-
-        while(mLightHandles.size() > wanted.size())
-        {
-            mLightService->RemoveLight(mLightHandles.back());
-            mLightHandles.pop_back();
-        }
     }
 
     void RenderSystem::drawMeshes()
@@ -267,17 +312,22 @@ namespace FRIGGA_NAMESPACE
                     return;
                 }
 
-                const glm::mat4 model = TransformUtil::WorldMatrix(*mRegistry, entity);
+                const auto pose = TransformUtil::WorldPose(*mRegistry, entity);
 
                 fra::SceneInstanceUpload upload {
-                    .model       = model,
-                    .mesh        = AsMeshHandle(mesh.meshId),
-                    .material    = AsMaterialHandle(material.materialId),
-                    .entityId    = static_cast<std::uint32_t>(entity),
-                    .castShadows = mesh.castShadows,
+                    .transform =
+                        fra::SceneTransform {
+                            .position = pose.position,
+                            .scale    = pose.scale,
+                            .rotation = pose.rotation,
+                        },
+                    .mesh     = AsMeshHandle(mesh.meshId),
+                    .material = AsMaterialHandle(material.materialId),
+                    .entityId = static_cast<std::uint32_t>(entity),
                 };
 
                 // Local Animator first (compat); else inherit shared pose from an ancestor.
+                bool skinned          = false;
                 fr::Entity skinEntity = entity;
                 while(skinEntity != kInvalidEntity)
                 {
@@ -288,6 +338,7 @@ namespace FRIGGA_NAMESPACE
                             {
                                 upload.boneOffset = animator.boneOffset;
                                 upload.boneCount  = animator.boneCount;
+                                skinned           = true;
                                 found             = true;
                             }
                         });
@@ -298,20 +349,23 @@ namespace FRIGGA_NAMESPACE
                     skinEntity = TransformUtil::ParentOf(*mRegistry, skinEntity);
                 }
 
+                upload.flags =
+                    fra::MakeSceneInstanceFlags(mesh.castShadows, false, skinned);
+
                 mSceneInstances.push_back(upload);
             });
 
         // Prefer entityId order so Freya resolves TAA prevModel by entity.
         std::sort(mSceneInstances.begin(), mSceneInstances.end(),
                   [](const fra::SceneInstanceUpload &a, const fra::SceneInstanceUpload &b) {
-                      if(a.mesh != b.mesh)
-                      {
-                          return a.mesh < b.mesh;
-                      }
                       return a.entityId < b.entityId;
                   });
 
-        fra::Advanced(*mRenderer).UploadSceneInstances(mSceneInstances);
+        mRenderer->BeginSceneInstances();
+        mRenderer->ReserveSceneInstances(
+            static_cast<std::uint32_t>(mSceneInstances.size()));
+        mRenderer->UploadSceneInstances(mSceneInstances);
+        mRenderer->EndSceneInstances();
     }
 
     std::uint32_t RenderSystem::textureHeapIndex(std::optional<std::uint32_t> textureId) const
@@ -406,15 +460,13 @@ namespace FRIGGA_NAMESPACE
                           label.layer);
             });
 
-        std::unordered_set<fr::Entity> liveEmitters;
         mRegistry->CreateMutation()->Each(
             [&](fr::Entity entity, TransformComponent &, ParticleEmitterComponent &source) {
                 if(skip(entity))
                 {
                     return;
                 }
-                liveEmitters.insert(entity);
-                auto &emitter          = mEmitters[entity];
+                auto &emitter          = source.runtime;
                 emitter.origin         = TransformUtil::WorldPose(*mRegistry, entity).position;
                 emitter.velocity       = source.velocity;
                 emitter.velocityJitter = source.velocityJitter;
@@ -429,9 +481,6 @@ namespace FRIGGA_NAMESPACE
                 emitter.maxParticles   = source.maxParticles;
                 emitter.Tick(deltaTime, draw);
             });
-        std::erase_if(mEmitters, [&](const auto &entry) {
-            return !liveEmitters.contains(entry.first);
-        });
     }
 
     void RenderSystem::syncFullscreenEffects()
@@ -443,30 +492,26 @@ namespace FRIGGA_NAMESPACE
 
         auto advanced = fra::Advanced(*mRenderer);
 
-        std::unordered_set<fr::Entity> live;
         mRegistry->CreateMutation()->Each(
             [&](fr::Entity entity, FullscreenEffectComponent &comp) {
-                live.insert(entity);
-
                 const auto stageName =
                     std::format("{}##{}", comp.name.empty() ? "Effect" : comp.name,
                                 static_cast<std::uint32_t>(entity));
 
-                auto &runtime = mEffects[entity];
-                const auto previousName = runtime.stageName;
+                const auto previousName = comp.runtimeStageName;
                 const bool rebuild =
-                    !runtime.effect || runtime.fragment != comp.fragment ||
-                    runtime.kind != comp.kind || previousName != stageName;
+                    !comp.runtimeEffect || comp.runtimeFragment != comp.fragment ||
+                    comp.runtimeKind != comp.kind || previousName != stageName;
                 if(rebuild)
                 {
                     ConfigureFullscreenEffectBuilder(*mEffectBuilder, stageName, comp);
-                    runtime.effect    = mEffectBuilder->Build();
-                    runtime.fragment  = comp.fragment;
-                    runtime.kind      = comp.kind;
-                    runtime.stageName = stageName;
-                    if(runtime.effect)
+                    comp.runtimeEffect   = mEffectBuilder->Build();
+                    comp.runtimeFragment = comp.fragment;
+                    comp.runtimeKind     = comp.kind;
+                    comp.runtimeStageName = stageName;
+                    if(comp.runtimeEffect)
                     {
-                        auto stage = runtime.effect->MakeStage();
+                        auto stage = comp.runtimeEffect->MakeStage();
                         const bool replaced =
                             !previousName.empty() &&
                             advanced.ReplaceFrameStage(previousName.c_str(), stage);
@@ -477,35 +522,25 @@ namespace FRIGGA_NAMESPACE
                     }
                 }
 
-                if(!runtime.effect)
+                if(!comp.runtimeEffect)
                 {
                     return;
                 }
 
-                runtime.effect->SetEnabled(comp.enabled);
+                comp.runtimeEffect->SetEnabled(comp.enabled);
                 if(comp.enabled)
                 {
-                    mEffectTimeSec[entity] += mWindow->GetDeltaTime();
+                    comp.timeSec += mWindow->GetDeltaTime();
                 }
 
                 const FullscreenEffectPushState pushState {
-                    .timeSec  = mEffectTimeSec[entity],
-                    .reverseZ = mFreyaOptions && mFreyaOptions->ReverseZ,
+                    .timeSec   = comp.timeSec,
+                    .reverseZ  = mFreyaOptions && mFreyaOptions->ReverseZ,
                     .component = &comp,
                 };
-                ApplyFullscreenEffectPushConstants(*runtime.effect, pushState);
-                SyncFullscreenEffectMaterials(*runtime.effect, comp);
+                ApplyFullscreenEffectPushConstants(*comp.runtimeEffect, pushState);
+                SyncFullscreenEffectMaterials(*comp.runtimeEffect, comp);
             });
-
-        for(auto &[entity, runtime] : mEffects)
-        {
-            if(!live.contains(entity) && runtime.effect)
-            {
-                runtime.effect->SetEnabled(false);
-            }
-        }
-
-        std::erase_if(mEffectTimeSec, [&](const auto &entry) { return !live.contains(entry.first); });
     }
 
 } // namespace FRIGGA_NAMESPACE

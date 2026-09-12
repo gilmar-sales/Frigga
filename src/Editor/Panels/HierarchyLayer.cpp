@@ -234,8 +234,9 @@ fg::LightComponent HierarchyLayer::makeDefaultLight(fra::LightType type)
     switch(type)
     {
         case fra::LightType::Point:
-            light.intensity = 15.0f;
-            light.radius    = 30.0f;
+            light.intensity   = 15.0f;
+            light.radius      = 30.0f;
+            light.castShadows = true;
             break;
         case fra::LightType::Directional:
             light.intensity   = 0.8f;
@@ -246,6 +247,7 @@ fg::LightComponent HierarchyLayer::makeDefaultLight(fra::LightType type)
             light.radius            = 40.0f;
             light.innerAngleDegrees = 18.0f;
             light.outerAngleDegrees = 28.0f;
+            light.castShadows       = true;
             break;
         case fra::LightType::Area:
             light.intensity  = 3.0f;
