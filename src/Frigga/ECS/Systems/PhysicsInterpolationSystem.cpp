@@ -23,7 +23,7 @@ namespace FRIGGA_NAMESPACE
 
         const float alpha = mPhysicsWorld->GetInterpolationAlpha();
 
-        mRegistry->CreateMutation()->Each(
+        mRegistry->CreateMutation()->EachAsync(
             [&](fr::Entity entity, TransformComponent &, RigidBodyComponent &rigidBody) {
                 if(!rigidBody.body.IsValid() || rigidBody.motion == BodyMotionType::Kinematic)
                 {

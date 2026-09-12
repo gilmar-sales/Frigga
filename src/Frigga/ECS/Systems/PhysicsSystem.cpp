@@ -27,9 +27,10 @@ namespace FRIGGA_NAMESPACE
             return;
         }
 
-        // Push kinematic transforms authored by gameplay / editor into the world.
-        mRegistry->CreateMutation()->EachAsync(
-            [this](fr::Entity entity, const TransformComponent &, const RigidBodyComponent &rigidBody) {
+        mRegistry->CreateMutation()
+            ->WithLabel("Push kinematic transforms")
+            .EachAsync([this](fr::Entity entity, const TransformComponent &,
+                              const RigidBodyComponent &rigidBody) {
                 if(!rigidBody.body.IsValid() || rigidBody.motion != BodyMotionType::Kinematic)
                 {
                     return;
@@ -38,29 +39,32 @@ namespace FRIGGA_NAMESPACE
                 mPhysicsWorld->SetTransform(rigidBody.body, pose.position, pose.rotation);
             });
 
-            mRegistry->ExecuteTasks();
+        mRegistry->ExecuteTasks();
         if(stepOnce)
         {
+            FREYR_TRACE("APP", "PhysicsWorld::StepFixed");
             mPhysicsWorld->StepFixed(1);
         }
         else
         {
+            FREYR_TRACE("APP", "PhysicsWorld::Step");
             mPhysicsWorld->Step(deltaTime);
         }
 
-        // Write dynamic simulation poses back to ECS transforms.
-        mRegistry->CreateMutation()->EachAsync(
-            [this](fr::Entity entity, TransformComponent &, RigidBodyComponent &rigidBody) {
-                if(!rigidBody.body.IsValid() || rigidBody.motion == BodyMotionType::Kinematic)
-                {
-                    return;
-                }
-                glm::vec3 position {};
-                glm::quat rotation {1.0f, 0.0f, 0.0f, 0.0f};
-                mPhysicsWorld->GetTransform(rigidBody.body, position, rotation);
-                TransformUtil::SetWorldPose(*mRegistry, entity, position, rotation);
-            });
-            mRegistry->ExecuteTasks();
+        mRegistry->CreateMutation()
+            ->WithLabel("Write dynamic simulation poses back")
+            .EachAsync(
+                [this](fr::Entity entity, TransformComponent &, RigidBodyComponent &rigidBody) {
+                    if(!rigidBody.body.IsValid() || rigidBody.motion == BodyMotionType::Kinematic)
+                    {
+                        return;
+                    }
+                    glm::vec3 position{};
+                    glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
+                    mPhysicsWorld->GetTransform(rigidBody.body, position, rotation);
+                    TransformUtil::SetWorldPose(*mRegistry, entity, position, rotation);
+                });
+        mRegistry->ExecuteTasks();
     }
 
 } // namespace FRIGGA_NAMESPACE
