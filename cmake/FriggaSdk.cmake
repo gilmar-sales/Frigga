@@ -56,15 +56,37 @@ find_package(ZLIB REQUIRED)
 include(CMakeParseArguments)
 
 set(_FRIGGA_LIB_DIR "${FRIGGA_SDK}/lib")
-if(WIN32)
-    set(_FRIGGA_ENGINE_FILE "${_FRIGGA_LIB_DIR}/frigga.lib")
-    if(NOT EXISTS "${_FRIGGA_ENGINE_FILE}")
-        set(_FRIGGA_ENGINE_FILE "${_FRIGGA_LIB_DIR}/libfrigga.lib")
+
+# Resolve a packaged SDK archive. NAME is the on-disk stem (casing matters for
+# Freya/Jolt/SDL3). Assimp may set CMAKE_DEBUG_POSTFIX=d, so Debug packs use
+# libfriggad.a / Freyad.lib — try Release names first, then the "d" variants.
+function(_frigga_resolve_sdk_library OUT_VAR NAME)
+    string(TOLOWER "${NAME}" _lower)
+    if(WIN32)
+        set(_candidates
+                "${_FRIGGA_LIB_DIR}/${NAME}.lib"
+                "${_FRIGGA_LIB_DIR}/${NAME}d.lib"
+                "${_FRIGGA_LIB_DIR}/lib${_lower}.lib"
+                "${_FRIGGA_LIB_DIR}/lib${_lower}d.lib"
+                "${_FRIGGA_LIB_DIR}/lib${_lower}.a"
+                "${_FRIGGA_LIB_DIR}/lib${_lower}d.a")
+    else()
+        set(_candidates
+                "${_FRIGGA_LIB_DIR}/lib${NAME}.a"
+                "${_FRIGGA_LIB_DIR}/lib${NAME}d.a")
     endif()
-else()
-    set(_FRIGGA_ENGINE_FILE "${_FRIGGA_LIB_DIR}/libfrigga.a")
-endif()
-if(EXISTS "${_FRIGGA_ENGINE_FILE}")
+    set(_found "")
+    foreach(_candidate IN LISTS _candidates)
+        if(EXISTS "${_candidate}")
+            set(_found "${_candidate}")
+            break()
+        endif()
+    endforeach()
+    set(${OUT_VAR} "${_found}" PARENT_SCOPE)
+endfunction()
+
+_frigga_resolve_sdk_library(_FRIGGA_ENGINE_FILE frigga)
+if(_FRIGGA_ENGINE_FILE)
     add_library(Frigga::frigga STATIC IMPORTED GLOBAL)
     set(_FRIGGA_INTERFACE_INCLUDES
             "${_FRIGGA_SDK_INCLUDE}"
@@ -78,43 +100,19 @@ if(EXISTS "${_FRIGGA_ENGINE_FILE}")
             IMPORTED_LOCATION "${_FRIGGA_ENGINE_FILE}"
             INTERFACE_INCLUDE_DIRECTORIES "${_FRIGGA_INTERFACE_INCLUDES}"
             INTERFACE_COMPILE_FEATURES cxx_std_26)
-    foreach(_dependency IN ITEMS freya glm assimp freyr imgui skirnir simdjson jolt sdl3 perfetto)
+    # Stems match packaged filenames; target aliases are always lowercase.
+    # meshoptimizer/assimp are Freya transitive deps required when linking games.
+    foreach(_dependency IN ITEMS Freya meshoptimizer glm assimp freyr imgui skirnir simdjson Jolt SDL3 perfetto)
         string(TOLOWER "${_dependency}" _dependency_lower)
-        if(WIN32)
-            if(_dependency STREQUAL "freya")
-                set(_dependency_file "${_FRIGGA_LIB_DIR}/Freya.lib")
-            elseif(_dependency STREQUAL "jolt")
-                set(_dependency_file "${_FRIGGA_LIB_DIR}/Jolt.lib")
-            elseif(_dependency STREQUAL "sdl3")
-                set(_dependency_file "${_FRIGGA_LIB_DIR}/SDL3.lib")
-            else()
-                set(_dependency_file "${_FRIGGA_LIB_DIR}/${_dependency}.lib")
-            endif()
-            if(NOT EXISTS "${_dependency_file}")
-                set(_dependency_file "${_FRIGGA_LIB_DIR}/lib${_dependency_lower}.lib")
-            endif()
-            if(NOT EXISTS "${_dependency_file}")
-                set(_dependency_file "${_FRIGGA_LIB_DIR}/lib${_dependency_lower}.a")
-            endif()
-        else()
-            if(_dependency STREQUAL "freya")
-                set(_dependency_file "${_FRIGGA_LIB_DIR}/libFreya.a")
-            elseif(_dependency STREQUAL "jolt")
-                set(_dependency_file "${_FRIGGA_LIB_DIR}/libJolt.a")
-            elseif(_dependency STREQUAL "sdl3")
-                set(_dependency_file "${_FRIGGA_LIB_DIR}/libSDL3.a")
-            else()
-                set(_dependency_file "${_FRIGGA_LIB_DIR}/lib${_dependency_lower}.a")
-            endif()
-        endif()
-        if(EXISTS "${_dependency_file}")
+        _frigga_resolve_sdk_library(_dependency_file "${_dependency}")
+        if(_dependency_file)
             add_library("Frigga::${_dependency_lower}" STATIC IMPORTED GLOBAL)
             set_target_properties("Frigga::${_dependency_lower}" PROPERTIES
                     IMPORTED_LOCATION "${_dependency_file}")
         endif()
     endforeach()
     set(_FRIGGA_ENGINE_LIBS)
-    foreach(_dependency IN ITEMS freya glm assimp freyr perfetto imgui skirnir simdjson jolt sdl3)
+    foreach(_dependency IN ITEMS freya meshoptimizer glm assimp freyr perfetto imgui skirnir simdjson jolt sdl3)
         if(TARGET "Frigga::${_dependency}")
             list(APPEND _FRIGGA_ENGINE_LIBS "Frigga::${_dependency}")
         endif()

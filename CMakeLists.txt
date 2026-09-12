@@ -55,7 +55,7 @@ FetchContent_MakeAvailable(skirnir)
 FetchContent_Declare(
         freyr
         GIT_REPOSITORY "https://github.com/gilmar-sales/Freyr.git"
-        GIT_TAG "v0.39.1"
+        GIT_TAG "v0.39.2"
         GIT_SHALLOW TRUE
 )
 set(FREYR_PROFILING ON CACHE BOOL "Enables Freyr Perfetto profiling" FORCE)
@@ -176,39 +176,20 @@ set(_FRIGGA_SDK_BINARY_TARGETS
         imgui::imgui
         Jolt
         SDL3::SDL3)
+# Freya transitive deps (and optional profiling) — pack when available.
+foreach(_optional IN ITEMS assimp meshoptimizer perfetto)
+    if(TARGET ${_optional})
+        list(APPEND _FRIGGA_SDK_BINARY_TARGETS ${_optional})
+    endif()
+endforeach()
 set(_FRIGGA_SDK_COPY_COMMANDS
-        COMMAND ${CMAKE_COMMAND} -E make_directory "${FRIGGA_SDK_DIR}/lib"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "$<TARGET_FILE:frigga>"
-                "${FRIGGA_SDK_DIR}/lib/$<TARGET_FILE_NAME:frigga>"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "$<TARGET_FILE:Freya::Freya>"
-                "${FRIGGA_SDK_DIR}/lib/$<TARGET_FILE_NAME:Freya::Freya>"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "$<TARGET_FILE:freyr::freyr>"
-                "${FRIGGA_SDK_DIR}/lib/$<TARGET_FILE_NAME:freyr::freyr>"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "$<TARGET_FILE:skirnir::skirnir>"
-                "${FRIGGA_SDK_DIR}/lib/$<TARGET_FILE_NAME:skirnir::skirnir>"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "$<TARGET_FILE:simdjson>"
-                "${FRIGGA_SDK_DIR}/lib/$<TARGET_FILE_NAME:simdjson>"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "$<TARGET_FILE:imgui::imgui>"
-                "${FRIGGA_SDK_DIR}/lib/$<TARGET_FILE_NAME:imgui::imgui>"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "$<TARGET_FILE:Jolt>"
-                "${FRIGGA_SDK_DIR}/lib/$<TARGET_FILE_NAME:Jolt>"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "$<TARGET_FILE:SDL3::SDL3>"
-                "${FRIGGA_SDK_DIR}/lib/$<TARGET_FILE_NAME:SDL3::SDL3>")
-if(TARGET perfetto)
-    list(APPEND _FRIGGA_SDK_BINARY_TARGETS perfetto)
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${FRIGGA_SDK_DIR}/lib")
+foreach(_target IN LISTS _FRIGGA_SDK_BINARY_TARGETS)
     list(APPEND _FRIGGA_SDK_COPY_COMMANDS
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "$<TARGET_FILE:perfetto>"
-                    "${FRIGGA_SDK_DIR}/lib/$<TARGET_FILE_NAME:perfetto>")
-endif()
+                    "$<TARGET_FILE:${_target}>"
+                    "${FRIGGA_SDK_DIR}/lib/$<TARGET_FILE_NAME:${_target}>")
+endforeach()
 add_custom_command(
         OUTPUT "${_FRIGGA_SDK_BINARY_STAMP}"
         ${_FRIGGA_SDK_COPY_COMMANDS}
