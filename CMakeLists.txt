@@ -13,6 +13,13 @@ endif ()
 
 set(CMAKE_CXX_STANDARD 26)
 
+# MinGW GCC 16+: C++26 constexpr exceptions emit strong std::logic_error /
+# runtime_error copy ctors that collide with libstdc++.a (GCC PR 125151).
+if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    add_compile_definitions(
+            $<$<COMPILE_LANGUAGE:CXX>:__cpp_lib_constexpr_exceptions=0>)
+endif()
+
 option(FRIGGA_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 option(FRIGGA_ENABLE_COVERAGE "Enable GCC/Clang coverage instrumentation" OFF)
 option(FRIGGA_BUILD_BENCHMARKS "Build Frigga performance benchmarks" OFF)
@@ -55,7 +62,7 @@ FetchContent_MakeAvailable(skirnir)
 FetchContent_Declare(
         freyr
         GIT_REPOSITORY "https://github.com/gilmar-sales/Freyr.git"
-        GIT_TAG "v0.39.2"
+        GIT_TAG "v0.39.4"
         GIT_SHALLOW TRUE
 )
 set(FREYR_PROFILING ON CACHE BOOL "Enables Freyr Perfetto profiling" FORCE)
