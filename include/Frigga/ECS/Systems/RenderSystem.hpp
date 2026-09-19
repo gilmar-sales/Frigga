@@ -55,7 +55,6 @@ namespace FRIGGA_NAMESPACE
         skr::Arc<fra::FreyaOptions> mFreyaOptions;
         skr::Arc<fra::TexturePool> mTextures;
         skr::Arc<fra::PostProcessBuilder> mEffectBuilder;
-        std::vector<fra::SceneInstanceUpload> mSceneInstances;
         /// Font atlases keyed by asset path (not per-entity).
         std::unordered_map<std::string, fra::FontAtlas> mFonts;
     };

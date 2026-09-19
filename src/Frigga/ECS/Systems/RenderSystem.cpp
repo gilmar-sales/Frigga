@@ -23,6 +23,7 @@
 #include <cmath>
 #include <cstdint>
 #include <format>
+#include <span>
 #include <vector>
 
 namespace FRIGGA_NAMESPACE
@@ -284,30 +285,51 @@ namespace FRIGGA_NAMESPACE
             return;
         }
 
-        mRegistry->CreateMutation()->Each(
-            [&](fr::Entity entity, TransformComponent &, LightComponent &light) {
+        // Freya 0.50: Begin/Upload/End is thread-safe; pack lights via EachAsync.
+        mLightService->BeginLightUploads();
+        mLightService->ReserveLightUploads(cappedVisible);
+        mRegistry->CreateMutation()->EachAsync(
+            [this, isVisible](fr::Entity entity, TransformComponent &, LightComponent &light) {
                 if(!isVisible(entity) || !light.handle)
                 {
                     return;
                 }
-                mLightService->UpdateLight(
-                    light.handle,
-                    MakeGpuLight(TransformUtil::WorldPose(*mRegistry, entity), light));
+                const fra::LightUpload upload {
+                    .handle = light.handle,
+                    .light  = MakeGpuLight(TransformUtil::WorldPose(*mRegistry, entity), light),
+                };
+                mLightService->UploadLightUploads(std::span<const fra::LightUpload>(&upload, 1));
             });
+        mRegistry->ExecuteTasks();
+        mLightService->EndLightUploads();
     }
 
     void RenderSystem::drawMeshes()
     {
-        mSceneInstances.clear();
-
         const bool isolate = mScene->IsUsingPreviewCamera() && mScene->HasRenderIsolation();
         const fr::Entity isolatedEntity = isolate ? mScene->GetRenderIsolation()
                                                   : static_cast<fr::Entity>(-1);
 
+        const auto skip = [this, isolate, isolatedEntity](fr::Entity entity) {
+            return isolate && !IsInIsolatedSubtree(*mRegistry, entity, isolatedEntity);
+        };
+
+        std::uint32_t instanceCount = 0;
         mRegistry->CreateMutation()->Each(
-            [this, isolate, isolatedEntity](fr::Entity entity, TransformComponent &,
-                                            MeshComponent &mesh, MaterialComponent &material) {
-                if(isolate && !IsInIsolatedSubtree(*mRegistry, entity, isolatedEntity))
+            [&](fr::Entity entity, TransformComponent &, MeshComponent &, MaterialComponent &) {
+                if(!skip(entity))
+                {
+                    ++instanceCount;
+                }
+            });
+
+        // Freya sorts by entityId at End; UploadSceneInstances is thread-safe.
+        mRenderer->BeginSceneInstances();
+        mRenderer->ReserveSceneInstances(instanceCount);
+        mRegistry->CreateMutation()->EachAsync(
+            [this, skip](fr::Entity entity, TransformComponent &, MeshComponent &mesh,
+                         MaterialComponent &material) {
+                if(skip(entity))
                 {
                     return;
                 }
@@ -352,19 +374,9 @@ namespace FRIGGA_NAMESPACE
                 upload.flags =
                     fra::MakeSceneInstanceFlags(mesh.castShadows, false, skinned);
 
-                mSceneInstances.push_back(upload);
+                mRenderer->UploadSceneInstances(std::span<const fra::SceneInstanceUpload>(&upload, 1));
             });
-
-        // Prefer entityId order so Freya resolves TAA prevModel by entity.
-        std::sort(mSceneInstances.begin(), mSceneInstances.end(),
-                  [](const fra::SceneInstanceUpload &a, const fra::SceneInstanceUpload &b) {
-                      return a.entityId < b.entityId;
-                  });
-
-        mRenderer->BeginSceneInstances();
-        mRenderer->ReserveSceneInstances(
-            static_cast<std::uint32_t>(mSceneInstances.size()));
-        mRenderer->UploadSceneInstances(mSceneInstances);
+        mRegistry->ExecuteTasks();
         mRenderer->EndSceneInstances();
     }
 

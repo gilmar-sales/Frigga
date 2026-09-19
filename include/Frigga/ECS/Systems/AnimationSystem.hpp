@@ -10,6 +10,7 @@
 #include <Freya/Asset/BakedAnimation.hpp>
 #include <Freya/Asset/GpuAnimation.hpp>
 #include <Freyr/Freyr.hpp>
+#include <glm/glm.hpp>
 
 #include <cstdint>
 #include <string>
@@ -78,6 +79,12 @@ namespace FRIGGA_NAMESPACE
                                                 const glm::vec3 &cameraPos, bool ticking,
                                                 float &outAdvanceDt);
 
+        struct CpuBoneUpload
+        {
+            std::uint32_t          boneOffset = 0;
+            std::vector<glm::mat4> matrices;
+        };
+
         skr::Arc<fra::Renderer> mRenderer;
         skr::Arc<AssetRegistry> mAssets;
         skr::Arc<Scene> mScene;
@@ -86,7 +93,7 @@ namespace FRIGGA_NAMESPACE
         skr::Arc<AnimationController> mController;
         skr::Arc<AnimationEventRouter> mEventRouter;
 
-        std::vector<glm::mat4> mBonePalette;
+        std::vector<CpuBoneUpload> mCpuBoneUploads;
         std::vector<fra::GpuAnimInstance> mGpuInstances;
         std::unordered_map<BakeKey, fra::BakedClip, BakeKeyHash> mBakes;
         std::unordered_map<fr::Entity, ActorLodState> mLodStates;
