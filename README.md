@@ -2,6 +2,8 @@
 
 Personal C++ game engine and ImGui editor built on [Freyr](https://github.com/gilmar-sales/Freyr) (ECS), [Freya](https://github.com/gilmar-sales/Freya) (Vulkan renderer / windowing), and [Jolt Physics](https://github.com/jrouwe/JoltPhysics).
 
+![Frigga Editor — Gameplay workflow](docs/editor-gameplay.jpg)
+
 **Status:** early prototype (v0.12.0). The Gameplay workflow is usable: author scenes of primitives, lights, and cameras; save/load JSON; run a play/edit physics simulation. Animation workflow supports clip preview and anim graphs. **Audio workflow** uses [miniaudio](https://github.com/mackron/miniaudio) (JSON event banks, clips, mixer, waveform preview). **Shading workflow** provides material browsing, PBR property editing, and an isolated preview viewport (shader graph remains a placeholder). Gameplay code is edited in VS Code (Ctrl+Shift+E) and debugged by attaching GDB to the running Editor.
 
 ## Features
