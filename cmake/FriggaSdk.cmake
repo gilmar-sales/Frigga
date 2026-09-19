@@ -15,6 +15,11 @@ endif()
 if(EXISTS "${FRIGGA_SDK}/FriggaSdkConfig.cmake")
     include("${FRIGGA_SDK}/FriggaSdkConfig.cmake")
 endif()
+# OFF: modules import Editor.exe (Editor hot-reload). ON: modules import the
+# game exe (publish / standalone MyGame.exe).
+option(FRIGGA_MODULES_LINK_GAME
+       "Link gameplay modules to the game executable instead of the Editor"
+       OFF)
 set(FRIGGA_SDK_EXPECTED_ABI_VERSION "1" CACHE STRING
     "Expected Frigga gameplay SDK ABI version")
 if(DEFINED FRIGGA_SDK_ABI_VERSION AND
@@ -52,28 +57,21 @@ endif()
 
 find_package(Threads REQUIRED)
 find_package(Vulkan REQUIRED)
-find_package(ZLIB REQUIRED)
 include(CMakeParseArguments)
 
 set(_FRIGGA_LIB_DIR "${FRIGGA_SDK}/lib")
 
 # Resolve a packaged SDK archive. NAME is the on-disk stem (casing matters for
-# Freya/Jolt/SDL3). Assimp may set CMAKE_DEBUG_POSTFIX=d, so Debug packs use
-# libfriggad.a / Freyad.lib — try Release names first, then the "d" variants.
+# Freya/Jolt/SDL3). One Sdk = one build type → unprefixed names only.
 function(_frigga_resolve_sdk_library OUT_VAR NAME)
     string(TOLOWER "${NAME}" _lower)
     if(WIN32)
         set(_candidates
                 "${_FRIGGA_LIB_DIR}/${NAME}.lib"
-                "${_FRIGGA_LIB_DIR}/${NAME}d.lib"
                 "${_FRIGGA_LIB_DIR}/lib${_lower}.lib"
-                "${_FRIGGA_LIB_DIR}/lib${_lower}d.lib"
-                "${_FRIGGA_LIB_DIR}/lib${_lower}.a"
-                "${_FRIGGA_LIB_DIR}/lib${_lower}d.a")
+                "${_FRIGGA_LIB_DIR}/lib${_lower}.a")
     else()
-        set(_candidates
-                "${_FRIGGA_LIB_DIR}/lib${NAME}.a"
-                "${_FRIGGA_LIB_DIR}/lib${NAME}d.a")
+        set(_candidates "${_FRIGGA_LIB_DIR}/lib${NAME}.a")
     endif()
     set(_found "")
     foreach(_candidate IN LISTS _candidates)
@@ -111,6 +109,12 @@ if(_FRIGGA_ENGINE_FILE)
                     IMPORTED_LOCATION "${_dependency_file}")
         endif()
     endforeach()
+    # Static SDL3 does not embed Windows system deps; mirror SDL3::SDL3-static.
+    if(TARGET Frigga::sdl3 AND WIN32)
+        set_property(TARGET Frigga::sdl3 APPEND PROPERTY INTERFACE_LINK_LIBRARIES
+                m kernel32 user32 gdi32 winmm imm32 ole32 oleaut32 version uuid
+                advapi32 setupapi shell32 dinput8 cfgmgr32)
+    endif()
     set(_FRIGGA_ENGINE_LIBS)
     foreach(_dependency IN ITEMS freya meshoptimizer glm assimp freyr perfetto imgui skirnir simdjson jolt sdl3)
         if(TARGET "Frigga::${_dependency}")
@@ -128,6 +132,23 @@ if(_FRIGGA_ENGINE_FILE)
     set(_FRIGGA_EXTRA_LIBS)
     if(TARGET Frigga::perfetto AND WIN32)
         list(APPEND _FRIGGA_EXTRA_LIBS ws2_32)
+    endif()
+    # Assimp is built with ASSIMP_BUILD_ZLIB; pack zlibstatic into Sdk/lib.
+    # Prefer that over a system ZLIB so MinGW game configures need no extra deps.
+    find_package(ZLIB QUIET)
+    if(NOT TARGET ZLIB::ZLIB)
+        foreach(_zlib_stem IN ITEMS zlibstatic zlib z)
+            _frigga_resolve_sdk_library(_FRIGGA_ZLIB_FILE "${_zlib_stem}")
+            if(_FRIGGA_ZLIB_FILE)
+                add_library(ZLIB::ZLIB STATIC IMPORTED GLOBAL)
+                set_target_properties(ZLIB::ZLIB PROPERTIES
+                        IMPORTED_LOCATION "${_FRIGGA_ZLIB_FILE}")
+                break()
+            endif()
+        endforeach()
+    endif()
+    if(NOT TARGET ZLIB::ZLIB)
+        find_package(ZLIB REQUIRED)
     endif()
     target_link_libraries(Frigga::frigga INTERFACE
             ${_FRIGGA_ENGINE_LIBS}
@@ -224,36 +245,9 @@ function(frigga_add_game TARGET)
         if(_FRIGGA_NM AND EXISTS "${_frigga_exports_script}")
             set(_module_exports "${CMAKE_CURRENT_BINARY_DIR}/${TARGET}_module_exports.def")
             set(_lib_frigga "${_FRIGGA_ENGINE_FILE}")
-            set(_lib_freyr "")
-            set(_lib_skirnir "")
-            set(_lib_simdjson "")
-            foreach(_candidate IN ITEMS
-                    "${_FRIGGA_LIB_DIR}/freyr.lib"
-                    "${_FRIGGA_LIB_DIR}/libfreyr.lib"
-                    "${_FRIGGA_LIB_DIR}/libfreyr.a")
-                if(EXISTS "${_candidate}")
-                    set(_lib_freyr "${_candidate}")
-                    break()
-                endif()
-            endforeach()
-            foreach(_candidate IN ITEMS
-                    "${_FRIGGA_LIB_DIR}/skirnir.lib"
-                    "${_FRIGGA_LIB_DIR}/libskirnir.lib"
-                    "${_FRIGGA_LIB_DIR}/libskirnir.a")
-                if(EXISTS "${_candidate}")
-                    set(_lib_skirnir "${_candidate}")
-                    break()
-                endif()
-            endforeach()
-            foreach(_candidate IN ITEMS
-                    "${_FRIGGA_LIB_DIR}/simdjson.lib"
-                    "${_FRIGGA_LIB_DIR}/libsimdjson.lib"
-                    "${_FRIGGA_LIB_DIR}/libsimdjson.a")
-                if(EXISTS "${_candidate}")
-                    set(_lib_simdjson "${_candidate}")
-                    break()
-                endif()
-            endforeach()
+            _frigga_resolve_sdk_library(_lib_freyr freyr)
+            _frigga_resolve_sdk_library(_lib_skirnir skirnir)
+            _frigga_resolve_sdk_library(_lib_simdjson simdjson)
             add_custom_command(
                     OUTPUT "${_module_exports}"
                     COMMAND ${CMAKE_COMMAND}
@@ -372,7 +366,11 @@ Terminal=false
         endif()
     endif()
 
-    set(FRIGGA_HOST_TARGET "${TARGET}" PARENT_SCOPE)
+    # Modules loaded by the Editor must import Editor.exe. Only published /
+    # standalone game builds should bind modules to this executable instead.
+    if(FRIGGA_MODULES_LINK_GAME)
+        set(FRIGGA_HOST_TARGET "${TARGET}" PARENT_SCOPE)
+    endif()
     set(FRIGGA_GAME_TARGET "${TARGET}" PARENT_SCOPE)
 endfunction()
 

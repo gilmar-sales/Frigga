@@ -120,26 +120,20 @@ foreach(_implib IN ITEMS libEditor.dll.a Editor.lib libEditor.lib)
 endforeach()
 
 file(MAKE_DIRECTORY "${FRIGGA_SDK_DIR}/lib")
-# Best-effort configure-time seed; FriggaSdkLibraries refreshes after build
-# (including CMAKE_DEBUG_POSTFIX=d names like libassimpd.a).
+# Best-effort configure-time seed; FriggaSdkLibraries refreshes after build.
 foreach(_library IN ITEMS
         "${CMAKE_BINARY_DIR}/libfrigga.a"
-        "${CMAKE_BINARY_DIR}/libfriggad.a"
         "${CMAKE_BINARY_DIR}/_deps/freya-build/libFreya.a"
-        "${CMAKE_BINARY_DIR}/_deps/freya-build/libFreyad.a"
         "${CMAKE_BINARY_DIR}/_deps/glm-build/glm/libglm.a"
         "${CMAKE_BINARY_DIR}/_deps/assimp-build/lib/libassimp.a"
-        "${CMAKE_BINARY_DIR}/_deps/assimp-build/lib/libassimpd.a"
+        "${CMAKE_BINARY_DIR}/_deps/assimp-build/contrib/zlib/libzlibstatic.a"
         "${CMAKE_BINARY_DIR}/_deps/meshoptimizer-build/libmeshoptimizer.a"
-        "${CMAKE_BINARY_DIR}/_deps/meshoptimizer-build/libmeshoptimizerd.a"
         "${CMAKE_BINARY_DIR}/_deps/freyr-build/libfreyr.a"
         "${CMAKE_BINARY_DIR}/_deps/freyr-build/vendor/perfetto/libperfetto.a"
         "${CMAKE_BINARY_DIR}/_deps/skirnir-build/libskirnir.a"
         "${CMAKE_BINARY_DIR}/_deps/simdjson-build/libsimdjson.a"
         "${CMAKE_BINARY_DIR}/_deps/imgui-build/libimgui.a"
-        "${CMAKE_BINARY_DIR}/_deps/imgui-build/libimguid.a"
         "${CMAKE_BINARY_DIR}/_deps/joltphysics-build/libJolt.a"
-        "${CMAKE_BINARY_DIR}/_deps/joltphysics-build/libJoltd.a"
         "${CMAKE_BINARY_DIR}/_deps/sdl-build/libSDL3.a")
     if(EXISTS "${_library}")
         file(COPY "${_library}" DESTINATION "${FRIGGA_SDK_DIR}/lib")
@@ -152,6 +146,8 @@ file(GLOB _FRIGGA_ENGINE_LIBRARIES
         "${CMAKE_BINARY_DIR}/_deps/*-build/*.a"
         "${CMAKE_BINARY_DIR}/_deps/*-build/lib/*.lib"
         "${CMAKE_BINARY_DIR}/_deps/*-build/lib/*.a"
+        "${CMAKE_BINARY_DIR}/_deps/*-build/contrib/*/*.lib"
+        "${CMAKE_BINARY_DIR}/_deps/*-build/contrib/*/*.a"
         "${CMAKE_BINARY_DIR}/_deps/*-build/vendor/*/*.lib"
         "${CMAKE_BINARY_DIR}/_deps/*-build/vendor/*/*.a")
 if(_FRIGGA_ENGINE_LIBRARIES)

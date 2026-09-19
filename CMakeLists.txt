@@ -48,6 +48,12 @@ endif ()
 
 include(FetchContent)
 
+# One Sdk pack = one CMAKE_BUILD_TYPE. Assimp's debug postfix would otherwise
+# set CMAKE_DEBUG_POSTFIX=d for the whole tree (libfriggad.a, libfreyrd.a, …)
+# and leave Debug/Release archives side-by-side under Sdk/lib.
+set(CMAKE_DEBUG_POSTFIX "" CACHE STRING "Frigga SDK uses unprefixed library names" FORCE)
+set(ASSIMP_INJECT_DEBUG_POSTFIX OFF CACHE BOOL "" FORCE)
+
 find_package(Vulkan REQUIRED)
 
 FetchContent_Declare(
@@ -184,7 +190,8 @@ set(_FRIGGA_SDK_BINARY_TARGETS
         Jolt
         SDL3::SDL3)
 # Freya transitive deps (and optional profiling) — pack when available.
-foreach(_optional IN ITEMS assimp meshoptimizer perfetto)
+# zlibstatic comes from Assimp's contrib zlib (ASSIMP_BUILD_ZLIB).
+foreach(_optional IN ITEMS assimp meshoptimizer perfetto zlibstatic)
     if(TARGET ${_optional})
         list(APPEND _FRIGGA_SDK_BINARY_TARGETS ${_optional})
     endif()
