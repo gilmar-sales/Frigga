@@ -10,14 +10,15 @@
 #include <Freya/Asset/BakedAnimation.hpp>
 #include <Freya/Asset/GpuAnimation.hpp>
 #include <Freya/Asset/AnimationClip.hpp>
+#include <Freyr/Containers/UnboundedMPMCQueue.hpp>
 #include <Freyr/Freyr.hpp>
 #include <glm/glm.hpp>
 
 #include <atomic>
 #include <cstdint>
-#include <mutex>
 #include <string>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 namespace FRIGGA_NAMESPACE
@@ -40,10 +41,25 @@ namespace FRIGGA_NAMESPACE
         void Update(float deltaTime) override;
 
       private:
+        /// Must be nothrow move-constructible for rigtorp::UnboundedMPMCQueue.
         struct PendingAnimEvents
         {
             fr::Entity                                entity = static_cast<fr::Entity>(-1);
             std::vector<fra::FiredAnimationEvent> events;
+
+            PendingAnimEvents() noexcept = default;
+
+            PendingAnimEvents(fr::Entity e,
+                              std::vector<fra::FiredAnimationEvent> &&ev) noexcept
+                : entity(e), events(std::move(ev))
+            {
+            }
+
+            PendingAnimEvents(PendingAnimEvents &&other) noexcept = default;
+            PendingAnimEvents &operator=(PendingAnimEvents &&other) noexcept = default;
+
+            PendingAnimEvents(const PendingAnimEvents &)            = delete;
+            PendingAnimEvents &operator=(const PendingAnimEvents &) = delete;
         };
 
         [[nodiscard]] const fra::AnimationClip *resolveClip(const ModelAsset &model,
@@ -79,8 +95,7 @@ namespace FRIGGA_NAMESPACE
         std::unordered_set<std::string> mGpuPinnedModels;
         std::string mActiveGpuSkeletonPath;
 
-        std::mutex mEventMutex;
-        std::vector<PendingAnimEvents> mPendingEvents;
+        rigtorp::UnboundedMPMCQueue<PendingAnimEvents> mPendingEvents;
     };
 
 } // namespace FRIGGA_NAMESPACE

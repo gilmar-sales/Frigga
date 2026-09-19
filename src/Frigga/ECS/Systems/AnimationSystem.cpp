@@ -16,7 +16,6 @@
 #include <atomic>
 #include <cmath>
 #include <functional>
-#include <mutex>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -383,29 +382,25 @@ namespace FRIGGA_NAMESPACE
         {
             return;
         }
-        std::lock_guard lock(mEventMutex);
-        mPendingEvents.push_back(PendingAnimEvents {
-            .entity = entity,
-            .events = std::move(events),
-        });
+        mPendingEvents.emplace(entity, std::move(events));
     }
 
     void AnimationSystem::drainEvents()
     {
-        std::vector<PendingAnimEvents> pending;
+        if(!mEventRouter)
         {
-            std::lock_guard lock(mEventMutex);
-            pending.swap(mPendingEvents);
-        }
-
-        if(!mEventRouter || pending.empty())
-        {
+            PendingAnimEvents discarded;
+            while(mPendingEvents.try_pop(discarded))
+            {
+            }
             return;
         }
 
-        for(auto &entry : pending)
+        PendingAnimEvents entry;
+        while(mPendingEvents.try_pop(entry))
         {
-            if(!mRegistry->HasComponent<AnimatorComponent>(entry.entity))
+            if(entry.events.empty() ||
+               !mRegistry->HasComponent<AnimatorComponent>(entry.entity))
             {
                 continue;
             }
