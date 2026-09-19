@@ -27,7 +27,7 @@ if(_libs STREQUAL "")
 endif()
 
 set(_std_or_crt
-    "^\\.weak|^_ZSt|^_ZNSt|^_ZNKSt|^_ZNSa|^_ZNKSa|^_ZN9__gnu_cxx|^_ZTVNSt|^_ZTINSt|^_ZTSNSt|^_ZZNSt|^_ZGVNSt|^_Unwind|^__imp_|^__gnu_lto")
+    "^\\.weak|^_ZSt|^_ZNSt|^_ZNKSt|^_ZNSa|^_ZNKSa|^_ZN9__gnu_cxx|^_ZNK9__gnu_cxx|^_ZTVNSt|^_ZTINSt|^_ZTSNSt|^_ZZNSt|^_ZGVNSt|^_Unwind|^__imp_|^__gnu_lto")
 
 set(_code_syms "")
 set(_data_syms "")

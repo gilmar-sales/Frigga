@@ -33,6 +33,11 @@ namespace FRIGGA_NAMESPACE
         bool skinned = false;
         fra::Skeleton skeleton {};
         std::vector<fra::AnimationClip> clips;
+        /// Parallel to `clips` (same index). Filled at load for parallel AnimationSystem reads.
+        std::vector<fra::BakedClip> bakedClips;
+
+        [[nodiscard]] const fra::BakedClip *FindBakedClip(std::string_view clipName) const;
+        [[nodiscard]] const fra::BakedClip *BakedClipFor(const fra::AnimationClip &clip) const;
     };
 
     struct TextureAsset

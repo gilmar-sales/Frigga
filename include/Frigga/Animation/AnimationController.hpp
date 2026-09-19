@@ -6,6 +6,8 @@
 #include <Freya/Asset/AnimGraph.hpp>
 #include <Freyr/Freyr.hpp>
 
+#include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -101,7 +103,9 @@ namespace FRIGGA_NAMESPACE
 
         skr::Arc<fr::Registry> mRegistry;
         skr::Arc<AssetRegistry> mAssets;
-        std::unordered_map<fr::Entity, EntityRuntime> mRuntimes;
+        mutable std::mutex mRuntimesMutex;
+        /// Heap-stable runtimes so EachAsync can hold EntityRuntime* across map inserts.
+        std::unordered_map<fr::Entity, std::unique_ptr<EntityRuntime>> mRuntimes;
     };
 
 } // namespace FRIGGA_NAMESPACE

@@ -23,8 +23,10 @@ namespace FRIGGA_NAMESPACE
      * without their own Animator inherit that root's bone palette via parent walk
      * in RenderSystem. Same-entity Mesh+Animator remains supported for single meshes.
      *
-     * Runtime fields `boneOffset` / `boneCount` are written each frame by
-     * AnimationSystem for RenderSystem instance uploads.
+     * Runtime fields `boneOffset` / `boneCount` are allocated once per model
+     * (stable palette) by AnimationSystem for RenderSystem instance uploads.
+     * LOD / clipTimePrev live on the component so EachAsync never touches
+     * shared system maps.
      */
     struct AnimatorComponent: fr::Component
     {
@@ -52,8 +54,16 @@ namespace FRIGGA_NAMESPACE
         /// When false, clip markers are ignored by AnimationEventRouter.
         bool routeClipEvents = true;
 
+        /// Model path the current boneOffset was allocated for (runtime).
+        std::string bonePaletteSource;
         std::uint32_t boneOffset = fra::kNoSkin;
         std::uint32_t boneCount  = 0;
+
+        /// Per-entity anim LOD (runtime; not serialized).
+        float        lodAccum = 0.f;
+        std::uint8_t lodTier  = 0;
+        /// Previous clip time for event edge detection (runtime).
+        float clipTimePrev = 0.f;
     };
 
 } // namespace FRIGGA_NAMESPACE

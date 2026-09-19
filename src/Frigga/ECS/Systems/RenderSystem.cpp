@@ -285,7 +285,7 @@ namespace FRIGGA_NAMESPACE
             return;
         }
 
-        // Freya 0.50: Begin/Upload/End is thread-safe; pack lights via EachAsync.
+        // Freya 0.50+: Begin/Upload/End is thread-safe; pack lights via EachAsync.
         mLightService->BeginLightUploads();
         mLightService->ReserveLightUploads(cappedVisible);
         mRegistry->CreateMutation()->EachAsync(

@@ -258,7 +258,12 @@ function(frigga_add_game TARGET)
                     -D "LIB3=${_lib_simdjson}"
                     -D "OUT=${_module_exports}"
                     -P "${_frigga_exports_script}"
-                    DEPENDS "${_frigga_exports_script}"
+                    DEPENDS
+                        "${_frigga_exports_script}"
+                        "${_lib_frigga}"
+                        "${_lib_freyr}"
+                        "${_lib_skirnir}"
+                        "${_lib_simdjson}"
                     VERBATIM
                     COMMENT "Generate ${TARGET} gameplay module export table")
             target_sources(${TARGET} PRIVATE "${_module_exports}")

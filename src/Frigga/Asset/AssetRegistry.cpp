@@ -25,7 +25,61 @@ namespace FRIGGA_NAMESPACE
         {
             return path.generic_string();
         }
+
+        void BakeModelClips(ModelAsset &asset, float bakeHz)
+        {
+            asset.bakedClips.clear();
+            if(!asset.skinned || asset.skeleton.JointCount() == 0 || asset.clips.empty())
+            {
+                return;
+            }
+
+            const float hz = std::max(bakeHz, 1.0f);
+            asset.bakedClips.reserve(asset.clips.size());
+            for(const auto &clip : asset.clips)
+            {
+                asset.bakedClips.push_back(fra::BakeClip(asset.skeleton, clip, hz));
+            }
+        }
     } // namespace
+
+    const fra::BakedClip *ModelAsset::FindBakedClip(std::string_view clipName) const
+    {
+        if(clipName.empty())
+        {
+            return bakedClips.empty() ? nullptr : &bakedClips.front();
+        }
+
+        for(std::size_t i = 0; i < clips.size() && i < bakedClips.size(); ++i)
+        {
+            if(clips[i].name == clipName)
+            {
+                return &bakedClips[i];
+            }
+        }
+
+        for(std::size_t i = 0; i < clips.size() && i < bakedClips.size(); ++i)
+        {
+            if(clips[i].name.find(clipName) != std::string::npos)
+            {
+                return &bakedClips[i];
+            }
+        }
+
+        return bakedClips.empty() ? nullptr : &bakedClips.front();
+    }
+
+    const fra::BakedClip *ModelAsset::BakedClipFor(const fra::AnimationClip &clip) const
+    {
+        for(std::size_t i = 0; i < clips.size() && i < bakedClips.size(); ++i)
+        {
+            if(&clips[i] == &clip)
+            {
+                return &bakedClips[i];
+            }
+        }
+        return nullptr;
+    }
 
     AssetRegistry::AssetRegistry(const skr::Arc<fra::MeshPool> &meshPool,
                                  const skr::Arc<fra::TexturePool> &texturePool,
@@ -307,6 +361,7 @@ namespace FRIGGA_NAMESPACE
                 {
                     fra::EnsureDefaultFootstepEvents(clip);
                 }
+                BakeModelClips(asset, 30.0f);
             }
             else
             {

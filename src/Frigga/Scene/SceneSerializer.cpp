@@ -1453,6 +1453,10 @@ namespace FRIGGA_NAMESPACE
                 hoisted.timeSec    = 0.0f;
                 hoisted.boneOffset = fra::kNoSkin;
                 hoisted.boneCount  = 0;
+                hoisted.bonePaletteSource.clear();
+                hoisted.lodAccum     = 0.f;
+                hoisted.lodTier      = 0;
+                hoisted.clipTimePrev = 0.f;
 
                 if(!registry.HasComponent<TransformComponent>(parent))
                 {

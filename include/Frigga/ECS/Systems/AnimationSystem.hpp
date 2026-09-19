@@ -9,12 +9,15 @@
 #include <Freya/Advanced.hpp>
 #include <Freya/Asset/BakedAnimation.hpp>
 #include <Freya/Asset/GpuAnimation.hpp>
+#include <Freya/Asset/AnimationClip.hpp>
 #include <Freyr/Freyr.hpp>
 #include <glm/glm.hpp>
 
+#include <atomic>
 #include <cstdint>
+#include <mutex>
 #include <string>
-#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace FRIGGA_NAMESPACE
@@ -37,53 +40,32 @@ namespace FRIGGA_NAMESPACE
         void Update(float deltaTime) override;
 
       private:
-        struct BakeKey
+        struct PendingAnimEvents
         {
-            std::string modelSource;
-            std::string clipName;
-
-            bool operator==(const BakeKey &other) const
-            {
-                return modelSource == other.modelSource && clipName == other.clipName;
-            }
-        };
-
-        struct BakeKeyHash
-        {
-            std::size_t operator()(const BakeKey &key) const noexcept
-            {
-                return std::hash<std::string> {}(key.modelSource) ^
-                       (std::hash<std::string> {}(key.clipName) << 1);
-            }
-        };
-
-        struct ActorLodState
-        {
-            float        accum = 0.f;
-            std::uint8_t tier  = 0;
+            fr::Entity                                entity = static_cast<fr::Entity>(-1);
+            std::vector<fra::FiredAnimationEvent> events;
         };
 
         [[nodiscard]] const fra::AnimationClip *resolveClip(const ModelAsset &model,
                                                             const std::string &clipName) const;
 
-        [[nodiscard]] const fra::BakedClip *ensureBake(const ModelAsset &model,
-                                                       const fra::AnimationClip &clip);
-
         [[nodiscard]] glm::vec3 cameraPosition() const;
 
         /// Returns true when a pose/clip tick is due; writes wall-clock advance
         /// amount (LOD interval or frame delta) into @p outAdvanceDt.
-        /// @p cameraPos must be resolved once per Update (not per actor).
-        [[nodiscard]] bool consumeAnimationTick(float deltaTime, fr::Entity entity,
+        [[nodiscard]] bool consumeAnimationTick(float deltaTime, AnimatorComponent &animator,
                                                 const glm::vec3 &actorPosition,
                                                 const glm::vec3 &cameraPos, bool ticking,
                                                 float &outAdvanceDt);
 
-        struct CpuBoneUpload
-        {
-            std::uint32_t          boneOffset = 0;
-            std::vector<glm::mat4> matrices;
-        };
+        void ensureStableBoneOffset(AnimatorComponent &animator, const ModelAsset &model);
+
+        /// Main-thread only: pin loaded model clips into the GPU cache + active skeleton.
+        void pinGpuClipsForLoadedModels(fra::GpuAnimationSystem &gpu);
+
+        void enqueueEvents(fr::Entity entity,
+                           std::vector<fra::FiredAnimationEvent> &&events);
+        void drainEvents();
 
         skr::Arc<fra::Renderer> mRenderer;
         skr::Arc<AssetRegistry> mAssets;
@@ -93,11 +75,12 @@ namespace FRIGGA_NAMESPACE
         skr::Arc<AnimationController> mController;
         skr::Arc<AnimationEventRouter> mEventRouter;
 
-        std::vector<CpuBoneUpload> mCpuBoneUploads;
-        std::vector<fra::GpuAnimInstance> mGpuInstances;
-        std::unordered_map<BakeKey, fra::BakedClip, BakeKeyHash> mBakes;
-        std::unordered_map<fr::Entity, ActorLodState> mLodStates;
-        std::unordered_map<fr::Entity, float> mClipTimePrev;
+        std::atomic<std::uint32_t> mNextBoneOffset {0};
+        std::unordered_set<std::string> mGpuPinnedModels;
+        std::string mActiveGpuSkeletonPath;
+
+        std::mutex mEventMutex;
+        std::vector<PendingAnimEvents> mPendingEvents;
     };
 
 } // namespace FRIGGA_NAMESPACE

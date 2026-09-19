@@ -3,9 +3,26 @@
 #include "Frigga/Animation/AnimGraphDefinition.hpp"
 
 #include <algorithm>
+#include <mutex>
 
 namespace FRIGGA_NAMESPACE
 {
+    namespace
+    {
+        AnimationController::EntityRuntime &EnsureRuntimeLocked(
+            std::unordered_map<fr::Entity, std::unique_ptr<AnimationController::EntityRuntime>>
+                &runtimes,
+            fr::Entity entity)
+        {
+            auto &slot = runtimes[entity];
+            if(!slot)
+            {
+                slot = std::make_unique<AnimationController::EntityRuntime>();
+            }
+            return *slot;
+        }
+    } // namespace
+
     AnimationController::AnimationController(const skr::Arc<fr::Registry> &registry,
                                              const skr::Arc<AssetRegistry> &assets)
         : mRegistry(registry), mAssets(assets)
@@ -14,29 +31,34 @@ namespace FRIGGA_NAMESPACE
 
     AnimationController::EntityRuntime &AnimationController::EnsureRuntime(fr::Entity entity)
     {
-        return mRuntimes[entity];
+        std::lock_guard lock(mRuntimesMutex);
+        return EnsureRuntimeLocked(mRuntimes, entity);
     }
 
     AnimationController::EntityRuntime *AnimationController::TryGetRuntime(fr::Entity entity)
     {
+        std::lock_guard lock(mRuntimesMutex);
         const auto it = mRuntimes.find(entity);
-        return it == mRuntimes.end() ? nullptr : &it->second;
+        return it == mRuntimes.end() || !it->second ? nullptr : it->second.get();
     }
 
     const AnimationController::EntityRuntime *AnimationController::TryGetRuntime(
         fr::Entity entity) const
     {
+        std::lock_guard lock(mRuntimesMutex);
         const auto it = mRuntimes.find(entity);
-        return it == mRuntimes.end() ? nullptr : &it->second;
+        return it == mRuntimes.end() || !it->second ? nullptr : it->second.get();
     }
 
     void AnimationController::ClearRuntime(fr::Entity entity)
     {
+        std::lock_guard lock(mRuntimesMutex);
         mRuntimes.erase(entity);
     }
 
     void AnimationController::PruneMissingAnimators()
     {
+        std::lock_guard lock(mRuntimesMutex);
         for(auto it = mRuntimes.begin(); it != mRuntimes.end();)
         {
             if(!mRegistry->HasComponent<AnimatorComponent>(it->first))
@@ -276,7 +298,8 @@ namespace FRIGGA_NAMESPACE
     void AnimationController::SyncAnimGraph(fr::Entity entity, const AnimatorComponent &animator,
                                             const ModelAsset &model)
     {
-        auto &runtime = EnsureRuntime(entity);
+        std::lock_guard lock(mRuntimesMutex);
+        auto &runtime = EnsureRuntimeLocked(mRuntimes, entity);
         if(!animator.useAnimGraph || animator.animGraph.states.empty())
         {
             runtime.animGraph.reset();
