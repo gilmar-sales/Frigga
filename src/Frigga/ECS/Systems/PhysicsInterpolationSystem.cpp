@@ -14,7 +14,7 @@ namespace FRIGGA_NAMESPACE
     {
     }
 
-    void PhysicsInterpolationSystem::Update(float)
+    void PhysicsInterpolationSystem::PostUpdate(float)
     {
         if(!mSimulation->IsPlaying() || !mSimulation->IsRunning())
         {

@@ -17,7 +17,7 @@ namespace FRIGGA_NAMESPACE
                                    const skr::Arc<SceneSimulationState> &simulation);
         ~PhysicsInterpolationSystem() override = default;
 
-        void Update(float deltaTime) override;
+        void PostUpdate(float deltaTime) override;
 
       private:
         skr::Arc<IPhysicsWorld> mPhysicsWorld;

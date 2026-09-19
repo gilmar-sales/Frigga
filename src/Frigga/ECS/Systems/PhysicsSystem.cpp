@@ -14,7 +14,7 @@ namespace FRIGGA_NAMESPACE
     {
     }
 
-    void PhysicsSystem::Update(float deltaTime)
+    void PhysicsSystem::PreUpdate(float deltaTime)
     {
         if(!mSimulation->IsPlaying())
         {
