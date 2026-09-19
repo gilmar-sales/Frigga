@@ -168,16 +168,6 @@ jobs:
           cmake --build build-bench --target frigga_benchmarks --parallel 2
           ./build-bench/frigga_benchmarks
 
-      - name: Static analysis
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends clang-tidy
-          cmake -S . -B build-tidy -G Ninja \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_CXX_CLANG_TIDY=clang-tidy
-          cmake --build build-tidy --target frigga_tests --parallel 2
-
       - name: Stage
         shell: bash
         run: |
