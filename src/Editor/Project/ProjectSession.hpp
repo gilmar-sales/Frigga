@@ -176,6 +176,8 @@ class ProjectSession
                      bool loadModule = true);
     bool migrateProjectFile(const std::filesystem::path &projectFile, ProjectDescriptor &desc,
                             bool force);
+    /// Rediscover SDK/root/build when stored hints are missing or invalid; normalize lib names.
+    void applyLocalEnginePaths(ProjectDescriptor &desc);
     void touchRecent();
     void loadProjectInputBindings(const std::filesystem::path &projectRoot);
     void bindProjectResources(const std::filesystem::path &projectRoot);

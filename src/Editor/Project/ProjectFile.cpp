@@ -313,10 +313,12 @@ bool ProjectFile::Save(const std::filesystem::path &projectFile, const ProjectDe
         json << (i + 1 < written.modules.size() ? ",\n" : "\n");
     }
     json << "  ],\n";
+    // Host-absolute engine paths are local-only (-DFRIGGA_SDK on configure / CMakeCache).
+    // Keep the keys for schema stability but never commit machine-specific values.
     json << "  \"engine\": {\n";
-    json << "    \"friggaSdk\": \"" << EscapeJson(written.friggaSdk.generic_string()) << "\",\n";
-    json << "    \"friggaRoot\": \"" << EscapeJson(written.friggaRoot.generic_string()) << "\",\n";
-    json << "    \"friggaBuild\": \"" << EscapeJson(written.friggaBuild.generic_string()) << "\"\n";
+    json << "    \"friggaSdk\": \"\",\n";
+    json << "    \"friggaRoot\": \"\",\n";
+    json << "    \"friggaBuild\": \"\"\n";
     json << "  }\n";
     json << "}\n";
 

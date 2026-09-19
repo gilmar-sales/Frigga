@@ -1,7 +1,9 @@
+import * as fs from "fs";
+import * as path from "path";
 import * as vscode from "vscode";
 import { FriggaProject } from "./project";
 import { FriggaModule } from "./modules";
-import { loadProjectDescriptor } from "./projectFile";
+import { loadProjectDescriptor, FriggaProjectDescriptor } from "./projectFile";
 
 function shellQuote(value: string): string {
   if (process.platform === "win32") {
@@ -10,7 +12,38 @@ function shellQuote(value: string): string {
   return `"${value.replace(/"/g, '\\"')}"`;
 }
 
-function makeConfigureCommand(project: FriggaProject, desc: Awaited<ReturnType<typeof loadProjectDescriptor>>): string {
+function looksLikeFriggaSdk(sdkRoot: string): boolean {
+  return (
+    !!sdkRoot &&
+    fs.existsSync(path.join(sdkRoot, "cmake", "FriggaSdk.cmake")) &&
+    fs.existsSync(path.join(sdkRoot, "include", "Frigga", "Module", "frigga_module.h"))
+  );
+}
+
+function resolveEnginePath(
+  fromProject: string | undefined,
+  envName: string
+): string {
+  if (fromProject && fs.existsSync(fromProject)) {
+    if (envName === "FRIGGA_SDK") {
+      return looksLikeFriggaSdk(fromProject) ? fromProject : "";
+    }
+    return fromProject;
+  }
+  const fromEnv = process.env[envName];
+  if (fromEnv && fs.existsSync(fromEnv)) {
+    if (envName === "FRIGGA_SDK") {
+      return looksLikeFriggaSdk(fromEnv) ? fromEnv : "";
+    }
+    return fromEnv;
+  }
+  return "";
+}
+
+function makeConfigureCommand(
+  project: FriggaProject,
+  desc: FriggaProjectDescriptor | undefined
+): string {
   const buildDir = vscode.Uri.joinPath(project.root, "build").fsPath;
   const parts = [
     "cmake",
@@ -25,11 +58,13 @@ function makeConfigureCommand(project: FriggaProject, desc: Awaited<ReturnType<t
     "-DCMAKE_CXX_STANDARD_REQUIRED=ON",
     "-DCMAKE_CXX_EXTENSIONS=ON",
   ];
-  if (desc?.engine.friggaSdk) {
-    parts.push("-DFRIGGA_SDK", shellQuote(desc.engine.friggaSdk));
+  const sdk = resolveEnginePath(desc?.engine.friggaSdk, "FRIGGA_SDK");
+  const build = resolveEnginePath(desc?.engine.friggaBuild, "FRIGGA_BUILD");
+  if (sdk) {
+    parts.push(`-DFRIGGA_SDK=${shellQuote(sdk)}`);
   }
-  if (desc?.engine.friggaBuild) {
-    parts.push("-DFRIGGA_BUILD", shellQuote(desc.engine.friggaBuild));
+  if (build) {
+    parts.push(`-DFRIGGA_BUILD=${shellQuote(build)}`);
   }
   return parts.join(" ");
 }
@@ -39,6 +74,14 @@ export async function buildModule(
   mod?: FriggaModule
 ): Promise<void> {
   const desc = await loadProjectDescriptor(project.projectFile);
+  const sdk = resolveEnginePath(desc?.engine.friggaSdk, "FRIGGA_SDK");
+  if (!sdk) {
+    vscode.window.showErrorMessage(
+      "Frigga SDK not found. Set FRIGGA_SDK to your Sdk/ (or engine tree), or build modules from the Frigga Editor (Ctrl+B)."
+    );
+    return;
+  }
+
   const target = mod?.target;
   const label = target ? `Frigga: Build ${target}` : "Frigga: Build All Modules";
   const buildArgs = target

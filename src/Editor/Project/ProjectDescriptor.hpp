@@ -63,8 +63,8 @@ struct ProjectDescriptor
     /// Relative to project root (after cmake --build). Gameplay convenience mirror.
     std::string moduleLibraryRelative = "build/libgameplay.so";
     std::vector<ProjectModuleEntry> modules;
-    /// Packaged `Sdk/` next to the Editor, or the engine source tree. Last-used hint;
-    /// CMake resolves via `-DFRIGGA_SDK`, `FRIGGA_SDK` env, or `CMakeUserPresets.json`.
+    /// In-memory host hints only — not persisted to frigga.project (portable projects).
+    /// CMake resolves via `-DFRIGGA_SDK` on configure (Editor always passes it) or `FRIGGA_SDK` env.
     std::filesystem::path friggaSdk;
     std::filesystem::path friggaRoot;
     std::filesystem::path friggaBuild;

@@ -121,7 +121,7 @@ ProjectMigrationResult ProjectMigrator::Migrate(const std::filesystem::path &pro
     if(!friggaRoot.empty())
     {
         desc.friggaRoot = friggaRoot;
-        if(LooksLikeFriggaSdk(friggaRoot) || desc.friggaSdk.empty())
+        if(LooksLikeFriggaSdk(friggaRoot) || !IsUsableFriggaSdk(desc.friggaSdk))
         {
             desc.friggaSdk = friggaRoot;
         }
@@ -134,7 +134,9 @@ ProjectMigrationResult ProjectMigrator::Migrate(const std::filesystem::path &pro
             desc.friggaSdk = friggaBuild;
         }
     }
-    FillMissingEnginePaths(desc);
+    RefreshEnginePaths(desc, LooksLikeFriggaSdk(friggaBuild) ? friggaBuild : friggaRoot, friggaRoot,
+                       friggaBuild);
+    NormalizeModuleLibraryPaths(desc);
     if(desc.friggaRoot.empty() || desc.friggaBuild.empty())
     {
         result.error = "Engine paths missing; cannot migrate project scaffold";

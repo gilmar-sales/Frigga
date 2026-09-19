@@ -673,6 +673,12 @@ std::filesystem::path ProjectSession::DiscoverFriggaSdk()
     return DiscoverFriggaRoot();
 }
 
+void ProjectSession::applyLocalEnginePaths(ProjectDescriptor &desc)
+{
+    RefreshEnginePaths(desc, DiscoverFriggaSdk(), DiscoverFriggaRoot(), DiscoverFriggaBuild());
+    NormalizeModuleLibraryPaths(desc);
+}
+
 bool ProjectSession::CreateProject(const std::filesystem::path &parentDir, std::string name,
                                    fg::SceneTemplate sceneTemplate)
 {
@@ -690,16 +696,8 @@ bool ProjectSession::CreateProject(const std::filesystem::path &parentDir, std::
     ProjectDescriptor desc;
     desc.name          = std::move(name);
     desc.sceneTemplate = sceneTemplate;
-    desc.friggaRoot    = DiscoverFriggaRoot();
-    desc.friggaBuild   = DiscoverFriggaBuild();
-    desc.friggaSdk     = DiscoverFriggaSdk();
-#ifdef _WIN32
-    desc.moduleLibraryRelative = "build/" + desc.moduleTarget + ".dll";
-#elif defined(__APPLE__)
-    desc.moduleLibraryRelative = "build/lib" + desc.moduleTarget + ".dylib";
-#else
-    desc.moduleLibraryRelative = "build/lib" + desc.moduleTarget + ".so";
-#endif
+    applyLocalEnginePaths(desc);
+    desc.moduleLibraryRelative = ProjectDescriptor::DefaultLibraryRelative(desc.moduleTarget);
     const auto result = ProjectScaffold::Create(parentDir, desc, *mScene);
     if(!result.ok)
     {
@@ -717,6 +715,7 @@ bool ProjectSession::CreateProject(const std::filesystem::path &parentDir, std::
         return false;
     }
 
+    applyLocalEnginePaths(*loaded);
     mDescriptor = *loaded;
     bindProjectResources(result.projectFile.parent_path());
     if(!enterEditor(result.projectFile, std::move(*loaded)))
@@ -747,6 +746,15 @@ bool ProjectSession::OpenProject(const std::filesystem::path &projectFile)
     if(!migrateProjectFile(projectFile, *loaded, false))
     {
         return false;
+    }
+
+    const bool hadPersistedHostPaths = !loaded->friggaSdk.empty() || !loaded->friggaRoot.empty() ||
+                                       !loaded->friggaBuild.empty();
+    applyLocalEnginePaths(*loaded);
+    if(hadPersistedHostPaths)
+    {
+        // Drop machine-local engine hints from disk; in-memory paths stay for this session.
+        ProjectFile::Save(projectFile, *loaded);
     }
 
     // Register gameplay types before scene deserialize so userComponents apply immediately.
@@ -869,6 +877,7 @@ bool ProjectSession::MigrateOpenProject(bool force)
     {
         return false;
     }
+    applyLocalEnginePaths(desc);
     mDescriptor = std::move(desc);
     return true;
 }
@@ -1044,9 +1053,9 @@ std::filesystem::path ProjectSession::GetResourcesDirectory() const
 void ProjectSession::bindProjectResources(const std::filesystem::path &projectRoot)
 {
     std::string error;
-    const auto friggaRoot =
-        mDescriptor.friggaRoot.empty() ? DiscoverFriggaRoot() : mDescriptor.friggaRoot;
-    if(!ProjectScaffold::EnsureProjectResources(projectRoot, error, friggaRoot))
+    auto desc = mDescriptor;
+    applyLocalEnginePaths(desc);
+    if(!ProjectScaffold::EnsureProjectResources(projectRoot, error, desc.friggaRoot))
     {
         mLogger->LogWarning("Project Resources folder: {}", error);
     }
@@ -1365,20 +1374,8 @@ void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::pa
     };
 
     ProjectDescriptor engine = mDescriptor;
-    if(engine.friggaSdk.empty())
-    {
-        engine.friggaSdk = DiscoverFriggaSdk();
-    }
-    if(engine.friggaRoot.empty())
-    {
-        engine.friggaRoot = DiscoverFriggaRoot();
-    }
-    if(engine.friggaBuild.empty())
-    {
-        engine.friggaBuild = DiscoverFriggaBuild();
-    }
-    FillMissingEnginePaths(engine);
-    ProjectScaffold::WriteCMakeUserPresets(root, engine);
+    applyLocalEnginePaths(engine);
+    mDescriptor = engine;
 
     const auto cachePath = FirstExistingCMakeCache({
         engine.friggaBuild,
@@ -1424,6 +1421,7 @@ void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::pa
         " -DCMAKE_CXX_EXTENSIONS=ON";
     configureCmd += publish ? " -DFRIGGA_MODULES_LINK_GAME=ON"
                             : " -DFRIGGA_MODULES_LINK_GAME=OFF";
+    // Always pass SDK paths so CMakeCache is overwritten on host/OS switches.
     appendCachePath(configureCmd, "FRIGGA_SDK", engine.friggaSdk);
     appendCachePath(configureCmd, "FRIGGA_BUILD", engine.friggaBuild);
     if(!cxxCompiler.empty())

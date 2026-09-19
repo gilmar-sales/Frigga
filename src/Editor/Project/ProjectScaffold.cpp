@@ -40,27 +40,6 @@ namespace
 #endif
     }
 
-    std::string EscapeJson(std::string_view value)
-    {
-        std::ostringstream out;
-        for(const char ch : value)
-        {
-            switch(ch)
-            {
-            case '"':
-                out << "\\\"";
-                break;
-            case '\\':
-                out << "\\\\";
-                break;
-            default:
-                out << ch;
-                break;
-            }
-        }
-        return out.str();
-    }
-
     std::string MakeCmakeIdentifier(std::string value)
     {
         if(value.empty())
@@ -79,41 +58,6 @@ namespace
             value.insert(value.begin(), '_');
         }
         return value;
-    }
-
-    std::string MakeCMakeUserPresets(const ProjectDescriptor &desc)
-    {
-        const auto sdk   = EffectiveFriggaSdk(desc).generic_string();
-        const auto build = EffectiveFriggaBuild(desc).generic_string();
-        std::ostringstream out;
-        out << "{\n";
-        out << "  \"version\": 6,\n";
-        out << "  \"cmakeMinimumRequired\": { \"major\": 3, \"minor\": 29, \"patch\": 0 },\n";
-        out << "  \"configurePresets\": [\n";
-        out << "    {\n";
-        out << "      \"name\": \"default\",\n";
-        out << "      \"displayName\": \"Frigga (local Editor)\",\n";
-        out << "      \"generator\": \"Ninja\",\n";
-        out << "      \"binaryDir\": \"${sourceDir}/build\",\n";
-        out << "      \"cacheVariables\": {\n";
-        out << "        \"CMAKE_BUILD_TYPE\": \"Debug\",\n";
-        out << "        \"CMAKE_CXX_STANDARD\": \"26\",\n";
-        out << "        \"FRIGGA_SDK\": \"" << EscapeJson(sdk) << "\",\n";
-        out << "        \"FRIGGA_BUILD\": \"" << EscapeJson(build) << "\"\n";
-        out << "      }\n";
-        out << "    },\n";
-        out << "    {\n";
-        out << "      \"name\": \"publish\",\n";
-        out << "      \"displayName\": \"Frigga (Release publish)\",\n";
-        out << "      \"inherits\": \"default\",\n";
-        out << "      \"binaryDir\": \"${sourceDir}/build-release\",\n";
-        out << "      \"cacheVariables\": {\n";
-        out << "        \"CMAKE_BUILD_TYPE\": \"Release\"\n";
-        out << "      }\n";
-        out << "    }\n";
-        out << "  ]\n";
-        out << "}\n";
-        return out.str();
     }
 
     std::string MakeManagedModuleSubdirsBlock(const ProjectDescriptor &desc)
@@ -152,7 +96,8 @@ namespace
         out << "  set(FRIGGA_SDK \"$ENV{FRIGGA_SDK}\" CACHE PATH \"Frigga SDK or source tree\" FORCE)\n";
         out << "endif()\n";
         out << "if(NOT FRIGGA_SDK)\n";
-        out << "  message(FATAL_ERROR \"Frigga SDK not found. Configure with -DFRIGGA_SDK=<path>, set FRIGGA_SDK, or use CMakeUserPresets.json.\")\n";
+        out << "  message(FATAL_ERROR \"Frigga SDK not found. Configure with -DFRIGGA_SDK=<path> "
+               "or set the FRIGGA_SDK environment variable.\")\n";
         out << "endif()\n";
         out << "if(NOT EXISTS \"${FRIGGA_SDK}/cmake/FriggaSdk.cmake\")\n";
         out << "  message(FATAL_ERROR \"Invalid Frigga SDK: ${FRIGGA_SDK}/cmake/FriggaSdk.cmake not found\")\n";
@@ -342,15 +287,13 @@ struct Health: fr::Component
                "-DFRIGGA_SDK=/path/to/Sdk\n";
         out << "cmake --build build\n";
         out << "```\n\n";
-        out << "Alternatively set the `FRIGGA_SDK` environment variable, or use "
-               "`cmake --preset default` after the Editor has written local "
-               "`CMakeUserPresets.json` (gitignored).\n";
+        out << "Alternatively set the `FRIGGA_SDK` environment variable.\n";
         out << "The SDK contains `include/Frigga`, dependency headers, and the shared "
                "`cmake/FriggaSdk.cmake` module helper. Engine developers can point "
                "`FRIGGA_SDK` at the source tree and optionally pass `-DFRIGGA_BUILD=` "
                "(Editor binary dir with `_deps/`) for local dependency headers.\n\n";
         out << "Or use **File → Build Gameplay Module** (Ctrl+B) in the Editor "
-               "(passes SDK paths and forces `gnu++26` + `-freflection`).\n\n";
+               "(passes `-DFRIGGA_SDK` on every configure).\n\n";
         if(!desc.modules.empty())
         {
             out << "The shared libraries resolve Freyr symbols from the Editor process (do not "
@@ -375,7 +318,7 @@ struct Health: fr::Component
 
     std::string MakeGitignore()
     {
-        return "build/\n.frigga/\nCMakeUserPresets.json\n";
+        return "build/\nbuild-release/\n.frigga/\n";
     }
 
     bool CopyModuleHeader(const std::filesystem::path &friggaRoot,
@@ -429,12 +372,6 @@ ProjectManagedWriteResult ProjectScaffold::WriteManagedFiles(
         return result;
     }
 
-    if(!WriteCMakeUserPresets(projectRoot, desc))
-    {
-        result.error = "Failed to write CMakeUserPresets.json";
-        return result;
-    }
-
     if(!WriteTextFile(projectRoot / "README.md", MakeReadme(desc)))
     {
         result.error = "Failed to write README.md";
@@ -483,12 +420,6 @@ ProjectManagedWriteResult ProjectScaffold::WriteManagedFiles(
 
     result.ok = true;
     return result;
-}
-
-bool ProjectScaffold::WriteCMakeUserPresets(const std::filesystem::path &projectRoot,
-                                            const ProjectDescriptor &desc)
-{
-    return WriteTextFile(projectRoot / "CMakeUserPresets.json", MakeCMakeUserPresets(desc));
 }
 
 bool ProjectScaffold::EnsureDefaultInputJson(const std::filesystem::path &projectRoot,

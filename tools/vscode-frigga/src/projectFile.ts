@@ -148,10 +148,11 @@ export async function saveProjectDescriptor(
   }
 
   lines.push("  ],");
+  // Host paths are local-only (-DFRIGGA_SDK on configure); keep keys empty for portability.
   lines.push(`  "engine": {`);
-  lines.push(`    "friggaSdk": "${escapeJson(desc.engine.friggaSdk)}",`);
-  lines.push(`    "friggaRoot": "${escapeJson(desc.engine.friggaRoot)}",`);
-  lines.push(`    "friggaBuild": "${escapeJson(desc.engine.friggaBuild)}"`);
+  lines.push(`    "friggaSdk": "",`);
+  lines.push(`    "friggaRoot": "",`);
+  lines.push(`    "friggaBuild": ""`);
   lines.push("  }");
   lines.push("}");
 

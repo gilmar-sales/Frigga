@@ -20,8 +20,8 @@ class ProjectMigrator
   public:
     /**
      * Upgrades a project on disk to ProjectDescriptor::CurrentFormatVersion when needed.
-     * Refreshes engine paths, rewrites managed scaffold files (CMakeLists, module header, README,
-     * CMakeUserPresets), ensures the project Resources/ template folders exist, and writes
+     * Refreshes engine paths, rewrites managed scaffold files (CMakeLists, module header, README),
+     * ensures the project Resources/ template folders exist, and writes
      * frigga.project. Never overwrites customized Modules/gameplay/src.
      *
      * @param force when true, rewrite managed files even if already at current version.

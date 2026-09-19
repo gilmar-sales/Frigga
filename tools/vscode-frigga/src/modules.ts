@@ -250,10 +250,18 @@ export async function listUserLibraryModules(): Promise<FriggaModule[]> {
 export async function listBundledModules(
   desc: FriggaProjectDescriptor
 ): Promise<FriggaModule[]> {
+  const sdk =
+    desc.engine.friggaSdk ||
+    process.env.FRIGGA_SDK ||
+    "";
+  const root =
+    desc.engine.friggaRoot ||
+    process.env.FRIGGA_ROOT ||
+    "";
   const dirs = [
-    desc.engine.friggaSdk ? path.join(desc.engine.friggaSdk, "Modules") : "",
-    desc.engine.friggaRoot
-      ? path.join(desc.engine.friggaRoot, "src", "Editor", "Resources", "Modules")
+    sdk ? path.join(sdk, "Modules") : "",
+    root
+      ? path.join(root, "src", "Editor", "Resources", "Modules")
       : "",
   ].filter(Boolean);
 
