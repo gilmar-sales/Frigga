@@ -1064,6 +1064,10 @@ void ProjectSession::bindProjectResources(const std::filesystem::path &projectRo
         mAssets->ClearCatalog();
     }
     fg::AssetRegistry::SetResourcesRoot(projectRoot / ProjectDescriptor::ResourcesDirName);
+    if(mAssets)
+    {
+        mAssets->WarmFonts();
+    }
 }
 
 void ProjectSession::unbindProjectResources()
@@ -1073,6 +1077,10 @@ void ProjectSession::unbindProjectResources()
         mAssets->ClearCatalog();
     }
     fg::AssetRegistry::ResetResourcesRoot();
+    if(mAssets)
+    {
+        mAssets->WarmFonts();
+    }
 }
 
 std::vector<std::filesystem::path> ProjectSession::ListSceneFiles() const

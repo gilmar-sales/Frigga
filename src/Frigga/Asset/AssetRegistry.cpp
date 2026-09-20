@@ -142,6 +142,7 @@ namespace FRIGGA_NAMESPACE
         : mMeshPool(meshPool), mTexturePool(texturePool), mMaterialPool(materialPool),
           mLogger(logger)
     {
+        WarmFonts();
     }
 
     AssetRegistry::AssetRegistry(CatalogTag) {}
@@ -188,10 +189,12 @@ namespace FRIGGA_NAMESPACE
         mModels.clear();
         mTextures.clear();
         mMaterials.clear();
+        mFonts.clear();
         mBanks.clear();
         mAudioClips.clear();
         mModelIndexByPath.clear();
         mTextureIndexByPath.clear();
+        mFontIndexByPath.clear();
         mBankIndexByPath.clear();
         mAudioClipIndexByPath.clear();
         mTexturePathById.clear();
@@ -279,6 +282,12 @@ namespace FRIGGA_NAMESPACE
         const auto ext = ToLower(std::string(extension));
         return ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".tga" ||
                ext == ".bmp" || ext == ".hdr" || ext == ".webp";
+    }
+
+    bool AssetRegistry::IsFontExtension(std::string_view extension)
+    {
+        const auto ext = ToLower(std::string(extension));
+        return ext == ".ttf" || ext == ".otf";
     }
 
     bool AssetRegistry::IsPrefabExtension(std::string_view extension)
@@ -604,6 +613,125 @@ namespace FRIGGA_NAMESPACE
         }
 
         return loadTextureAbsolute(absolute, key);
+    }
+
+    bool AssetRegistry::loadFontAbsolute(const std::filesystem::path &absolutePath,
+                                         const std::filesystem::path &relativePath)
+    {
+        const auto key = normalizeRelativeKey(relativePath);
+        if(mFontIndexByPath.contains(key))
+        {
+            return true;
+        }
+
+        if(mTexturePool == nullptr)
+        {
+            return false;
+        }
+
+        auto atlas = fra::FontAtlas::Create(*mTexturePool, absolutePath.string());
+        if(!atlas.Valid())
+        {
+            if(mLogger)
+            {
+                mLogger->LogError("Failed to load font '{}'", absolutePath.string());
+            }
+            return false;
+        }
+
+        FontAsset asset {.assetId      = assetIdFor(key, "font"),
+                         .relativePath = key,
+                         .label        = relativePath.filename().string(),
+                         .atlas        = std::make_unique<fra::FontAtlas>(std::move(atlas))};
+
+        mFontIndexByPath.emplace(key, mFonts.size());
+        mFonts.push_back(std::move(asset));
+
+        if(mLogger)
+        {
+            mLogger->LogInformation("Loaded font '{}'", key);
+        }
+
+        return true;
+    }
+
+    bool AssetRegistry::LoadFont(const std::filesystem::path &relativePath)
+    {
+        const auto key = normalizeRelativeKey(relativePath);
+        if(mFontIndexByPath.contains(key))
+        {
+            return true;
+        }
+
+        const auto absolute = ToAbsoluteResourcePath(key);
+        if(!std::filesystem::is_regular_file(absolute))
+        {
+            if(mLogger)
+            {
+                mLogger->LogWarning("Font resource not found: {}", absolute.string());
+            }
+            return false;
+        }
+
+        if(!IsFontExtension(absolute.extension().string()) && mLogger)
+        {
+            mLogger->LogWarning("Unrecognized font extension '{}'",
+                                absolute.extension().string());
+        }
+
+        return loadFontAbsolute(absolute, key);
+    }
+
+    void AssetRegistry::WarmFonts()
+    {
+        if(mTexturePool == nullptr)
+        {
+            return;
+        }
+
+        // Default billboard-text font shipped with the engine Resources tree.
+        (void)LoadFont("Fonts/OpenSans.ttf");
+        (void)LoadFont("Fonts/NotoSans-Regular.ttf");
+
+        const auto fontsDir = ResourcesRoot() / "Fonts";
+        std::error_code ec;
+        if(!std::filesystem::is_directory(fontsDir, ec))
+        {
+            return;
+        }
+
+        for(const auto &entry : std::filesystem::directory_iterator(fontsDir, ec))
+        {
+            if(ec || !entry.is_regular_file())
+            {
+                continue;
+            }
+            if(!IsFontExtension(entry.path().extension().string()))
+            {
+                continue;
+            }
+            const auto relative = MakeRelativeToResources(entry.path());
+            if(!relative.empty())
+            {
+                (void)LoadFont(relative);
+            }
+        }
+    }
+
+    const fra::FontAtlas *AssetRegistry::FindFont(std::string_view relativePath) const
+    {
+        const auto key = normalizeRelativeKey(relativePath);
+        const auto it  = mFontIndexByPath.find(key);
+        if(it == mFontIndexByPath.end())
+        {
+            return nullptr;
+        }
+        const auto &asset = mFonts[it->second];
+        if(!asset.atlas || !asset.atlas->Valid())
+        {
+            return nullptr;
+        }
+        return asset.atlas.get();
     }
 
     std::optional<BankAsset> AssetRegistry::loadBankAbsolute(

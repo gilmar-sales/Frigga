@@ -10,11 +10,12 @@
 namespace FRIGGA_NAMESPACE
 {
 
-    /// World-space SDF nameplate (Freya BillboardDraw::Text). Needs a loaded FontAtlas.
+    /// World-space SDF nameplate (Freya BillboardDraw::Text).
+    /// `fontSource` is a Resources-relative path warmed by AssetRegistry::WarmFonts.
     struct BillboardTextComponent: fr::Component
     {
         std::string text         = "Label";
-        std::string fontSource   = "Fonts/NotoSans-Regular.ttf";
+        std::string fontSource   = "Fonts/OpenSans.ttf";
         float       heightMeters = 0.16f;
         glm::vec4   color {0.95f, 0.98f, 0.92f, 1.0f};
         float       borderWidth  = 0.0f;

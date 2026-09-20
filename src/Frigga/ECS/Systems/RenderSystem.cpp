@@ -102,14 +102,6 @@ namespace FRIGGA_NAMESPACE
           mScene(scene), mAssets(assets), mFreyaOptions(freyaOptions), mTextures(textures),
           mEffectBuilder(effectBuilder)
     {
-        // Warm FontAtlas on the main thread — TexturePool create is not parallelized.
-        mRegistry->CreateMutation()->Each(
-            [&](fr::Entity entity, TransformComponent &, BillboardTextComponent &label) {
-                if(!label.text.empty())
-                {
-                    (void)fontFor(label.fontSource);
-                }
-            });
     }
 
     void RenderSystem::Update(float deltaTime)
@@ -393,23 +385,6 @@ namespace FRIGGA_NAMESPACE
                                                          : fra::TextureHandle {});
     }
 
-    const fra::FontAtlas *RenderSystem::fontFor(const std::string &relativePath)
-    {
-        if(!mTextures || relativePath.empty())
-        {
-            return nullptr;
-        }
-
-        auto [it, inserted] = mFonts.try_emplace(relativePath);
-        if(inserted)
-        {
-            const auto absolute = AssetRegistry::ToAbsoluteResourcePath(relativePath);
-            it->second          = fra::FontAtlas::Create(*mTextures, absolute.string());
-        }
-        // Valid() tracks TextureHandle engagement (pool ids may be 0 in Freya 0.46).
-        return it->second.Valid() ? &it->second : nullptr;
-    }
-
     void RenderSystem::drawBillboards(float deltaTime)
     {
         if(!mRenderer)
@@ -464,18 +439,18 @@ namespace FRIGGA_NAMESPACE
 
         mRegistry->CreateMutation()->EachAsync(
             [this, skip](fr::Entity entity, TransformComponent &, BillboardTextComponent &label) {
-                if(skip(entity) || label.text.empty())
+                if(skip(entity) || label.text.empty() || !mAssets)
                 {
                     return;
                 }
-                const auto it = mFonts.find(label.fontSource);
-                if(it == mFonts.end() || !it->second.Valid())
+                const auto *font = mAssets->FindFont(label.fontSource);
+                if(!font)
                 {
                     return;
                 }
                 const auto pose = TransformUtil::WorldPose(*mRegistry, entity);
                 mRenderer->GetBillboardDraw().Text(
-                    pose.position + label.offset, label.text, it->second, label.heightMeters,
+                    pose.position + label.offset, label.text, *font, label.heightMeters,
                     label.color, label.borderWidth, label.borderColor, label.align, label.layer);
             });
 

@@ -597,6 +597,7 @@ bool ProjectScaffold::EnsureProjectResources(const std::filesystem::path &projec
                   destRoot / "Textures" / "default_roughness.png");
     copyIfMissing(engineRoot / "Fonts" / "NotoSans-Regular.ttf",
                   destRoot / "Fonts" / "NotoSans-Regular.ttf");
+    copyIfMissing(engineRoot / "Fonts" / "OpenSans.ttf", destRoot / "Fonts" / "OpenSans.ttf");
 
     return true;
 }

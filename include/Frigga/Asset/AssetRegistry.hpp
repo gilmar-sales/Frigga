@@ -4,9 +4,11 @@
 #include "Frigga/Asset/AssetManifest.hpp"
 
 #include <Freya/Freya.hpp>
+#include <Freya/Asset/FontAtlas.hpp>
 
 #include <cstdint>
 #include <filesystem>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -54,6 +56,16 @@ namespace FRIGGA_NAMESPACE
     {
         std::string name;
         std::uint32_t materialId = 0;
+    };
+
+    /// CPU-baked SDF atlas (Freya FontAtlas) for world-space billboard text.
+    /// Atlas is heap-stable so FindFont pointers survive further catalog inserts.
+    struct FontAsset
+    {
+        std::string assetId;
+        std::string relativePath;
+        std::string label;
+        std::unique_ptr<fra::FontAtlas> atlas;
     };
 
     struct BankAsset
@@ -104,6 +116,22 @@ namespace FRIGGA_NAMESPACE
         /// Load a texture already stored under the project Resources/.
         [[nodiscard]] std::optional<TextureAsset> LoadTexture(
             const std::filesystem::path &relativePath);
+
+        /// Load a TTF/OTF already stored under Resources/ (typically Fonts/).
+        /// No-op if already cached. Main thread only (TexturePool create).
+        [[nodiscard]] bool LoadFont(const std::filesystem::path &relativePath);
+
+        /// Warm engine/project fonts under Resources/Fonts once (static resources).
+        /// Safe to call again after SetResourcesRoot / ClearCatalog.
+        void WarmFonts();
+
+        [[nodiscard]] const std::vector<FontAsset> &GetFonts() const
+        {
+            return mFonts;
+        }
+
+        /// Heap-stable until ClearCatalog. Null if not warmed.
+        [[nodiscard]] const fra::FontAtlas *FindFont(std::string_view relativePath) const;
 
         [[nodiscard]] std::optional<BankAsset> ImportBank(const std::filesystem::path &sourcePath);
         [[nodiscard]] std::optional<BankAsset> LoadBank(const std::filesystem::path &relativePath);
@@ -182,6 +210,7 @@ namespace FRIGGA_NAMESPACE
 
         [[nodiscard]] static bool IsModelExtension(std::string_view extension);
         [[nodiscard]] static bool IsTextureExtension(std::string_view extension);
+        [[nodiscard]] static bool IsFontExtension(std::string_view extension);
         [[nodiscard]] static bool IsPrefabExtension(std::string_view extension);
         [[nodiscard]] static bool IsBankExtension(std::string_view extension);
         [[nodiscard]] static bool IsBankFilename(std::string_view filename);
@@ -206,7 +235,7 @@ namespace FRIGGA_NAMESPACE
         [[nodiscard]] static std::filesystem::path MakeRelativeToResources(
             const std::filesystem::path &path);
 
-        /// Drops loaded model/texture/material catalog entries (GPU pools are unchanged).
+        /// Drops loaded model/texture/material/font catalog entries (GPU pools are unchanged).
         void ClearCatalog();
 
       private:
@@ -220,6 +249,9 @@ namespace FRIGGA_NAMESPACE
         [[nodiscard]] std::optional<TextureAsset> loadTextureAbsolute(
             const std::filesystem::path &absolutePath,
             const std::filesystem::path &relativePath);
+
+        [[nodiscard]] bool loadFontAbsolute(const std::filesystem::path &absolutePath,
+                                            const std::filesystem::path &relativePath);
 
         [[nodiscard]] std::optional<BankAsset> loadBankAbsolute(
             const std::filesystem::path &absolutePath,
@@ -245,11 +277,13 @@ namespace FRIGGA_NAMESPACE
         std::vector<ModelAsset> mModels;
         std::vector<TextureAsset> mTextures;
         std::vector<MaterialAsset> mMaterials;
+        std::vector<FontAsset> mFonts;
         std::vector<BankAsset> mBanks;
         std::vector<AudioClipAsset> mAudioClips;
 
         std::unordered_map<std::string, std::size_t> mModelIndexByPath;
         std::unordered_map<std::string, std::size_t> mTextureIndexByPath;
+        std::unordered_map<std::string, std::size_t> mFontIndexByPath;
         std::unordered_map<std::string, std::size_t> mBankIndexByPath;
         std::unordered_map<std::string, std::size_t> mAudioClipIndexByPath;
         std::unordered_map<std::uint32_t, std::string> mTexturePathById;

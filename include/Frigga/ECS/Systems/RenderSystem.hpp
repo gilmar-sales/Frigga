@@ -4,14 +4,12 @@
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 
 #include <Freya/Advanced.hpp>
-#include <Freya/Asset/FontAtlas.hpp>
 #include <Freyr/Freyr.hpp>
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 
 #include <optional>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 namespace FRIGGA_NAMESPACE
@@ -46,7 +44,6 @@ namespace FRIGGA_NAMESPACE
         void syncFullscreenEffects();
 
         [[nodiscard]] std::uint32_t textureHeapIndex(std::optional<std::uint32_t> textureId) const;
-        const fra::FontAtlas *fontFor(const std::string &relativePath);
 
         skr::Arc<fra::Renderer> mRenderer;
         skr::Arc<fra::Window> mWindow;
@@ -56,8 +53,6 @@ namespace FRIGGA_NAMESPACE
         skr::Arc<fra::FreyaOptions> mFreyaOptions;
         skr::Arc<fra::TexturePool> mTextures;
         skr::Arc<fra::PostProcessBuilder> mEffectBuilder;
-        /// Font atlases keyed by asset path (not per-entity).
-        std::unordered_map<std::string, fra::FontAtlas> mFonts;
     };
 
 } // namespace FRIGGA_NAMESPACE

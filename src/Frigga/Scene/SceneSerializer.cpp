@@ -230,7 +230,7 @@ namespace FRIGGA_NAMESPACE
         struct SceneBillboardTextDto
         {
             std::string        text;
-            std::string        fontSource {"Fonts/NotoSans-Regular.ttf"};
+            std::string        fontSource {"Fonts/OpenSans.ttf"};
             float              heightMeters = 0.16f;
             std::vector<float> color;
             float              borderWidth = 0.0f;
