@@ -23,6 +23,7 @@
 #include <cmath>
 #include <cstdint>
 #include <format>
+#include <memory>
 #include <span>
 #include <vector>
 
@@ -101,6 +102,14 @@ namespace FRIGGA_NAMESPACE
           mScene(scene), mAssets(assets), mFreyaOptions(freyaOptions), mTextures(textures),
           mEffectBuilder(effectBuilder)
     {
+        // Warm FontAtlas on the main thread — TexturePool create is not parallelized.
+        mRegistry->CreateMutation()->Each(
+            [&](fr::Entity entity, TransformComponent &, BillboardTextComponent &label) {
+                if(!label.text.empty())
+                {
+                    (void)fontFor(label.fontSource);
+                }
+            });
     }
 
     void RenderSystem::Update(float deltaTime)
@@ -408,7 +417,6 @@ namespace FRIGGA_NAMESPACE
             return;
         }
 
-        auto &draw = mRenderer->GetBillboardDraw();
         const bool isolate = mScene->IsUsingPreviewCamera() && mScene->HasRenderIsolation();
         const fr::Entity isolatedEntity = isolate ? mScene->GetRenderIsolation()
                                                   : static_cast<fr::Entity>(-1);
@@ -417,8 +425,9 @@ namespace FRIGGA_NAMESPACE
             return isolate && !IsInIsolatedSubtree(*mRegistry, entity, isolatedEntity);
         };
 
-        mRegistry->CreateMutation()->Each(
-            [&](fr::Entity entity, TransformComponent &, BillboardComponent &billboard) {
+        // Freya 0.52+: BillboardDraw / ParticleEmitter submits are thread-safe (SpinLock).
+        mRegistry->CreateMutation()->EachAsync(
+            [this, skip](fr::Entity entity, TransformComponent &, BillboardComponent &billboard) {
                 if(skip(entity))
                 {
                     return;
@@ -438,44 +447,46 @@ namespace FRIGGA_NAMESPACE
                 quad.sdf           = billboard.sdf;
                 quad.clipMax       = billboard.clipMax;
                 quad.localOffset   = billboard.localOffset;
-                draw.Quad(quad);
+                mRenderer->GetBillboardDraw().Quad(quad);
             });
 
-        mRegistry->CreateMutation()->Each(
-            [&](fr::Entity entity, TransformComponent &, HealthBarComponent &bar) {
+        mRegistry->CreateMutation()->EachAsync(
+            [this, skip](fr::Entity entity, TransformComponent &, HealthBarComponent &bar) {
                 if(skip(entity))
                 {
                     return;
                 }
                 const auto pose = TransformUtil::WorldPose(*mRegistry, entity);
-                draw.HealthBar(pose.position + bar.offset, bar.width, bar.height,
-                               std::clamp(bar.fill, 0.0f, 1.0f), bar.background, bar.foreground,
-                               bar.align);
+                mRenderer->GetBillboardDraw().HealthBar(
+                    pose.position + bar.offset, bar.width, bar.height,
+                    std::clamp(bar.fill, 0.0f, 1.0f), bar.background, bar.foreground, bar.align);
             });
 
-        mRegistry->CreateMutation()->Each(
-            [&](fr::Entity entity, TransformComponent &, BillboardTextComponent &label) {
+        mRegistry->CreateMutation()->EachAsync(
+            [this, skip](fr::Entity entity, TransformComponent &, BillboardTextComponent &label) {
                 if(skip(entity) || label.text.empty())
                 {
                     return;
                 }
-                const auto *font = fontFor(label.fontSource);
-                if(font == nullptr)
+                const auto it = mFonts.find(label.fontSource);
+                if(it == mFonts.end() || !it->second.Valid())
                 {
                     return;
                 }
                 const auto pose = TransformUtil::WorldPose(*mRegistry, entity);
-                draw.Text(pose.position + label.offset, label.text, *font, label.heightMeters,
-                          label.color, label.borderWidth, label.borderColor, label.align,
-                          label.layer);
+                mRenderer->GetBillboardDraw().Text(
+                    pose.position + label.offset, label.text, it->second, label.heightMeters,
+                    label.color, label.borderWidth, label.borderColor, label.align, label.layer);
             });
 
-        mRegistry->CreateMutation()->Each(
-            [&](fr::Entity entity, TransformComponent &, ParticleEmitterComponent &source) {
+        mRegistry->CreateMutation()->EachAsync(
+            [this, skip, deltaTime](fr::Entity entity, TransformComponent &,
+                                    ParticleEmitterComponent &source) {
                 if(skip(entity))
                 {
                     return;
                 }
+                // Public fields must not race Tick on the same emitter; one worker per entity.
                 auto &emitter          = source.runtime;
                 emitter.origin         = TransformUtil::WorldPose(*mRegistry, entity).position;
                 emitter.velocity       = source.velocity;
@@ -489,7 +500,7 @@ namespace FRIGGA_NAMESPACE
                 emitter.blend          = source.blend;
                 emitter.textureIndex   = textureHeapIndex(source.textureId);
                 emitter.maxParticles   = source.maxParticles;
-                emitter.Tick(deltaTime, draw);
+                emitter.Tick(deltaTime, mRenderer->GetBillboardDraw());
             });
     }
 
