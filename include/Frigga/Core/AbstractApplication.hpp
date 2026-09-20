@@ -3,6 +3,7 @@
 #include <vector>
 
 #include "Freya/Core/AbstractApplication.hpp"
+#include "Freya/Core/LightService.hpp"
 #include "Frigga/Core/LayerStack.hpp"
 #include "Frigga/Gui/GuiLayer.hpp"
 #include "Frigga/Scene/Scene.hpp"
@@ -10,6 +11,8 @@
 namespace FRIGGA_NAMESPACE
 {
 #define BIND_EVENT_FN(x) std::bind(&Application::x, this, std::placeholders::_1)
+
+    class AnimationSystem;
 
     class AbstractApplication: public fra::AbstractApplication
     {
@@ -50,6 +53,8 @@ namespace FRIGGA_NAMESPACE
 
         skr::Arc<skr::ServiceScope> mScope;
         skr::Arc<GuiLayer>          mGuiLayer;
+        skr::Arc<fra::LightService> mLights;
+        skr::Arc<AnimationSystem>   mAnimation;
     };
 
 } // namespace FRIGGA_NAMESPACE

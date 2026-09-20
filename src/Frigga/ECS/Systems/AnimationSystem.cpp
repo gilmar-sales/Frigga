@@ -420,6 +420,7 @@ namespace FRIGGA_NAMESPACE
         auto &gpu = fra::Advanced(*mRenderer).GpuAnimation();
         const std::uint32_t gpuMaxJoints = gpu.GetJointsPerClipSlot();
         gpu.SetEnabled(false);
+        mAnyGpuInstance.store(false, std::memory_order_relaxed);
 
         if(mController)
         {
@@ -428,7 +429,8 @@ namespace FRIGGA_NAMESPACE
 
         pinGpuClipsForLoadedModels(gpu);
 
-        mRenderer->BeginBoneMatrixUploads();
+        // Must follow pin/UploadSkeleton — Freya forbids skeleton uploads while
+        // instance staging is open. Application closes this session after RenderScene.
         gpu.BeginGpuAnimInstanceUploads();
 
         mRegistry->CreateMutation()->EachAsync(
@@ -635,15 +637,15 @@ namespace FRIGGA_NAMESPACE
     }
 
 
-    void AnimationSystem::PostUpdate(float deltaTime)
+    void AnimationSystem::PostUpdate(float)
     {
+        drainEvents();
+    }
 
+    void AnimationSystem::CommitGpuAnimationFrame()
+    {
         auto &gpu = fra::Advanced(*mRenderer).GpuAnimation();
-        mRenderer->EndBoneMatrixUploads();
-        gpu.EndGpuAnimInstanceUploads();
         gpu.SetEnabled(mAnyGpuInstance.load(std::memory_order_relaxed));
         gpu.SetCopyPrevBones(true);
-
-        drainEvents();
     }
 } // namespace FRIGGA_NAMESPACE

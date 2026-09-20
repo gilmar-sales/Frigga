@@ -4,6 +4,7 @@
 #include <Freya/Asset/TexturePool.hpp>
 #include <Freya/Core/Renderer.hpp>
 #include <Freya/Core/UiContext.hpp>
+#include <Freya/Core/Window.hpp>
 
 namespace FRIGGA_NAMESPACE
 {
@@ -27,6 +28,8 @@ namespace FRIGGA_NAMESPACE
         volatile auto getUiContext   = &fra::Renderer::GetUiContext;
         volatile auto getViewport    = &fra::RendererAdvanced::GetViewportImage;
         volatile auto createTex      = &fra::TexturePool::CreateTextureFromMemory;
+        volatile auto windowWidth    = &fra::Window::GetWidth;
+        volatile auto windowHeight   = &fra::Window::GetHeight;
         (void)begin;
         (void)end;
         (void)beginAnchor;
@@ -44,5 +47,7 @@ namespace FRIGGA_NAMESPACE
         (void)getUiContext;
         (void)getViewport;
         (void)createTex;
+        (void)windowWidth;
+        (void)windowHeight;
     }
 } // namespace FRIGGA_NAMESPACE

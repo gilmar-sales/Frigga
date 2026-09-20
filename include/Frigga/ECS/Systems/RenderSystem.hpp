@@ -32,7 +32,6 @@ namespace FRIGGA_NAMESPACE
         ~RenderSystem() override = default;
 
         void Update(float deltaTime) override;
-        void PostUpdate(float deltaTime) override;
 
       private:
         void updateCamera();

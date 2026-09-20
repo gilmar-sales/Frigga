@@ -6,6 +6,7 @@
 #include "Frigga/Scene/EditorCamera.hpp"
 
 #include <Freya/Core/Renderer.hpp>
+#include <Freya/Core/Window.hpp>
 #include <Freyr/Freyr.hpp>
 #include <Skirnir/Skirnir.hpp>
 
@@ -29,8 +30,8 @@ namespace FRIGGA_NAMESPACE
     class Scene
     {
       public:
-        Scene(const skr::Arc<fra::Renderer> &renderer, const skr::Arc<skr::Logger<Scene>> &logger,
-              const skr::Arc<fr::Registry> &ecsRegistry,
+        Scene(const skr::Arc<fra::Renderer> &renderer, const skr::Arc<fra::Window> &window,
+              const skr::Arc<skr::Logger<Scene>> &logger, const skr::Arc<fr::Registry> &ecsRegistry,
               const skr::Arc<PrimitiveMeshFactory> &primitives,
               const skr::Arc<AssetRegistry> &assets,
               const skr::Arc<UserComponentRegistry> &userComponents);
@@ -146,10 +147,16 @@ namespace FRIGGA_NAMESPACE
 
         /// Main-window Freya renderer (seeded when Scene is warmed from the window scope).
         /// Safe for gameplay modules: Freyr constructs systems from a fresh scope each
-        /// Update, so injecting Scoped `fra::Renderer` / `FreyaOptions` directly crashes.
+        /// Update, so injecting Scoped `fra::Renderer` / `FreyaOptions` / `Window` crashes.
         [[nodiscard]] const skr::Arc<fra::Renderer> &GetRenderer() const
         {
             return mRenderer;
+        }
+
+        /// Main-window drawable size source for screen UI when no Editor viewport is active.
+        [[nodiscard]] const skr::Arc<fra::Window> &GetWindow() const
+        {
+            return mWindow;
         }
 
       private:
@@ -170,6 +177,7 @@ namespace FRIGGA_NAMESPACE
 
         skr::Arc<fr::Registry> mEcsRegistry;
         skr::Arc<fra::Renderer> mRenderer;
+        skr::Arc<fra::Window> mWindow;
         skr::Arc<skr::Logger<Scene>> mLogger;
         skr::Arc<PrimitiveMeshFactory> mPrimitives;
         skr::Arc<AssetRegistry> mAssets;

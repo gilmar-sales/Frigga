@@ -111,12 +111,6 @@ namespace FRIGGA_NAMESPACE
         syncFullscreenEffects();
     }
 
-    void RenderSystem::PostUpdate(float deltaTime)
-    {
-        mLightService->EndLightUploads();
-        mRenderer->EndSceneInstances();
-    }
-
     void RenderSystem::applyCameraPose(const glm::vec3 &position, const glm::quat &rotation,
                                        float fovDegrees, float nearPlane, float farPlane)
     {
@@ -280,8 +274,9 @@ namespace FRIGGA_NAMESPACE
             return;
         }
 
-        // Freya 0.50+: Begin/Upload/End is thread-safe; pack lights via EachAsync.
-        mLightService->BeginLightUploads();
+        // Application owns BeginLightUploads/EndLightUploads for the frame.
+        // setChanged rebuild (ClearLights/AddLight) returned above; this path only
+        // packs updates into the open upload session.
         mLightService->ReserveLightUploads(cappedVisible);
         mRegistry->CreateMutation()->EachAsync(
             [this, isVisible](fr::Entity entity, TransformComponent &, LightComponent &light) {
@@ -316,8 +311,7 @@ namespace FRIGGA_NAMESPACE
                 }
             });
 
-        // Freya sorts by entityId at End; UploadSceneInstances is thread-safe.
-        mRenderer->BeginSceneInstances();
+        // Application owns BeginSceneInstances/EndSceneInstances; Freya sorts at End.
         mRenderer->ReserveSceneInstances(instanceCount);
         mRegistry->CreateMutation()->EachAsync([this, skip](fr::Entity entity, TransformComponent &,
                                                             MeshComponent &mesh,

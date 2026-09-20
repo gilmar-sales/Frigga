@@ -28,13 +28,13 @@ namespace FRIGGA_NAMESPACE
         }
     } // namespace
 
-    Scene::Scene(const skr::Arc<fra::Renderer> &renderer, const skr::Arc<skr::Logger<Scene>> &logger,
-                 const skr::Arc<fr::Registry> &ecsRegistry,
+    Scene::Scene(const skr::Arc<fra::Renderer> &renderer, const skr::Arc<fra::Window> &window,
+                 const skr::Arc<skr::Logger<Scene>> &logger, const skr::Arc<fr::Registry> &ecsRegistry,
                  const skr::Arc<PrimitiveMeshFactory> &primitives,
                  const skr::Arc<AssetRegistry> &assets,
                  const skr::Arc<UserComponentRegistry> &userComponents)
-        : mEcsRegistry(ecsRegistry), mRenderer(renderer), mLogger(logger), mPrimitives(primitives),
-          mAssets(assets), mUserComponents(userComponents)
+        : mEcsRegistry(ecsRegistry), mRenderer(renderer), mWindow(window), mLogger(logger),
+          mPrimitives(primitives), mAssets(assets), mUserComponents(userComponents)
     {
         CreateDefaultEntities();
     }

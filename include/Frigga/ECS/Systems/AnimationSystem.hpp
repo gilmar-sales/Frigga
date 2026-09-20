@@ -41,6 +41,9 @@ namespace FRIGGA_NAMESPACE
         void Update(float deltaTime) override;
         void PostUpdate(float deltaTime) override;
 
+        /// After Application closes bone/GPU-anim upload sessions for the frame.
+        void CommitGpuAnimationFrame();
+
       private:
         /// Must be nothrow move-constructible for rigtorp::UnboundedMPMCQueue.
         struct PendingAnimEvents

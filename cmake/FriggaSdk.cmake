@@ -248,22 +248,38 @@ function(frigga_add_game TARGET)
             _frigga_resolve_sdk_library(_lib_freyr freyr)
             _frigga_resolve_sdk_library(_lib_skirnir skirnir)
             _frigga_resolve_sdk_library(_lib_simdjson simdjson)
-            add_custom_command(
-                    OUTPUT "${_module_exports}"
-                    COMMAND ${CMAKE_COMMAND}
+            # Same Freya screen-UI filter as the Editor host (CMakeLists.txt).
+            # Without it, publish modules that call fra::UiContext fail to link.
+            _frigga_resolve_sdk_library(_lib_freya Freya)
+            set(_freya_module_filter
+                    "_ZN3fra9UiContext|_ZNK3fra9UiContext|_ZN3fra8Renderer12GetUiContext|_ZN3fra8Renderer9GetUiDraw|_ZN3fra16RendererAdvanced16GetViewportImage|_ZN3fra11TexturePool23CreateTextureFromMemory|_ZNK3fra6Window8GetWidth|_ZNK3fra6Window9GetHeight")
+            # -D vars must appear before -P or the script never sees them.
+            set(_exports_cmd
+                    ${CMAKE_COMMAND}
                     -D "NM=${_FRIGGA_NM}"
                     -D "LIB0=${_lib_frigga}"
                     -D "LIB1=${_lib_freyr}"
                     -D "LIB2=${_lib_skirnir}"
-                    -D "LIB3=${_lib_simdjson}"
+                    -D "LIB3=${_lib_simdjson}")
+            set(_exports_depends
+                    "${_frigga_exports_script}"
+                    "${_lib_frigga}"
+                    "${_lib_freyr}"
+                    "${_lib_skirnir}"
+                    "${_lib_simdjson}")
+            if(_lib_freya)
+                list(APPEND _exports_cmd
+                        -D "LIB4=${_lib_freya}"
+                        -D "FILTER4=${_freya_module_filter}")
+                list(APPEND _exports_depends "${_lib_freya}")
+            endif()
+            list(APPEND _exports_cmd
                     -D "OUT=${_module_exports}"
-                    -P "${_frigga_exports_script}"
-                    DEPENDS
-                        "${_frigga_exports_script}"
-                        "${_lib_frigga}"
-                        "${_lib_freyr}"
-                        "${_lib_skirnir}"
-                        "${_lib_simdjson}"
+                    -P "${_frigga_exports_script}")
+            add_custom_command(
+                    OUTPUT "${_module_exports}"
+                    COMMAND ${_exports_cmd}
+                    DEPENDS ${_exports_depends}
                     VERBATIM
                     COMMENT "Generate ${TARGET} gameplay module export table")
             target_sources(${TARGET} PRIVATE "${_module_exports}")

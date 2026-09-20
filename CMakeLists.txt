@@ -288,7 +288,7 @@ if (WIN32 AND CMAKE_NM)
     set(_module_exports "${CMAKE_BINARY_DIR}/frigga_module_exports.def")
     # Screen UI + façade APIs modules call on the host Renderer / TexturePool.
     set(_freya_module_filter
-            "_ZN3fra9UiContext|_ZNK3fra9UiContext|_ZN3fra8Renderer12GetUiContext|_ZN3fra8Renderer9GetUiDraw|_ZN3fra16RendererAdvanced16GetViewportImage|_ZN3fra11TexturePool23CreateTextureFromMemory")
+            "_ZN3fra9UiContext|_ZNK3fra9UiContext|_ZN3fra8Renderer12GetUiContext|_ZN3fra8Renderer9GetUiDraw|_ZN3fra16RendererAdvanced16GetViewportImage|_ZN3fra11TexturePool23CreateTextureFromMemory|_ZNK3fra6Window8GetWidth|_ZNK3fra6Window9GetHeight")
     add_custom_command(
             OUTPUT "${_module_exports}"
             COMMAND ${CMAKE_COMMAND}

@@ -47,7 +47,8 @@ namespace FRIGGA_NAMESPACE
         (void)sp->GetService<Scene>();
         (void)sp->GetService<Input>();
         (void)sp->GetService<RenderSystem>();
-        (void)sp->GetService<AnimationSystem>();
+        mAnimation = sp->GetService<AnimationSystem>();
+        mLights    = sp->GetService<fra::LightService>();
     }
 
     void AbstractApplication::OnEvent(Event &event) {}
@@ -98,7 +99,29 @@ namespace FRIGGA_NAMESPACE
 
         OnAfterBeginFrame();
 
+        // Freya upload sessions owned by Application. GpuAnim instance staging
+        // begins inside AnimationSystem after UploadSkeleton/pin (Freya asserts
+        // if skeleton uploads run while instance staging is open).
+        mRenderer->BeginBoneMatrixUploads();
+        if(mLights)
+        {
+            mLights->BeginLightUploads();
+        }
+        mRenderer->BeginSceneInstances();
+
         RenderScene();
+
+        mRenderer->EndSceneInstances();
+        if(mLights)
+        {
+            mLights->EndLightUploads();
+        }
+        mRenderer->EndBoneMatrixUploads();
+        fra::Advanced(*mRenderer).GpuAnimation().EndGpuAnimInstanceUploads();
+        if(mAnimation)
+        {
+            mAnimation->CommitGpuAnimationFrame();
+        }
 
         mRenderer->EndScene();
 
