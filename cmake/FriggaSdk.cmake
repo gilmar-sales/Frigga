@@ -383,6 +383,12 @@ function(frigga_add_module TARGET)
     add_library(${TARGET} SHARED ${ARGN})
     target_compile_features(${TARGET} PRIVATE cxx_std_26)
     target_compile_definitions(${TARGET} PRIVATE FRI_MODULE_EXPORTS)
+    # Modules do not link Frigga::frigga (Editor import lib only), so Freyr's
+    # INTERFACE FREYR_PROFILING never reaches them — propagate explicitly or
+    # FREYR_TRACE / WithLabel child scopes compile out as no-ops.
+    if(FRIGGA_SDK_FREYR_PROFILING)
+        target_compile_definitions(${TARGET} PRIVATE FREYR_PROFILING=1)
+    endif()
     # MinGW GCC 16+: avoid strong stdexcept copy ctors vs libstdc++.a (PR 125151).
     if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         target_compile_definitions(${TARGET} PRIVATE __cpp_lib_constexpr_exceptions=0)
