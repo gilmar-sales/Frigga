@@ -24,12 +24,17 @@ namespace FRIGGA_NAMESPACE
 {
     namespace
     {
-        constexpr std::uint32_t kInvalidGpuClipSlot = 0xffffffffu;
+        constexpr std::uint32_t kInvalidGpuSlot = 0xffffffffu;
 
         [[nodiscard]] std::uint64_t ClipGpuKey(const std::string &modelSource,
                                                std::string_view clipName)
         {
             return fra::GpuClipKey(modelSource + "/" + std::string(clipName));
+        }
+
+        [[nodiscard]] std::uint64_t SkeletonGpuKey(const std::string &modelSource)
+        {
+            return fra::GpuSkeletonKey(modelSource);
         }
 
         void AdvanceClipTime(float &timeSec, float duration, float delta, bool loop)
@@ -55,23 +60,16 @@ namespace FRIGGA_NAMESPACE
             }
         }
 
-        void UploadSkeletonForModel(fra::GpuAnimationSystem &gpu, const ModelAsset &model)
-        {
-            gpu.UploadSkeleton(fra::PackSkeleton(model.skeleton));
-            const auto root = fra::FindRootJoint(model.skeleton);
-            gpu.SetRigIndices(0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-                              root >= 0 ? static_cast<std::uint32_t>(root) : 0u);
-        }
-
-        /// Freya 0.51+: FindClipSlot then EnsureClipResident on miss (thread-safe;
-        /// free-slot fill only while instance staging is open).
+        /// Freya 0.56+: Find then Ensure*Resident on miss (thread-safe; free-slot
+        /// fill only while instance staging is open). Never UploadSkeleton while
+        /// staging — it overwrites atlas slot 0.
         [[nodiscard]] std::uint32_t ResolveClipSlot(fra::GpuAnimationSystem &gpu,
                                                     const ModelAsset &model,
                                                     const fra::AnimationClip &clip)
         {
             const auto key = ClipGpuKey(model.relativePath, clip.name);
             const auto existing = gpu.FindClipSlot(key);
-            if(existing != kInvalidGpuClipSlot)
+            if(existing != kInvalidGpuSlot)
             {
                 return existing;
             }
@@ -79,39 +77,57 @@ namespace FRIGGA_NAMESPACE
             const auto *bake = model.BakedClipFor(clip);
             if(bake == nullptr || bake->Empty())
             {
-                return kInvalidGpuClipSlot;
+                return kInvalidGpuSlot;
             }
             return gpu.EnsureClipResident(key, *bake);
+        }
+
+        [[nodiscard]] std::uint32_t ResolveSkeletonSlot(fra::GpuAnimationSystem &gpu,
+                                                        const ModelAsset &model)
+        {
+            const auto key = SkeletonGpuKey(model.relativePath);
+            const auto existing = gpu.FindSkeletonSlot(key);
+            if(existing != kInvalidGpuSlot)
+            {
+                return existing;
+            }
+
+            const auto root = fra::FindRootJoint(model.skeleton);
+            return gpu.EnsureSkeletonResident(
+                key, fra::PackSkeleton(model.skeleton),
+                root >= 0 ? static_cast<std::uint32_t>(root) : 0u);
         }
 
         [[nodiscard]] bool TryPackClipGpu(fra::GpuAnimInstance &instance,
                                           const ModelAsset &model,
                                           const fra::AnimationClip &clip, float timeSec,
                                           bool loop, std::uint32_t boneOffset,
-                                          std::uint32_t jointCount, const glm::mat4 &modelWorld,
+                                          std::uint32_t jointCount, std::uint32_t skeletonSlot,
+                                          const glm::mat4 &modelWorld,
                                           fra::GpuAnimationSystem &gpu)
         {
             const auto slot = ResolveClipSlot(gpu, model, clip);
-            if(slot == kInvalidGpuClipSlot)
+            if(slot == kInvalidGpuSlot)
             {
                 return false;
             }
 
-            instance            = {};
-            instance.boneOffset = boneOffset;
-            instance.jointCount = jointCount;
-            instance.clipA      = slot;
-            instance.timeA      = timeSec;
-            instance.wA         = 1.0f;
-            instance.flags      = loop ? fra::GpuAnimFlags::Loop : 0u;
-            instance.modelWorld = modelWorld;
+            instance               = {};
+            instance.boneOffset    = boneOffset;
+            instance.jointCount    = jointCount;
+            instance.skeletonSlot  = skeletonSlot;
+            instance.clipA         = slot;
+            instance.timeA         = timeSec;
+            instance.wA            = 1.0f;
+            instance.flags         = loop ? fra::GpuAnimFlags::Loop : 0u;
+            instance.modelWorld    = modelWorld;
             return true;
         }
 
         [[nodiscard]] bool TryPackGraphGpu(
             fra::GpuAnimInstance &instance, fra::AnimGraph &graph, const ModelAsset &model,
-            std::uint32_t boneOffset, std::uint32_t jointCount, const glm::mat4 &modelWorld,
-            bool loop,
+            std::uint32_t boneOffset, std::uint32_t jointCount, std::uint32_t skeletonSlot,
+            const glm::mat4 &modelWorld, bool loop,
             const std::function<std::uint32_t(const fra::AnimationClip *)> &clipSlot)
         {
             fra::AnimLocoGpuSample loco {};
@@ -121,28 +137,29 @@ namespace FRIGGA_NAMESPACE
             }
 
             const auto slotA = clipSlot(loco.clipA);
-            if(slotA == kInvalidGpuClipSlot)
+            if(slotA == kInvalidGpuSlot)
             {
                 return false;
             }
 
-            const auto slotB = loco.clipB ? clipSlot(loco.clipB) : kInvalidGpuClipSlot;
-            const auto slotC = loco.clipC ? clipSlot(loco.clipC) : kInvalidGpuClipSlot;
+            const auto slotB = loco.clipB ? clipSlot(loco.clipB) : kInvalidGpuSlot;
+            const auto slotC = loco.clipC ? clipSlot(loco.clipC) : kInvalidGpuSlot;
 
-            instance            = {};
-            instance.boneOffset = boneOffset;
-            instance.jointCount = jointCount;
-            instance.clipA      = slotA;
-            instance.clipB      = slotB == kInvalidGpuClipSlot ? 0u : slotB;
-            instance.clipC      = slotC == kInvalidGpuClipSlot ? 0u : slotC;
-            instance.timeA      = loco.timeA;
-            instance.timeB      = loco.timeB;
-            instance.timeC      = loco.timeC;
-            instance.wA         = loco.wA;
-            instance.wB         = loco.wB;
-            instance.wC         = loco.wC;
-            instance.flags      = loop ? fra::GpuAnimFlags::Loop : 0u;
-            instance.modelWorld = modelWorld;
+            instance               = {};
+            instance.boneOffset    = boneOffset;
+            instance.jointCount    = jointCount;
+            instance.skeletonSlot  = skeletonSlot;
+            instance.clipA         = slotA;
+            instance.clipB         = slotB == kInvalidGpuSlot ? 0u : slotB;
+            instance.clipC         = slotC == kInvalidGpuSlot ? 0u : slotC;
+            instance.timeA         = loco.timeA;
+            instance.timeB         = loco.timeB;
+            instance.timeC         = loco.timeC;
+            instance.wA            = loco.wA;
+            instance.wB            = loco.wB;
+            instance.wC            = loco.wC;
+            instance.flags         = loop ? fra::GpuAnimFlags::Loop : 0u;
+            instance.modelWorld    = modelWorld;
 
             fra::AnimLayerGpuSlots layers {};
             if(graph.TryGetLayerGpuSlots(layers))
@@ -150,7 +167,7 @@ namespace FRIGGA_NAMESPACE
                 if(layers.masked.active && layers.masked.clip != nullptr)
                 {
                     const auto maskSlot = clipSlot(layers.masked.clip);
-                    if(maskSlot != kInvalidGpuClipSlot)
+                    if(maskSlot != kInvalidGpuSlot)
                     {
                         instance.clipMask   = maskSlot;
                         instance.timeMask   = layers.masked.time;
@@ -161,7 +178,7 @@ namespace FRIGGA_NAMESPACE
                 if(layers.additive.active && layers.additive.clip != nullptr)
                 {
                     const auto addSlot = clipSlot(layers.additive.clip);
-                    if(addSlot != kInvalidGpuClipSlot)
+                    if(addSlot != kInvalidGpuSlot)
                     {
                         instance.clipAdd   = addSlot;
                         instance.timeAdd   = layers.additive.time;
@@ -316,7 +333,6 @@ namespace FRIGGA_NAMESPACE
         if(skinned.empty())
         {
             mGpuPinnedModels.clear();
-            mActiveGpuSkeletonPath.clear();
             return;
         }
 
@@ -338,17 +354,17 @@ namespace FRIGGA_NAMESPACE
                     const auto slot = gpu.EnsureClipResident(
                         ClipGpuKey(model->relativePath, model->clips[i].name),
                         model->bakedClips[i]);
-                    if(slot != kInvalidGpuClipSlot)
+                    if(slot != kInvalidGpuSlot)
                     {
                         gpu.PinClipSlot(slot, true);
                     }
                 }
-            }
 
-            if(mActiveGpuSkeletonPath.empty())
-            {
-                UploadSkeletonForModel(gpu, *model);
-                mActiveGpuSkeletonPath = model->relativePath;
+                const auto skelSlot = ResolveSkeletonSlot(gpu, *model);
+                if(skelSlot != kInvalidGpuSlot)
+                {
+                    gpu.PinSkeletonSlot(skelSlot, true);
+                }
             }
         }
 
@@ -361,16 +377,6 @@ namespace FRIGGA_NAMESPACE
             else
             {
                 ++it;
-            }
-        }
-
-        if(!live.contains(mActiveGpuSkeletonPath))
-        {
-            mActiveGpuSkeletonPath.clear();
-            if(const auto *model = skinned.front())
-            {
-                UploadSkeletonForModel(gpu, *model);
-                mActiveGpuSkeletonPath = model->relativePath;
             }
         }
     }
@@ -429,10 +435,6 @@ namespace FRIGGA_NAMESPACE
 
         pinGpuClipsForLoadedModels(gpu);
 
-        // Must follow pin/UploadSkeleton — Freya forbids skeleton uploads while
-        // instance staging is open. Application closes this session after RenderScene.
-        gpu.BeginGpuAnimInstanceUploads();
-
         mRegistry->CreateMutation()->EachAsync(
             [&](fr::Entity entity, TransformComponent &, AnimatorComponent &animator) {
                 if(animator.modelSource.empty())
@@ -483,14 +485,16 @@ namespace FRIGGA_NAMESPACE
                     [&gpu, model](const fra::AnimationClip *clip) -> std::uint32_t {
                     if(clip == nullptr)
                     {
-                        return kInvalidGpuClipSlot;
+                        return kInvalidGpuSlot;
                     }
                     return ResolveClipSlot(gpu, *model, *clip);
                 };
 
-                const bool canGpu = animator.useGpu && !crossFading &&
-                                    jointCount <= gpuMaxJoints &&
-                                    model->relativePath == mActiveGpuSkeletonPath;
+                const std::uint32_t skeletonSlot =
+                    (animator.useGpu && !crossFading && jointCount <= gpuMaxJoints)
+                        ? ResolveSkeletonSlot(gpu, *model)
+                        : kInvalidGpuSlot;
+                const bool canGpu = skeletonSlot != kInvalidGpuSlot;
 
                 auto uploadCpuSkin = [&](std::vector<glm::mat4> skin) {
                     if(skin.empty())
@@ -544,7 +548,7 @@ namespace FRIGGA_NAMESPACE
                     fra::GpuAnimInstance gpuInst {};
                     if(canGpu &&
                        TryPackGraphGpu(gpuInst, *graph, *model, boneOffset, jointCount,
-                                       modelWorld, animator.loop, clipSlotFn) &&
+                                       skeletonSlot, modelWorld, animator.loop, clipSlotFn) &&
                        tryUploadGpu(gpuInst))
                     {
                         return;
@@ -595,7 +599,7 @@ namespace FRIGGA_NAMESPACE
                 {
                     fra::GpuAnimInstance gpuInst {};
                     if(TryPackClipGpu(gpuInst, *model, *clip, animator.timeSec, animator.loop,
-                                      boneOffset, jointCount, modelWorld, gpu) &&
+                                      boneOffset, jointCount, skeletonSlot, modelWorld, gpu) &&
                        tryUploadGpu(gpuInst))
                     {
                         return;

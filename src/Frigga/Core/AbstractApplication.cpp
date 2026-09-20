@@ -99,10 +99,8 @@ namespace FRIGGA_NAMESPACE
 
         OnAfterBeginFrame();
 
-        // Freya upload sessions owned by Application. GpuAnim instance staging
-        // begins inside AnimationSystem after UploadSkeleton/pin (Freya asserts
-        // if skeleton uploads run while instance staging is open).
         mRenderer->BeginBoneMatrixUploads();
+        fra::Advanced(*mRenderer).GpuAnimation().BeginGpuAnimInstanceUploads();
         if(mLights)
         {
             mLights->BeginLightUploads();

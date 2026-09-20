@@ -80,7 +80,7 @@ namespace FRIGGA_NAMESPACE
 
         void ensureStableBoneOffset(AnimatorComponent &animator, const ModelAsset &model);
 
-        /// Main-thread only: pin loaded model clips into the GPU cache + active skeleton.
+        /// Pin loaded model clips + skeleton atlas slabs (Ensure*Resident; multi-rig).
         void pinGpuClipsForLoadedModels(fra::GpuAnimationSystem &gpu);
 
         void enqueueEvents(fr::Entity entity,
@@ -97,7 +97,6 @@ namespace FRIGGA_NAMESPACE
 
         std::atomic<std::uint32_t> mNextBoneOffset {0};
         std::unordered_set<std::string> mGpuPinnedModels;
-        std::string mActiveGpuSkeletonPath;
         std::atomic<bool> mAnyGpuInstance {false};
 
         rigtorp::UnboundedMPMCQueue<PendingAnimEvents> mPendingEvents;
