@@ -47,10 +47,7 @@ namespace FRIGGA_NAMESPACE
             }
             return false;
         }
-    } // namespace
 
-    namespace
-    {
         fra::Light MakeGpuLight(const TransformUtil::Pose &pose, const LightComponent &light)
         {
             // Match Freya/OpenGL: entity local -Z is the aimed light direction / area normal.
@@ -108,13 +105,18 @@ namespace FRIGGA_NAMESPACE
 
     void RenderSystem::Update(float deltaTime)
     {
-        // LightService::Update (invoked by UpdateCamera) uploads the GPU UBO
-        // for the current frame only. Keep CPU lights in place first.
+        mRegistry->ExecuteTasks();
         syncLights();
         updateCamera();
         drawMeshes();
         drawBillboards(deltaTime);
         syncFullscreenEffects();
+    }
+
+    void RenderSystem::PostUpdate(float deltaTime)
+    {
+        mLightService->EndLightUploads();
+        mRenderer->EndSceneInstances();
     }
 
     void RenderSystem::applyCameraPose(const glm::vec3 &position, const glm::quat &rotation,
@@ -300,8 +302,6 @@ namespace FRIGGA_NAMESPACE
                 };
                 mLightService->UploadLightUploads(std::span<const fra::LightUpload>(&upload, 1));
             });
-        mRegistry->ExecuteTasks();
-        mLightService->EndLightUploads();
     }
 
     void RenderSystem::drawMeshes()
@@ -376,8 +376,6 @@ namespace FRIGGA_NAMESPACE
 
                 mRenderer->UploadSceneInstances(std::span<const fra::SceneInstanceUpload>(&upload, 1));
             });
-        mRegistry->ExecuteTasks();
-        mRenderer->EndSceneInstances();
     }
 
     std::uint32_t RenderSystem::textureHeapIndex(std::optional<std::uint32_t> textureId) const
