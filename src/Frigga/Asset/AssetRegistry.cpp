@@ -2,10 +2,13 @@
 #include <Frigga/Asset/FreyaHandles.hpp>
 
 #include "Frigga/Audio/IAudioEngine.hpp"
+#include "Frigga/Scene/PrefabCache.hpp"
 
 #include <algorithm>
 #include <cctype>
+#include <cstring>
 #include <format>
+#include <mutex>
 #include <system_error>
 #include <utility>
 
@@ -40,6 +43,57 @@ namespace FRIGGA_NAMESPACE
             {
                 asset.bakedClips.push_back(fra::BakeClip(asset.skeleton, clip, hz));
             }
+        }
+
+        void HashCombine(std::uint64_t &seed, std::uint64_t value)
+        {
+            seed ^= value + 0x9e3779b97f4a7c15ull + (seed << 6) + (seed >> 2);
+        }
+
+        void HashFloat(std::uint64_t &seed, float value)
+        {
+            std::uint32_t bits = 0;
+            static_assert(sizeof(bits) == sizeof(value));
+            std::memcpy(&bits, &value, sizeof(bits));
+            HashCombine(seed, bits);
+        }
+
+        void HashTextureSlot(std::uint64_t &seed, const std::optional<fra::TextureHandle> &slot)
+        {
+            HashCombine(seed, slot && slot->IsValid() ? slot->Id() : 0u);
+        }
+
+        std::uint64_t HashMaterialCreateInfo(const fra::MaterialCreateInfo &info)
+        {
+            std::uint64_t seed = 0xcbf29ce484222325ull;
+            HashTextureSlot(seed, info.albedo);
+            HashTextureSlot(seed, info.normal);
+            HashTextureSlot(seed, info.roughness);
+            HashTextureSlot(seed, info.emissive);
+            HashTextureSlot(seed, info.metalness);
+            HashTextureSlot(seed, info.occlusion);
+            HashFloat(seed, info.albedoFactor.x);
+            HashFloat(seed, info.albedoFactor.y);
+            HashFloat(seed, info.albedoFactor.z);
+            HashFloat(seed, info.albedoFactor.w);
+            HashFloat(seed, info.roughnessFactor);
+            HashFloat(seed, info.metalnessFactor);
+            HashFloat(seed, info.emissiveFactor.x);
+            HashFloat(seed, info.emissiveFactor.y);
+            HashFloat(seed, info.emissiveFactor.z);
+            HashFloat(seed, info.aoFactor);
+            HashFloat(seed, info.alphaCutoff);
+            HashFloat(seed, info.clearcoat);
+            HashFloat(seed, info.clearcoatRoughness);
+            HashFloat(seed, info.transmission);
+            HashFloat(seed, info.ior);
+            HashCombine(seed, static_cast<std::uint64_t>(info.alphaMode));
+            HashCombine(seed, info.unlit ? 1u : 0u);
+            HashCombine(seed, info.doubleSided ? 1u : 0u);
+            HashCombine(seed, info.receiveShadows ? 1u : 0u);
+            HashCombine(seed, info.packedMetallicRoughness ? 1u : 0u);
+            HashCombine(seed, info.techniqueId);
+            return seed;
         }
     } // namespace
 
@@ -116,9 +170,12 @@ namespace FRIGGA_NAMESPACE
         if(root.empty())
         {
             MutableResourcesRoot() = EngineResourcesRoot();
-            return;
         }
-        MutableResourcesRoot() = std::move(root);
+        else
+        {
+            MutableResourcesRoot() = std::move(root);
+        }
+        PrefabCache::Instance().Clear();
     }
 
     void AssetRegistry::ResetResourcesRoot()
@@ -138,6 +195,12 @@ namespace FRIGGA_NAMESPACE
         mBankIndexByPath.clear();
         mAudioClipIndexByPath.clear();
         mTexturePathById.clear();
+        {
+            std::lock_guard lock(mMaterialCacheMutex);
+            mSharedMaterialByHash.clear();
+            mSharedMaterialIds.clear();
+        }
+        PrefabCache::Instance().Clear();
     }
 
     std::string AssetRegistry::assetIdFor(const std::filesystem::path &relativePath,
@@ -764,6 +827,44 @@ namespace FRIGGA_NAMESPACE
         return materialId;
     }
 
+    void AssetRegistry::forgetSharedMaterialLocked(std::uint32_t materialId)
+    {
+        mSharedMaterialIds.erase(materialId);
+        for(auto it = mSharedMaterialByHash.begin(); it != mSharedMaterialByHash.end();)
+        {
+            if(it->second == materialId)
+            {
+                it = mSharedMaterialByHash.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
+    }
+
+    std::uint32_t AssetRegistry::GetOrCreateSharedMaterial(const fra::MaterialCreateInfo &createInfo)
+    {
+        const auto hash = HashMaterialCreateInfo(createInfo);
+
+        std::lock_guard lock(mMaterialCacheMutex);
+        if(const auto it = mSharedMaterialByHash.find(hash); it != mSharedMaterialByHash.end())
+        {
+            return it->second;
+        }
+
+        const auto materialId = CreateMaterial(createInfo, {}, false);
+        mSharedMaterialByHash.emplace(hash, materialId);
+        mSharedMaterialIds.insert(materialId);
+        return materialId;
+    }
+
+    bool AssetRegistry::IsSharedMaterial(std::uint32_t materialId) const
+    {
+        std::lock_guard lock(mMaterialCacheMutex);
+        return mSharedMaterialIds.contains(materialId);
+    }
+
     std::uint32_t AssetRegistry::DuplicateMaterial(std::uint32_t materialId, std::string name)
     {
         return CreateMaterial(GetMaterialCreateInfo(materialId), std::move(name));
@@ -772,6 +873,11 @@ namespace FRIGGA_NAMESPACE
     void AssetRegistry::UpdateMaterial(std::uint32_t materialId,
                                        const fra::MaterialCreateInfo &createInfo)
     {
+        {
+            std::lock_guard lock(mMaterialCacheMutex);
+            forgetSharedMaterialLocked(materialId);
+        }
+
         if(mMaterialPool == nullptr)
         {
             return;

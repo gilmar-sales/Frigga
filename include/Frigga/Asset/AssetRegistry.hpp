@@ -7,10 +7,12 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace FRIGGA_NAMESPACE
@@ -131,6 +133,13 @@ namespace FRIGGA_NAMESPACE
                                                    std::string name = "Material",
                                                    bool listInBrowser = true);
 
+        /// Reuses an existing GPU material when create-info content matches a prior
+        /// GetOrCreateSharedMaterial call. Thread-safe.
+        [[nodiscard]] std::uint32_t GetOrCreateSharedMaterial(
+            const fra::MaterialCreateInfo &createInfo);
+
+        [[nodiscard]] bool IsSharedMaterial(std::uint32_t materialId) const;
+
         [[nodiscard]] std::uint32_t DuplicateMaterial(std::uint32_t materialId,
                                                       std::string name = "Material");
 
@@ -225,6 +234,7 @@ namespace FRIGGA_NAMESPACE
         void catalogMaterialIfNew(std::uint32_t materialId, std::string name);
         [[nodiscard]] std::string assetIdFor(const std::filesystem::path &relativePath,
                                              std::string_view type);
+        void forgetSharedMaterialLocked(std::uint32_t materialId);
 
         skr::Arc<fra::MeshPool> mMeshPool;
         skr::Arc<fra::TexturePool> mTexturePool;
@@ -243,6 +253,10 @@ namespace FRIGGA_NAMESPACE
         std::unordered_map<std::string, std::size_t> mBankIndexByPath;
         std::unordered_map<std::string, std::size_t> mAudioClipIndexByPath;
         std::unordered_map<std::uint32_t, std::string> mTexturePathById;
+
+        mutable std::mutex mMaterialCacheMutex;
+        std::unordered_map<std::uint64_t, std::uint32_t> mSharedMaterialByHash;
+        std::unordered_set<std::uint32_t> mSharedMaterialIds;
 
         std::uint32_t mCatalogMeshSeq     = 1000;
         std::uint32_t mCatalogTextureSeq  = 1000;

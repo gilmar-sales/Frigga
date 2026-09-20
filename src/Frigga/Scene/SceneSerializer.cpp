@@ -1002,7 +1002,7 @@ namespace FRIGGA_NAMESPACE
 
             if(assets)
             {
-                outMaterial.materialId = assets->CreateMaterial(info, {}, false);
+                outMaterial.materialId = assets->GetOrCreateSharedMaterial(info);
             }
             else
             {

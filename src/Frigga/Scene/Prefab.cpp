@@ -1,15 +1,13 @@
 #include <Frigga/Scene/Prefab.hpp>
 
 #include "Frigga/Asset/AssetRegistry.hpp"
+#include "Frigga/Scene/PrefabCache.hpp"
 #include "Frigga/Scene/SceneSerializer.hpp"
 
 #include <cctype>
 #include <format>
 #include <fstream>
 #include <system_error>
-
-#define SIMDJSON_STATIC_REFLECTION 1
-#include <simdjson.h>
 
 namespace FRIGGA_NAMESPACE
 {
@@ -98,26 +96,26 @@ namespace FRIGGA_NAMESPACE
         {
             file << '\n';
         }
-        return static_cast<bool>(file);
+        if(!file)
+        {
+            return false;
+        }
+
+        PrefabCache::Instance().InvalidatePath(path);
+        return true;
     }
 
     bool Prefab::Load(Scene &scene, const std::filesystem::path &path, fr::Entity parent,
                       fr::Entity &outRoot)
     {
-        simdjson::padded_string json;
-        if(const auto error = simdjson::padded_string::load(path.string()).get(json); error)
+        const auto json = PrefabCache::Instance().GetOrLoad(path);
+        if(!json)
         {
             return false;
         }
 
-        auto relative = AssetRegistry::MakeRelativeToResources(path);
-        if(relative.empty())
-        {
-            relative = path.lexically_normal().generic_string();
-        }
-
-        return SceneSerializer::InstantiatePrefab(scene, std::string_view(json.data(), json.size()),
-                                                  parent, outRoot, relative.generic_string());
+        const auto cacheKey = PrefabCache::MakeCacheKey(path);
+        return SceneSerializer::InstantiatePrefab(scene, *json, parent, outRoot, cacheKey);
     }
 
     void FriKeepPrefabSymbols()

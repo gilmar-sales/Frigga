@@ -1125,7 +1125,8 @@ void HierarchyLayer::processPendingTextureImport()
     }
 
     mRegistry->TryGetComponents<fg::MaterialComponent>(entity, [&](fg::MaterialComponent &material) {
-        if(material.materialId == mPrimitives->GetDefaultMaterial())
+        if(material.materialId == mPrimitives->GetDefaultMaterial() ||
+           mAssets->IsSharedMaterial(material.materialId))
         {
             material.materialId =
                 mAssets->DuplicateMaterial(material.materialId, "Unique Material");
@@ -2405,10 +2406,12 @@ void HierarchyLayer::drawComponents()
 
                 const auto defaultMaterial = mPrimitives->GetDefaultMaterial();
                 const bool isDefault       = material.materialId == defaultMaterial;
+                const bool isShared =
+                    isDefault || mAssets->IsSharedMaterial(material.materialId);
 
                 ImGui::Text("Material ID: %u%s", material.materialId,
-                            isDefault ? " (Default, shared)" : "");
-                if(isDefault)
+                            isShared ? " (shared)" : "");
+                if(isShared)
                 {
                     ImGui::TextDisabled("Make Unique before editing factors/maps.");
                 }
@@ -2437,12 +2440,12 @@ void HierarchyLayer::drawComponents()
                     ImGui::EndCombo();
                 }
 
-                ImGui::BeginDisabled(isDefault);
+                ImGui::BeginDisabled(isShared);
                 auto info = mPrimitives->GetMaterialCreateInfo(material.materialId);
 
                 EditorMaterialUi::TextureSlotContext textureCtx {
                     .assets        = mAssets,
-                    .editingLocked = mSimulation->IsPlaying() || isDefault,
+                    .editingLocked = mSimulation->IsPlaying() || isShared,
                     .requestImport = [this](EditorMaterialUi::TextureSlot slot) {
                         switch(slot)
                         {
@@ -2468,7 +2471,7 @@ void HierarchyLayer::drawComponents()
                     },
                 };
 
-                if(EditorMaterialUi::DrawMaterialCreateInfo(info, mSimulation->IsPlaying() || isDefault,
+                if(EditorMaterialUi::DrawMaterialCreateInfo(info, mSimulation->IsPlaying() || isShared,
                                                             textureCtx))
                 {
                     mPrimitives->UpdateMaterial(material.materialId, info);

@@ -12,6 +12,7 @@
 #include <Frigga/ECS/TransformUtil.hpp>
 #include <Frigga/ECS/UserComponentRegistry.hpp>
 #include <Frigga/Scene/Prefab.hpp>
+#include <Frigga/Scene/PrefabCache.hpp>
 #include <Frigga/Scene/Scene.hpp>
 #include <Frigga/Scene/SceneSerializer.hpp>
 
@@ -220,4 +221,159 @@ TEST(PrefabHelpers, UniqueAssetPathSkipsExisting)
     EXPECT_EQ(second.filename().string(), "Enemy_2.prefab");
 
     std::filesystem::remove_all(dir);
+}
+
+TEST_F(PrefabSpec, PrefabCache_GetOrLoad_HitsDiskOnce)
+{
+    const auto path = std::filesystem::temp_directory_path() / "frigga_prefab_cache_hit.prefab";
+    std::filesystem::remove(path);
+
+    const auto entity = mRegistry->CreateEntity(
+        fg::NameComponent {.name = "Cached"},
+        fg::TransformComponent {},
+        fg::MeshComponent {.meshId = mPrimitives->GetMesh(fg::PrimitiveType::Cube)},
+        fg::MaterialComponent {.materialId = mPrimitives->GetDefaultMaterial()});
+    mRegistry->ExecuteTasks();
+    ASSERT_TRUE(fg::Prefab::Save(*mScene, entity, path));
+
+    auto &cache = fg::PrefabCache::Instance();
+    cache.InvalidatePath(path);
+    const auto loadsBefore = cache.DiskLoadCount();
+
+    fr::Entity first = fg::kInvalidEntity;
+    fr::Entity second = fg::kInvalidEntity;
+    ASSERT_TRUE(fg::Prefab::Load(*mScene, path, fg::kInvalidEntity, first));
+    ASSERT_TRUE(fg::Prefab::Load(*mScene, path, fg::kInvalidEntity, second));
+    EXPECT_EQ(cache.DiskLoadCount(), loadsBefore + 1u);
+    EXPECT_TRUE(cache.Contains(fg::PrefabCache::MakeCacheKey(path)));
+
+    std::filesystem::remove(path);
+}
+
+TEST_F(PrefabSpec, PrefabCache_Invalidate_ReloadsFromDisk)
+{
+    const auto path =
+        std::filesystem::temp_directory_path() / "frigga_prefab_cache_invalidate.prefab";
+    std::filesystem::remove(path);
+
+    const auto entity = mRegistry->CreateEntity(
+        fg::NameComponent {.name = "Original"},
+        fg::TransformComponent {},
+        fg::MeshComponent {.meshId = mPrimitives->GetMesh(fg::PrimitiveType::Cube)},
+        fg::MaterialComponent {.materialId = mPrimitives->GetDefaultMaterial()});
+    mRegistry->ExecuteTasks();
+    ASSERT_TRUE(fg::Prefab::Save(*mScene, entity, path));
+
+    auto &cache = fg::PrefabCache::Instance();
+    cache.InvalidatePath(path);
+
+    fr::Entity first = fg::kInvalidEntity;
+    ASSERT_TRUE(fg::Prefab::Load(*mScene, path, fg::kInvalidEntity, first));
+
+    {
+        std::ofstream file(path, std::ios::binary | std::ios::trunc);
+        file << R"({"version":6,"entities":[{"name":"Rewritten","transform":{"position":[0,0,0],"scale":[1,1,1],"rotation":[1,0,0,0]},"mesh":{"primitive":"Cube"},"material":{"default":true}}]})";
+        file << '\n';
+    }
+
+    // Stale cache still serves the previous JSON until Invalidate.
+    fr::Entity stale = fg::kInvalidEntity;
+    ASSERT_TRUE(fg::Prefab::Load(*mScene, path, fg::kInvalidEntity, stale));
+    std::string staleName;
+    mRegistry->TryGetComponents<fg::NameComponent>(
+        stale, [&](fg::NameComponent &name) { staleName = name.name; });
+    EXPECT_EQ(staleName, "Original");
+
+    cache.InvalidatePath(path);
+    fr::Entity fresh = fg::kInvalidEntity;
+    ASSERT_TRUE(fg::Prefab::Load(*mScene, path, fg::kInvalidEntity, fresh));
+    std::string freshName;
+    mRegistry->TryGetComponents<fg::NameComponent>(
+        fresh, [&](fg::NameComponent &name) { freshName = name.name; });
+    EXPECT_EQ(freshName, "Rewritten");
+
+    std::filesystem::remove(path);
+}
+
+TEST_F(PrefabSpec, PrefabCache_ClearCatalog_DropsEntries)
+{
+    const auto path = std::filesystem::temp_directory_path() / "frigga_prefab_cache_clear.prefab";
+    std::filesystem::remove(path);
+
+    const auto entity = mRegistry->CreateEntity(
+        fg::NameComponent {.name = "ClearMe"},
+        fg::TransformComponent {},
+        fg::MeshComponent {.meshId = mPrimitives->GetMesh(fg::PrimitiveType::Cube)},
+        fg::MaterialComponent {.materialId = mPrimitives->GetDefaultMaterial()});
+    mRegistry->ExecuteTasks();
+    ASSERT_TRUE(fg::Prefab::Save(*mScene, entity, path));
+
+    auto &cache = fg::PrefabCache::Instance();
+    cache.InvalidatePath(path);
+    fr::Entity instance = fg::kInvalidEntity;
+    ASSERT_TRUE(fg::Prefab::Load(*mScene, path, fg::kInvalidEntity, instance));
+    ASSERT_TRUE(cache.Contains(fg::PrefabCache::MakeCacheKey(path)));
+
+    mAssets->ClearCatalog();
+    EXPECT_FALSE(cache.Contains(fg::PrefabCache::MakeCacheKey(path)));
+    EXPECT_EQ(cache.Size(), 0u);
+
+    std::filesystem::remove(path);
+}
+
+TEST_F(PrefabSpec, SharedMaterial_DedupsIdenticalCreateInfo)
+{
+    fra::MaterialCreateInfo info {};
+    info.albedoFactor    = {0.8f, 0.2f, 0.1f, 1.0f};
+    info.roughnessFactor = 0.35f;
+
+    const auto first  = mAssets->GetOrCreateSharedMaterial(info);
+    const auto second = mAssets->GetOrCreateSharedMaterial(info);
+    EXPECT_EQ(first, second);
+    EXPECT_TRUE(mAssets->IsSharedMaterial(first));
+
+    info.roughnessFactor = 0.9f;
+    const auto third = mAssets->GetOrCreateSharedMaterial(info);
+    EXPECT_NE(third, first);
+    EXPECT_TRUE(mAssets->IsSharedMaterial(third));
+}
+
+TEST_F(PrefabSpec, Instantiate_SharesNonDefaultMaterials)
+{
+    constexpr std::string_view kPrefabJson = R"({
+        "version": 6,
+        "entities": [
+            {
+                "name": "Painted",
+                "transform": {
+                    "position": [0.0, 0.0, 0.0],
+                    "scale": [1.0, 1.0, 1.0],
+                    "rotation": [1.0, 0.0, 0.0, 0.0]
+                },
+                "mesh": { "primitive": "Cube" },
+                "material": {
+                    "default": false,
+                    "albedoFactor": [0.1, 0.7, 0.2, 1.0],
+                    "roughnessFactor": 0.42
+                }
+            }
+        ]
+    })";
+
+    fr::Entity a = fg::kInvalidEntity;
+    fr::Entity b = fg::kInvalidEntity;
+    ASSERT_TRUE(fg::Prefab::Instantiate(*mScene, kPrefabJson, fg::kInvalidEntity, a));
+    ASSERT_TRUE(fg::Prefab::Instantiate(*mScene, kPrefabJson, fg::kInvalidEntity, b));
+    ASSERT_NE(a, b);
+
+    std::uint32_t materialA = 0;
+    std::uint32_t materialB = 0;
+    mRegistry->TryGetComponents<fg::MaterialComponent>(
+        a, [&](fg::MaterialComponent &material) { materialA = material.materialId; });
+    mRegistry->TryGetComponents<fg::MaterialComponent>(
+        b, [&](fg::MaterialComponent &material) { materialB = material.materialId; });
+    EXPECT_NE(materialA, 0u);
+    EXPECT_EQ(materialA, materialB);
+    EXPECT_TRUE(mAssets->IsSharedMaterial(materialA));
+    EXPECT_NE(materialA, mPrimitives->GetDefaultMaterial());
 }
