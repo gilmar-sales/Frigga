@@ -1,5 +1,6 @@
 #include "Frigga/Module/GameplayModuleHost.hpp"
 
+#include "Frigga/Module/FriFreyaUiKeep.hpp"
 #include "Frigga/Scene/Prefab.hpp"
 
 #include <Freyr/Core/SystemManager.hpp>
@@ -128,6 +129,7 @@ namespace FRIGGA_NAMESPACE
     {
         FriKeepComponentInspectorSymbols();
         FriKeepPrefabSymbols();
+        FriKeepFreyaUiSymbols();
     }
 
     GameplayModuleHost::~GameplayModuleHost()

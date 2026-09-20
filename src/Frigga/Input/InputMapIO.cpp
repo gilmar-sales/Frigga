@@ -44,6 +44,16 @@ namespace FRIGGA_NAMESPACE
                 {"X", fra::KeyCode::X},
                 {"Y", fra::KeyCode::Y},
                 {"Z", fra::KeyCode::Z},
+                {"Num0", fra::KeyCode::Num0},
+                {"Num1", fra::KeyCode::Num1},
+                {"Num2", fra::KeyCode::Num2},
+                {"Num3", fra::KeyCode::Num3},
+                {"Num4", fra::KeyCode::Num4},
+                {"Num5", fra::KeyCode::Num5},
+                {"Num6", fra::KeyCode::Num6},
+                {"Num7", fra::KeyCode::Num7},
+                {"Num8", fra::KeyCode::Num8},
+                {"Num9", fra::KeyCode::Num9},
                 {"Space", fra::KeyCode::Space},
                 {"Return", fra::KeyCode::Return},
                 {"Escape", fra::KeyCode::Escape},
@@ -191,6 +201,15 @@ namespace FRIGGA_NAMESPACE
 
     std::optional<fra::KeyCode> ParseKeyName(std::string_view name)
     {
+        if(name.size() == 1 && name[0] >= '0' && name[0] <= '9')
+        {
+            static constexpr fra::KeyCode kDigits[] = {
+                fra::KeyCode::Num0, fra::KeyCode::Num1, fra::KeyCode::Num2, fra::KeyCode::Num3,
+                fra::KeyCode::Num4, fra::KeyCode::Num5, fra::KeyCode::Num6, fra::KeyCode::Num7,
+                fra::KeyCode::Num8, fra::KeyCode::Num9,
+            };
+            return kDigits[static_cast<std::size_t>(name[0] - '0')];
+        }
         return Lookup(KeyTable(), name);
     }
 
@@ -246,9 +265,11 @@ namespace FRIGGA_NAMESPACE
             "G",         "H",         "I",         "J",         "K",         "L",
             "M",         "N",         "O",         "P",         "Q",         "R",
             "S",         "T",         "U",         "V",         "W",         "X",
-            "Y",         "Z",         "Space",     "Return",    "Escape",    "Tab",
-            "Backspace", "Left",      "Right",     "Up",        "Down",      "LShift",
-            "RShift",    "LCtrl",     "RCtrl",     "LAlt",      "RAlt",
+            "Y",         "Z",         "Num0",      "Num1",      "Num2",      "Num3",
+            "Num4",      "Num5",      "Num6",      "Num7",      "Num8",      "Num9",
+            "Space",     "Return",    "Escape",    "Tab",       "Backspace", "Left",
+            "Right",     "Up",        "Down",      "LShift",    "RShift",    "LCtrl",
+            "RCtrl",     "LAlt",      "RAlt",
         };
         return names;
     }

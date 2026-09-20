@@ -144,6 +144,14 @@ namespace FRIGGA_NAMESPACE
             return mRenderIsolation.value_or(static_cast<fr::Entity>(-1));
         }
 
+        /// Main-window Freya renderer (seeded when Scene is warmed from the window scope).
+        /// Safe for gameplay modules: Freyr constructs systems from a fresh scope each
+        /// Update, so injecting Scoped `fra::Renderer` / `FreyaOptions` directly crashes.
+        [[nodiscard]] const skr::Arc<fra::Renderer> &GetRenderer() const
+        {
+            return mRenderer;
+        }
+
       private:
         enum class CameraMode : std::uint8_t
         {

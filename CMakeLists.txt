@@ -77,7 +77,7 @@ FetchContent_MakeAvailable(freyr)
 FetchContent_Declare(
         freya
         GIT_REPOSITORY "https://github.com/gilmar-sales/Freya.git"
-        GIT_TAG "v0.52.2"
+        GIT_TAG "v0.55.1"
         GIT_SHALLOW TRUE
 )
 FetchContent_MakeAvailable(freya)
@@ -267,13 +267,14 @@ add_custom_command(TARGET frigga POST_BUILD
                 "${FRIGGA_SDK_DIR}/include/Frigga"
         COMMENT "Sync Frigga public headers into Sdk")
 
-# Expose Freyr/Frigga/Skirnir/simdjson to gameplay modules.
+# Expose Freyr/Frigga/Skirnir/simdjson (+ filtered Freya screen UI) to modules.
 # Linux: undefined refs in the .so bind to the host at dlopen (--export-dynamic).
-# Prefab/inspector .o files are keep-alived from GameplayModuleHost so static GC
-# does not drop APIs modules call (fg::Prefab::Load, FriComponentInspector, …).
+# Prefab/inspector/UI .o files are keep-alived from GameplayModuleHost so static
+# GC does not drop APIs modules call (fg::Prefab::Load, fra::UiContext, …).
 # Windows: PE allows ≤65535 exports, so we cannot --export-all-symbols on the
-# full Editor. cmake/GenerateModuleExports.cmake dumps the four runtime archives
-# (no namespace allowlist) into a .def that feeds ENABLE_EXPORTS' implib.
+# full Editor. cmake/GenerateModuleExports.cmake dumps the runtime archives
+# (no namespace allowlist for frigga/freyr/skirnir/simdjson; Freya filtered) into
+# a .def that feeds ENABLE_EXPORTS' implib.
 set_target_properties(Editor PROPERTIES ENABLE_EXPORTS TRUE)
 set_target_properties(Runtime PROPERTIES ENABLE_EXPORTS TRUE)
 if (UNIX AND NOT APPLE)
@@ -285,6 +286,9 @@ elseif (APPLE)
 endif ()
 if (WIN32 AND CMAKE_NM)
     set(_module_exports "${CMAKE_BINARY_DIR}/frigga_module_exports.def")
+    # Screen UI + façade APIs modules call on the host Renderer / TexturePool.
+    set(_freya_module_filter
+            "_ZN3fra9UiContext|_ZNK3fra9UiContext|_ZN3fra8Renderer12GetUiContext|_ZN3fra8Renderer9GetUiDraw|_ZN3fra16RendererAdvanced16GetViewportImage|_ZN3fra11TexturePool23CreateTextureFromMemory")
     add_custom_command(
             OUTPUT "${_module_exports}"
             COMMAND ${CMAKE_COMMAND}
@@ -293,9 +297,11 @@ if (WIN32 AND CMAKE_NM)
             -D "LIB1=$<TARGET_FILE:freyr>"
             -D "LIB2=$<TARGET_FILE:skirnir>"
             -D "LIB3=$<TARGET_FILE:simdjson>"
+            -D "LIB4=$<TARGET_FILE:Freya>"
+            -D "FILTER4=${_freya_module_filter}"
             -D "OUT=${_module_exports}"
             -P "${CMAKE_SOURCE_DIR}/cmake/GenerateModuleExports.cmake"
-            DEPENDS frigga freyr skirnir simdjson
+            DEPENDS frigga freyr skirnir simdjson Freya
             "${CMAKE_SOURCE_DIR}/cmake/GenerateModuleExports.cmake"
             VERBATIM
             COMMENT "Generate gameplay module export table")

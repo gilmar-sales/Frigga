@@ -1,13 +1,15 @@
 # Dump every module-facing symbol from the runtime static libs into a PE .def.
 # Editor.exe cannot --export-all-symbols (PE max 65535; the full link overflows).
-# These four archives are the gameplay ABI (frigga/freyr/skirnir/simdjson); new
+# Base archives are the gameplay ABI (frigga/freyr/skirnir/simdjson); new
 # fg::/fr::/skr:: APIs are exported automatically — no namespace allowlist.
+# Freya is huge, so it is included with FILTER4 (screen UI + a few façade APIs).
 #
 # T = code, R/D/B/S/C = data (vtables, typeinfo, simdjson tables). Data must be
 # marked DATA or the module import thunk points at a JMP, not the object.
 # libstdc++ / Itanium std instantiations stay in the module's own CRT.
 #
-# Expected -D: NM, OUT, LIB0..LIB7 (optional missing ok)
+# Expected -D: NM, OUT, LIB0..LIB7 (optional missing ok), FILTER0..FILTER7
+# (optional mangled-name regex; empty = include all symbols from that lib)
 
 if(NOT NM)
     set(NM nm)
@@ -17,9 +19,16 @@ if(NOT OUT)
 endif()
 
 set(_libs "")
+set(_filters "")
 foreach(_i RANGE 0 7)
     if(DEFINED LIB${_i} AND EXISTS "${LIB${_i}}")
         list(APPEND _libs "${LIB${_i}}")
+        # CMake drops empty list(APPEND) elements — use a sentinel for "no filter".
+        if(DEFINED FILTER${_i} AND NOT "${FILTER${_i}}" STREQUAL "")
+            list(APPEND _filters "${FILTER${_i}}")
+        else()
+            list(APPEND _filters "__ALL__")
+        endif()
     endif()
 endforeach()
 if(_libs STREQUAL "")
@@ -31,7 +40,11 @@ set(_std_or_crt
 
 set(_code_syms "")
 set(_data_syms "")
-foreach(_lib IN LISTS _libs)
+list(LENGTH _libs _lib_count)
+math(EXPR _lib_last "${_lib_count} - 1")
+foreach(_i RANGE 0 ${_lib_last})
+    list(GET _libs ${_i} _lib)
+    list(GET _filters ${_i} _filter)
     execute_process(
         COMMAND "${NM}" -g --defined-only "${_lib}"
         OUTPUT_VARIABLE _nm
@@ -47,6 +60,9 @@ foreach(_lib IN LISTS _libs)
             continue()
         endif()
         if(_sym MATCHES "${_std_or_crt}")
+            continue()
+        endif()
+        if(NOT _filter STREQUAL "__ALL__" AND NOT _sym MATCHES "${_filter}")
             continue()
         endif()
         if(_kind STREQUAL "T")
