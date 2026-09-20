@@ -5,6 +5,7 @@
 #include "Editor/Panels/ResourcesLayer.hpp"
 #include "Editor/Ui/AudioComponentInspector.hpp"
 #include "Editor/Ui/ComponentClipboard.hpp"
+#include "Editor/Ui/FontPicker.hpp"
 #include "Editor/Ui/MaterialInspector.hpp"
 #include "Editor/UiScale.hpp"
 #include "Frigga/Asset/FreyaHandles.hpp"
@@ -793,7 +794,12 @@ void HierarchyLayer::addBillboardTextToSelection()
     }
     if(!mRegistry->HasComponent<fg::BillboardTextComponent>(entity))
     {
-        mRegistry->AddComponents(entity, fg::BillboardTextComponent {});
+        fg::BillboardTextComponent label {};
+        if(mAssets)
+        {
+            label.fontId = mAssets->DefaultBillboardFontId();
+        }
+        mRegistry->AddComponents(entity, label);
     }
 }
 
@@ -1656,7 +1662,12 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
                 }
                 if(!mRegistry->HasComponent<fg::BillboardTextComponent>(entity))
                 {
-                    mRegistry->AddComponents(entity, fg::BillboardTextComponent {});
+                    fg::BillboardTextComponent label {};
+                    if(mAssets)
+                    {
+                        label.fontId = mAssets->DefaultBillboardFontId();
+                    }
+                    mRegistry->AddComponents(entity, label);
                 }
             }
             if(ImGui::MenuItem("Health Bar"))
@@ -2077,17 +2088,13 @@ void HierarchyLayer::drawComponents()
             if(drawComponentHeader("Billboard Text", "billboardText", &open))
             {
                 char textBuf[256];
-                char fontBuf[256];
                 std::snprintf(textBuf, sizeof(textBuf), "%s", label.text.c_str());
-                std::snprintf(fontBuf, sizeof(fontBuf), "%s", label.fontSource.c_str());
                 if(ImGui::InputText("Text", textBuf, sizeof(textBuf)))
                 {
                     label.text = textBuf;
                 }
-                if(ImGui::InputText("Font", fontBuf, sizeof(fontBuf)))
-                {
-                    label.fontSource = fontBuf;
-                }
+                EditorFontUi::DrawFontCombo("Font", label.fontId, mAssets,
+                                            mSimulation->IsPlaying());
                 ImGui::DragFloat("Height", &label.heightMeters, 0.01f, 0.02f, 5.0f);
                 ImGui::DragFloat3("Offset", &label.offset[0], 0.01f);
                 ImGui::ColorEdit4("Color", &label.color[0]);
@@ -2103,7 +2110,6 @@ void HierarchyLayer::drawComponents()
                 {
                     label.layer = static_cast<fra::BillboardLayer>(layer);
                 }
-                ImGui::TextDisabled("Place a TTF under Resources/Fonts/");
             }
             if(!open && !mSimulation->IsPlaying())
             {

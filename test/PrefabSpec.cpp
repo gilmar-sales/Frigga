@@ -272,7 +272,7 @@ TEST_F(PrefabSpec, PrefabCache_Invalidate_ReloadsFromDisk)
 
     {
         std::ofstream file(path, std::ios::binary | std::ios::trunc);
-        file << R"({"version":6,"entities":[{"name":"Rewritten","transform":{"position":[0,0,0],"scale":[1,1,1],"rotation":[1,0,0,0]},"mesh":{"primitive":"Cube"},"material":{"default":true}}]})";
+        file << R"({"version":7,"entities":[{"name":"Rewritten","transform":{"position":[0,0,0],"scale":[1,1,1],"rotation":[1,0,0,0]},"mesh":{"primitive":"Cube"},"material":{"default":true}}]})";
         file << '\n';
     }
 
@@ -341,7 +341,7 @@ TEST_F(PrefabSpec, SharedMaterial_DedupsIdenticalCreateInfo)
 TEST_F(PrefabSpec, Instantiate_SharesNonDefaultMaterials)
 {
     constexpr std::string_view kPrefabJson = R"({
-        "version": 6,
+        "version": 7,
         "entities": [
             {
                 "name": "Painted",

@@ -133,6 +133,12 @@ namespace FRIGGA_NAMESPACE
         /// Heap-stable until ClearCatalog. Null if not warmed.
         [[nodiscard]] const fra::FontAtlas *FindFont(std::string_view relativePath) const;
 
+        [[nodiscard]] const fra::FontAtlas *FindFontById(std::string_view fontId) const;
+        [[nodiscard]] const FontAsset *FindFontAsset(std::string_view fontId) const;
+        [[nodiscard]] bool TryGetFontId(std::string_view relativePath, std::string &outId) const;
+        /// OpenSans when present; otherwise first valid catalog font (empty if none).
+        [[nodiscard]] std::string DefaultBillboardFontId() const;
+
         [[nodiscard]] std::optional<BankAsset> ImportBank(const std::filesystem::path &sourcePath);
         [[nodiscard]] std::optional<BankAsset> LoadBank(const std::filesystem::path &relativePath);
         [[nodiscard]] std::optional<AudioClipAsset> ImportAudioClip(
@@ -284,6 +290,7 @@ namespace FRIGGA_NAMESPACE
         std::unordered_map<std::string, std::size_t> mModelIndexByPath;
         std::unordered_map<std::string, std::size_t> mTextureIndexByPath;
         std::unordered_map<std::string, std::size_t> mFontIndexByPath;
+        std::unordered_map<std::string, std::size_t> mFontIndexById;
         std::unordered_map<std::string, std::size_t> mBankIndexByPath;
         std::unordered_map<std::string, std::size_t> mAudioClipIndexByPath;
         std::unordered_map<std::uint32_t, std::string> mTexturePathById;

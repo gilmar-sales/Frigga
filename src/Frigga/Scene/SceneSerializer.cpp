@@ -185,6 +185,27 @@ namespace FRIGGA_NAMESPACE
             return json;
         }
 
+        /// Pre-v7 billboardText used `fontSource` (Resources path). Rename the key to
+        /// `fontId` so the DTO only carries the stable id field; ResolveBillboardFontId
+        /// still accepts a path value and maps it to FontAsset.assetId.
+        [[nodiscard]] std::string MigrateBillboardTextFontSource(std::string json)
+        {
+            constexpr std::string_view kFrom = "\"fontSource\":";
+            constexpr std::string_view kTo   = "\"fontId\":";
+            std::size_t pos = 0;
+            while((pos = json.find(kFrom, pos)) != std::string::npos)
+            {
+                json.replace(pos, kFrom.size(), kTo);
+                pos += kTo.size();
+            }
+            return json;
+        }
+
+        [[nodiscard]] std::string MigrateSceneJson(std::string json)
+        {
+            return MigrateBillboardTextFontSource(MigrateRigidBodyCenterOffset(std::move(json)));
+        }
+
         struct SceneBillboardDto
         {
             std::vector<float> size;
@@ -229,15 +250,16 @@ namespace FRIGGA_NAMESPACE
 
         struct SceneBillboardTextDto
         {
-            std::string        text;
-            std::string        fontSource {"Fonts/OpenSans.ttf"};
-            float              heightMeters = 0.16f;
-            std::vector<float> color;
-            float              borderWidth = 0.0f;
-            std::vector<float> borderColor;
-            std::vector<float> offset;
-            std::string        align {"Cylindrical"};
-            std::string        layer {"Ui"};
+            std::string                text;
+            /// Stable FontAsset.assetId. Resolved to the catalog font on load.
+            std::optional<std::string> fontId;
+            float                      heightMeters = 0.16f;
+            std::vector<float>         color;
+            float                      borderWidth = 0.0f;
+            std::vector<float>         borderColor;
+            std::vector<float>         offset;
+            std::string                align {"Cylindrical"};
+            std::string                layer {"Ui"};
         };
 
         struct SceneFullscreenEffectDto
@@ -826,6 +848,40 @@ namespace FRIGGA_NAMESPACE
             return path;
         }
 
+        /// JSON stores only fontId. Value may be a GUID or (after migration) a legacy path.
+        /// Returns the stable FontAsset.assetId to keep on the component.
+        std::string ResolveBillboardFontId(const skr::Arc<AssetRegistry> &assets,
+                                           const SceneBillboardTextDto &textDto)
+        {
+            if(!textDto.fontId || textDto.fontId->empty())
+            {
+                return assets ? assets->DefaultBillboardFontId() : std::string {};
+            }
+
+            const auto &raw = *textDto.fontId;
+            if(assets)
+            {
+                if(assets->FindFontById(raw))
+                {
+                    return raw;
+                }
+
+                // Migrated pre-v7 path still sitting in the fontId field.
+                std::string id;
+                if(assets->TryGetFontId(raw, id))
+                {
+                    return id;
+                }
+                if(assets->LoadFont(raw) && assets->TryGetFontId(raw, id))
+                {
+                    return id;
+                }
+
+                return assets->DefaultBillboardFontId();
+            }
+            return raw;
+        }
+
         SceneMaterialDto MaterialToDto(const skr::Arc<PrimitiveMeshFactory> &primitives,
                                        const skr::Arc<AssetRegistry> &assets,
                                        std::uint32_t materialId)
@@ -1187,7 +1243,9 @@ namespace FRIGGA_NAMESPACE
                 entity, [&](BillboardTextComponent &label) {
                     dto.billboardText = SceneBillboardTextDto {
                         .text         = label.text,
-                        .fontSource   = label.fontSource,
+                        .fontId       = label.fontId.empty()
+                                            ? std::optional<std::string> {}
+                                            : std::optional<std::string> {label.fontId},
                         .heightMeters = label.heightMeters,
                         .color        = {label.color.x, label.color.y, label.color.z, label.color.w},
                         .borderWidth  = label.borderWidth,
@@ -1548,7 +1606,7 @@ namespace FRIGGA_NAMESPACE
 
     bool SceneSerializer::Deserialize(Scene &scene, std::string_view json)
     {
-        const auto migrated = MigrateRigidBodyCenterOffset(std::string(json));
+        const auto migrated = MigrateSceneJson(std::string(json));
         const simdjson::padded_string padded(migrated);
         SceneDocument document {};
         if(const auto error = simdjson::from(padded).get(document); error)
@@ -1965,10 +2023,7 @@ namespace FRIGGA_NAMESPACE
                 const auto &textDto = *entityDto.billboardText;
                 BillboardTextComponent label {};
                 label.text         = textDto.text;
-                if(!textDto.fontSource.empty())
-                {
-                    label.fontSource = textDto.fontSource;
-                }
+                label.fontId       = ResolveBillboardFontId(scene.mAssets, textDto);
                 label.heightMeters = textDto.heightMeters;
                 if(!textDto.color.empty() && !ReadVec4(textDto.color, label.color))
                 {
@@ -2694,7 +2749,9 @@ namespace FRIGGA_NAMESPACE
                 entity, [&](BillboardTextComponent &label) {
                     document.billboardText = SceneBillboardTextDto {
                         .text         = label.text,
-                        .fontSource   = label.fontSource,
+                        .fontId       = label.fontId.empty()
+                                            ? std::optional<std::string> {}
+                                            : std::optional<std::string> {label.fontId},
                         .heightMeters = label.heightMeters,
                         .color        = {label.color.x, label.color.y, label.color.z, label.color.w},
                         .borderWidth  = label.borderWidth,
@@ -2760,7 +2817,7 @@ namespace FRIGGA_NAMESPACE
 
     bool SceneSerializer::PasteComponent(Scene &scene, fr::Entity entity, std::string_view json)
     {
-        const auto migrated = MigrateRigidBodyCenterOffset(std::string(json));
+        const auto migrated = MigrateSceneJson(std::string(json));
         const simdjson::padded_string padded(migrated);
         ComponentClipboardDocument document {};
         if(const auto error = simdjson::from(padded).get(document); error)
@@ -3205,11 +3262,8 @@ namespace FRIGGA_NAMESPACE
         {
             const auto &textDto = *document.billboardText;
             BillboardTextComponent label {};
-            label.text = textDto.text;
-            if(!textDto.fontSource.empty())
-            {
-                label.fontSource = textDto.fontSource;
-            }
+            label.text         = textDto.text;
+            label.fontId       = ResolveBillboardFontId(scene.mAssets, textDto);
             label.heightMeters = textDto.heightMeters;
             if(!textDto.color.empty() && !ReadVec4(textDto.color, label.color))
             {
@@ -3371,7 +3425,7 @@ namespace FRIGGA_NAMESPACE
                                             fr::Entity &outRoot, std::string_view prefabSource)
     {
         outRoot = kInvalidEntity;
-        const auto migrated = MigrateRigidBodyCenterOffset(std::string(json));
+        const auto migrated = MigrateSceneJson(std::string(json));
         const simdjson::padded_string padded(migrated);
         PrefabDocument document {};
         if(const auto error = simdjson::from(padded).get(document); error)

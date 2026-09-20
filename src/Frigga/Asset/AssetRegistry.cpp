@@ -195,6 +195,7 @@ namespace FRIGGA_NAMESPACE
         mModelIndexByPath.clear();
         mTextureIndexByPath.clear();
         mFontIndexByPath.clear();
+        mFontIndexById.clear();
         mBankIndexByPath.clear();
         mAudioClipIndexByPath.clear();
         mTexturePathById.clear();
@@ -644,7 +645,9 @@ namespace FRIGGA_NAMESPACE
                          .label        = relativePath.filename().string(),
                          .atlas        = std::make_unique<fra::FontAtlas>(std::move(atlas))};
 
-        mFontIndexByPath.emplace(key, mFonts.size());
+        const auto index = mFonts.size();
+        mFontIndexByPath.emplace(key, index);
+        mFontIndexById.emplace(asset.assetId, index);
         mFonts.push_back(std::move(asset));
 
         if(mLogger)
@@ -691,7 +694,6 @@ namespace FRIGGA_NAMESPACE
 
         // Default billboard-text font shipped with the engine Resources tree.
         (void)LoadFont("Fonts/OpenSans.ttf");
-        (void)LoadFont("Fonts/NotoSans-Regular.ttf");
 
         const auto fontsDir = ResourcesRoot() / "Fonts";
         std::error_code ec;
@@ -732,6 +734,59 @@ namespace FRIGGA_NAMESPACE
             return nullptr;
         }
         return asset.atlas.get();
+    }
+
+    const FontAsset *AssetRegistry::FindFontAsset(std::string_view fontId) const
+    {
+        if(fontId.empty())
+        {
+            return nullptr;
+        }
+        const auto it = mFontIndexById.find(std::string(fontId));
+        if(it == mFontIndexById.end())
+        {
+            return nullptr;
+        }
+        return &mFonts[it->second];
+    }
+
+    const fra::FontAtlas *AssetRegistry::FindFontById(std::string_view fontId) const
+    {
+        const auto *asset = FindFontAsset(fontId);
+        if(!asset || !asset->atlas || !asset->atlas->Valid())
+        {
+            return nullptr;
+        }
+        return asset->atlas.get();
+    }
+
+    bool AssetRegistry::TryGetFontId(std::string_view relativePath, std::string &outId) const
+    {
+        const auto key = normalizeRelativeKey(relativePath);
+        const auto it  = mFontIndexByPath.find(key);
+        if(it == mFontIndexByPath.end())
+        {
+            return false;
+        }
+        outId = mFonts[it->second].assetId;
+        return !outId.empty();
+    }
+
+    std::string AssetRegistry::DefaultBillboardFontId() const
+    {
+        std::string id;
+        if(TryGetFontId("Fonts/OpenSans.ttf", id))
+        {
+            return id;
+        }
+        for(const auto &font : mFonts)
+        {
+            if(font.atlas && font.atlas->Valid() && !font.assetId.empty())
+            {
+                return font.assetId;
+            }
+        }
+        return {};
     }
 
     std::optional<BankAsset> AssetRegistry::loadBankAbsolute(

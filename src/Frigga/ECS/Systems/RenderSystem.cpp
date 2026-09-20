@@ -1,5 +1,9 @@
 #include <Frigga/ECS/Systems/RenderSystem.hpp>
 
+#include "Frigga/Asset/AssetRegistry.hpp"
+#include "Frigga/Asset/FreyaHandles.hpp"
+#include "Frigga/ECS/TransformUtil.hpp"
+#include "Frigga/Scene/Scene.hpp"
 #include <Frigga/ECS/Systems/../Components/AnimatorComponent.hpp>
 #include <Frigga/ECS/Systems/../Components/BillboardComponent.hpp>
 #include <Frigga/ECS/Systems/../Components/BillboardTextComponent.hpp>
@@ -12,10 +16,6 @@
 #include <Frigga/ECS/Systems/../Components/MeshComponent.hpp>
 #include <Frigga/ECS/Systems/../Components/ParticleEmitterComponent.hpp>
 #include <Frigga/ECS/Systems/../Components/TransformComponent.hpp>
-#include "Frigga/Asset/AssetRegistry.hpp"
-#include "Frigga/Asset/FreyaHandles.hpp"
-#include "Frigga/ECS/TransformUtil.hpp"
-#include "Frigga/Scene/Scene.hpp"
 
 #include "Frigga/Rendering/FullscreenEffectCatalog.hpp"
 
@@ -41,9 +41,8 @@ namespace FRIGGA_NAMESPACE
                     return true;
                 }
                 fr::Entity parent = static_cast<fr::Entity>(-1);
-                registry.TryGetComponents<HierarchyComponent>(current, [&](HierarchyComponent &h) {
-                    parent = h.parent;
-                });
+                registry.TryGetComponents<HierarchyComponent>(
+                    current, [&](HierarchyComponent &h) { parent = h.parent; });
                 current = parent;
             }
             return false;
@@ -57,17 +56,16 @@ namespace FRIGGA_NAMESPACE
             const glm::vec3 safeDirection =
                 glm::dot(direction, direction) > 1e-6f ? direction : glm::vec3(0.0f, -1.0f, 0.0f);
 
-            fra::Light gpuLight {};
+            fra::Light gpuLight{};
             switch(light.type)
             {
             case fra::LightType::Point:
-                gpuLight = fra::MakePointLight(pose.position, light.color, light.radius,
-                                               light.intensity);
+                gpuLight =
+                    fra::MakePointLight(pose.position, light.color, light.radius, light.intensity);
                 break;
             case fra::LightType::Directional:
-                gpuLight            = fra::MakeDirectionalLight(safeDirection, light.color,
-                                                                light.intensity);
-                gpuLight.position   = pose.position;
+                gpuLight = fra::MakeDirectionalLight(safeDirection, light.color, light.intensity);
+                gpuLight.position = pose.position;
                 break;
             case fra::LightType::Spot:
                 gpuLight = fra::MakeSpotLight(
@@ -75,12 +73,11 @@ namespace FRIGGA_NAMESPACE
                     glm::radians(std::max(light.innerAngleDegrees, 0.0f)),
                     glm::radians(std::max(light.outerAngleDegrees, 0.0f)), light.intensity);
                 break;
-            case fra::LightType::Area:
-            {
+            case fra::LightType::Area: {
                 const glm::vec3 tangent = pose.rotation * glm::vec3(1.0f, 0.0f, 0.0f);
-                gpuLight                = fra::MakeAreaLight(
-                    pose.position, safeDirection, tangent, light.halfWidth, light.halfHeight,
-                    light.color, light.intensity);
+                gpuLight =
+                    fra::MakeAreaLight(pose.position, safeDirection, tangent, light.halfWidth,
+                                       light.halfHeight, light.color, light.intensity);
                 break;
             }
             }
@@ -124,9 +121,8 @@ namespace FRIGGA_NAMESPACE
                                        float fovDegrees, float nearPlane, float farPlane)
     {
         // Freya/OpenGL convention: camera looks along local -Z.
-        const glm::vec3 forward =
-            glm::normalize(rotation * glm::vec3(0.0f, 0.0f, -1.0f));
-        const glm::vec3 up = glm::normalize(rotation * glm::vec3(0.0f, 1.0f, 0.0f));
+        const glm::vec3 forward = glm::normalize(rotation * glm::vec3(0.0f, 0.0f, -1.0f));
+        const glm::vec3 up      = glm::normalize(rotation * glm::vec3(0.0f, 1.0f, 0.0f));
         if(glm::dot(forward, forward) < 1e-6f || glm::dot(up, up) < 1e-6f)
         {
             return;
@@ -136,14 +132,13 @@ namespace FRIGGA_NAMESPACE
         const float safeFar  = std::max(farPlane, safeNear + 1.0e-2f);
         const float safeFov  = std::clamp(fovDegrees, 1.0f, 179.0f);
 
-        mRenderer->UpdateCamera(position, position + forward, up, glm::radians(safeFov),
-                                safeNear, safeFar);
+        mRenderer->UpdateCamera(position, position + forward, up, glm::radians(safeFov), safeNear,
+                                safeFar);
 
         // Feed ambient from options so the deferred pass keeps its intensity.
         if(mFreyaOptions)
         {
-            mRenderer->SetAmbient(mFreyaOptions->ambientColor,
-                                  mFreyaOptions->ambientIntensity);
+            mRenderer->SetAmbient(mFreyaOptions->ambientColor, mFreyaOptions->ambientIntensity);
         }
     }
 
@@ -162,8 +157,7 @@ namespace FRIGGA_NAMESPACE
         {
             const auto &editorCamera = mScene->GetEditorCamera();
             applyCameraPose(editorCamera.transform.position, editorCamera.transform.rotation,
-                            editorCamera.fovDegrees, editorCamera.nearPlane,
-                            editorCamera.farPlane);
+                            editorCamera.fovDegrees, editorCamera.nearPlane, editorCamera.farPlane);
             return;
         }
 
@@ -218,17 +212,17 @@ namespace FRIGGA_NAMESPACE
         // only when the visible set changes so pool indices stay dense (Spot /
         // Point shadow indices must match the packed light UBO).
         const bool isolate = mScene->IsUsingPreviewCamera() && mScene->HasRenderIsolation();
-        const fr::Entity isolatedEntity = isolate ? mScene->GetRenderIsolation()
-                                                    : static_cast<fr::Entity>(-1);
+        const fr::Entity isolatedEntity =
+            isolate ? mScene->GetRenderIsolation() : static_cast<fr::Entity>(-1);
         const auto maxLights = mLightService->GetMaxLights();
 
         const auto isVisible = [&](fr::Entity entity) {
             return !isolate || IsInIsolatedSubtree(*mRegistry, entity, isolatedEntity);
         };
 
-        std::uint32_t visibleCount   = 0;
-        std::uint32_t handlesInEcs   = 0;
-        bool          setChanged     = false;
+        std::uint32_t visibleCount = 0;
+        std::uint32_t handlesInEcs = 0;
+        bool setChanged            = false;
 
         mRegistry->CreateMutation()->Each(
             [&](fr::Entity entity, TransformComponent &, LightComponent &light) {
@@ -269,10 +263,8 @@ namespace FRIGGA_NAMESPACE
         if(setChanged)
         {
             mLightService->ClearLights();
-            mRegistry->CreateMutation()->Each(
-                [&](fr::Entity, TransformComponent &, LightComponent &light) {
-                    light.handle = {};
-                });
+            mRegistry->CreateMutation()->Each([&](fr::Entity, TransformComponent &,
+                                                  LightComponent &light) { light.handle = {}; });
 
             std::uint32_t added = 0;
             mRegistry->CreateMutation()->Each(
@@ -297,7 +289,7 @@ namespace FRIGGA_NAMESPACE
                 {
                     return;
                 }
-                const fra::LightUpload upload {
+                const fra::LightUpload upload{
                     .handle = light.handle,
                     .light  = MakeGpuLight(TransformUtil::WorldPose(*mRegistry, entity), light),
                 };
@@ -308,8 +300,8 @@ namespace FRIGGA_NAMESPACE
     void RenderSystem::drawMeshes()
     {
         const bool isolate = mScene->IsUsingPreviewCamera() && mScene->HasRenderIsolation();
-        const fr::Entity isolatedEntity = isolate ? mScene->GetRenderIsolation()
-                                                  : static_cast<fr::Entity>(-1);
+        const fr::Entity isolatedEntity =
+            isolate ? mScene->GetRenderIsolation() : static_cast<fr::Entity>(-1);
 
         const auto skip = [this, isolate, isolatedEntity](fr::Entity entity) {
             return isolate && !IsInIsolatedSubtree(*mRegistry, entity, isolatedEntity);
@@ -327,62 +319,61 @@ namespace FRIGGA_NAMESPACE
         // Freya sorts by entityId at End; UploadSceneInstances is thread-safe.
         mRenderer->BeginSceneInstances();
         mRenderer->ReserveSceneInstances(instanceCount);
-        mRegistry->CreateMutation()->EachAsync(
-            [this, skip](fr::Entity entity, TransformComponent &, MeshComponent &mesh,
-                         MaterialComponent &material) {
-                if(skip(entity))
+        mRegistry->CreateMutation()->EachAsync([this, skip](fr::Entity entity, TransformComponent &,
+                                                            MeshComponent &mesh,
+                                                            MaterialComponent &material) {
+            if(skip(entity))
+            {
+                return;
+            }
+
+            const auto pose = TransformUtil::WorldPose(*mRegistry, entity);
+
+            fra::SceneInstanceUpload upload{
+                .transform =
+                    fra::SceneTransform{
+                                        .position = pose.position,
+                                        .scale    = pose.scale,
+                                        .rotation = pose.rotation,
+                                        },
+                .mesh     = AsMeshHandle(mesh.meshId),
+                .material = AsMaterialHandle(material.materialId),
+                .entityId = static_cast<std::uint32_t>(entity),
+            };
+
+            // Local Animator first (compat); else inherit shared pose from an ancestor.
+            bool skinned          = false;
+            fr::Entity skinEntity = entity;
+            while(skinEntity != kInvalidEntity)
+            {
+                bool found = false;
+                mRegistry->TryGetComponents<AnimatorComponent>(
+                    skinEntity, [&](AnimatorComponent &animator) {
+                        if(animator.boneCount > 0 && animator.boneOffset != fra::kNoSkin)
+                        {
+                            upload.boneOffset = animator.boneOffset;
+                            upload.boneCount  = animator.boneCount;
+                            skinned           = true;
+                            found             = true;
+                        }
+                    });
+                if(found)
                 {
-                    return;
+                    break;
                 }
+                skinEntity = TransformUtil::ParentOf(*mRegistry, skinEntity);
+            }
 
-                const auto pose = TransformUtil::WorldPose(*mRegistry, entity);
+            upload.flags = fra::MakeSceneInstanceFlags(mesh.castShadows, false, skinned);
 
-                fra::SceneInstanceUpload upload {
-                    .transform =
-                        fra::SceneTransform {
-                            .position = pose.position,
-                            .scale    = pose.scale,
-                            .rotation = pose.rotation,
-                        },
-                    .mesh     = AsMeshHandle(mesh.meshId),
-                    .material = AsMaterialHandle(material.materialId),
-                    .entityId = static_cast<std::uint32_t>(entity),
-                };
-
-                // Local Animator first (compat); else inherit shared pose from an ancestor.
-                bool skinned          = false;
-                fr::Entity skinEntity = entity;
-                while(skinEntity != kInvalidEntity)
-                {
-                    bool found = false;
-                    mRegistry->TryGetComponents<AnimatorComponent>(
-                        skinEntity, [&](AnimatorComponent &animator) {
-                            if(animator.boneCount > 0 && animator.boneOffset != fra::kNoSkin)
-                            {
-                                upload.boneOffset = animator.boneOffset;
-                                upload.boneCount  = animator.boneCount;
-                                skinned           = true;
-                                found             = true;
-                            }
-                        });
-                    if(found)
-                    {
-                        break;
-                    }
-                    skinEntity = TransformUtil::ParentOf(*mRegistry, skinEntity);
-                }
-
-                upload.flags =
-                    fra::MakeSceneInstanceFlags(mesh.castShadows, false, skinned);
-
-                mRenderer->UploadSceneInstances(std::span<const fra::SceneInstanceUpload>(&upload, 1));
-            });
+            mRenderer->UploadSceneInstances(std::span<const fra::SceneInstanceUpload>(&upload, 1));
+        });
     }
 
     std::uint32_t RenderSystem::textureHeapIndex(std::optional<std::uint32_t> textureId) const
     {
         return fra::TexturePool::BindlessIndex(textureId ? AsTextureHandle(*textureId)
-                                                         : fra::TextureHandle {});
+                                                         : fra::TextureHandle{});
     }
 
     void RenderSystem::drawBillboards(float deltaTime)
@@ -393,8 +384,8 @@ namespace FRIGGA_NAMESPACE
         }
 
         const bool isolate = mScene->IsUsingPreviewCamera() && mScene->HasRenderIsolation();
-        const fr::Entity isolatedEntity = isolate ? mScene->GetRenderIsolation()
-                                                  : static_cast<fr::Entity>(-1);
+        const fr::Entity isolatedEntity =
+            isolate ? mScene->GetRenderIsolation() : static_cast<fr::Entity>(-1);
 
         const auto skip = [this, isolate, isolatedEntity](fr::Entity entity) {
             return isolate && !IsInIsolatedSubtree(*mRegistry, entity, isolatedEntity);
@@ -408,51 +399,53 @@ namespace FRIGGA_NAMESPACE
                     return;
                 }
                 const auto pose = TransformUtil::WorldPose(*mRegistry, entity);
-                fra::Billboard quad {};
-                quad.worldPos      = pose.position;
-                quad.size          = {billboard.size.x * std::abs(pose.scale.x),
-                                      billboard.size.y * std::abs(pose.scale.y)};
-                quad.color         = billboard.color;
-                quad.uvRect        = billboard.uvRect;
-                quad.textureIndex  = textureHeapIndex(billboard.textureId);
-                quad.align         = billboard.align;
-                quad.blend         = billboard.blend;
-                quad.layer         = billboard.layer;
-                quad.depthTest     = billboard.depthTest;
-                quad.sdf           = billboard.sdf;
-                quad.clipMax       = billboard.clipMax;
-                quad.localOffset   = billboard.localOffset;
+                fra::Billboard quad{};
+                quad.worldPos     = pose.position;
+                quad.size         = {billboard.size.x * std::abs(pose.scale.x),
+                                     billboard.size.y * std::abs(pose.scale.y)};
+                quad.color        = billboard.color;
+                quad.uvRect       = billboard.uvRect;
+                quad.textureIndex = textureHeapIndex(billboard.textureId);
+                quad.align        = billboard.align;
+                quad.blend        = billboard.blend;
+                quad.layer        = billboard.layer;
+                quad.depthTest    = billboard.depthTest;
+                quad.sdf          = billboard.sdf;
+                quad.clipMax      = billboard.clipMax;
+                quad.localOffset  = billboard.localOffset;
                 mRenderer->GetBillboardDraw().Quad(quad);
             });
 
-        mRegistry->CreateMutation()->EachAsync(
-            [this, skip](fr::Entity entity, TransformComponent &, HealthBarComponent &bar) {
-                if(skip(entity))
-                {
-                    return;
-                }
-                const auto pose = TransformUtil::WorldPose(*mRegistry, entity);
-                mRenderer->GetBillboardDraw().HealthBar(
-                    pose.position + bar.offset, bar.width, bar.height,
-                    std::clamp(bar.fill, 0.0f, 1.0f), bar.background, bar.foreground, bar.align);
-            });
+        mRegistry->CreateMutation()->EachAsync([this, skip](fr::Entity entity, TransformComponent &,
+                                                            HealthBarComponent &bar) {
+            if(skip(entity))
+            {
+                return;
+            }
+            const auto pose = TransformUtil::WorldPose(*mRegistry, entity);
+            mRenderer->GetBillboardDraw().HealthBar(pose.position + bar.offset, bar.width,
+                                                    bar.height, std::clamp(bar.fill, 0.0f, 1.0f),
+                                                    bar.background, bar.foreground, bar.align);
+        });
 
-        mRegistry->CreateMutation()->EachAsync(
-            [this, skip](fr::Entity entity, TransformComponent &, BillboardTextComponent &label) {
-                if(skip(entity) || label.text.empty() || !mAssets)
-                {
-                    return;
-                }
-                const auto *font = mAssets->FindFont(label.fontSource);
-                if(!font)
-                {
-                    return;
-                }
-                const auto pose = TransformUtil::WorldPose(*mRegistry, entity);
-                mRenderer->GetBillboardDraw().Text(
-                    pose.position + label.offset, label.text, *font, label.heightMeters,
-                    label.color, label.borderWidth, label.borderColor, label.align, label.layer);
-            });
+        mRegistry->CreateMutation()->EachAsync([this, skip](fr::Entity entity, TransformComponent &,
+                                                            BillboardTextComponent &label) {
+            if(skip(entity) || label.text.empty() || !mAssets)
+            {
+                return;
+            }
+            const auto *font = mAssets->FindFontById(label.fontId);
+            if(!font)
+            {
+                const auto fallbackId = mAssets->DefaultBillboardFontId();
+                font                  = mAssets->FindFontById(fallbackId);
+            }
+
+            const auto pose = TransformUtil::WorldPose(*mRegistry, entity);
+            mRenderer->GetBillboardDraw().Text(pose.position + label.offset, label.text, *font,
+                                               label.heightMeters, label.color, label.borderWidth,
+                                               label.borderColor, label.align, label.layer);
+        });
 
         mRegistry->CreateMutation()->EachAsync(
             [this, skip, deltaTime](fr::Entity entity, TransformComponent &,
@@ -484,55 +477,51 @@ namespace FRIGGA_NAMESPACE
 
         auto advanced = fra::Advanced(*mRenderer);
 
-        mRegistry->CreateMutation()->Each(
-            [&](fr::Entity entity, FullscreenEffectComponent &comp) {
-                const auto stageName =
-                    std::format("{}##{}", comp.name.empty() ? "Effect" : comp.name,
-                                static_cast<std::uint32_t>(entity));
+        mRegistry->CreateMutation()->Each([&](fr::Entity entity, FullscreenEffectComponent &comp) {
+            const auto stageName = std::format("{}##{}", comp.name.empty() ? "Effect" : comp.name,
+                                               static_cast<std::uint32_t>(entity));
 
-                const auto previousName = comp.runtimeStageName;
-                const bool rebuild =
-                    !comp.runtimeEffect || comp.runtimeFragment != comp.fragment ||
-                    comp.runtimeKind != comp.kind || previousName != stageName;
-                if(rebuild)
+            const auto previousName = comp.runtimeStageName;
+            const bool rebuild = !comp.runtimeEffect || comp.runtimeFragment != comp.fragment ||
+                                 comp.runtimeKind != comp.kind || previousName != stageName;
+            if(rebuild)
+            {
+                ConfigureFullscreenEffectBuilder(*mEffectBuilder, stageName, comp);
+                comp.runtimeEffect    = mEffectBuilder->Build();
+                comp.runtimeFragment  = comp.fragment;
+                comp.runtimeKind      = comp.kind;
+                comp.runtimeStageName = stageName;
+                if(comp.runtimeEffect)
                 {
-                    ConfigureFullscreenEffectBuilder(*mEffectBuilder, stageName, comp);
-                    comp.runtimeEffect   = mEffectBuilder->Build();
-                    comp.runtimeFragment = comp.fragment;
-                    comp.runtimeKind     = comp.kind;
-                    comp.runtimeStageName = stageName;
-                    if(comp.runtimeEffect)
+                    auto stage          = comp.runtimeEffect->MakeStage();
+                    const bool replaced = !previousName.empty() &&
+                                          advanced.ReplaceFrameStage(previousName.c_str(), stage);
+                    if(!replaced)
                     {
-                        auto stage = comp.runtimeEffect->MakeStage();
-                        const bool replaced =
-                            !previousName.empty() &&
-                            advanced.ReplaceFrameStage(previousName.c_str(), stage);
-                        if(!replaced)
-                        {
-                            advanced.InsertFrameStage("BillboardVfx", std::move(stage));
-                        }
+                        advanced.InsertFrameStage("BillboardVfx", std::move(stage));
                     }
                 }
+            }
 
-                if(!comp.runtimeEffect)
-                {
-                    return;
-                }
+            if(!comp.runtimeEffect)
+            {
+                return;
+            }
 
-                comp.runtimeEffect->SetEnabled(comp.enabled);
-                if(comp.enabled)
-                {
-                    comp.timeSec += mWindow->GetDeltaTime();
-                }
+            comp.runtimeEffect->SetEnabled(comp.enabled);
+            if(comp.enabled)
+            {
+                comp.timeSec += mWindow->GetDeltaTime();
+            }
 
-                const FullscreenEffectPushState pushState {
-                    .timeSec   = comp.timeSec,
-                    .reverseZ  = mFreyaOptions && mFreyaOptions->ReverseZ,
-                    .component = &comp,
-                };
-                ApplyFullscreenEffectPushConstants(*comp.runtimeEffect, pushState);
-                SyncFullscreenEffectMaterials(*comp.runtimeEffect, comp);
-            });
+            const FullscreenEffectPushState pushState{
+                .timeSec   = comp.timeSec,
+                .reverseZ  = mFreyaOptions && mFreyaOptions->ReverseZ,
+                .component = &comp,
+            };
+            ApplyFullscreenEffectPushConstants(*comp.runtimeEffect, pushState);
+            SyncFullscreenEffectMaterials(*comp.runtimeEffect, comp);
+        });
     }
 
 } // namespace FRIGGA_NAMESPACE
