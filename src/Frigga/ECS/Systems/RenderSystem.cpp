@@ -487,20 +487,16 @@ namespace FRIGGA_NAMESPACE
                     return;
                 }
                 // Public fields must not race Tick on the same emitter; one worker per entity.
-                auto &emitter          = source.runtime;
-                emitter.origin         = TransformUtil::WorldPose(*mRegistry, entity).position;
-                emitter.velocity       = source.velocity;
-                emitter.velocityJitter = source.velocityJitter;
-                emitter.spawnRate      = source.playing ? source.spawnRate : 0.0f;
-                emitter.lifetime       = source.lifetime;
-                emitter.size0          = source.size0;
-                emitter.size1          = source.size1;
-                emitter.color0         = source.color0;
-                emitter.color1         = source.color1;
-                emitter.blend          = source.blend;
-                emitter.textureIndex   = textureHeapIndex(source.textureId);
-                emitter.maxParticles   = source.maxParticles;
+                auto &emitter        = source.runtime;
+                const float authored = emitter.spawnRate;
+                if(!source.playing)
+                {
+                    emitter.spawnRate = 0.0f;
+                }
+                emitter.origin       = TransformUtil::WorldPose(*mRegistry, entity).position;
+                emitter.textureIndex = textureHeapIndex(source.textureId);
                 emitter.Tick(deltaTime, mRenderer->GetBillboardDraw());
+                emitter.spawnRate = authored;
             });
     }
 

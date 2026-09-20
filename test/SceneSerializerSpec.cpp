@@ -689,10 +689,14 @@ TEST_F(SceneSerializerSpec, RoundTrip_BillboardParticlesAndCellEffect)
                                 .color = {0.2f, 0.4f, 0.6f, 0.8f},
                                 .blend = fra::BillboardBlend::Additive,
                                 .layer = fra::BillboardLayer::Ui});
-    mRegistry->CreateEntity(
-        fg::NameComponent {.name = "Magic"},
-        fg::TransformComponent {.position = {-1.0f, 0.5f, 0.0f}},
-        fg::ParticleEmitterComponent {.spawnRate = 32.0f, .lifetime = 1.25f});
+    {
+        fg::ParticleEmitterComponent particles {};
+        particles.runtime.spawnRate = 32.0f;
+        particles.runtime.lifetime  = 1.25f;
+        mRegistry->CreateEntity(fg::NameComponent {.name = "Magic"},
+                                fg::TransformComponent {.position = {-1.0f, 0.5f, 0.0f}},
+                                particles);
+    }
     mRegistry->CreateEntity(fg::NameComponent {.name = "Toon"},
                             fg::FullscreenEffectComponent {.bands = 6.0f, .edgeWidth = 2.0f});
     mRegistry->ExecuteTasks();
@@ -723,8 +727,8 @@ TEST_F(SceneSerializerSpec, RoundTrip_BillboardParticlesAndCellEffect)
                 return;
             }
             foundParticles = true;
-            EXPECT_NEAR(particles.spawnRate, 32.0f, kEpsilon);
-            EXPECT_NEAR(particles.lifetime, 1.25f, kEpsilon);
+            EXPECT_NEAR(particles.runtime.spawnRate, 32.0f, kEpsilon);
+            EXPECT_NEAR(particles.runtime.lifetime, 1.25f, kEpsilon);
         });
     mRegistry->CreateMutation()->Each(
         [&](fg::NameComponent &name, fg::FullscreenEffectComponent &fx) {

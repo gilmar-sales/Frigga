@@ -2,7 +2,6 @@
 
 #include "Frigga/Macro.hpp"
 
-#include <Freya/Core/BillboardDraw.hpp>
 #include <Freya/Core/ParticleEmitter.hpp>
 #include <Freyr/Freyr.hpp>
 
@@ -12,24 +11,50 @@
 namespace FRIGGA_NAMESPACE
 {
 
-    /// CPU particle emitter (Freya ParticleEmitter) that pushes VFX billboards.
     struct ParticleEmitterComponent: fr::Component
     {
-        glm::vec3 velocity{0.0f, 1.2f, 0.0f};
-        glm::vec3 velocityJitter{0.35f, 0.25f, 0.35f};
-        float spawnRate = 24.0f;
-        float lifetime  = 0.7f;
-        float size0     = 0.12f;
-        float size1     = 0.02f;
-        glm::vec4 color0{0.35f, 0.85f, 1.0f, 1.0f};
-        glm::vec4 color1{0.1f, 0.2f, 1.0f, 0.0f};
-        fra::BillboardBlend blend = fra::BillboardBlend::Additive;
+        bool playing = true;
         std::optional<std::uint32_t> textureId;
-        std::uint32_t maxParticles = 256;
-        bool playing               = true;
-
-        /// Runtime Freya emitter (live particles); not serialized.
         fra::ParticleEmitter runtime = {};
+
+        ParticleEmitterComponent() = default;
+
+        ParticleEmitterComponent(const ParticleEmitterComponent &other)
+            : playing(other.playing), textureId(other.textureId), runtime({})
+        {
+            copyParams(other.runtime, runtime);
+        }
+
+        ParticleEmitterComponent &operator=(const ParticleEmitterComponent &other)
+        {
+            if(this == &other)
+            {
+                return *this;
+            }
+            playing   = other.playing;
+            textureId = other.textureId;
+            runtime   = {};
+            copyParams(other.runtime, runtime);
+            return *this;
+        }
+
+        ParticleEmitterComponent(ParticleEmitterComponent &&) noexcept            = default;
+        ParticleEmitterComponent &operator=(ParticleEmitterComponent &&) noexcept = default;
+
+      private:
+        static void copyParams(const fra::ParticleEmitter &from, fra::ParticleEmitter &to)
+        {
+            to.velocity       = from.velocity;
+            to.velocityJitter = from.velocityJitter;
+            to.spawnRate      = from.spawnRate;
+            to.lifetime       = from.lifetime;
+            to.size0          = from.size0;
+            to.size1          = from.size1;
+            to.color0         = from.color0;
+            to.color1         = from.color1;
+            to.blend          = from.blend;
+            to.maxParticles   = from.maxParticles;
+        }
     };
 
 } // namespace FRIGGA_NAMESPACE

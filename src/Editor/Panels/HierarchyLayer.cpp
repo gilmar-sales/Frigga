@@ -2017,24 +2017,25 @@ void HierarchyLayer::drawComponents()
             bool open = true;
             if(drawComponentHeader("Particle Emitter", "particles", &open))
             {
+                auto &emitter = particles.runtime;
                 ImGui::Checkbox("Playing", &particles.playing);
-                ImGui::DragFloat3("Velocity", &particles.velocity[0], 0.01f);
-                ImGui::DragFloat3("Jitter", &particles.velocityJitter[0], 0.01f);
-                ImGui::DragFloat("Spawn Rate", &particles.spawnRate, 0.1f, 0.0f, 500.0f);
-                ImGui::DragFloat("Lifetime", &particles.lifetime, 0.01f, 0.05f, 10.0f);
-                ImGui::DragFloat("Size Start", &particles.size0, 0.01f, 0.0f, 5.0f);
-                ImGui::DragFloat("Size End", &particles.size1, 0.01f, 0.0f, 5.0f);
-                ImGui::ColorEdit4("Color Start", &particles.color0[0]);
-                ImGui::ColorEdit4("Color End", &particles.color1[0]);
-                int blend = static_cast<int>(particles.blend);
+                ImGui::DragFloat3("Velocity", &emitter.velocity[0], 0.01f);
+                ImGui::DragFloat3("Jitter", &emitter.velocityJitter[0], 0.01f);
+                ImGui::DragFloat("Spawn Rate", &emitter.spawnRate, 0.1f, 0.0f, 500.0f);
+                ImGui::DragFloat("Lifetime", &emitter.lifetime, 0.01f, 0.05f, 10.0f);
+                ImGui::DragFloat("Size Start", &emitter.size0, 0.01f, 0.0f, 5.0f);
+                ImGui::DragFloat("Size End", &emitter.size1, 0.01f, 0.0f, 5.0f);
+                ImGui::ColorEdit4("Color Start", &emitter.color0[0]);
+                ImGui::ColorEdit4("Color End", &emitter.color1[0]);
+                int blend = static_cast<int>(emitter.blend);
                 if(ImGui::Combo("Blend", &blend, "Alpha\0Additive\0"))
                 {
-                    particles.blend = static_cast<fra::BillboardBlend>(blend);
+                    emitter.blend = static_cast<fra::BillboardBlend>(blend);
                 }
-                int maxParticles = static_cast<int>(particles.maxParticles);
+                int maxParticles = static_cast<int>(emitter.maxParticles);
                 if(ImGui::DragInt("Max Particles", &maxParticles, 1.0f, 1, 4096))
                 {
-                    particles.maxParticles = static_cast<std::uint32_t>(maxParticles);
+                    emitter.maxParticles = static_cast<std::uint32_t>(maxParticles);
                 }
                 bool texChanged = false;
                 drawTextureSlot("Texture", PendingTextureSlot::Particle, particles.textureId,

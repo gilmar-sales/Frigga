@@ -1151,19 +1151,20 @@ namespace FRIGGA_NAMESPACE
 
             registry.TryGetComponents<ParticleEmitterComponent>(
                 entity, [&](ParticleEmitterComponent &p) {
+                    const auto &e = p.runtime;
                     dto.particles = SceneParticleEmitterDto {
-                        .velocity       = {p.velocity.x, p.velocity.y, p.velocity.z},
-                        .velocityJitter = {p.velocityJitter.x, p.velocityJitter.y,
-                                           p.velocityJitter.z},
-                        .spawnRate      = p.spawnRate,
-                        .lifetime       = p.lifetime,
-                        .size0          = p.size0,
-                        .size1          = p.size1,
-                        .color0         = {p.color0.x, p.color0.y, p.color0.z, p.color0.w},
-                        .color1         = {p.color1.x, p.color1.y, p.color1.z, p.color1.w},
-                        .blend          = BillboardBlendToString(p.blend),
+                        .velocity       = {e.velocity.x, e.velocity.y, e.velocity.z},
+                        .velocityJitter = {e.velocityJitter.x, e.velocityJitter.y,
+                                           e.velocityJitter.z},
+                        .spawnRate      = e.spawnRate,
+                        .lifetime       = e.lifetime,
+                        .size0          = e.size0,
+                        .size1          = e.size1,
+                        .color0         = {e.color0.x, e.color0.y, e.color0.z, e.color0.w},
+                        .color1         = {e.color1.x, e.color1.y, e.color1.z, e.color1.w},
+                        .blend          = BillboardBlendToString(e.blend),
                         .texture        = TexturePathOrNull(assets, p.textureId),
-                        .maxParticles   = p.maxParticles,
+                        .maxParticles   = e.maxParticles,
                         .playing        = p.playing,
                     };
                 });
@@ -1888,39 +1889,40 @@ namespace FRIGGA_NAMESPACE
             {
                 const auto &pDto = *entityDto.particles;
                 ParticleEmitterComponent p {};
-                if(!pDto.velocity.empty() && !ReadVec3(pDto.velocity, p.velocity))
+                auto &e = p.runtime;
+                if(!pDto.velocity.empty() && !ReadVec3(pDto.velocity, e.velocity))
                 {
                     scene.mLogger->LogError("Invalid particles.velocity on '{}'", entityDto.name);
                     return false;
                 }
                 if(!pDto.velocityJitter.empty() &&
-                   !ReadVec3(pDto.velocityJitter, p.velocityJitter))
+                   !ReadVec3(pDto.velocityJitter, e.velocityJitter))
                 {
                     scene.mLogger->LogError("Invalid particles.velocityJitter on '{}'",
                                             entityDto.name);
                     return false;
                 }
-                p.spawnRate = pDto.spawnRate;
-                p.lifetime  = pDto.lifetime;
-                p.size0     = pDto.size0;
-                p.size1     = pDto.size1;
-                if(!pDto.color0.empty() && !ReadVec4(pDto.color0, p.color0))
+                e.spawnRate = pDto.spawnRate;
+                e.lifetime  = pDto.lifetime;
+                e.size0     = pDto.size0;
+                e.size1     = pDto.size1;
+                if(!pDto.color0.empty() && !ReadVec4(pDto.color0, e.color0))
                 {
                     scene.mLogger->LogError("Invalid particles.color0 on '{}'", entityDto.name);
                     return false;
                 }
-                if(!pDto.color1.empty() && !ReadVec4(pDto.color1, p.color1))
+                if(!pDto.color1.empty() && !ReadVec4(pDto.color1, e.color1))
                 {
                     scene.mLogger->LogError("Invalid particles.color1 on '{}'", entityDto.name);
                     return false;
                 }
-                if(!TryParseBillboardBlend(pDto.blend, p.blend))
+                if(!TryParseBillboardBlend(pDto.blend, e.blend))
                 {
                     scene.mLogger->LogError("Invalid particles.blend on '{}'", entityDto.name);
                     return false;
                 }
                 loadOptionalTexture(pDto.texture, p.textureId);
-                p.maxParticles = static_cast<std::uint32_t>(
+                e.maxParticles = static_cast<std::uint32_t>(
                     std::max<int64_t>(pDto.maxParticles, 1));
                 p.playing = pDto.playing;
                 particles = p;
@@ -2640,19 +2642,20 @@ namespace FRIGGA_NAMESPACE
             bool found = false;
             registry->TryGetComponents<ParticleEmitterComponent>(
                 entity, [&](ParticleEmitterComponent &p) {
+                    const auto &e = p.runtime;
                     document.particles = SceneParticleEmitterDto {
-                        .velocity       = {p.velocity.x, p.velocity.y, p.velocity.z},
-                        .velocityJitter = {p.velocityJitter.x, p.velocityJitter.y,
-                                           p.velocityJitter.z},
-                        .spawnRate      = p.spawnRate,
-                        .lifetime       = p.lifetime,
-                        .size0          = p.size0,
-                        .size1          = p.size1,
-                        .color0         = {p.color0.x, p.color0.y, p.color0.z, p.color0.w},
-                        .color1         = {p.color1.x, p.color1.y, p.color1.z, p.color1.w},
-                        .blend          = BillboardBlendToString(p.blend),
+                        .velocity       = {e.velocity.x, e.velocity.y, e.velocity.z},
+                        .velocityJitter = {e.velocityJitter.x, e.velocityJitter.y,
+                                           e.velocityJitter.z},
+                        .spawnRate      = e.spawnRate,
+                        .lifetime       = e.lifetime,
+                        .size0          = e.size0,
+                        .size1          = e.size1,
+                        .color0         = {e.color0.x, e.color0.y, e.color0.z, e.color0.w},
+                        .color1         = {e.color1.x, e.color1.y, e.color1.z, e.color1.w},
+                        .blend          = BillboardBlendToString(e.blend),
                         .texture        = TexturePathOrNull(scene.mAssets, p.textureId),
-                        .maxParticles   = p.maxParticles,
+                        .maxParticles   = e.maxParticles,
                         .playing        = p.playing,
                     };
                     found = true;
@@ -3137,32 +3140,33 @@ namespace FRIGGA_NAMESPACE
         {
             const auto &pDto = *document.particles;
             ParticleEmitterComponent p {};
-            if(!pDto.velocity.empty() && !ReadVec3(pDto.velocity, p.velocity))
+            auto &e = p.runtime;
+            if(!pDto.velocity.empty() && !ReadVec3(pDto.velocity, e.velocity))
             {
                 return false;
             }
-            if(!pDto.velocityJitter.empty() && !ReadVec3(pDto.velocityJitter, p.velocityJitter))
+            if(!pDto.velocityJitter.empty() && !ReadVec3(pDto.velocityJitter, e.velocityJitter))
             {
                 return false;
             }
-            p.spawnRate = pDto.spawnRate;
-            p.lifetime  = pDto.lifetime;
-            p.size0     = pDto.size0;
-            p.size1     = pDto.size1;
-            if(!pDto.color0.empty() && !ReadVec4(pDto.color0, p.color0))
+            e.spawnRate = pDto.spawnRate;
+            e.lifetime  = pDto.lifetime;
+            e.size0     = pDto.size0;
+            e.size1     = pDto.size1;
+            if(!pDto.color0.empty() && !ReadVec4(pDto.color0, e.color0))
             {
                 return false;
             }
-            if(!pDto.color1.empty() && !ReadVec4(pDto.color1, p.color1))
+            if(!pDto.color1.empty() && !ReadVec4(pDto.color1, e.color1))
             {
                 return false;
             }
-            if(!TryParseBillboardBlend(pDto.blend, p.blend))
+            if(!TryParseBillboardBlend(pDto.blend, e.blend))
             {
                 return false;
             }
             loadOptionalTexture(pDto.texture, p.textureId);
-            p.maxParticles = static_cast<std::uint32_t>(std::max<int64_t>(pDto.maxParticles, 1));
+            e.maxParticles = static_cast<std::uint32_t>(std::max<int64_t>(pDto.maxParticles, 1));
             p.playing      = pDto.playing;
             UpsertComponent(*registry, entity, p);
             scene.FlushEcs();
