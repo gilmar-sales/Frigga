@@ -413,10 +413,6 @@ namespace FRIGGA_NAMESPACE
 
     void AnimationSystem::Update(float deltaTime)
     {
-        // Drain leftover EachAsync from earlier systems this frame (e.g. if a
-        // Main-pipeline system forgot ExecuteTasks) before we read WorldMatrix.
-        mRegistry->ExecuteTasks();
-
         const bool editMode = !mSimulation->IsPlaying();
         const bool animLod  = mOptions && mOptions->enableAnimLod;
         const glm::vec3 camPos = animLod ? cameraPosition() : glm::vec3(0.0f);
@@ -430,13 +426,10 @@ namespace FRIGGA_NAMESPACE
             mController->PruneMissingAnimators();
         }
 
-        // Prefetch + PinClipSlot on main (staging closed). Workers may also
-        // EnsureClipResident on Find miss (Freya 0.51+ SpinLock; free slots only).
         pinGpuClipsForLoadedModels(gpu);
 
         mRenderer->BeginBoneMatrixUploads();
         gpu.BeginGpuAnimInstanceUploads();
-        std::atomic<bool> anyGpuInstance {false};
 
         mRegistry->CreateMutation()->EachAsync(
             [&](fr::Entity entity, TransformComponent &, AnimatorComponent &animator) {
@@ -512,7 +505,7 @@ namespace FRIGGA_NAMESPACE
                     }
                     gpu.UploadGpuAnimInstanceUploads(
                         std::span<const fra::GpuAnimInstance>(&gpuInst, 1));
-                    anyGpuInstance.store(true, std::memory_order_relaxed);
+                    mAnyGpuInstance.store(true, std::memory_order_relaxed);
                     return true;
                 };
 
@@ -639,16 +632,18 @@ namespace FRIGGA_NAMESPACE
 
                 uploadCpuSkin(std::move(skin));
             });
+    }
 
-        mRegistry->ExecuteTasks();
 
+    void AnimationSystem::PostUpdate(float deltaTime)
+    {
+
+        auto &gpu = fra::Advanced(*mRenderer).GpuAnimation();
         mRenderer->EndBoneMatrixUploads();
         gpu.EndGpuAnimInstanceUploads();
-        gpu.SetEnabled(anyGpuInstance.load(std::memory_order_relaxed));
-        // Freya 0.51: copy-prev only touches GPU-owned ranges.
+        gpu.SetEnabled(mAnyGpuInstance.load(std::memory_order_relaxed));
         gpu.SetCopyPrevBones(true);
 
         drainEvents();
     }
-
 } // namespace FRIGGA_NAMESPACE

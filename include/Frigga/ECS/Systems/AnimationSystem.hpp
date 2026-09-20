@@ -39,6 +39,7 @@ namespace FRIGGA_NAMESPACE
         ~AnimationSystem() override = default;
 
         void Update(float deltaTime) override;
+        void PostUpdate(float deltaTime) override;
 
       private:
         /// Must be nothrow move-constructible for rigtorp::UnboundedMPMCQueue.
@@ -94,6 +95,7 @@ namespace FRIGGA_NAMESPACE
         std::atomic<std::uint32_t> mNextBoneOffset {0};
         std::unordered_set<std::string> mGpuPinnedModels;
         std::string mActiveGpuSkeletonPath;
+        std::atomic<bool> mAnyGpuInstance {false};
 
         rigtorp::UnboundedMPMCQueue<PendingAnimEvents> mPendingEvents;
     };
