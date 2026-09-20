@@ -150,6 +150,8 @@ void GameplayLayer::onGuiBegin()
 
         EditorViewportHost::Request({&mViewport, mPendingWidth, mPendingHeight,
                                      mClaimOutput && mSimulation->IsPlaying()});
+        // After PumpEvents (window coords) and before RenderScene / Freya UI Begin.
+        syncFreyaUiPointer();
     }
     else
     {
@@ -166,6 +168,10 @@ void GameplayLayer::onGuiBegin()
         }
         mCursorLocked = false;
         EditorViewportHost::Request({&mViewport, 0, 0, false});
+        if(mRenderer)
+        {
+            mRenderer->GetUiContext().SetPointerFramebuffer(-1.0f, -1.0f);
+        }
     }
 }
 
@@ -385,6 +391,34 @@ bool GameplayLayer::computeActiveCamera(glm::mat4 &viewOut, glm::mat4 &projectio
     viewOut       = matrices.view;
     projectionOut = matrices.projection;
     return true;
+}
+
+void GameplayLayer::syncFreyaUiPointer()
+{
+    if(!mRenderer)
+    {
+        return;
+    }
+
+    float fbX = -1.0f;
+    float fbY = -1.0f;
+
+    // Use the pending claim size — ApplyClaims runs after onGuiBegin, and HUD
+    // Begin uses that same offscreen extent once the claim is active.
+    if(mClaimOutput && mSimulation->IsPlaying() && mPendingWidth > 0 &&
+       mPendingHeight > 0 && mLayoutAvail.x > 0.0f && mLayoutAvail.y > 0.0f)
+    {
+        const ImVec2 mouse = ImGui::GetMousePos();
+        if(!fg::ViewportTarget::MapScreenToFramebuffer(
+               mouse, mLayoutImageMin, mLayoutAvail, mPendingWidth, mPendingHeight, fbX,
+               fbY))
+        {
+            fbX = -1.0f;
+            fbY = -1.0f;
+        }
+    }
+
+    mRenderer->GetUiContext().SetPointerFramebuffer(fbX, fbY);
 }
 
 void GameplayLayer::syncMouseCapture()

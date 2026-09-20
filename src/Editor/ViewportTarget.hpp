@@ -123,6 +123,71 @@ namespace fg
             mHeight     = 0;
         }
 
+        /// UV crop applied when presenting an RT into an ImGui rect whose aspect
+        /// does not match the texture (same math as `present`).
+        static void ComputeLetterboxUv(std::uint32_t texW, std::uint32_t texH,
+                                       const ImVec2 &displaySize, ImVec2 &uv0Out,
+                                       ImVec2 &uv1Out)
+        {
+            uv0Out = ImVec2 {0.0f, 0.0f};
+            uv1Out = ImVec2 {1.0f, 1.0f};
+            if(texW == 0 || texH == 0 || displaySize.x <= 0.0f || displaySize.y <= 0.0f)
+            {
+                return;
+            }
+
+            const float texAspect   = static_cast<float>(texW) / static_cast<float>(texH);
+            const float availAspect = displaySize.x / displaySize.y;
+            if(std::abs(texAspect - availAspect) <= 1.0e-3f)
+            {
+                return;
+            }
+
+            if(texAspect > availAspect)
+            {
+                const float visibleFraction = availAspect / texAspect;
+                const float crop            = (1.0f - visibleFraction) * 0.5f;
+                uv0Out.x                    = crop;
+                uv1Out.x                    = 1.0f - crop;
+            }
+            else
+            {
+                const float visibleFraction = texAspect / availAspect;
+                const float crop            = (1.0f - visibleFraction) * 0.5f;
+                uv0Out.y                    = crop;
+                uv1Out.y                    = 1.0f - crop;
+            }
+        }
+
+        /// Map an ImGui screen-space point over a presented image into framebuffer
+        /// pixels, accounting for letterbox UV crop. Returns false when the point
+        /// is outside the image rect.
+        static bool MapScreenToFramebuffer(const ImVec2 &screen, const ImVec2 &imageMin,
+                                           const ImVec2 &imageSize, std::uint32_t fbW,
+                                           std::uint32_t fbH, float &fbXOut, float &fbYOut)
+        {
+            if(fbW == 0 || fbH == 0 || imageSize.x <= 0.0f || imageSize.y <= 0.0f)
+            {
+                return false;
+            }
+
+            const float u = (screen.x - imageMin.x) / imageSize.x;
+            const float v = (screen.y - imageMin.y) / imageSize.y;
+            if(u < 0.0f || v < 0.0f || u >= 1.0f || v >= 1.0f)
+            {
+                return false;
+            }
+
+            ImVec2 uv0;
+            ImVec2 uv1;
+            ComputeLetterboxUv(fbW, fbH, imageSize, uv0, uv1);
+            const float texU = uv0.x + u * (uv1.x - uv0.x);
+            const float texV = uv0.y + v * (uv1.y - uv0.y);
+            fbXOut           = texU * static_cast<float>(fbW);
+            fbYOut           = texV * static_cast<float>(fbH);
+            return true;
+        }
+
         /// Present the offscreen composite into an ImGui rectangle.
         void present(const ImVec2 &size) const
         {
@@ -130,10 +195,6 @@ namespace fg
             {
                 return;
             }
-
-            ImVec2 uv0 {0.0f, 0.0f};
-            ImVec2 uv1 {1.0f, 1.0f};
-            ImVec2 displaySize = size;
 
             // Prefer Freya's live extent for letterboxing — cached mWidth/mHeight
             // can briefly disagree after a shared-target handoff.
@@ -150,31 +211,12 @@ namespace fg
                 }
             }
 
-            if(texW > 0 && texH > 0)
-            {
-                const float texAspect   = static_cast<float>(texW) / static_cast<float>(texH);
-                const float availAspect = size.x / size.y;
-                if(std::abs(texAspect - availAspect) > 1.0e-3f)
-                {
-                    if(texAspect > availAspect)
-                    {
-                        const float visibleFraction = availAspect / texAspect;
-                        const float crop            = (1.0f - visibleFraction) * 0.5f;
-                        uv0.x                       = crop;
-                        uv1.x                       = 1.0f - crop;
-                    }
-                    else
-                    {
-                        const float visibleFraction = texAspect / availAspect;
-                        const float crop            = (1.0f - visibleFraction) * 0.5f;
-                        uv0.y                       = crop;
-                        uv1.y                       = 1.0f - crop;
-                    }
-                }
-            }
+            ImVec2 uv0;
+            ImVec2 uv1;
+            ComputeLetterboxUv(texW, texH, size, uv0, uv1);
 
             ImGui::Image(static_cast<ImTextureID>(reinterpret_cast<std::uintptr_t>(mTextureId)),
-                         displaySize, uv0, uv1);
+                         size, uv0, uv1);
         }
 
         [[nodiscard]] bool IsActive() const

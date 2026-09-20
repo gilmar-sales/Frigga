@@ -39,6 +39,7 @@ class GameplayLayer: public fg::Layer
     void drawColliders(const ImVec2 &imageMin, const ImVec2 &imageSize);
     void drawDebugOverlays(const ImVec2 &imageMin, const ImVec2 &imageSize);
     void syncMouseCapture();
+    void syncFreyaUiPointer();
     bool computeActiveCamera(glm::mat4 &viewOut, glm::mat4 &projectionOut);
 
     skr::Arc<fra::Renderer> mRenderer;
