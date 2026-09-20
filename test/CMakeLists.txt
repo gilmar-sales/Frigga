@@ -22,6 +22,7 @@ add_executable(frigga_tests
         DiagnosticsSpec.cpp
         EmptyApp.hpp
         FriModuleSpec.cpp
+        GraphicsConfigSpec.cpp
         InputSpec.cpp
         LateSystemRegistrationSpec.cpp
         EcsLayoutSpec.cpp

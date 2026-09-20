@@ -2,6 +2,7 @@
 
 #include <Frigga/Diagnostics/RuntimeDiagnostics.hpp>
 #include <Frigga/Frigga.hpp>
+#include <Frigga/Graphics/GraphicsConfigIO.hpp>
 
 #include <cstdlib>
 #include <filesystem>
@@ -102,6 +103,27 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
+    fg::GraphicsConfig graphics = fg::MakeDefaultGraphicsConfig();
+    {
+        const auto graphicsPath = project.root / fg::kGraphicsConfigFileName;
+        std::string graphicsError;
+        if(std::filesystem::exists(graphicsPath))
+        {
+            if(!fg::LoadGraphicsConfigFile(graphicsPath, graphics, &graphicsError))
+            {
+                std::cerr << "Failed to load graphics.json (" << graphicsPath.string()
+                          << "): " << graphicsError << '\n';
+                return EXIT_FAILURE;
+            }
+        }
+        else if(!fg::EnsureGraphicsConfigFile(graphicsPath, graphics, &graphicsError))
+        {
+            std::cerr << "Failed to create graphics.json (" << graphicsPath.string()
+                      << "): " << graphicsError << '\n';
+            return EXIT_FAILURE;
+        }
+    }
+
     auto appBuilder =
         skr::ApplicationBuilder()
             .WithExtension<skr::LoggingExtension>([](skr::LoggingExtension &logging) {
@@ -118,7 +140,12 @@ int main(int argc, char **argv)
                     logging.AddJsonSink(jsonFile);
                 }
             })
-            .WithExtension<fg::FriggaExtension>();
+            .WithExtension<fg::FriggaExtension>()
+            .WithExtension<fra::FreyaExtension>([&](fra::FreyaExtension &freya) {
+                freya.WithOptions([&](fra::FreyaOptionsBuilder &builder) {
+                    fg::ApplyGraphicsConfig(builder, graphics);
+                });
+            });
 
     const char *crashFile = std::getenv("FRIGGA_CRASH_FILE");
     fg::CrashReporter::Install(crashFile != nullptr ? crashFile : "frigga-crash.log");

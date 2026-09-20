@@ -513,7 +513,7 @@ function(frigga_install_game GAME_TARGET GAME_NAME)
             PATTERN "*.comp" EXCLUDE
             PATTERN "*.inc" EXCLUDE)
 
-    foreach(_project_file IN ITEMS frigga.project input.json ecs.json)
+    foreach(_project_file IN ITEMS frigga.project input.json graphics.json ecs.json)
         if(EXISTS "${CMAKE_SOURCE_DIR}/${_project_file}")
             install(FILES "${CMAKE_SOURCE_DIR}/${_project_file}" DESTINATION .)
         endif()

@@ -11,6 +11,7 @@
 #include <Frigga/Asset/AssetRegistry.hpp>
 #include <Frigga/Asset/AssetCooker.hpp>
 #include <Frigga/ECS/EcsLayout.hpp>
+#include <Frigga/Graphics/GraphicsConfigIO.hpp>
 #include <Frigga/Input/InputMapIO.hpp>
 
 #include <algorithm>
@@ -832,6 +833,63 @@ void ProjectSession::loadProjectInputBindings(const std::filesystem::path &proje
 
     mInput->LoadBindings(map);
     mLogger->LogInformation("Loaded input bindings from {}", path.string());
+}
+
+void ProjectSession::ensureProjectGraphicsConfig(const std::filesystem::path &projectRoot)
+{
+    const auto path = projectRoot / fg::kGraphicsConfigFileName;
+    std::error_code ec;
+    if(std::filesystem::exists(path, ec))
+    {
+        return;
+    }
+
+    fg::GraphicsConfig config = fg::MakeDefaultGraphicsConfig();
+    if(mPreferences)
+    {
+        const auto &g = mPreferences->graphics;
+        const auto &q = g.gameplayViewport;
+        config.width              = g.width;
+        config.height             = g.height;
+        config.vSync              = g.vSync;
+        config.fullscreen         = g.fullscreen;
+        config.frameCount         = g.frameCount;
+        config.clearColorR        = g.clearColorR;
+        config.clearColorG        = g.clearColorG;
+        config.clearColorB        = g.clearColorB;
+        config.clearColorA        = g.clearColorA;
+        config.drawDistance       = g.drawDistance;
+        config.maxLights          = g.maxLights;
+        config.iblIntensity       = g.iblIntensity;
+        config.exposure           = g.exposure;
+        config.ambientColorR      = g.ambientColorR;
+        config.ambientColorG      = g.ambientColorG;
+        config.ambientColorB      = g.ambientColorB;
+        config.ambientIntensity   = g.ambientIntensity;
+        config.environmentMapPath = g.environmentMapPath;
+        config.shaderRoot         = g.shaderRoot;
+        config.shadowQuality      = std::string(fg::GraphicsQualityLabel(q.shadowQuality));
+        config.ssaoQuality        = std::string(fg::GraphicsQualityLabel(q.ssaoQuality));
+        config.taaQuality         = std::string(fg::GraphicsQualityLabel(q.taaQuality));
+        config.bloomQuality       = std::string(fg::GraphicsQualityLabel(q.bloomQuality));
+        config.ssaoRadius         = g.ssaoRadius;
+        config.ssaoBias           = g.ssaoBias;
+        config.ssaoPower          = g.ssaoPower;
+        config.ssaoIntensity      = g.ssaoIntensity;
+        config.deferredDebugView  = g.deferredDebugView;
+        config.reverseZ           = g.reverseZ;
+        config.animationQuality =
+            std::string(fg::GraphicsQualityLabel(g.animationQuality));
+    }
+
+    std::string error;
+    if(!fg::EnsureGraphicsConfigFile(path, config, &error))
+    {
+        mLogger->LogWarning("Failed to create graphics.json ({}): {}", path.string(),
+                            error.empty() ? "unknown error" : error);
+        return;
+    }
+    mLogger->LogInformation("Created graphics.json from current graphics settings");
 }
 
 bool ProjectSession::migrateProjectFile(const std::filesystem::path &projectFile,
@@ -1680,6 +1738,7 @@ bool ProjectSession::enterEditor(const std::filesystem::path &projectFile, Proje
     EditorWindowLayout::PrepareForEditor(*mWindow);
     touchRecent();
     loadProjectInputBindings(projectFile.parent_path());
+    ensureProjectGraphicsConfig(projectFile.parent_path());
 
     {
         std::string mcpError;

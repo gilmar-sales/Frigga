@@ -5,6 +5,8 @@
 #include "ProjectFile.hpp"
 
 #include <Frigga/Asset/AssetRegistry.hpp>
+#include <Frigga/Graphics/GraphicsConfig.hpp>
+#include <Frigga/Graphics/GraphicsConfigIO.hpp>
 #include <Frigga/Input/InputMap.hpp>
 #include <Frigga/Input/InputMapIO.hpp>
 
@@ -246,6 +248,7 @@ struct Health: fr::Component
         out << "## Layout\n\n";
         out << "- `frigga.project` — project metadata\n";
         out << "- `input.json` — named Actions / Axes bindings\n";
+        out << "- `graphics.json` — Freya Runtime window / quality settings\n";
         out << "- `ecs.json` — ECS pipeline / system layout (created on first Editor open)\n";
         out << "- `Scenes/main.json` — default scene\n";
         out << "- `Resources/` — models, textures, prefabs, and fonts owned by this project\n";
@@ -404,6 +407,13 @@ ProjectManagedWriteResult ProjectScaffold::WriteManagedFiles(
         return result;
     }
 
+    std::string graphicsError;
+    if(!EnsureDefaultGraphicsJson(projectRoot, graphicsError))
+    {
+        result.error = graphicsError;
+        return result;
+    }
+
     std::string mcpError;
     if(!EnsureCursorMcp(projectRoot, desc, mcpError))
     {
@@ -435,6 +445,21 @@ bool ProjectScaffold::EnsureDefaultInputJson(const std::filesystem::path &projec
         if(error.empty())
         {
             error = "Failed to write input.json";
+        }
+        return false;
+    }
+    return true;
+}
+
+bool ProjectScaffold::EnsureDefaultGraphicsJson(const std::filesystem::path &projectRoot,
+                                                std::string &error)
+{
+    const auto path = projectRoot / fg::kGraphicsConfigFileName;
+    if(!fg::EnsureGraphicsConfigFile(path, fg::MakeDefaultGraphicsConfig(), &error))
+    {
+        if(error.empty())
+        {
+            error = "Failed to write graphics.json";
         }
         return false;
     }

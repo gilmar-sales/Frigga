@@ -168,7 +168,8 @@ cmake --build build-release --parallel
 cmake --install build-release --prefix /path/to/published-game
 ```
 
-Run the published game from its output folder. The Runtime also accepts
+Run the published game from its output folder. The Runtime loads Freya settings
+from `graphics.json` (scaffolded next to `input.json`) and also accepts
 `--project <frigga.project>` and `--scene <scene.json>` for diagnostics; by
 default it loads `frigga.project` and its configured startup scene.
 

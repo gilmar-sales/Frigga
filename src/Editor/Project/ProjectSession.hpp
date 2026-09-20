@@ -180,6 +180,7 @@ class ProjectSession
     void applyLocalEnginePaths(ProjectDescriptor &desc);
     void touchRecent();
     void loadProjectInputBindings(const std::filesystem::path &projectRoot);
+    void ensureProjectGraphicsConfig(const std::filesystem::path &projectRoot);
     void bindProjectResources(const std::filesystem::path &projectRoot);
     void unbindProjectResources();
     void joinBuildThread();

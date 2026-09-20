@@ -24,6 +24,11 @@ namespace
             return false;
         }
 
+        if(!ProjectScaffold::EnsureDefaultGraphicsJson(projectRoot, error))
+        {
+            return false;
+        }
+
         const auto hasGameplay = std::ranges::any_of(
             desc.modules, [](const ProjectModuleEntry &entry) { return entry.IsGameplay(); });
         if(hasGameplay &&
@@ -64,6 +69,12 @@ ProjectMigrationResult ProjectMigrator::Migrate(const std::filesystem::path &pro
     if(!force && result.fromVersion == ProjectDescriptor::CurrentFormatVersion &&
        !needsModuleRename && !needsSceneRename)
     {
+        std::string ensureError;
+        if(!ProjectScaffold::EnsureDefaultInputJson(projectFile.parent_path(), ensureError))
+        {
+            result.error = ensureError;
+            return result;
+        }
         result.ok      = true;
         result.message = "Project is already at format v" +
                          std::to_string(ProjectDescriptor::CurrentFormatVersion);
