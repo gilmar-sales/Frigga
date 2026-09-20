@@ -258,6 +258,15 @@ add_custom_command(TARGET Runtime POST_BUILD
                 "${FRIGGA_SDK_DIR}/Runtime"
         COMMENT "Sync Runtime sources into Sdk for game publish")
 
+# Headers are seeded at configure time; refresh them on every frigga build so
+# new public APIs reach published game hosts without
+# requiring a full CMake reconfigure.
+add_custom_command(TARGET frigga POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_CURRENT_SOURCE_DIR}/include/Frigga"
+                "${FRIGGA_SDK_DIR}/include/Frigga"
+        COMMENT "Sync Frigga public headers into Sdk")
+
 # Expose Freyr/Frigga/Skirnir/simdjson to gameplay modules.
 # Linux: undefined refs in the .so bind to the host at dlopen (--export-dynamic).
 # Prefab/inspector .o files are keep-alived from GameplayModuleHost so static GC
