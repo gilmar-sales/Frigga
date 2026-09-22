@@ -103,7 +103,6 @@ namespace FRIGGA_NAMESPACE
 
     void RenderSystem::Update(float deltaTime)
     {
-        mRegistry->ExecuteTasks();
         syncLights();
         updateCamera();
         drawMeshes();
@@ -313,55 +312,72 @@ namespace FRIGGA_NAMESPACE
 
         // Application owns BeginSceneInstances/EndSceneInstances; Freya sorts at End.
         mRenderer->ReserveSceneInstances(instanceCount);
-        mRegistry->CreateMutation()->EachAsync([this, skip](fr::Entity entity, TransformComponent &,
-                                                            MeshComponent &mesh,
-                                                            MaterialComponent &material) {
-            if(skip(entity))
-            {
-                return;
-            }
+        mRegistry->CreateQuery()
+            ->ForEachChunkAsync<TransformComponent, MeshComponent, MaterialComponent>(
+                [this, skip](const fr::ChunkView &chunk) {
+                    const auto entities  = chunk.Entities();
+                    const auto meshes    = chunk.Column<MeshComponent>();
+                    const auto materials = chunk.Column<MaterialComponent>();
 
-            const auto pose = TransformUtil::WorldPose(*mRegistry, entity);
+                    std::vector<fra::SceneInstanceUpload> batch;
+                    batch.reserve(chunk.size());
 
-            fra::SceneInstanceUpload upload{
-                .transform =
-                    fra::SceneTransform{
-                                        .position = pose.position,
-                                        .scale    = pose.scale,
-                                        .rotation = pose.rotation,
-                                        },
-                .mesh     = AsMeshHandle(mesh.meshId),
-                .material = AsMaterialHandle(material.materialId),
-                .entityId = static_cast<std::uint32_t>(entity),
-            };
-
-            // Local Animator first (compat); else inherit shared pose from an ancestor.
-            bool skinned          = false;
-            fr::Entity skinEntity = entity;
-            while(skinEntity != kInvalidEntity)
-            {
-                bool found = false;
-                mRegistry->TryGetComponents<AnimatorComponent>(
-                    skinEntity, [&](AnimatorComponent &animator) {
-                        if(animator.boneCount > 0 && animator.boneOffset != fra::kNoSkin)
+                    for(std::size_t i = 0; i < chunk.size(); ++i)
+                    {
+                        const fr::Entity entity = entities[i];
+                        if(skip(entity))
                         {
-                            upload.boneOffset = animator.boneOffset;
-                            upload.boneCount  = animator.boneCount;
-                            skinned           = true;
-                            found             = true;
+                            continue;
                         }
-                    });
-                if(found)
-                {
-                    break;
-                }
-                skinEntity = TransformUtil::ParentOf(*mRegistry, skinEntity);
-            }
 
-            upload.flags = fra::MakeSceneInstanceFlags(mesh.castShadows, false, skinned);
+                        const auto &mesh     = meshes[i];
+                        const auto &material = materials[i];
+                        const auto  pose     = TransformUtil::WorldPose(*mRegistry, entity);
 
-            mRenderer->UploadSceneInstances(std::span<const fra::SceneInstanceUpload>(&upload, 1));
-        });
+                        fra::SceneInstanceUpload upload{
+                            .transform =
+                                fra::SceneTransform{
+                                                    .position = pose.position,
+                                                    .scale    = pose.scale,
+                                                    .rotation = pose.rotation,
+                                                    },
+                            .mesh     = AsMeshHandle(mesh.meshId),
+                            .material = AsMaterialHandle(material.materialId),
+                            .entityId = static_cast<std::uint32_t>(entity),
+                        };
+
+                        // Local Animator first (compat); else inherit shared pose from an ancestor.
+                        bool skinned          = false;
+                        fr::Entity skinEntity = entity;
+                        while(skinEntity != kInvalidEntity)
+                        {
+                            bool found = false;
+                            mRegistry->TryGetComponents<AnimatorComponent>(
+                                skinEntity, [&](AnimatorComponent &animator) {
+                                    if(animator.boneCount > 0 && animator.boneOffset != fra::kNoSkin)
+                                    {
+                                        upload.boneOffset = animator.boneOffset;
+                                        upload.boneCount  = animator.boneCount;
+                                        skinned           = true;
+                                        found             = true;
+                                    }
+                                });
+                            if(found)
+                            {
+                                break;
+                            }
+                            skinEntity = TransformUtil::ParentOf(*mRegistry, skinEntity);
+                        }
+
+                        upload.flags = fra::MakeSceneInstanceFlags(mesh.castShadows, false, skinned);
+                        batch.push_back(upload);
+                    }
+
+                    if(!batch.empty())
+                    {
+                        mRenderer->UploadSceneInstances(batch);
+                    }
+                });
     }
 
     std::uint32_t RenderSystem::textureHeapIndex(std::optional<std::uint32_t> textureId) const
