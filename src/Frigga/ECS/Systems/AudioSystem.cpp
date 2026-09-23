@@ -1,7 +1,6 @@
 #include <Frigga/ECS/Systems/AudioSystem.hpp>
 
 #include "Frigga/ECS/Components/AudioSourceComponent.hpp"
-#include "Frigga/ECS/Components/HierarchyComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/ECS/TransformUtil.hpp"
 
@@ -66,31 +65,31 @@ namespace FRIGGA_NAMESPACE
 
     void AudioSystem::syncListener()
     {
-        fr::Entity listenerEntity = kInvalidEntity;
+        fr::Entity listenerEntity = fr::NullEntity;
         mRegistry->CreateMutation()->Each(
             [&](fr::Entity entity, AudioListenerComponent &listener, TransformComponent &) {
-                if(listener.active && listenerEntity == kInvalidEntity)
+                if(listener.active && listenerEntity == fr::NullEntity)
                 {
                     listenerEntity = entity;
                 }
             });
 
-        if(listenerEntity == kInvalidEntity && mScene)
+        if(listenerEntity == fr::NullEntity && mScene)
         {
             listenerEntity = mScene->GetMainCameraEntity();
-            if(listenerEntity != kInvalidEntity &&
+            if(listenerEntity != fr::NullEntity &&
                !mRegistry->HasComponent<TransformComponent>(listenerEntity))
             {
-                listenerEntity = kInvalidEntity;
+                listenerEntity = fr::NullEntity;
             }
         }
 
-        if(listenerEntity == kInvalidEntity)
+        if(listenerEntity == fr::NullEntity)
         {
             return;
         }
 
-        const auto pose = TransformUtil::WorldPose(*mRegistry, listenerEntity);
+        const auto pose = TransformUtil::GetWorldPose(*mRegistry, listenerEntity);
         mAudioEngine->SetListenerTransform(pose.position, pose.rotation);
     }
 
@@ -186,7 +185,7 @@ namespace FRIGGA_NAMESPACE
 
                 if(source.instance.IsValid() && source.is3D)
                 {
-                    const auto pose = TransformUtil::WorldPose(*mRegistry, entity);
+                    const auto pose = TransformUtil::GetWorldPose(*mRegistry, entity);
                     mAudioEngine->SetEvent3DAttributes(source.instance, pose.position,
                                                        glm::vec3(0.0f));
                 }

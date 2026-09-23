@@ -1,6 +1,5 @@
 #include "Frigga/Module/FriComponentInspector.hpp"
 
-#include "Frigga/ECS/Components/HierarchyComponent.hpp"
 #include "Frigga/ECS/Components/NameComponent.hpp"
 
 #include <cstdio>
@@ -59,7 +58,7 @@ namespace FRIGGA_NAMESPACE
         bool changed = false;
 
         std::string display = "None";
-        if(value.id != kInvalidEntity)
+        if(value.id != fr::NullEntity)
         {
             display = std::format("#{}", value.id);
             if(registry)
@@ -96,10 +95,10 @@ namespace FRIGGA_NAMESPACE
         }
 
         ImGui::SameLine();
-        ImGui::BeginDisabled(value.id == kInvalidEntity);
+        ImGui::BeginDisabled(value.id == fr::NullEntity);
         if(ImGui::SmallButton("Clear"))
         {
-            value.id = kInvalidEntity;
+            value.id = fr::NullEntity;
             changed  = true;
         }
         ImGui::EndDisabled();

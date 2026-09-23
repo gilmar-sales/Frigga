@@ -18,7 +18,6 @@
 #include "Frigga/ECS/Components/BillboardTextComponent.hpp"
 #include "Frigga/ECS/Components/FullscreenEffectComponent.hpp"
 #include "Frigga/ECS/Components/HealthBarComponent.hpp"
-#include "Frigga/ECS/Components/HierarchyComponent.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/NameComponent.hpp"
 #include "Frigga/ECS/Components/ParticleEmitterComponent.hpp"
@@ -91,31 +90,26 @@ namespace
             return source;
         }
 
-        std::string fromChild;
-        registry.TryGetComponents<fg::HierarchyComponent>(
-            entity, [&](fg::HierarchyComponent &hierarchy) {
-                for(const auto child : hierarchy.children)
-                {
-                    fromChild = ModelSourceFromMesh(assets, child, registry);
-                    if(!fromChild.empty())
-                    {
-                        return;
-                    }
-                }
-            });
-        return fromChild;
+        for(const auto child : registry.Children(entity))
+        {
+            if(auto fromChild = ModelSourceFromMesh(assets, child, registry); !fromChild.empty())
+            {
+                return fromChild;
+            }
+        }
+        return {};
     }
 
     [[nodiscard]] bool HasAncestorAnimator(fr::Registry &registry, fr::Entity entity)
     {
-        auto parent = fg::TransformUtil::ParentOf(registry, entity);
-        while(parent != fg::kInvalidEntity)
+        auto parent = registry.GetParent(entity);
+        while(parent != fr::NullEntity)
         {
             if(registry.HasComponent<fg::AnimatorComponent>(parent))
             {
                 return true;
             }
-            parent = fg::TransformUtil::ParentOf(registry, parent);
+            parent = registry.GetParent(parent);
         }
         return false;
     }
@@ -163,14 +157,14 @@ namespace
         case fg::PropertyKind::Entity:
         {
             fg::EntityRef ref {};
-            ref.id = value.intValue < 0 ? fg::kInvalidEntity
+            ref.id = value.intValue < 0 ? fr::NullEntity
                                         : static_cast<fr::Entity>(value.intValue);
             fg::FriComponentInspector ui;
             ui.registry = registry;
             if(ui.EntityField(property.name.c_str(), ref))
             {
                 value.intValue =
-                    ref.id == fg::kInvalidEntity ? -1 : static_cast<std::int64_t>(ref.id);
+                    ref.id == fr::NullEntity ? -1 : static_cast<std::int64_t>(ref.id);
             }
             break;
         }
@@ -446,7 +440,7 @@ void HierarchyLayer::processPendingEntityParents()
     auto pending = std::move(mPendingEntityParents);
     for(const auto &[entity, parent]: pending)
     {
-        fg::TransformUtil::SetParent(*mRegistry, entity, parent, false);
+        fg::TransformUtil::Reparent(*mRegistry, entity, parent, false);
     }
 }
 
@@ -1278,7 +1272,7 @@ void HierarchyLayer::onGui()
     std::unordered_set<fr::Entity> nested;
     mRegistry->CreateMutation()->Each(
         [this, &nested](fr::Entity entity, fg::NameComponent &) {
-            if(fg::TransformUtil::ParentOf(*mRegistry, entity) != fg::kInvalidEntity)
+            if(mRegistry->GetParent(entity) != fr::NullEntity)
             {
                 nested.insert(entity);
             }
@@ -1298,7 +1292,7 @@ void HierarchyLayer::onGui()
         if(const ImGuiPayload *payload = ImGui::AcceptDragDropPayload(kDragPayloadId))
         {
             const auto child = *static_cast<const fr::Entity *>(payload->Data);
-            fg::TransformUtil::SetParent(*mRegistry, child, fg::kInvalidEntity, true);
+            fg::TransformUtil::Reparent(*mRegistry, child, fr::NullEntity, true);
         }
         ImGui::EndDragDropTarget();
     }
@@ -1486,10 +1480,9 @@ void HierarchyLayer::handleComponentClipboardInput()
 
 void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
 {
-    std::vector<fr::Entity> children;
-    mRegistry->TryGetComponents<fg::HierarchyComponent>(entity, [&](fg::HierarchyComponent &hierarchy) {
-        children = hierarchy.children;
-    });
+    // Copy: drag-drop below may reparent while the tree is drawn. Freyr keeps insertion order.
+    const auto              childRange = mRegistry->Children(entity);
+    std::vector<fr::Entity> children(childRange.begin(), childRange.end());
 
     const bool renaming = nodeToRename == entity;
 
@@ -1541,7 +1534,7 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
         if(const ImGuiPayload *payload = ImGui::AcceptDragDropPayload(kDragPayloadId))
         {
             const auto child = *static_cast<const fr::Entity *>(payload->Data);
-            fg::TransformUtil::SetParent(*mRegistry, child, entity, true);
+            fg::TransformUtil::Reparent(*mRegistry, child, entity, true);
         }
         if(const ImGuiPayload *payload =
                ImGui::AcceptDragDropPayload(ResourcesLayer::kDragPayloadId))
@@ -1570,10 +1563,15 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
         if(ImGui::MenuItem("Delete", nullptr, false, !locked && !playLocked))
         {
             const auto selected = mSelection->Get();
-            const bool clearSelection =
-                selected == entity ||
-                fg::TransformUtil::WouldCreateCycle(*mRegistry, entity, selected);
-            fg::TransformUtil::DestroySubtree(*mRegistry, entity);
+            bool clearSelection = false;
+            for(auto current = selected; current != fr::NullEntity;
+                current      = mRegistry->GetParent(current))
+            {
+                clearSelection = clearSelection || current == entity;
+            }
+            // DestroyEntity cascades to the whole subtree.
+            mRegistry->DestroyEntity(entity);
+            mRegistry->ExecuteTasks();
             if(clearSelection)
             {
                 mSelection->Clear();
@@ -1592,11 +1590,11 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
             requestSavePrefabDialog(entity);
         }
 
-        const auto parent = fg::TransformUtil::ParentOf(*mRegistry, entity);
+        const auto parent = mRegistry->GetParent(entity);
         if(ImGui::MenuItem("Unparent", nullptr, false,
-                           !playLocked && parent != fg::kInvalidEntity))
+                           !playLocked && parent != fr::NullEntity))
         {
-            fg::TransformUtil::SetParent(*mRegistry, entity, fg::kInvalidEntity, true);
+            fg::TransformUtil::Reparent(*mRegistry, entity, fr::NullEntity, true);
         }
 
         ImGui::BeginDisabled(playLocked);
@@ -1900,13 +1898,13 @@ void HierarchyLayer::drawComponents()
             static glm::vec3 Rotation;
 
             const bool hasParent =
-                fg::TransformUtil::ParentOf(*mRegistry, selection) != fg::kInvalidEntity;
+                mRegistry->GetParent(selection) != fr::NullEntity;
             const char *header =
                 hasParent ? "Transform (Local)" : "Transform Component";
 
             if(drawComponentHeader(header, "transform"))
             {
-                ImGui::DragFloat3("Position", &transform.position[0], 0.1f);
+                bool changed = ImGui::DragFloat3("Position", &transform.position[0], 0.1f);
 
                 Rotation = glm::degrees(glm::eulerAngles(glm::normalize(transform.rotation)));
 
@@ -1925,8 +1923,13 @@ void HierarchyLayer::drawComponents()
                     auto radVec = glm::radians(Rotation);
 
                     transform.rotation = glm::quat(radVec);
+                    changed            = true;
                 }
-                ImGui::DragFloat3("Scale", &transform.scale[0], 0.1f);
+                changed |= ImGui::DragFloat3("Scale", &transform.scale[0], 0.1f);
+                if(changed)
+                {
+                    fg::TransformUtil::MarkDirty(*mRegistry, selection);
+                }
             }
         });
 

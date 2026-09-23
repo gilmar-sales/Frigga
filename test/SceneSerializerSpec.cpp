@@ -8,7 +8,6 @@
 #include <Frigga/ECS/Components/CameraComponent.hpp>
 #include <Frigga/ECS/Components/FullscreenEffectComponent.hpp>
 #include <Frigga/ECS/Components/HealthBarComponent.hpp>
-#include <Frigga/ECS/Components/HierarchyComponent.hpp>
 #include <Frigga/ECS/Components/EntityRef.hpp>
 #include <Frigga/ECS/Components/LightComponent.hpp>
 #include <Frigga/ECS/Components/MaterialComponent.hpp>
@@ -654,14 +653,14 @@ TEST_F(SceneSerializerSpec, RoundTrip_ThirdPersonCamera)
     EXPECT_NE(json.find("\"kind\":\"Entity\""), std::string::npos);
     ASSERT_TRUE(mScene->RestoreSnapshot(json));
 
-    fr::Entity restoredPlayer = fg::kInvalidEntity;
+    fr::Entity restoredPlayer = fr::NullEntity;
     mRegistry->CreateMutation()->Each([&](fr::Entity entity, fg::NameComponent &name) {
         if(name.name == "Player")
         {
             restoredPlayer = entity;
         }
     });
-    ASSERT_NE(restoredPlayer, fg::kInvalidEntity);
+    ASSERT_NE(restoredPlayer, fr::NullEntity);
 
     found = false;
     mRegistry->CreateMutation()->Each(
@@ -755,14 +754,14 @@ TEST_F(SceneSerializerSpec, RoundTrip_ParentChildPreservesLocalTransform)
         fg::NameComponent {.name = "Child"},
         fg::TransformComponent {.position = {1.0f, 2.0f, 3.0f}});
     mRegistry->ExecuteTasks();
-    ASSERT_TRUE(fg::TransformUtil::SetParent(*mRegistry, child, parent, false));
+    ASSERT_TRUE(fg::TransformUtil::Reparent(*mRegistry, child, parent, false));
 
     std::string json;
     ASSERT_TRUE(fg::SceneSerializer::Serialize(*mScene, json));
     ASSERT_TRUE(mScene->RestoreSnapshot(json));
 
-    fr::Entity restoredParent = fg::kInvalidEntity;
-    fr::Entity restoredChild  = fg::kInvalidEntity;
+    fr::Entity restoredParent = fr::NullEntity;
+    fr::Entity restoredChild  = fr::NullEntity;
     mRegistry->CreateMutation()->Each(
         [&](fr::Entity entity, fg::NameComponent &name) {
             if(name.name == "Parent")
@@ -774,9 +773,9 @@ TEST_F(SceneSerializerSpec, RoundTrip_ParentChildPreservesLocalTransform)
                 restoredChild = entity;
             }
         });
-    ASSERT_NE(restoredParent, fg::kInvalidEntity);
-    ASSERT_NE(restoredChild, fg::kInvalidEntity);
-    EXPECT_EQ(fg::TransformUtil::ParentOf(*mRegistry, restoredChild), restoredParent);
+    ASSERT_NE(restoredParent, fr::NullEntity);
+    ASSERT_NE(restoredChild, fr::NullEntity);
+    EXPECT_EQ(mRegistry->GetParent(restoredChild), restoredParent);
 
     mRegistry->TryGetComponents<fg::TransformComponent>(
         restoredChild, [](fg::TransformComponent &transform) {
@@ -784,7 +783,7 @@ TEST_F(SceneSerializerSpec, RoundTrip_ParentChildPreservesLocalTransform)
             EXPECT_NEAR(transform.position.y, 2.0f, kEpsilon);
             EXPECT_NEAR(transform.position.z, 3.0f, kEpsilon);
         });
-    const auto world = fg::TransformUtil::WorldPose(*mRegistry, restoredChild);
+    const auto world = fg::TransformUtil::GetWorldPose(*mRegistry, restoredChild);
     EXPECT_NEAR(world.position.x, 11.0f, kEpsilon);
     EXPECT_NEAR(world.position.y, 2.0f, kEpsilon);
     EXPECT_NEAR(world.position.z, 3.0f, kEpsilon);
@@ -811,16 +810,16 @@ TEST_F(SceneSerializerSpec, Deserialize_HoistsSharedChildAnimators)
                                .timeSec     = 0.4f,
                                .playing     = true});
     mRegistry->ExecuteTasks();
-    ASSERT_TRUE(fg::TransformUtil::SetParent(*mRegistry, eyes, parent, false));
-    ASSERT_TRUE(fg::TransformUtil::SetParent(*mRegistry, body, parent, false));
+    ASSERT_TRUE(fg::TransformUtil::Reparent(*mRegistry, eyes, parent, false));
+    ASSERT_TRUE(fg::TransformUtil::Reparent(*mRegistry, body, parent, false));
 
     std::string json;
     ASSERT_TRUE(fg::SceneSerializer::Serialize(*mScene, json));
     ASSERT_TRUE(mScene->RestoreSnapshot(json));
 
-    fr::Entity restoredParent = fg::kInvalidEntity;
-    fr::Entity restoredEyes   = fg::kInvalidEntity;
-    fr::Entity restoredBody   = fg::kInvalidEntity;
+    fr::Entity restoredParent = fr::NullEntity;
+    fr::Entity restoredEyes   = fr::NullEntity;
+    fr::Entity restoredBody   = fr::NullEntity;
     mRegistry->CreateMutation()->Each([&](fr::Entity entity, fg::NameComponent &name) {
         if(name.name == "Bulbasaur")
         {
@@ -835,9 +834,9 @@ TEST_F(SceneSerializerSpec, Deserialize_HoistsSharedChildAnimators)
             restoredBody = entity;
         }
     });
-    ASSERT_NE(restoredParent, fg::kInvalidEntity);
-    ASSERT_NE(restoredEyes, fg::kInvalidEntity);
-    ASSERT_NE(restoredBody, fg::kInvalidEntity);
+    ASSERT_NE(restoredParent, fr::NullEntity);
+    ASSERT_NE(restoredEyes, fr::NullEntity);
+    ASSERT_NE(restoredBody, fr::NullEntity);
 
     EXPECT_TRUE(mRegistry->HasComponent<fg::AnimatorComponent>(restoredParent));
     EXPECT_FALSE(mRegistry->HasComponent<fg::AnimatorComponent>(restoredEyes));
@@ -862,14 +861,14 @@ TEST_F(SceneSerializerSpec, Deserialize_DoesNotHoistSingleChildAnimator)
         fg::MaterialComponent {.materialId = mPrimitives->GetDefaultMaterial()},
         fg::AnimatorComponent {.modelSource = "Models/Fox.glb", .playing = true});
     mRegistry->ExecuteTasks();
-    ASSERT_TRUE(fg::TransformUtil::SetParent(*mRegistry, mesh, parent, false));
+    ASSERT_TRUE(fg::TransformUtil::Reparent(*mRegistry, mesh, parent, false));
 
     std::string json;
     ASSERT_TRUE(fg::SceneSerializer::Serialize(*mScene, json));
     ASSERT_TRUE(mScene->RestoreSnapshot(json));
 
-    fr::Entity restoredRoot = fg::kInvalidEntity;
-    fr::Entity restoredFox  = fg::kInvalidEntity;
+    fr::Entity restoredRoot = fr::NullEntity;
+    fr::Entity restoredFox  = fr::NullEntity;
     mRegistry->CreateMutation()->Each([&](fr::Entity entity, fg::NameComponent &name) {
         if(name.name == "Root")
         {
@@ -880,8 +879,8 @@ TEST_F(SceneSerializerSpec, Deserialize_DoesNotHoistSingleChildAnimator)
             restoredFox = entity;
         }
     });
-    ASSERT_NE(restoredRoot, fg::kInvalidEntity);
-    ASSERT_NE(restoredFox, fg::kInvalidEntity);
+    ASSERT_NE(restoredRoot, fr::NullEntity);
+    ASSERT_NE(restoredFox, fr::NullEntity);
     EXPECT_FALSE(mRegistry->HasComponent<fg::AnimatorComponent>(restoredRoot));
     EXPECT_TRUE(mRegistry->HasComponent<fg::AnimatorComponent>(restoredFox));
 }

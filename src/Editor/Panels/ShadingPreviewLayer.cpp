@@ -4,7 +4,6 @@
 #include "Editor/EditorViewportHost.hpp"
 #include "Editor/ViewportDpi.hpp"
 #include "Editor/ViewportQuality.hpp"
-#include "Frigga/ECS/Components/HierarchyComponent.hpp"
 #include "Frigga/ECS/Components/LightComponent.hpp"
 #include "Frigga/ECS/Components/MaterialComponent.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"
@@ -44,7 +43,8 @@ void ShadingPreviewLayer::onDettach()
 {
     if(mPreviewBuilt && mPreviewRoot != static_cast<fr::Entity>(-1))
     {
-        fg::TransformUtil::DestroySubtree(*mRegistry, mPreviewRoot);
+        mRegistry->DestroyEntity(mPreviewRoot); // Freyr cascades to the subtree.
+        mRegistry->ExecuteTasks();
         mPreviewBuilt   = false;
         mPreviewRoot    = static_cast<fr::Entity>(-1);
         mPreviewSphere  = static_cast<fr::Entity>(-1);
@@ -76,20 +76,20 @@ void ShadingPreviewLayer::ensurePreviewScene()
         fg::TransformComponent {.position = {0.0f, 0.75f, 0.0f}, .scale = {1.0f, 1.0f, 1.0f}},
         fg::MeshComponent {.meshId = mPrimitives->GetMesh(fg::PrimitiveType::Sphere)},
         fg::MaterialComponent {.materialId = mPrimitives->GetDefaultMaterial()});
-    fg::TransformUtil::SetParent(*mRegistry, mPreviewSphere, mPreviewRoot, true);
+    fg::TransformUtil::Reparent(*mRegistry, mPreviewSphere, mPreviewRoot, true);
 
     const auto ground = mRegistry->CreateEntity(
         fg::NameComponent {.name = "__ShadingPreviewGround"},
         fg::TransformComponent {.scale = {4.0f, 1.0f, 4.0f}},
         fg::MeshComponent {.meshId = mPrimitives->GetMesh(fg::PrimitiveType::Plane)},
         fg::MaterialComponent {.materialId = mPrimitives->GetDefaultMaterial()});
-    fg::TransformUtil::SetParent(*mRegistry, ground, mPreviewRoot, true);
+    fg::TransformUtil::Reparent(*mRegistry, ground, mPreviewRoot, true);
 
     const auto keyLight = mRegistry->CreateEntity(
         fg::NameComponent {.name = "__ShadingPreviewKeyLight"},
         fg::TransformComponent {.position = {2.5f, 3.5f, 2.0f}},
         fg::LightComponent {.type = fra::LightType::Point, .radius = 20.0f, .intensity = 45.0f});
-    fg::TransformUtil::SetParent(*mRegistry, keyLight, mPreviewRoot, true);
+    fg::TransformUtil::Reparent(*mRegistry, keyLight, mPreviewRoot, true);
 
     const auto fillLight = mRegistry->CreateEntity(
         fg::NameComponent {.name = "__ShadingPreviewFillLight"},
@@ -98,7 +98,7 @@ void ShadingPreviewLayer::ensurePreviewScene()
                             .color     = {0.85f, 0.9f, 1.0f},
                             .radius    = 20.0f,
                             .intensity = 18.0f});
-    fg::TransformUtil::SetParent(*mRegistry, fillLight, mPreviewRoot, true);
+    fg::TransformUtil::Reparent(*mRegistry, fillLight, mPreviewRoot, true);
 
     const auto rimLight = mRegistry->CreateEntity(
         fg::NameComponent {.name = "__ShadingPreviewRimLight"},
@@ -107,7 +107,7 @@ void ShadingPreviewLayer::ensurePreviewScene()
                             .color     = {1.0f, 0.95f, 0.85f},
                             .radius    = 20.0f,
                             .intensity = 25.0f});
-    fg::TransformUtil::SetParent(*mRegistry, rimLight, mPreviewRoot, true);
+    fg::TransformUtil::Reparent(*mRegistry, rimLight, mPreviewRoot, true);
 
     mPreviewBuilt = true;
 }

@@ -283,7 +283,7 @@ namespace FRIGGA_NAMESPACE
                 const ImU32 color =
                     AdjustColor(ColorForMotion(rigidBody.motion), selected, inactive);
                 const float thickness = selected ? 3.0f : 1.5f;
-                glm::mat4 model       = TransformUtil::WorldMatrix(*registry, entity);
+                glm::mat4 model       = TransformUtil::GetWorldMatrix(*registry, entity);
                 if(rigidBody.centerOffset.x != 0.0f || rigidBody.centerOffset.y != 0.0f ||
                    rigidBody.centerOffset.z != 0.0f)
                 {
@@ -351,7 +351,7 @@ namespace FRIGGA_NAMESPACE
                         AdjustColor(IM_COL32(220, 120, 255, 220), selected, false);
                     const float thickness = selected ? 3.0f : 1.5f;
                     const float radius    = std::max(desc.radius, 0.001f);
-                    const auto pose       = TransformUtil::WorldPose(*registry, entity);
+                    const auto pose       = TransformUtil::GetWorldPose(*registry, entity);
                     const glm::vec3 center =
                         pose.position + pose.rotation * CapsuleCenterLocalFromDesc(desc);
                     glm::mat4 model = glm::translate(glm::mat4(1.0f), center);

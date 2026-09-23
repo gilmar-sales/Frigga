@@ -1,7 +1,6 @@
 #include "EmptyApp.hpp"
 
 #include <Frigga/ECS/Components/AudioSourceComponent.hpp>
-#include <Frigga/ECS/Components/HierarchyComponent.hpp>
 #include <Frigga/ECS/Components/NameComponent.hpp>
 #include <Frigga/ECS/Components/TransformComponent.hpp>
 #include <Frigga/Scene/Scene.hpp>

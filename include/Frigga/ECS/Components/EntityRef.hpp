@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Frigga/ECS/Components/HierarchyComponent.hpp"
 #include "Frigga/Macro.hpp"
 
 #include <Freyr/Freyr.hpp>
@@ -12,7 +11,7 @@ namespace FRIGGA_NAMESPACE
     /// PropertyKind::Entity instead of Int64. Runtime stores a raw Freyr id (no generation).
     struct EntityRef
     {
-        fr::Entity id = kInvalidEntity;
+        fr::Entity id = fr::NullEntity;
     };
 
     /// ImGui drag-drop payload when dragging an entity from the Hierarchy panel.

@@ -7,6 +7,7 @@
 #include "Frigga/ECS/Components/NameComponent.hpp"
 #include "Frigga/ECS/Components/RigidBodyComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
+#include "Frigga/ECS/TransformUtil.hpp"
 #include "Frigga/Scene/SceneSerializer.hpp"
 
 #include <vector>
@@ -36,6 +37,7 @@ namespace FRIGGA_NAMESPACE
         : mEcsRegistry(ecsRegistry), mRenderer(renderer), mWindow(window), mLogger(logger),
           mPrimitives(primitives), mAssets(assets), mUserComponents(userComponents)
     {
+        TransformUtil::InstallObservers(*mEcsRegistry);
         CreateDefaultEntities();
     }
 

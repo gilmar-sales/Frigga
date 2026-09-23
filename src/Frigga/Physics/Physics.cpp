@@ -252,7 +252,7 @@ namespace FRIGGA_NAMESPACE
         glm::quat rotation {1.0f, 0.0f, 0.0f, 0.0f};
         if(mRegistry->HasComponent<TransformComponent>(entity))
         {
-            rotation = TransformUtil::WorldPose(*mRegistry, entity).rotation;
+            rotation = TransformUtil::GetWorldPose(*mRegistry, entity).rotation;
             TransformUtil::SetWorldPosition(*mRegistry, entity, worldPosition);
         }
 
@@ -275,7 +275,7 @@ namespace FRIGGA_NAMESPACE
         glm::vec3 position {};
         if(mRegistry->HasComponent<TransformComponent>(entity))
         {
-            const auto pose = TransformUtil::WorldPose(*mRegistry, entity);
+            const auto pose = TransformUtil::GetWorldPose(*mRegistry, entity);
             position        = pose.position;
             TransformUtil::SetWorldPose(*mRegistry, entity, pose.position, worldRotation);
         }
@@ -355,7 +355,7 @@ namespace FRIGGA_NAMESPACE
                 return;
             }
 
-            const auto pose = TransformUtil::WorldPose(*mRegistry, entity);
+            const auto pose = TransformUtil::GetWorldPose(*mRegistry, entity);
             PhysicsBodyDesc desc {};
             desc.motion            = rb.motion;
             desc.shape             = rb.shape;

@@ -15,7 +15,6 @@
 #include <Frigga/ECS/Components/CameraComponent.hpp>
 #include <Frigga/ECS/Components/FullscreenEffectComponent.hpp>
 #include <Frigga/ECS/Components/HealthBarComponent.hpp>
-#include <Frigga/ECS/Components/HierarchyComponent.hpp>
 #include <Frigga/ECS/Components/LightComponent.hpp>
 #include <Frigga/ECS/Components/MaterialComponent.hpp>
 #include <Frigga/ECS/Components/MeshComponent.hpp>
@@ -24,11 +23,13 @@
 #include <Frigga/ECS/Components/PrefabComponent.hpp>
 #include <Frigga/ECS/Components/RigidBodyComponent.hpp>
 #include <Frigga/ECS/Components/TransformComponent.hpp>
+#include <Frigga/ECS/Components/WorldTransformComponent.hpp>
 #include <Frigga/ECS/Systems/AnimationSystem.hpp>
 #include <Frigga/ECS/Systems/AudioSystem.hpp>
 #include <Frigga/ECS/Systems/PhysicsInterpolationSystem.hpp>
 #include <Frigga/ECS/Systems/PhysicsSystem.hpp>
 #include <Frigga/ECS/Systems/RenderSystem.hpp>
+#include <Frigga/ECS/TransformPolicy.hpp>
 #include <Frigga/ECS/UserComponentRegistry.hpp>
 #include <Frigga/Input/Input.hpp>
 #include <Frigga/Physics/IPhysicsWorld.hpp>
@@ -45,8 +46,6 @@ namespace FRIGGA_NAMESPACE
         applicationBuilder
             .WithExtension<fr::FreyrExtension>([](fr::FreyrExtension &freyr) {
                 freyr.WithComponent<NameComponent>()
-                    .WithComponent<HierarchyComponent>()
-                    .WithComponent<TransformComponent>()
                     .WithComponent<MeshComponent>()
                     .WithComponent<MaterialComponent>()
                     .WithComponent<CameraComponent>()
@@ -73,6 +72,10 @@ namespace FRIGGA_NAMESPACE
                             .WithSystem<PhysicsInterpolationSystem>()
                             .WithSystem<AudioSystem>();
                     })
+                    // Registers TransformComponent/WorldTransformComponent, ChildOf/ParentDepth
+                    // and the "HierarchyPropagation" pipeline (PostUpdate), kept right before
+                    // Render so draws read this frame's world matrices.
+                    .WithHierarchyPropagation<TransformPolicy>()
                     .WithPipeline([](fr::PipelineBuilder &pipeline) {
                         // Always: pose preview then draw. Animation stays here so Edit
                         // can preview clips without ticking Main/Simulation.

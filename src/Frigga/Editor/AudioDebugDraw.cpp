@@ -72,7 +72,7 @@ namespace FRIGGA_NAMESPACE
         registry->CreateMutation()->Each(
             [&](fr::Entity entity, TransformComponent &, AudioSourceComponent &) {
                 ImVec2 screen {};
-                if(!Project(TransformUtil::WorldPose(*registry, entity).position, viewProj,
+                if(!Project(TransformUtil::GetWorldPose(*registry, entity).position, viewProj,
                             imageMin, imageSize, screen))
                 {
                     return;
@@ -88,7 +88,7 @@ namespace FRIGGA_NAMESPACE
         registry->CreateMutation()->Each(
             [&](fr::Entity entity, TransformComponent &, AudioListenerComponent &) {
                 ImVec2 screen {};
-                if(!Project(TransformUtil::WorldPose(*registry, entity).position, viewProj,
+                if(!Project(TransformUtil::GetWorldPose(*registry, entity).position, viewProj,
                             imageMin, imageSize, screen))
                 {
                     return;
@@ -124,13 +124,13 @@ namespace FRIGGA_NAMESPACE
 
         registry->CreateMutation()->Each(
             [&](fr::Entity entity, TransformComponent &, AudioSourceComponent &) {
-                ConsiderHit(entity, TransformUtil::WorldPose(*registry, entity).position, viewProj,
+                ConsiderHit(entity, TransformUtil::GetWorldPose(*registry, entity).position, viewProj,
                             imageMin, imageSize, mouse, radiusSq, bestEntity, bestDistSq, found);
             });
 
         registry->CreateMutation()->Each(
             [&](fr::Entity entity, TransformComponent &, AudioListenerComponent &) {
-                ConsiderHit(entity, TransformUtil::WorldPose(*registry, entity).position, viewProj,
+                ConsiderHit(entity, TransformUtil::GetWorldPose(*registry, entity).position, viewProj,
                             imageMin, imageSize, mouse, radiusSq, bestEntity, bestDistSq, found);
             });
 

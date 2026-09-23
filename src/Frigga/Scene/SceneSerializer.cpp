@@ -9,7 +9,6 @@
 #include "Frigga/ECS/Components/CameraComponent.hpp"
 #include "Frigga/ECS/Components/FullscreenEffectComponent.hpp"
 #include "Frigga/ECS/Components/HealthBarComponent.hpp"
-#include "Frigga/ECS/Components/HierarchyComponent.hpp"
 #include "Frigga/ECS/Components/LightComponent.hpp"
 #include "Frigga/ECS/Components/MaterialComponent.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"
@@ -201,9 +200,25 @@ namespace FRIGGA_NAMESPACE
             return json;
         }
 
+        /// Pre-v8 entities stored the Frigga HierarchyComponent link as `parent`; v8 mirrors
+        /// Freyr's fr::ChildOf. Only SceneEntityDto ever had a `parent` key.
+        [[nodiscard]] std::string MigrateParentToChildOf(std::string json)
+        {
+            constexpr std::string_view kFrom = "\"parent\":";
+            constexpr std::string_view kTo   = "\"childOf\":";
+            std::size_t pos = 0;
+            while((pos = json.find(kFrom, pos)) != std::string::npos)
+            {
+                json.replace(pos, kFrom.size(), kTo);
+                pos += kTo.size();
+            }
+            return json;
+        }
+
         [[nodiscard]] std::string MigrateSceneJson(std::string json)
         {
-            return MigrateBillboardTextFontSource(MigrateRigidBodyCenterOffset(std::move(json)));
+            return MigrateParentToChildOf(
+                MigrateBillboardTextFontSource(MigrateRigidBodyCenterOffset(std::move(json))));
         }
 
         struct SceneBillboardDto
@@ -354,7 +369,8 @@ namespace FRIGGA_NAMESPACE
             std::optional<SceneFullscreenEffectDto> fullscreenEffect;
             std::optional<std::vector<SceneUserComponentDto>> userComponents;
             std::optional<std::string>             prefabSource;
-            std::optional<int64_t>                 parent;
+            /// Index of the fr::ChildOf parent in `entities` (v8+; was `parent`).
+            std::optional<int64_t>                 childOf;
         };
 
         struct SceneEditorCameraDto
@@ -1341,7 +1357,7 @@ namespace FRIGGA_NAMESPACE
             return dto;
         }
 
-        void AssignParentIndices(fr::Registry &registry, const std::vector<fr::Entity> &entities,
+        void AssignChildOfIndices(fr::Registry &registry, const std::vector<fr::Entity> &entities,
                                  std::vector<SceneEntityDto> &dtos)
         {
             std::unordered_map<fr::Entity, int64_t> indexByEntity;
@@ -1350,18 +1366,22 @@ namespace FRIGGA_NAMESPACE
             {
                 indexByEntity[entities[static_cast<std::size_t>(i)]] = i;
             }
+            registry.FlushHierarchyComponents();
             for(int64_t i = 0; i < static_cast<int64_t>(entities.size()); ++i)
             {
-                const auto parent =
-                    TransformUtil::ParentOf(registry, entities[static_cast<std::size_t>(i)]);
-                if(parent == kInvalidEntity)
-                {
-                    continue;
-                }
-                if(const auto found = indexByEntity.find(parent); found != indexByEntity.end())
-                {
-                    dtos[static_cast<std::size_t>(i)].parent = found->second;
-                }
+                registry.TryGetComponents<fr::ChildOf>(
+                    entities[static_cast<std::size_t>(i)], [&](fr::ChildOf &childOf) {
+                        const auto parent = registry.Resolve(childOf.parent);
+                        if(!parent)
+                        {
+                            return;
+                        }
+                        if(const auto found = indexByEntity.find(*parent);
+                           found != indexByEntity.end())
+                        {
+                            dtos[static_cast<std::size_t>(i)].childOf = found->second;
+                        }
+                    });
             }
         }
 
@@ -1398,7 +1418,7 @@ namespace FRIGGA_NAMESPACE
                             continue;
                         }
                         const auto entity = static_cast<fr::Entity>(raw);
-                        if(entity == kInvalidEntity)
+                        if(entity == fr::NullEntity)
                         {
                             propertyDto.intValue = -1;
                             continue;
@@ -1440,12 +1460,10 @@ namespace FRIGGA_NAMESPACE
         void CollectSubtree(fr::Registry &registry, fr::Entity root, std::vector<fr::Entity> &out)
         {
             out.push_back(root);
-            registry.TryGetComponents<HierarchyComponent>(root, [&](HierarchyComponent &hierarchy) {
-                for(const auto child : hierarchy.children)
-                {
-                    CollectSubtree(registry, child, out);
-                }
-            });
+            for(const auto child : registry.Children(root))
+            {
+                CollectSubtree(registry, child, out);
+            }
         }
 
         /// Legacy multi-submesh scenes put one Animator per child. Hoist a shared
@@ -1456,8 +1474,12 @@ namespace FRIGGA_NAMESPACE
                                            &logHoist)
         {
             std::vector<fr::Entity> parents;
-            registry.CreateMutation()->Each(
-                [&](fr::Entity entity, HierarchyComponent &) { parents.push_back(entity); });
+            registry.CreateMutation()->Each([&](fr::Entity entity, NameComponent &) {
+                if(!registry.Children(entity).empty())
+                {
+                    parents.push_back(entity);
+                }
+            });
 
             for(const auto parent : parents)
             {
@@ -1470,35 +1492,31 @@ namespace FRIGGA_NAMESPACE
                 std::string             sharedSource;
                 bool                    sourcesMatch = true;
 
-                registry.TryGetComponents<HierarchyComponent>(
-                    parent, [&](HierarchyComponent &hierarchy) {
-                        for(const auto child : hierarchy.children)
-                        {
-                            if(!registry.HasComponent<AnimatorComponent>(child))
-                            {
-                                continue;
-                            }
-                            std::string childSource;
-                            registry.TryGetComponents<AnimatorComponent>(
-                                child, [&](AnimatorComponent &animator) {
-                                    childSource = animator.modelSource;
-                                });
-                            if(childSource.empty())
-                            {
-                                continue;
-                            }
-                            if(sharedSource.empty())
-                            {
-                                sharedSource = childSource;
-                            }
-                            else if(sharedSource != childSource)
-                            {
-                                sourcesMatch = false;
-                                return;
-                            }
-                            animatedChildren.push_back(child);
-                        }
-                    });
+                for(const auto child : registry.Children(parent))
+                {
+                    if(!registry.HasComponent<AnimatorComponent>(child))
+                    {
+                        continue;
+                    }
+                    std::string childSource;
+                    registry.TryGetComponents<AnimatorComponent>(
+                        child,
+                        [&](AnimatorComponent &animator) { childSource = animator.modelSource; });
+                    if(childSource.empty())
+                    {
+                        continue;
+                    }
+                    if(sharedSource.empty())
+                    {
+                        sharedSource = childSource;
+                    }
+                    else if(sharedSource != childSource)
+                    {
+                        sourcesMatch = false;
+                        break;
+                    }
+                    animatedChildren.push_back(child);
+                }
 
                 if(!sourcesMatch || animatedChildren.size() < 2)
                 {
@@ -1551,15 +1569,44 @@ namespace FRIGGA_NAMESPACE
 
         auto registry = scene.mEcsRegistry;
 
-        std::vector<fr::Entity> serializedEntities;
-        registry->CreateMutation()->Each([&](fr::Entity entity, NameComponent &name) {
-            document.entities.push_back(FillEntityDto(*registry, scene.mPrimitives, scene.mAssets,
-                                                       scene.mLogger, scene.mUserComponents,
-                                                       entity, name.name));
-            serializedEntities.push_back(entity);
-        });
+        // Parents before children, siblings in Freyr's child order, so loading re-attaches
+        // children (registry.SetParent appends) in the same order.
+        std::vector<fr::Entity> named;
+        registry->CreateMutation()->Each(
+            [&](fr::Entity entity, NameComponent &) { named.push_back(entity); });
+        const std::unordered_set<fr::Entity> namedSet(named.begin(), named.end());
 
-        AssignParentIndices(*registry, serializedEntities, document.entities);
+        std::vector<fr::Entity> serializedEntities;
+        serializedEntities.reserve(named.size());
+        const auto visit = [&](const auto &self, fr::Entity entity) -> void {
+            serializedEntities.push_back(entity);
+            for(const auto child : registry->Children(entity))
+            {
+                if(namedSet.contains(child))
+                {
+                    self(self, child);
+                }
+            }
+        };
+        for(const auto entity : named)
+        {
+            if(!namedSet.contains(registry->GetParent(entity)))
+            {
+                visit(visit, entity);
+            }
+        }
+
+        for(const auto entity : serializedEntities)
+        {
+            registry->TryGetComponents<NameComponent>(entity, [&](NameComponent &name) {
+                document.entities.push_back(FillEntityDto(*registry, scene.mPrimitives,
+                                                           scene.mAssets, scene.mLogger,
+                                                           scene.mUserComponents, entity,
+                                                           name.name));
+            });
+        }
+
+        AssignChildOfIndices(*registry, serializedEntities, document.entities);
         AssignEntityRefIndices(serializedEntities, document.entities);
 
         outJson.clear();
@@ -2290,7 +2337,7 @@ namespace FRIGGA_NAMESPACE
             }
 
             createdEntities.push_back(entity);
-            parentIndices.push_back(entityDto.parent);
+            parentIndices.push_back(entityDto.childOf);
 
             if(camera)
             {
@@ -2327,7 +2374,7 @@ namespace FRIGGA_NAMESPACE
                                         document.entities[i].name);
                 return false;
             }
-            if(!TransformUtil::SetParent(*registry, createdEntities[i],
+            if(!TransformUtil::Reparent(*registry, createdEntities[i],
                                          createdEntities[static_cast<std::size_t>(parentIndex)],
                                          false))
             {
@@ -2360,6 +2407,12 @@ namespace FRIGGA_NAMESPACE
                     "Hoisted shared Animator ({}) onto parent from {} child meshes", source,
                     count);
             });
+
+        // Observers attach WorldTransformComponent on the first flush; compute worlds now so
+        // readers do not wait for the next PostUpdate propagation.
+        scene.FlushEcs();
+        scene.FlushEcs();
+        TransformUtil::RefreshAllWorlds(*registry);
         return true;
     }
 
@@ -2928,6 +2981,8 @@ namespace FRIGGA_NAMESPACE
             }
             UpsertComponent(*registry, entity, parsed);
             scene.FlushEcs();
+            TransformUtil::RefreshWorld(*registry, entity);
+            TransformUtil::MarkDirty(*registry, entity);
             return true;
         }
 
@@ -3355,7 +3410,7 @@ namespace FRIGGA_NAMESPACE
 
     bool SceneSerializer::SerializePrefab(Scene &scene, fr::Entity root, std::string &outJson)
     {
-        if(root == kInvalidEntity)
+        if(root == fr::NullEntity)
         {
             return false;
         }
@@ -3393,7 +3448,7 @@ namespace FRIGGA_NAMESPACE
             }
             if(entity == root && dto.transform)
             {
-                const auto world = TransformUtil::WorldPose(*registry, root);
+                const auto world = TransformUtil::GetWorldPose(*registry, root);
                 TransformComponent worldTransform {
                     .position = world.position,
                     .scale    = world.scale,
@@ -3404,11 +3459,11 @@ namespace FRIGGA_NAMESPACE
             document.entities.push_back(std::move(dto));
         }
 
-        AssignParentIndices(*registry, entities, document.entities);
+        AssignChildOfIndices(*registry, entities, document.entities);
         AssignEntityRefIndices(entities, document.entities);
         if(!document.entities.empty())
         {
-            document.entities.front().parent.reset();
+            document.entities.front().childOf.reset();
         }
 
         outJson.clear();
@@ -3424,7 +3479,7 @@ namespace FRIGGA_NAMESPACE
     bool SceneSerializer::InstantiatePrefab(Scene &scene, std::string_view json, fr::Entity parent,
                                             fr::Entity &outRoot, std::string_view prefabSource)
     {
-        outRoot = kInvalidEntity;
+        outRoot = fr::NullEntity;
         const auto migrated = MigrateSceneJson(std::string(json));
         const simdjson::padded_string padded(migrated);
         PrefabDocument document {};
@@ -3493,8 +3548,8 @@ namespace FRIGGA_NAMESPACE
         std::vector<fr::Entity> roots;
         for(const auto entity : created)
         {
-            const auto entityParent = TransformUtil::ParentOf(*scene.mEcsRegistry, entity);
-            if(entityParent == kInvalidEntity || before.contains(entityParent))
+            const auto entityParent = scene.mEcsRegistry->GetParent(entity);
+            if(entityParent == fr::NullEntity || before.contains(entityParent))
             {
                 roots.push_back(entity);
             }
@@ -3505,11 +3560,11 @@ namespace FRIGGA_NAMESPACE
         }
 
         outRoot = roots.front();
-        if(parent != kInvalidEntity)
+        if(parent != fr::NullEntity)
         {
             for(const auto root : roots)
             {
-                if(!TransformUtil::SetParent(*scene.mEcsRegistry, root, parent, true))
+                if(!TransformUtil::Reparent(*scene.mEcsRegistry, root, parent, true))
                 {
                     scene.mLogger->LogWarning("Failed to parent prefab instance under selection");
                 }

@@ -2,7 +2,6 @@
 
 #include "Editor/DockLayout.hpp"
 #include "Frigga/ECS/Components/AnimatorComponent.hpp"
-#include "Frigga/ECS/Components/HierarchyComponent.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 
 #include <cstdio>
@@ -34,19 +33,14 @@ namespace
             return source;
         }
 
-        std::string fromChild;
-        registry.TryGetComponents<fg::HierarchyComponent>(
-            entity, [&](fg::HierarchyComponent &hierarchy) {
-                for(const auto child : hierarchy.children)
-                {
-                    fromChild = ModelSourceFromMesh(assets, child, registry);
-                    if(!fromChild.empty())
-                    {
-                        return;
-                    }
-                }
-            });
-        return fromChild;
+        for(const auto child : registry.Children(entity))
+        {
+            if(auto fromChild = ModelSourceFromMesh(assets, child, registry); !fromChild.empty())
+            {
+                return fromChild;
+            }
+        }
+        return {};
     }
 } // namespace
 

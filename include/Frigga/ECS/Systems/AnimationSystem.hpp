@@ -38,13 +38,15 @@ namespace FRIGGA_NAMESPACE
 
         ~AnimationSystem() override = default;
 
-        void Update(float deltaTime) override;
+        /// Evaluates poses then drains clip events (Render pipeline, after HierarchyPropagation).
         void PostUpdate(float deltaTime) override;
 
         /// After Application closes bone/GPU-anim upload sessions for the frame.
         void CommitGpuAnimationFrame();
 
       private:
+        void evaluate(float deltaTime);
+
         /// Must be nothrow move-constructible for rigtorp::UnboundedMPMCQueue.
         struct PendingAnimEvents
         {

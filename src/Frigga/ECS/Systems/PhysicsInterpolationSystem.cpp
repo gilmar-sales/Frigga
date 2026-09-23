@@ -1,4 +1,5 @@
 #include <Frigga/ECS/Systems/PhysicsInterpolationSystem.hpp>
+#include <Frigga/ECS/Systems/PhysicsSystem.hpp>
 
 #include "Frigga/ECS/Components/RigidBodyComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
@@ -24,7 +25,7 @@ namespace FRIGGA_NAMESPACE
         const float alpha = mPhysicsWorld->GetInterpolationAlpha();
 
         mRegistry->CreateMutation()->EachAsync(
-            [&](fr::Entity entity, TransformComponent &, RigidBodyComponent &rigidBody) {
+            [&](fr::Entity entity, TransformComponent &transform, RigidBodyComponent &rigidBody) {
                 if(!rigidBody.body.IsValid() || rigidBody.motion == BodyMotionType::Kinematic)
                 {
                     return;
@@ -36,8 +37,9 @@ namespace FRIGGA_NAMESPACE
                 {
                     return;
                 }
-                TransformUtil::SetWorldPose(*mRegistry, entity, position, rotation);
+                WriteBodyPose(*mRegistry, entity, transform, position, rotation);
             });
+        MarkDynamicBodiesDirty(*mRegistry);
     }
 
 } // namespace FRIGGA_NAMESPACE

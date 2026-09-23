@@ -2,7 +2,6 @@
 
 #include <Frigga/Asset/AssetRegistry.hpp>
 #include <Frigga/Asset/PrimitiveMeshFactory.hpp>
-#include <Frigga/ECS/Components/HierarchyComponent.hpp>
 #include <Frigga/ECS/Components/LightComponent.hpp>
 #include <Frigga/ECS/Components/MaterialComponent.hpp>
 #include <Frigga/ECS/Components/MeshComponent.hpp>
@@ -82,16 +81,16 @@ TEST_F(PrefabSpec, RoundTrip_ParentChildPreservesLocalTransforms)
         fg::TransformComponent {.position = {1.0f, 2.0f, 3.0f}},
         fg::LightComponent {.type = fra::LightType::Point, .intensity = 12.0f});
     mRegistry->ExecuteTasks();
-    ASSERT_TRUE(fg::TransformUtil::SetParent(*mRegistry, child, parent, false));
+    ASSERT_TRUE(fg::TransformUtil::Reparent(*mRegistry, child, parent, false));
 
     std::string json;
     ASSERT_TRUE(fg::Prefab::Serialize(*mScene, parent, json));
     EXPECT_NE(json.find("\"Enemy\""), std::string::npos);
     EXPECT_EQ(json.find("editorCamera"), std::string::npos);
 
-    fr::Entity instance = fg::kInvalidEntity;
-    ASSERT_TRUE(fg::Prefab::Instantiate(*mScene, json, fg::kInvalidEntity, instance));
-    ASSERT_NE(instance, fg::kInvalidEntity);
+    fr::Entity instance = fr::NullEntity;
+    ASSERT_TRUE(fg::Prefab::Instantiate(*mScene, json, fr::NullEntity, instance));
+    ASSERT_NE(instance, fr::NullEntity);
 
     std::string instanceName;
     mRegistry->TryGetComponents<fg::NameComponent>(
@@ -102,7 +101,7 @@ TEST_F(PrefabSpec, RoundTrip_ParentChildPreservesLocalTransforms)
     mRegistry->TryGetComponents<fg::HierarchyComponent>(
         instance, [&](fg::HierarchyComponent &hierarchy) { children = hierarchy.children; });
     ASSERT_EQ(children.size(), 1u);
-    EXPECT_EQ(fg::TransformUtil::ParentOf(*mRegistry, children.front()), instance);
+    EXPECT_EQ(mRegistry->GetParent(children.front()), instance);
 
     mRegistry->TryGetComponents<fg::TransformComponent>(
         children.front(), [](fg::TransformComponent &transform) {
@@ -129,9 +128,9 @@ TEST_F(PrefabSpec, Instantiate_ParentsRootUnderSelection)
     std::string json;
     ASSERT_TRUE(fg::Prefab::Serialize(*mScene, root, json));
 
-    fr::Entity instance = fg::kInvalidEntity;
+    fr::Entity instance = fr::NullEntity;
     ASSERT_TRUE(fg::Prefab::Instantiate(*mScene, json, holder, instance));
-    EXPECT_EQ(fg::TransformUtil::ParentOf(*mRegistry, instance), holder);
+    EXPECT_EQ(mRegistry->GetParent(instance), holder);
 }
 
 TEST_F(PrefabSpec, SaveLoad_AttachesPrefabComponent)
@@ -147,8 +146,8 @@ TEST_F(PrefabSpec, SaveLoad_AttachesPrefabComponent)
     std::filesystem::remove(path);
     ASSERT_TRUE(fg::Prefab::Save(*mScene, entity, path));
 
-    fr::Entity instance = fg::kInvalidEntity;
-    ASSERT_TRUE(fg::Prefab::Load(*mScene, path, fg::kInvalidEntity, instance));
+    fr::Entity instance = fr::NullEntity;
+    ASSERT_TRUE(fg::Prefab::Load(*mScene, path, fr::NullEntity, instance));
     ASSERT_TRUE(mRegistry->HasComponent<fg::PrefabComponent>(instance));
     mRegistry->TryGetComponents<fg::PrefabComponent>(instance, [&](fg::PrefabComponent &prefab) {
         EXPECT_FALSE(prefab.source.empty());
@@ -240,10 +239,10 @@ TEST_F(PrefabSpec, PrefabCache_GetOrLoad_HitsDiskOnce)
     cache.InvalidatePath(path);
     const auto loadsBefore = cache.DiskLoadCount();
 
-    fr::Entity first = fg::kInvalidEntity;
-    fr::Entity second = fg::kInvalidEntity;
-    ASSERT_TRUE(fg::Prefab::Load(*mScene, path, fg::kInvalidEntity, first));
-    ASSERT_TRUE(fg::Prefab::Load(*mScene, path, fg::kInvalidEntity, second));
+    fr::Entity first = fr::NullEntity;
+    fr::Entity second = fr::NullEntity;
+    ASSERT_TRUE(fg::Prefab::Load(*mScene, path, fr::NullEntity, first));
+    ASSERT_TRUE(fg::Prefab::Load(*mScene, path, fr::NullEntity, second));
     EXPECT_EQ(cache.DiskLoadCount(), loadsBefore + 1u);
     EXPECT_TRUE(cache.Contains(fg::PrefabCache::MakeCacheKey(path)));
 
@@ -267,8 +266,8 @@ TEST_F(PrefabSpec, PrefabCache_Invalidate_ReloadsFromDisk)
     auto &cache = fg::PrefabCache::Instance();
     cache.InvalidatePath(path);
 
-    fr::Entity first = fg::kInvalidEntity;
-    ASSERT_TRUE(fg::Prefab::Load(*mScene, path, fg::kInvalidEntity, first));
+    fr::Entity first = fr::NullEntity;
+    ASSERT_TRUE(fg::Prefab::Load(*mScene, path, fr::NullEntity, first));
 
     {
         std::ofstream file(path, std::ios::binary | std::ios::trunc);
@@ -277,16 +276,16 @@ TEST_F(PrefabSpec, PrefabCache_Invalidate_ReloadsFromDisk)
     }
 
     // Stale cache still serves the previous JSON until Invalidate.
-    fr::Entity stale = fg::kInvalidEntity;
-    ASSERT_TRUE(fg::Prefab::Load(*mScene, path, fg::kInvalidEntity, stale));
+    fr::Entity stale = fr::NullEntity;
+    ASSERT_TRUE(fg::Prefab::Load(*mScene, path, fr::NullEntity, stale));
     std::string staleName;
     mRegistry->TryGetComponents<fg::NameComponent>(
         stale, [&](fg::NameComponent &name) { staleName = name.name; });
     EXPECT_EQ(staleName, "Original");
 
     cache.InvalidatePath(path);
-    fr::Entity fresh = fg::kInvalidEntity;
-    ASSERT_TRUE(fg::Prefab::Load(*mScene, path, fg::kInvalidEntity, fresh));
+    fr::Entity fresh = fr::NullEntity;
+    ASSERT_TRUE(fg::Prefab::Load(*mScene, path, fr::NullEntity, fresh));
     std::string freshName;
     mRegistry->TryGetComponents<fg::NameComponent>(
         fresh, [&](fg::NameComponent &name) { freshName = name.name; });
@@ -310,8 +309,8 @@ TEST_F(PrefabSpec, PrefabCache_ClearCatalog_DropsEntries)
 
     auto &cache = fg::PrefabCache::Instance();
     cache.InvalidatePath(path);
-    fr::Entity instance = fg::kInvalidEntity;
-    ASSERT_TRUE(fg::Prefab::Load(*mScene, path, fg::kInvalidEntity, instance));
+    fr::Entity instance = fr::NullEntity;
+    ASSERT_TRUE(fg::Prefab::Load(*mScene, path, fr::NullEntity, instance));
     ASSERT_TRUE(cache.Contains(fg::PrefabCache::MakeCacheKey(path)));
 
     mAssets->ClearCatalog();
@@ -360,10 +359,10 @@ TEST_F(PrefabSpec, Instantiate_SharesNonDefaultMaterials)
         ]
     })";
 
-    fr::Entity a = fg::kInvalidEntity;
-    fr::Entity b = fg::kInvalidEntity;
-    ASSERT_TRUE(fg::Prefab::Instantiate(*mScene, kPrefabJson, fg::kInvalidEntity, a));
-    ASSERT_TRUE(fg::Prefab::Instantiate(*mScene, kPrefabJson, fg::kInvalidEntity, b));
+    fr::Entity a = fr::NullEntity;
+    fr::Entity b = fr::NullEntity;
+    ASSERT_TRUE(fg::Prefab::Instantiate(*mScene, kPrefabJson, fr::NullEntity, a));
+    ASSERT_TRUE(fg::Prefab::Instantiate(*mScene, kPrefabJson, fr::NullEntity, b));
     ASSERT_NE(a, b);
 
     std::uint32_t materialA = 0;

@@ -105,7 +105,7 @@ RuntimeApplication::RuntimeApplication(const skr::Arc<skr::ServiceProvider> &ser
     }
     mScene->PreferGameplayCamera();
 
-    for(const auto pipeline : {"Simulation", "Main", "Render"})
+    for(const auto pipeline : {"Simulation", "Main", "HierarchyPropagation", "Render"})
     {
         if(const auto pipelineId = mSystemManager->FindPipelineId(pipeline))
         {
@@ -127,7 +127,7 @@ void RuntimeApplication::RenderScene()
     {
         mSimulation->FlushPending();
     }
-    for(const auto pipeline : {"Simulation", "Main", "Render"})
+    for(const auto pipeline : {"Simulation", "Main", "HierarchyPropagation", "Render"})
     {
         if(const auto pipelineId = mSystemManager->FindPipelineId(pipeline))
         {

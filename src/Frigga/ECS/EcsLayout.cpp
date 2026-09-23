@@ -37,6 +37,12 @@ namespace FRIGGA_NAMESPACE
                    label.substr(label.size() - suffix.size()) == suffix;
         }
 
+        /// fr::HierarchyPropagationSystem<TransformPolicy> (label is the templated type name).
+        [[nodiscard]] bool IsHierarchySystemLabel(std::string_view label)
+        {
+            return label.find("HierarchyPropagationSystem") != std::string_view::npos;
+        }
+
         [[nodiscard]] std::optional<fr::SystemId> FindSystemByLabel(fr::Registry &registry,
                                                                     std::string_view label)
         {
@@ -64,17 +70,22 @@ namespace FRIGGA_NAMESPACE
     bool IsBuiltinPipelineName(std::string_view name)
     {
         return name == kMainPipelineName || name == kDefaultEcsPipelineName ||
-               name == kRenderPipelineName;
+               name == kRenderPipelineName || name == kHierarchyPipelineName;
     }
 
     bool IsEngineSystemLabel(std::string_view label)
     {
         return LabelEndsWith(label, "AnimationSystem") || LabelEndsWith(label, "RenderSystem") ||
-               LabelEndsWith(label, "PhysicsSystem") || LabelEndsWith(label, "AudioSystem");
+               LabelEndsWith(label, "PhysicsSystem") || LabelEndsWith(label, "AudioSystem") ||
+               IsHierarchySystemLabel(label);
     }
 
     const char *EngineSystemBuiltinPipeline(std::string_view label)
     {
+        if(IsHierarchySystemLabel(label))
+        {
+            return kHierarchyPipelineName.data();
+        }
         if(LabelEndsWith(label, "RenderSystem") || LabelEndsWith(label, "AnimationSystem"))
         {
             return kRenderPipelineName.data();
@@ -129,6 +140,12 @@ namespace FRIGGA_NAMESPACE
             (void)registry.MoveSystem(id, *targetId, slot);
         });
 
+        if(const auto hierarchyId = registry.FindPipelineId(std::string(kHierarchyPipelineName)))
+        {
+            registry.SetPipelineEnabled(*hierarchyId, true);
+            (void)registry.MovePipeline(*hierarchyId,
+                                        static_cast<std::size_t>(registry.GetPipelineCount()));
+        }
         (void)registry.MovePipeline(renderId, static_cast<std::size_t>(registry.GetPipelineCount()));
     }
 

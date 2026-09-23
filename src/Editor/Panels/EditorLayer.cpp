@@ -649,7 +649,7 @@ void EditorLayer::drawGizmos(const ImVec2 &imageMin, const ImVec2 &imageSize, bo
 
     mRegistry->TryGetComponents<fg::TransformComponent>(
         selected, [this, &view, &proj, selected](fg::TransformComponent &) {
-            glm::mat4 model = fg::TransformUtil::WorldMatrix(*mRegistry, selected);
+            glm::mat4 model = fg::TransformUtil::GetWorldMatrix(*mRegistry, selected);
 
             ImGuizmo::Manipulate(glm::value_ptr(view), glm::value_ptr(proj), mOperation, mMode,
                                  glm::value_ptr(model));

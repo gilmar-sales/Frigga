@@ -1,69 +1,22 @@
 #include "Frigga/ECS/TransformUtil.hpp"
 
-#include "Frigga/ECS/Components/NameComponent.hpp"
-
-#include <algorithm>
-#include <array>
-#include <cmath>
-#include <cstddef>
-#include <unordered_set>
 #include <vector>
 
 namespace FRIGGA_NAMESPACE::TransformUtil
 {
     namespace
     {
-        glm::mat4 ParentWorldMatrix(fr::Registry &registry, fr::Entity entity)
+        /// Registry resource marking InstallObservers as done.
+        struct TransformObserversInstalled
         {
-            const auto parent = ParentOf(registry, entity);
-            if(parent == kInvalidEntity)
-            {
-                return glm::mat4(1.0f);
-            }
-            return WorldMatrix(registry, parent);
-        }
+        };
 
-        void EnsureHierarchy(fr::Registry &registry, fr::Entity entity)
+        void StoreWorld(fr::Registry &registry, fr::Entity entity, const glm::mat4 &parentWorld)
         {
-            if(entity == kInvalidEntity)
-            {
-                return;
-            }
-            if(!registry.HasComponent<HierarchyComponent>(entity))
-            {
-                registry.AddComponents(entity, HierarchyComponent {});
-                registry.ExecuteTasks();
-            }
-        }
-
-        void DetachFromParent(fr::Registry &registry, fr::Entity entity)
-        {
-            const auto oldParent = ParentOf(registry, entity);
-            if(oldParent == kInvalidEntity)
-            {
-                return;
-            }
-            registry.TryGetComponents<HierarchyComponent>(oldParent, [&](HierarchyComponent &hierarchy) {
-                std::erase(hierarchy.children, entity);
-            });
-        }
-
-        void CollectSubtree(fr::Registry &registry, fr::Entity entity, std::vector<fr::Entity> &out,
-                            std::unordered_set<fr::Entity> &seen)
-        {
-            if(entity == kInvalidEntity || !seen.insert(entity).second)
-            {
-                return;
-            }
-            std::vector<fr::Entity> children;
-            registry.TryGetComponents<HierarchyComponent>(entity, [&](HierarchyComponent &hierarchy) {
-                children = hierarchy.children;
-            });
-            for(const auto child : children)
-            {
-                CollectSubtree(registry, child, out, seen);
-            }
-            out.push_back(entity);
+            registry.TryGetComponents<TransformComponent, WorldTransformComponent>(
+                entity, [&](TransformComponent &local, WorldTransformComponent &world) {
+                    world.matrix = parentWorld * LocalMatrix(local);
+                });
         }
     } // namespace
 
@@ -122,121 +75,64 @@ namespace FRIGGA_NAMESPACE::TransformUtil
 
     void ApplyLocalMatrix(TransformComponent &transform, const glm::mat4 &matrix)
     {
-        const auto pose  = Decompose(matrix);
+        const auto pose    = Decompose(matrix);
         transform.position = pose.position;
         transform.rotation = pose.rotation;
         transform.scale    = pose.scale;
     }
 
-    fr::Entity ParentOf(fr::Registry &registry, fr::Entity entity)
+    void MarkDirty(fr::Registry &registry, fr::Entity entity)
     {
-        fr::Entity parent = kInvalidEntity;
-        if(entity == kInvalidEntity)
-        {
-            return parent;
-        }
-        registry.TryGetComponents<HierarchyComponent>(entity, [&](HierarchyComponent &hierarchy) {
-            parent = hierarchy.parent;
-        });
-        if(parent == kInvalidEntity)
-        {
-            return kInvalidEntity;
-        }
-        if(!registry.HasComponent<HierarchyComponent>(parent) &&
-           !registry.HasComponent<TransformComponent>(parent) &&
-           !registry.HasComponent<NameComponent>(parent))
-        {
-            return kInvalidEntity;
-        }
-        return parent;
+        registry.MarkHierarchyDirty<TransformComponent>(entity);
     }
 
-    bool WouldCreateCycle(fr::Registry &registry, fr::Entity entity, fr::Entity newParent)
+    glm::mat4 ParentWorldMatrix(fr::Registry &registry, fr::Entity entity)
     {
-        if(entity == kInvalidEntity || newParent == kInvalidEntity)
+        glm::mat4 parentWorld(1.0f);
+        const auto parent = registry.GetParent(entity);
+        if(parent != fr::NullEntity)
         {
-            return false;
+            registry.TryGetComponents<WorldTransformComponent>(
+                parent, [&](WorldTransformComponent &world) { parentWorld = world.matrix; });
         }
-        if(entity == newParent)
-        {
-            return true;
-        }
-        std::unordered_set<fr::Entity> seen;
-        auto current = newParent;
-        while(current != kInvalidEntity)
-        {
-            if(current == entity)
-            {
-                return true;
-            }
-            if(!seen.insert(current).second)
-            {
-                return true;
-            }
-            current = ParentOf(registry, current);
-        }
-        return false;
+        return parentWorld;
     }
 
-    glm::mat4 WorldMatrix(fr::Registry &registry, fr::Entity entity)
+    glm::mat4 GetWorldMatrix(fr::Registry &registry, fr::Entity entity)
     {
-        constexpr std::size_t kMaxHierarchyDepth = 64;
-        std::array<fr::Entity, kMaxHierarchyDepth> chain {};
-        std::size_t count = 0;
-
-        auto current = entity;
-        while(current != kInvalidEntity && count < kMaxHierarchyDepth)
-        {
-            bool cycle = false;
-            for(std::size_t i = 0; i < count; ++i)
-            {
-                if(chain[i] == current)
-                {
-                    cycle = true;
-                    break;
-                }
-            }
-            if(cycle)
-            {
-                break;
-            }
-            chain[count++] = current;
-            current        = ParentOf(registry, current);
-        }
-
-        glm::mat4 world(1.0f);
-        for(std::size_t i = count; i > 0; --i)
-        {
-            registry.TryGetComponents<TransformComponent>(
-                chain[i - 1], [&](TransformComponent &transform) {
-                    world = world * LocalMatrix(transform);
-                });
-        }
-        return world;
+        glm::mat4 local(1.0f);
+        registry.TryGetComponents<TransformComponent>(
+            entity, [&](TransformComponent &transform) { local = LocalMatrix(transform); });
+        return ParentWorldMatrix(registry, entity) * local;
     }
 
-    Pose WorldPose(fr::Registry &registry, fr::Entity entity)
+    Pose GetWorldPose(fr::Registry &registry, fr::Entity entity)
     {
-        return Decompose(WorldMatrix(registry, entity));
+        return Decompose(GetWorldMatrix(registry, entity));
+    }
+
+    glm::mat4 LocalFromWorld(const glm::mat4 &parentWorld, const glm::mat4 &world)
+    {
+        return glm::inverse(parentWorld) * world;
     }
 
     void SetWorldMatrix(fr::Registry &registry, fr::Entity entity, const glm::mat4 &world)
     {
-        if(!registry.HasComponent<TransformComponent>(entity))
+        const glm::mat4 local = LocalFromWorld(ParentWorldMatrix(registry, entity), world);
+        const bool      written = registry.TryGetComponents<TransformComponent>(
+            entity, [&](TransformComponent &transform) { ApplyLocalMatrix(transform, local); });
+        if(!written)
         {
             return;
         }
-        const glm::mat4 parentWorld = ParentWorldMatrix(registry, entity);
-        const glm::mat4 local       = glm::inverse(parentWorld) * world;
-        registry.TryGetComponents<TransformComponent>(entity, [&](TransformComponent &transform) {
-            ApplyLocalMatrix(transform, local);
-        });
+        RefreshWorld(registry, entity);
+        MarkDirty(registry, entity);
     }
 
     void SetWorldPose(fr::Registry &registry, fr::Entity entity, const glm::vec3 &position,
                       const glm::quat &rotation)
     {
-        const auto current = WorldPose(registry, entity);
+        const auto current = GetWorldPose(registry, entity);
         glm::mat4 world    = glm::translate(glm::mat4(1.0f), position);
         world              = world * glm::mat4_cast(rotation);
         world              = glm::scale(world, current.scale);
@@ -245,66 +141,95 @@ namespace FRIGGA_NAMESPACE::TransformUtil
 
     void SetWorldPosition(fr::Registry &registry, fr::Entity entity, const glm::vec3 &position)
     {
-        const auto current = WorldPose(registry, entity);
+        const auto current = GetWorldPose(registry, entity);
         SetWorldPose(registry, entity, position, current.rotation);
     }
 
-    bool SetParent(fr::Registry &registry, fr::Entity entity, fr::Entity newParent,
-                   bool preserveWorld)
+    void RefreshWorld(fr::Registry &registry, fr::Entity entity)
     {
-        if(entity == kInvalidEntity || entity == newParent)
-        {
-            return false;
-        }
-        if(newParent != kInvalidEntity && WouldCreateCycle(registry, entity, newParent))
-        {
-            return false;
-        }
-
-        glm::mat4 world(1.0f);
-        const bool captureWorld =
-            preserveWorld && registry.HasComponent<TransformComponent>(entity);
-        if(captureWorld)
-        {
-            world = WorldMatrix(registry, entity);
-        }
-
-        DetachFromParent(registry, entity);
-        EnsureHierarchy(registry, entity);
-        registry.TryGetComponents<HierarchyComponent>(entity, [&](HierarchyComponent &hierarchy) {
-            hierarchy.parent = newParent;
+        StoreWorld(registry, entity, ParentWorldMatrix(registry, entity));
+        // Pre-order: each parent is stored before its children read it.
+        registry.ForEachDescendant(entity, [&](fr::Entity child) {
+            StoreWorld(registry, child, ParentWorldMatrix(registry, child));
         });
+    }
 
-        if(newParent != kInvalidEntity)
+    void RefreshAllWorlds(fr::Registry &registry)
+    {
+        std::vector<fr::Entity> roots;
+        registry.CreateMutation()->Each(
+            [&](fr::Entity entity, TransformComponent &, WorldTransformComponent &) {
+                if(registry.GetParent(entity) == fr::NullEntity)
+                {
+                    roots.push_back(entity);
+                }
+            });
+        for(const auto root : roots)
         {
-            EnsureHierarchy(registry, newParent);
-            registry.TryGetComponents<HierarchyComponent>(
-                newParent, [&](HierarchyComponent &hierarchy) {
-                    if(std::ranges::find(hierarchy.children, entity) == hierarchy.children.end())
-                    {
-                        hierarchy.children.push_back(entity);
-                    }
-                });
+            RefreshWorld(registry, root);
+        }
+    }
+
+    bool Reparent(fr::Registry &registry, fr::Entity entity, fr::Entity parent,
+                  bool preserveWorld)
+    {
+        if(entity == fr::NullEntity || entity == parent || !registry.IsAlive(entity))
+        {
+            return false;
+        }
+        if(parent != fr::NullEntity && !registry.IsAlive(parent))
+        {
+            return false;
         }
 
-        if(captureWorld)
+        const bool      hasTransform = registry.HasComponent<TransformComponent>(entity);
+        const glm::mat4 world = hasTransform ? GetWorldMatrix(registry, entity) : glm::mat4(1.0f);
+
+        const bool linked = parent == fr::NullEntity ? registry.ClearParent(entity)
+                                                     : registry.SetParent(entity, parent);
+        if(!linked)
         {
-            SetWorldMatrix(registry, entity, world);
+            return false;
+        }
+
+        if(hasTransform)
+        {
+            if(preserveWorld)
+            {
+                const glm::mat4 parentWorld =
+                    parent == fr::NullEntity ? glm::mat4(1.0f) : GetWorldMatrix(registry, parent);
+                registry.TryGetComponents<TransformComponent>(
+                    entity, [&](TransformComponent &transform) {
+                        ApplyLocalMatrix(transform, LocalFromWorld(parentWorld, world));
+                    });
+            }
+            RefreshWorld(registry, entity);
+            MarkDirty(registry, entity);
         }
         return true;
     }
 
-    void DestroySubtree(fr::Registry &registry, fr::Entity entity)
+    void InstallObservers(fr::Registry &registry)
     {
-        std::vector<fr::Entity> order;
-        std::unordered_set<fr::Entity> seen;
-        CollectSubtree(registry, entity, order, seen);
-        for(const auto node : order)
+        if(registry.HasResource<TransformObserversInstalled>())
         {
-            DetachFromParent(registry, node);
-            registry.DestroyEntity(node);
+            return;
         }
-        registry.ExecuteTasks();
+        registry.InsertResource(TransformObserversInstalled {});
+
+        auto *target = &registry;
+        registry.ObserveAdd<TransformComponent>([target](fr::Entity entity) {
+            if(!target->IsAlive(entity) || !target->HasComponent<TransformComponent>(entity))
+            {
+                return;
+            }
+            if(!target->HasComponent<WorldTransformComponent>(entity))
+            {
+                target->AddComponents(
+                    entity, WorldTransformComponent {.matrix = GetWorldMatrix(*target, entity)});
+            }
+            MarkDirty(*target, entity);
+        });
     }
 
 } // namespace FRIGGA_NAMESPACE::TransformUtil

@@ -250,12 +250,12 @@ namespace FRIGGA_NAMESPACE
         }
 
         glm::vec3  fallback = mScene->GetEditorCamera().transform.position;
-        fr::Entity primary  = static_cast<fr::Entity>(-1);
-        fr::Entity first    = static_cast<fr::Entity>(-1);
+        fr::Entity primary  = fr::NullEntity;
+        fr::Entity first    = fr::NullEntity;
 
         mRegistry->CreateMutation()->Each(
             [&](fr::Entity entity, TransformComponent &, CameraComponent &camera) {
-                if(first == static_cast<fr::Entity>(-1))
+                if(first == fr::NullEntity)
                 {
                     first = entity;
                 }
@@ -266,10 +266,10 @@ namespace FRIGGA_NAMESPACE
             });
 
         const fr::Entity chosen =
-            primary != static_cast<fr::Entity>(-1) ? primary : first;
-        if(chosen != static_cast<fr::Entity>(-1))
+            primary != fr::NullEntity ? primary : first;
+        if(chosen != fr::NullEntity)
         {
-            return glm::vec3(TransformUtil::WorldMatrix(*mRegistry, chosen)[3]);
+            return glm::vec3(TransformUtil::GetWorldMatrix(*mRegistry, chosen)[3]);
         }
 
         return fallback;
@@ -417,7 +417,7 @@ namespace FRIGGA_NAMESPACE
         }
     }
 
-    void AnimationSystem::Update(float deltaTime)
+    void AnimationSystem::evaluate(float deltaTime)
     {
         const bool editMode = !mSimulation->IsPlaying();
         const bool animLod  = mOptions && mOptions->enableAnimLod;
@@ -462,7 +462,7 @@ namespace FRIGGA_NAMESPACE
                 const bool ticking =
                     animator.playing && (allowPreview || mSimulation->IsRunning());
 
-                const glm::mat4 modelWorld = TransformUtil::WorldMatrix(*mRegistry, entity);
+                const glm::mat4 modelWorld = TransformUtil::GetWorldMatrix(*mRegistry, entity);
                 const glm::vec3 actorPos =
                     animLod ? glm::vec3(modelWorld[3]) : glm::vec3(0.0f);
                 float      advanceDt = 0.0f;
@@ -611,8 +611,6 @@ namespace FRIGGA_NAMESPACE
                 uploadCpuSkin(std::move(skin));
             });
 
-        mRegistry->ExecuteTasks();
-
         mRegistry->CreateQuery()
             ->ForEachChunkAsync<AnimatorComponent, TransformComponent>(
                 [&](const fr::ChunkView &chunk) {
@@ -654,7 +652,7 @@ namespace FRIGGA_NAMESPACE
                         }
 
                         const glm::mat4 modelWorld =
-                            TransformUtil::WorldMatrix(*mRegistry, entity);
+                            TransformUtil::GetWorldMatrix(*mRegistry, entity);
                         const auto clipSlotFn =
                             [&gpu, model](const fra::AnimationClip *clip) -> std::uint32_t {
                             if(clip == nullptr)
@@ -703,8 +701,10 @@ namespace FRIGGA_NAMESPACE
     }
 
 
-    void AnimationSystem::PostUpdate(float)
+    void AnimationSystem::PostUpdate(float deltaTime)
     {
+        // After HierarchyPropagation: skinned instances pack this frame's world matrices.
+        evaluate(deltaTime);
         drainEvents();
     }
 
