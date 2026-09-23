@@ -61,7 +61,7 @@ find_package(Vulkan REQUIRED)
 # fetch the documentation matching exactly what is compiled here, instead of
 # guessing from build/_deps or reading whatever happens to be on main.
 set(FRIGGA_SKIRNIR_TAG "v0.23.2")
-set(FRIGGA_FREYR_TAG "v0.40.0-hierarchy")
+set(FRIGGA_FREYR_TAG "v0.40.1-hierarchy")
 set(FRIGGA_FREYA_TAG "v0.58.0")
 set(FRIGGA_SDK_DEPS
         "Skirnir=${FRIGGA_SKIRNIR_TAG};Freyr=${FRIGGA_FREYR_TAG};Freya=${FRIGGA_FREYA_TAG}")
