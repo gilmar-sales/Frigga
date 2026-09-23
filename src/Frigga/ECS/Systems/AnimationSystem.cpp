@@ -67,7 +67,7 @@ namespace FRIGGA_NAMESPACE
                                                     const ModelAsset &model,
                                                     const fra::AnimationClip &clip)
         {
-            const auto key = ClipGpuKey(model.relativePath, clip.name);
+            const auto key      = ClipGpuKey(model.relativePath, clip.name);
             const auto existing = gpu.FindClipSlot(key);
             if(existing != kInvalidGpuSlot)
             {
@@ -85,7 +85,7 @@ namespace FRIGGA_NAMESPACE
         [[nodiscard]] std::uint32_t ResolveSkeletonSlot(fra::GpuAnimationSystem &gpu,
                                                         const ModelAsset &model)
         {
-            const auto key = SkeletonGpuKey(model.relativePath);
+            const auto key      = SkeletonGpuKey(model.relativePath);
             const auto existing = gpu.FindSkeletonSlot(key);
             if(existing != kInvalidGpuSlot)
             {
@@ -93,17 +93,14 @@ namespace FRIGGA_NAMESPACE
             }
 
             const auto root = fra::FindRootJoint(model.skeleton);
-            return gpu.EnsureSkeletonResident(
-                key, fra::PackSkeleton(model.skeleton),
-                root >= 0 ? static_cast<std::uint32_t>(root) : 0u);
+            return gpu.EnsureSkeletonResident(key, fra::PackSkeleton(model.skeleton),
+                                              root >= 0 ? static_cast<std::uint32_t>(root) : 0u);
         }
 
-        [[nodiscard]] bool TryPackClipGpu(fra::GpuAnimInstance &instance,
-                                          const ModelAsset &model,
-                                          const fra::AnimationClip &clip, float timeSec,
-                                          bool loop, std::uint32_t boneOffset,
-                                          std::uint32_t jointCount, std::uint32_t skeletonSlot,
-                                          const glm::mat4 &modelWorld,
+        [[nodiscard]] bool TryPackClipGpu(fra::GpuAnimInstance &instance, const ModelAsset &model,
+                                          const fra::AnimationClip &clip, float timeSec, bool loop,
+                                          std::uint32_t boneOffset, std::uint32_t jointCount,
+                                          std::uint32_t skeletonSlot, const glm::mat4 &modelWorld,
                                           fra::GpuAnimationSystem &gpu)
         {
             const auto slot = ResolveClipSlot(gpu, model, clip);
@@ -112,15 +109,15 @@ namespace FRIGGA_NAMESPACE
                 return false;
             }
 
-            instance               = {};
-            instance.boneOffset    = boneOffset;
-            instance.jointCount    = jointCount;
-            instance.skeletonSlot  = skeletonSlot;
-            instance.clipA         = slot;
-            instance.timeA         = timeSec;
-            instance.wA            = 1.0f;
-            instance.flags         = loop ? fra::GpuAnimFlags::Loop : 0u;
-            instance.modelWorld    = modelWorld;
+            instance              = {};
+            instance.boneOffset   = boneOffset;
+            instance.jointCount   = jointCount;
+            instance.skeletonSlot = skeletonSlot;
+            instance.clipA        = slot;
+            instance.timeA        = timeSec;
+            instance.wA           = 1.0f;
+            instance.flags        = loop ? fra::GpuAnimFlags::Loop : 0u;
+            instance.modelWorld   = modelWorld;
             return true;
         }
 
@@ -130,7 +127,7 @@ namespace FRIGGA_NAMESPACE
             const glm::mat4 &modelWorld, bool loop,
             const std::function<std::uint32_t(const fra::AnimationClip *)> &clipSlot)
         {
-            fra::AnimLocoGpuSample loco {};
+            fra::AnimLocoGpuSample loco{};
             if(!graph.TryGetLocoGpuSample(loco))
             {
                 return false;
@@ -145,23 +142,23 @@ namespace FRIGGA_NAMESPACE
             const auto slotB = loco.clipB ? clipSlot(loco.clipB) : kInvalidGpuSlot;
             const auto slotC = loco.clipC ? clipSlot(loco.clipC) : kInvalidGpuSlot;
 
-            instance               = {};
-            instance.boneOffset    = boneOffset;
-            instance.jointCount    = jointCount;
-            instance.skeletonSlot  = skeletonSlot;
-            instance.clipA         = slotA;
-            instance.clipB         = slotB == kInvalidGpuSlot ? 0u : slotB;
-            instance.clipC         = slotC == kInvalidGpuSlot ? 0u : slotC;
-            instance.timeA         = loco.timeA;
-            instance.timeB         = loco.timeB;
-            instance.timeC         = loco.timeC;
-            instance.wA            = loco.wA;
-            instance.wB            = loco.wB;
-            instance.wC            = loco.wC;
-            instance.flags         = loop ? fra::GpuAnimFlags::Loop : 0u;
-            instance.modelWorld    = modelWorld;
+            instance              = {};
+            instance.boneOffset   = boneOffset;
+            instance.jointCount   = jointCount;
+            instance.skeletonSlot = skeletonSlot;
+            instance.clipA        = slotA;
+            instance.clipB        = slotB == kInvalidGpuSlot ? 0u : slotB;
+            instance.clipC        = slotC == kInvalidGpuSlot ? 0u : slotC;
+            instance.timeA        = loco.timeA;
+            instance.timeB        = loco.timeB;
+            instance.timeC        = loco.timeC;
+            instance.wA           = loco.wA;
+            instance.wB           = loco.wB;
+            instance.wC           = loco.wC;
+            instance.flags        = loop ? fra::GpuAnimFlags::Loop : 0u;
+            instance.modelWorld   = modelWorld;
 
-            fra::AnimLayerGpuSlots layers {};
+            fra::AnimLayerGpuSlots layers{};
             if(graph.TryGetLayerGpuSlots(layers))
             {
                 if(layers.masked.active && layers.masked.clip != nullptr)
@@ -219,7 +216,7 @@ namespace FRIGGA_NAMESPACE
             return &model.clips.front();
         }
 
-        for(const auto &clip : model.clips)
+        for(const auto &clip: model.clips)
         {
             if(clip.name == clipName)
             {
@@ -227,7 +224,7 @@ namespace FRIGGA_NAMESPACE
             }
         }
 
-        for(const auto &clip : model.clips)
+        for(const auto &clip: model.clips)
         {
             if(clip.name.find(clipName) != std::string::npos)
             {
@@ -249,9 +246,9 @@ namespace FRIGGA_NAMESPACE
             return mScene->GetPreviewCamera().transform.position;
         }
 
-        glm::vec3  fallback = mScene->GetEditorCamera().transform.position;
-        fr::Entity primary  = fr::NullEntity;
-        fr::Entity first    = fr::NullEntity;
+        glm::vec3 fallback = mScene->GetEditorCamera().transform.position;
+        fr::Entity primary = fr::NullEntity;
+        fr::Entity first   = fr::NullEntity;
 
         mRegistry->CreateMutation()->Each(
             [&](fr::Entity entity, TransformComponent &, CameraComponent &camera) {
@@ -265,8 +262,7 @@ namespace FRIGGA_NAMESPACE
                 }
             });
 
-        const fr::Entity chosen =
-            primary != fr::NullEntity ? primary : first;
+        const fr::Entity chosen = primary != fr::NullEntity ? primary : first;
         if(chosen != fr::NullEntity)
         {
             return glm::vec3(TransformUtil::GetWorldMatrix(*mRegistry, chosen)[3]);
@@ -309,8 +305,8 @@ namespace FRIGGA_NAMESPACE
         const auto jointCount = model.skeleton.JointCount();
         if(jointCount == 0)
         {
-            animator.boneOffset        = fra::kNoSkin;
-            animator.boneCount         = 0;
+            animator.boneOffset = fra::kNoSkin;
+            animator.boneCount  = 0;
             animator.bonePaletteSource.clear();
             return;
         }
@@ -323,8 +319,7 @@ namespace FRIGGA_NAMESPACE
 
         animator.bonePaletteSource = model.relativePath;
         animator.boneCount         = jointCount;
-        animator.boneOffset =
-            mNextBoneOffset.fetch_add(jointCount, std::memory_order_relaxed);
+        animator.boneOffset = mNextBoneOffset.fetch_add(jointCount, std::memory_order_relaxed);
     }
 
     void AnimationSystem::pinGpuClipsForLoadedModels(fra::GpuAnimationSystem &gpu)
@@ -338,7 +333,7 @@ namespace FRIGGA_NAMESPACE
 
         std::unordered_set<std::string> live;
         live.reserve(skinned.size());
-        for(const auto *model : skinned)
+        for(const auto *model: skinned)
         {
             if(model == nullptr || model->bakedClips.empty())
             {
@@ -348,8 +343,7 @@ namespace FRIGGA_NAMESPACE
 
             if(mGpuPinnedModels.insert(model->relativePath).second)
             {
-                for(std::size_t i = 0; i < model->clips.size() && i < model->bakedClips.size();
-                    ++i)
+                for(std::size_t i = 0; i < model->clips.size() && i < model->bakedClips.size(); ++i)
                 {
                     const auto slot = gpu.EnsureClipResident(
                         ClipGpuKey(model->relativePath, model->clips[i].name),
@@ -405,8 +399,7 @@ namespace FRIGGA_NAMESPACE
         PendingAnimEvents entry;
         while(mPendingEvents.try_pop(entry))
         {
-            if(entry.events.empty() ||
-               !mRegistry->HasComponent<AnimatorComponent>(entry.entity))
+            if(entry.events.empty() || !mRegistry->HasComponent<AnimatorComponent>(entry.entity))
             {
                 continue;
             }
@@ -419,11 +412,10 @@ namespace FRIGGA_NAMESPACE
 
     void AnimationSystem::evaluate(float deltaTime)
     {
-        const bool editMode = !mSimulation->IsPlaying();
-        const bool animLod  = mOptions && mOptions->enableAnimLod;
+        const bool animLod     = mOptions && mOptions->enableAnimLod;
         const glm::vec3 camPos = animLod ? cameraPosition() : glm::vec3(0.0f);
 
-        auto &gpu = fra::Advanced(*mRenderer).GpuAnimation();
+        auto &gpu                        = fra::Advanced(*mRenderer).GpuAnimation();
         const std::uint32_t gpuMaxJoints = gpu.GetJointsPerClipSlot();
         gpu.SetEnabled(false);
         mAnyGpuInstance.store(false, std::memory_order_relaxed);
@@ -435,275 +427,266 @@ namespace FRIGGA_NAMESPACE
 
         pinGpuClipsForLoadedModels(gpu);
 
-        mRegistry->CreateMutation()->EachAsync(
-            [&](fr::Entity entity, TransformComponent &, AnimatorComponent &animator) {
-                if(animator.modelSource.empty())
-                {
-                    animator.boneOffset = fra::kNoSkin;
-                    animator.boneCount  = 0;
-                    return;
-                }
+        mRegistry->CreateMutation()->EachAsync([this, deltaTime, camPos,
+                                                animLod](fr::Entity entity, TransformComponent &,
+                                                         AnimatorComponent &animator) {
+            auto &gpu                        = fra::Advanced(*mRenderer).GpuAnimation();
+            const std::uint32_t gpuMaxJoints = gpu.GetJointsPerClipSlot();
 
-                const auto *model = mAssets->FindModel(animator.modelSource);
-                if(model == nullptr || !model->skinned || model->skeleton.JointCount() == 0)
-                {
-                    animator.boneOffset = fra::kNoSkin;
-                    animator.boneCount  = 0;
-                    return;
-                }
+            if(animator.modelSource.empty())
+            {
+                animator.boneOffset = fra::kNoSkin;
+                animator.boneCount  = 0;
+                return;
+            }
 
-                if(mController)
-                {
-                    mController->SyncAnimGraph(entity, animator, *model);
-                }
-                auto *graph = mController ? mController->TryGetAnimGraph(entity) : nullptr;
+            const auto *model = mAssets->FindModel(animator.modelSource);
+            if(model == nullptr || !model->skinned || model->skeleton.JointCount() == 0)
+            {
+                animator.boneOffset = fra::kNoSkin;
+                animator.boneCount  = 0;
+                return;
+            }
 
-                const bool allowPreview = editMode && animator.previewInEdit;
-                const bool ticking =
-                    animator.playing && (allowPreview || mSimulation->IsRunning());
+            if(mController)
+            {
+                mController->SyncAnimGraph(entity, animator, *model);
+            }
+            auto *graph = mController ? mController->TryGetAnimGraph(entity) : nullptr;
 
-                const glm::mat4 modelWorld = TransformUtil::GetWorldMatrix(*mRegistry, entity);
-                const glm::vec3 actorPos =
-                    animLod ? glm::vec3(modelWorld[3]) : glm::vec3(0.0f);
-                float      advanceDt = 0.0f;
-                const bool mustEval =
-                    consumeAnimationTick(deltaTime, animator, actorPos, camPos, ticking,
-                                         advanceDt);
+            const bool allowPreview = !mSimulation->IsPlaying() && animator.previewInEdit;
+            const bool ticking = animator.playing && (allowPreview || mSimulation->IsRunning());
 
-                ensureStableBoneOffset(animator, *model);
-                const auto boneOffset = animator.boneOffset;
-                const auto jointCount = animator.boneCount;
-                if(boneOffset == fra::kNoSkin || jointCount == 0)
-                {
-                    return;
-                }
+            const glm::mat4 modelWorld = TransformUtil::GetWorldMatrix(*mRegistry, entity);
+            const glm::vec3 actorPos   = animLod ? glm::vec3(modelWorld[3]) : glm::vec3(0.0f);
+            float advanceDt            = 0.0f;
+            const bool mustEval =
+                consumeAnimationTick(deltaTime, animator, actorPos, camPos, ticking, advanceDt);
 
-                auto *runtime = mController ? mController->TryGetRuntime(entity) : nullptr;
-                const bool crossFading = runtime != nullptr && runtime->crossFading;
+            ensureStableBoneOffset(animator, *model);
+            const auto boneOffset = animator.boneOffset;
+            const auto jointCount = animator.boneCount;
+            if(boneOffset == fra::kNoSkin || jointCount == 0)
+            {
+                return;
+            }
 
-                const auto clipSlotFn =
-                    [&gpu, model](const fra::AnimationClip *clip) -> std::uint32_t {
-                    if(clip == nullptr)
-                    {
-                        return kInvalidGpuSlot;
-                    }
-                    return ResolveClipSlot(gpu, *model, *clip);
-                };
+            auto *runtime          = mController ? mController->TryGetRuntime(entity) : nullptr;
+            const bool crossFading = runtime != nullptr && runtime->crossFading;
 
-                const std::uint32_t skeletonSlot =
-                    (animator.useGpu && !crossFading && jointCount <= gpuMaxJoints)
-                        ? ResolveSkeletonSlot(gpu, *model)
-                        : kInvalidGpuSlot;
-                const bool canGpu = skeletonSlot != kInvalidGpuSlot;
-
-                auto uploadCpuSkin = [&](std::vector<glm::mat4> skin) {
-                    if(skin.empty())
-                    {
-                        return;
-                    }
-                    mRenderer->UploadBoneMatrixUploads(boneOffset, skin);
-                };
-
-                if(graph != nullptr)
-                {
-                    std::vector<fra::FiredAnimationEvent> firedEvents;
-                    if(mustEval && ticking)
-                    {
-                        if(runtime != nullptr)
-                        {
-                            for(const auto &[name, value] : runtime->floats)
-                            {
-                                graph->SetFloat(name, value);
-                            }
-                            for(const auto &[name, value] : runtime->bools)
-                            {
-                                graph->SetBool(name, value);
-                            }
-                            for(auto &[name, raised] : runtime->triggers)
-                            {
-                                if(raised)
-                                {
-                                    graph->SetTrigger(name);
-                                    raised = false;
-                                }
-                            }
-                        }
-                        graph->Advance(advanceDt * animator.speed, &firedEvents);
-                        animator.clipName = std::string {graph->CurrentStateName()};
-                    }
-
-                    enqueueEvents(entity, std::move(firedEvents));
-
-                    if(canGpu)
-                    {
-                        return;
-                    }
-
-                    uploadCpuSkin(
-                        fra::PoseToSkinMatrices(model->skeleton, graph->SampleCurrent()));
-                    return;
-                }
-
-                const auto *clip = resolveClip(*model, animator.clipName);
+            const auto clipSlotFn = [&gpu, model](const fra::AnimationClip *clip) -> std::uint32_t {
                 if(clip == nullptr)
                 {
+                    return kInvalidGpuSlot;
+                }
+                return ResolveClipSlot(gpu, *model, *clip);
+            };
+
+            const std::uint32_t skeletonSlot =
+                (animator.useGpu && !crossFading && jointCount <= gpuMaxJoints)
+                    ? ResolveSkeletonSlot(gpu, *model)
+                    : kInvalidGpuSlot;
+            const bool canGpu = skeletonSlot != kInvalidGpuSlot;
+
+            auto uploadCpuSkin = [&](std::vector<glm::mat4> skin) {
+                if(skin.empty())
+                {
                     return;
                 }
+                mRenderer->UploadBoneMatrixUploads(boneOffset, skin);
+            };
 
+            if(graph != nullptr)
+            {
+                std::vector<fra::FiredAnimationEvent> firedEvents;
                 if(mustEval && ticking)
                 {
-                    const float tPrev = animator.clipTimePrev;
-                    AdvanceClipTime(animator.timeSec, clip->duration,
-                                    advanceDt * animator.speed, animator.loop);
-                    std::vector<fra::FiredAnimationEvent> firedEvents;
-                    fra::CollectFiredClipEvents(*clip, tPrev, animator.timeSec, animator.loop,
-                                                firedEvents);
-                    enqueueEvents(entity, std::move(firedEvents));
-                    animator.clipTimePrev = animator.timeSec;
-
-                    if(crossFading)
+                    if(runtime != nullptr)
                     {
-                        const auto *fromClip = resolveClip(*model, runtime->fromClip);
-                        if(fromClip != nullptr)
+                        for(const auto &[name, value]: runtime->floats)
                         {
-                            AdvanceClipTime(runtime->fromTimeSec, fromClip->duration,
-                                            advanceDt * animator.speed, animator.loop);
+                            graph->SetFloat(name, value);
                         }
-                        runtime->crossFadeElapsed += advanceDt;
-                        if(runtime->crossFadeElapsed >= runtime->crossFadeDuration)
+                        for(const auto &[name, value]: runtime->bools)
                         {
-                            runtime->crossFading = false;
+                            graph->SetBool(name, value);
+                        }
+                        for(auto &[name, raised]: runtime->triggers)
+                        {
+                            if(raised)
+                            {
+                                graph->SetTrigger(name);
+                                raised = false;
+                            }
                         }
                     }
+                    graph->Advance(advanceDt * animator.speed, &firedEvents);
+                    animator.clipName = std::string{graph->CurrentStateName()};
                 }
+
+                enqueueEvents(entity, std::move(firedEvents));
 
                 if(canGpu)
                 {
                     return;
                 }
 
-                std::vector<glm::mat4> skin;
+                uploadCpuSkin(fra::PoseToSkinMatrices(model->skeleton, graph->SampleCurrent()));
+                return;
+            }
+
+            const auto *clip = resolveClip(*model, animator.clipName);
+            if(clip == nullptr)
+            {
+                return;
+            }
+
+            if(mustEval && ticking)
+            {
+                const float tPrev = animator.clipTimePrev;
+                AdvanceClipTime(animator.timeSec, clip->duration, advanceDt * animator.speed,
+                                animator.loop);
+                std::vector<fra::FiredAnimationEvent> firedEvents;
+                fra::CollectFiredClipEvents(*clip, tPrev, animator.timeSec, animator.loop,
+                                            firedEvents);
+                enqueueEvents(entity, std::move(firedEvents));
+                animator.clipTimePrev = animator.timeSec;
+
                 if(crossFading)
                 {
                     const auto *fromClip = resolveClip(*model, runtime->fromClip);
-                    if(fromClip != nullptr && runtime->crossFadeDuration > 0.0f)
+                    if(fromClip != nullptr)
                     {
-                        const float t = std::clamp(
-                            runtime->crossFadeElapsed / runtime->crossFadeDuration, 0.0f, 1.0f);
-                        const auto fromPose =
-                            fra::SampleClip(model->skeleton, *fromClip, runtime->fromTimeSec);
-                        const auto toPose =
-                            fra::SampleClip(model->skeleton, *clip, animator.timeSec);
-                        const auto blended = fra::BlendLocalPoses(fromPose, toPose, t);
-                        skin = fra::PoseToSkinMatrices(model->skeleton, blended);
+                        AdvanceClipTime(runtime->fromTimeSec, fromClip->duration,
+                                        advanceDt * animator.speed, animator.loop);
                     }
-                    else
+                    runtime->crossFadeElapsed += advanceDt;
+                    if(runtime->crossFadeElapsed >= runtime->crossFadeDuration)
                     {
-                        skin = fra::EvaluateSkeletonPose(model->skeleton, *clip, animator.timeSec);
                         runtime->crossFading = false;
                     }
+                }
+            }
+
+            if(canGpu)
+            {
+                return;
+            }
+
+            std::vector<glm::mat4> skin;
+            if(crossFading)
+            {
+                const auto *fromClip = resolveClip(*model, runtime->fromClip);
+                if(fromClip != nullptr && runtime->crossFadeDuration > 0.0f)
+                {
+                    const float t = std::clamp(
+                        runtime->crossFadeElapsed / runtime->crossFadeDuration, 0.0f, 1.0f);
+                    const auto fromPose =
+                        fra::SampleClip(model->skeleton, *fromClip, runtime->fromTimeSec);
+                    const auto toPose  = fra::SampleClip(model->skeleton, *clip, animator.timeSec);
+                    const auto blended = fra::BlendLocalPoses(fromPose, toPose, t);
+                    skin               = fra::PoseToSkinMatrices(model->skeleton, blended);
                 }
                 else
                 {
                     skin = fra::EvaluateSkeletonPose(model->skeleton, *clip, animator.timeSec);
+                    runtime->crossFading = false;
                 }
+            }
+            else
+            {
+                skin = fra::EvaluateSkeletonPose(model->skeleton, *clip, animator.timeSec);
+            }
 
-                uploadCpuSkin(std::move(skin));
-            });
+            uploadCpuSkin(std::move(skin));
+        });
 
-        mRegistry->CreateQuery()
-            ->ForEachChunkAsync<AnimatorComponent, TransformComponent>(
-                [&](const fr::ChunkView &chunk) {
-                    const auto animatorSpan = chunk.Column<AnimatorComponent>();
-                    const auto entities     = chunk.Entities();
+        mRegistry->CreateQuery()->ForEachChunkAsync<AnimatorComponent, TransformComponent>(
+            [&](const fr::ChunkView &chunk) {
+                const auto animatorSpan = chunk.Column<AnimatorComponent>();
+                const auto entities     = chunk.Entities();
 
-                    std::vector<fra::GpuAnimInstance> batch;
-                    batch.reserve(chunk.size());
+                std::vector<fra::GpuAnimInstance> batch;
+                batch.reserve(chunk.size());
 
-                    for(std::size_t i = 0; i < chunk.size(); ++i)
+                for(std::size_t i = 0; i < chunk.size(); ++i)
+                {
+                    const fr::Entity entity           = entities[i];
+                    const AnimatorComponent &animator = animatorSpan[i];
+
+                    if(!animator.useGpu || animator.boneOffset == fra::kNoSkin ||
+                       animator.boneCount == 0 || animator.boneCount > gpuMaxJoints)
                     {
-                        const fr::Entity         entity   = entities[i];
-                        const AnimatorComponent &animator = animatorSpan[i];
+                        continue;
+                    }
 
-                        if(!animator.useGpu || animator.boneOffset == fra::kNoSkin ||
-                           animator.boneCount == 0 || animator.boneCount > gpuMaxJoints)
+                    const auto *model = mAssets->FindModel(animator.modelSource);
+                    if(model == nullptr || !model->skinned || model->skeleton.JointCount() == 0)
+                    {
+                        continue;
+                    }
+
+                    const auto *runtime =
+                        mController ? mController->TryGetRuntime(entity) : nullptr;
+                    if(runtime != nullptr && runtime->crossFading)
+                    {
+                        continue;
+                    }
+
+                    const std::uint32_t skeletonSlot = ResolveSkeletonSlot(gpu, *model);
+                    if(skeletonSlot == kInvalidGpuSlot)
+                    {
+                        continue;
+                    }
+
+                    const glm::mat4 modelWorld = TransformUtil::GetWorldMatrix(*mRegistry, entity);
+                    const auto clipSlotFn =
+                        [&gpu, model](const fra::AnimationClip *clip) -> std::uint32_t {
+                        if(clip == nullptr)
                         {
-                            continue;
+                            return kInvalidGpuSlot;
                         }
+                        return ResolveClipSlot(gpu, *model, *clip);
+                    };
 
-                        const auto *model = mAssets->FindModel(animator.modelSource);
-                        if(model == nullptr || !model->skinned ||
-                           model->skeleton.JointCount() == 0)
-                        {
-                            continue;
-                        }
+                    fra::GpuAnimInstance gpuInst{};
+                    bool packed = false;
 
-                        const auto *runtime =
-                            mController ? mController->TryGetRuntime(entity) : nullptr;
-                        if(runtime != nullptr && runtime->crossFading)
-                        {
-                            continue;
-                        }
-
-                        const std::uint32_t skeletonSlot = ResolveSkeletonSlot(gpu, *model);
-                        if(skeletonSlot == kInvalidGpuSlot)
-                        {
-                            continue;
-                        }
-
-                        const glm::mat4 modelWorld =
-                            TransformUtil::GetWorldMatrix(*mRegistry, entity);
-                        const auto clipSlotFn =
-                            [&gpu, model](const fra::AnimationClip *clip) -> std::uint32_t {
-                            if(clip == nullptr)
-                            {
-                                return kInvalidGpuSlot;
-                            }
-                            return ResolveClipSlot(gpu, *model, *clip);
-                        };
-
-                        fra::GpuAnimInstance gpuInst {};
-                        bool                 packed = false;
-
-                        auto *graph =
-                            mController ? mController->TryGetAnimGraph(entity) : nullptr;
-                        if(graph != nullptr)
+                    auto *graph = mController ? mController->TryGetAnimGraph(entity) : nullptr;
+                    if(graph != nullptr)
+                    {
+                        packed = TryPackGraphGpu(gpuInst, *graph, *model, animator.boneOffset,
+                                                 animator.boneCount, skeletonSlot, modelWorld,
+                                                 animator.loop, clipSlotFn);
+                    }
+                    else
+                    {
+                        const auto *clip = resolveClip(*model, animator.clipName);
+                        if(clip != nullptr)
                         {
                             packed =
-                                TryPackGraphGpu(gpuInst, *graph, *model, animator.boneOffset,
-                                                animator.boneCount, skeletonSlot, modelWorld,
-                                                animator.loop, clipSlotFn);
-                        }
-                        else
-                        {
-                            const auto *clip = resolveClip(*model, animator.clipName);
-                            if(clip != nullptr)
-                            {
-                                packed = TryPackClipGpu(gpuInst, *model, *clip, animator.timeSec,
-                                                        animator.loop, animator.boneOffset,
-                                                        animator.boneCount, skeletonSlot,
-                                                        modelWorld, gpu);
-                            }
-                        }
-
-                        if(packed)
-                        {
-                            batch.push_back(gpuInst);
+                                TryPackClipGpu(gpuInst, *model, *clip, animator.timeSec,
+                                               animator.loop, animator.boneOffset,
+                                               animator.boneCount, skeletonSlot, modelWorld, gpu);
                         }
                     }
 
-                    if(!batch.empty())
+                    if(packed)
                     {
-                        gpu.UploadGpuAnimInstanceUploads(batch);
-                        mAnyGpuInstance.store(true, std::memory_order_relaxed);
+                        batch.push_back(gpuInst);
                     }
-                });
-    }
+                }
 
+                if(!batch.empty())
+                {
+                    gpu.UploadGpuAnimInstanceUploads(batch);
+                    mAnyGpuInstance.store(true, std::memory_order_relaxed);
+                }
+            });
+    }
 
     void AnimationSystem::PostUpdate(float deltaTime)
     {
-        // After HierarchyPropagation: skinned instances pack this frame's world matrices.
         evaluate(deltaTime);
         drainEvents();
     }
