@@ -30,4 +30,6 @@ TEST(RuntimeSmoke, RuntimeAndSdkArtifactsArePresent)
     EXPECT_TRUE(std::filesystem::is_regular_file(root / "Runtime"));
 #endif
     EXPECT_TRUE(std::filesystem::is_regular_file(root / "Sdk/FriggaSdkConfig.cmake"));
+    EXPECT_TRUE(std::filesystem::is_regular_file(root / "Sdk/tools/docs-mcp/server.py"));
+    EXPECT_TRUE(std::filesystem::is_regular_file(root / "Sdk/tools/frigga-mcp/transports.py"));
 }
