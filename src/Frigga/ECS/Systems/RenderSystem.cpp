@@ -1,27 +1,25 @@
 #include <Frigga/ECS/Systems/RenderSystem.hpp>
 
-#include "Frigga/Asset/AssetRegistry.hpp"
-#include "Frigga/Asset/FreyaHandles.hpp"
-#include "Frigga/ECS/TransformUtil.hpp"
-#include "Frigga/Scene/Scene.hpp"
-#include <Frigga/ECS/Systems/../Components/AnimatorComponent.hpp>
-#include <Frigga/ECS/Systems/../Components/BillboardComponent.hpp>
-#include <Frigga/ECS/Systems/../Components/BillboardTextComponent.hpp>
-#include <Frigga/ECS/Systems/../Components/CameraComponent.hpp>
-#include <Frigga/ECS/Systems/../Components/FullscreenEffectComponent.hpp>
-#include <Frigga/ECS/Systems/../Components/HealthBarComponent.hpp>
-#include <Frigga/ECS/Systems/../Components/HierarchyComponent.hpp>
-#include <Frigga/ECS/Systems/../Components/LightComponent.hpp>
-#include <Frigga/ECS/Systems/../Components/MaterialComponent.hpp>
-#include <Frigga/ECS/Systems/../Components/MeshComponent.hpp>
-#include <Frigga/ECS/Systems/../Components/ParticleEmitterComponent.hpp>
-#include <Frigga/ECS/Systems/../Components/TransformComponent.hpp>
-
-#include "Frigga/Rendering/FullscreenEffectCatalog.hpp"
+#include <Frigga/Asset/AssetRegistry.hpp>
+#include <Frigga/Asset/FreyaHandles.hpp>
+#include <Frigga/ECS/Components/AnimatorComponent.hpp>
+#include <Frigga/ECS/Components/BillboardComponent.hpp>
+#include <Frigga/ECS/Components/BillboardTextComponent.hpp>
+#include <Frigga/ECS/Components/CameraComponent.hpp>
+#include <Frigga/ECS/Components/FullscreenEffectComponent.hpp>
+#include <Frigga/ECS/Components/HealthBarComponent.hpp>
+#include <Frigga/ECS/Components/HierarchyComponent.hpp>
+#include <Frigga/ECS/Components/LightComponent.hpp>
+#include <Frigga/ECS/Components/MaterialComponent.hpp>
+#include <Frigga/ECS/Components/MeshComponent.hpp>
+#include <Frigga/ECS/Components/ParticleEmitterComponent.hpp>
+#include <Frigga/ECS/Components/TransformComponent.hpp>
+#include <Frigga/ECS/TransformUtil.hpp>
+#include <Frigga/Rendering/FullscreenEffectCatalog.hpp>
+#include <Frigga/Scene/Scene.hpp>
 
 #include <algorithm>
 #include <cmath>
-#include <cstdint>
 #include <format>
 #include <memory>
 #include <span>
@@ -200,16 +198,12 @@ namespace FRIGGA_NAMESPACE
 
     void RenderSystem::syncLights()
     {
-        // Do not wipe the Freya light UBO every frame — FiF slots may still
-        // sample until waitIdle. Handles live on LightComponent; ClearLights
-        // only when the visible set changes so pool indices stay dense (Spot /
-        // Point shadow indices must match the packed light UBO).
         const bool isolate = mScene->IsUsingPreviewCamera() && mScene->HasRenderIsolation();
         const fr::Entity isolatedEntity =
             isolate ? mScene->GetRenderIsolation() : static_cast<fr::Entity>(-1);
         const auto maxLights = mLightService->GetMaxLights();
 
-        const auto isVisible = [&](fr::Entity entity) {
+        const auto isVisible = [this, isolate, isolatedEntity](fr::Entity entity) {
             return !isolate || IsInIsolatedSubtree(*mRegistry, entity, isolatedEntity);
         };
 
@@ -273,9 +267,6 @@ namespace FRIGGA_NAMESPACE
             return;
         }
 
-        // Application owns BeginLightUploads/EndLightUploads for the frame.
-        // setChanged rebuild (ClearLights/AddLight) returned above; this path only
-        // packs updates into the open upload session.
         mLightService->ReserveLightUploads(cappedVisible);
         mRegistry->CreateMutation()->EachAsync(
             [this, isVisible](fr::Entity entity, TransformComponent &, LightComponent &light) {
@@ -332,7 +323,7 @@ namespace FRIGGA_NAMESPACE
 
                         const auto &mesh     = meshes[i];
                         const auto &material = materials[i];
-                        const auto  pose     = TransformUtil::WorldPose(*mRegistry, entity);
+                        const auto pose      = TransformUtil::WorldPose(*mRegistry, entity);
 
                         fra::SceneInstanceUpload upload{
                             .transform =
@@ -354,7 +345,8 @@ namespace FRIGGA_NAMESPACE
                             bool found = false;
                             mRegistry->TryGetComponents<AnimatorComponent>(
                                 skinEntity, [&](AnimatorComponent &animator) {
-                                    if(animator.boneCount > 0 && animator.boneOffset != fra::kNoSkin)
+                                    if(animator.boneCount > 0 &&
+                                       animator.boneOffset != fra::kNoSkin)
                                     {
                                         upload.boneOffset = animator.boneOffset;
                                         upload.boneCount  = animator.boneCount;
@@ -369,7 +361,8 @@ namespace FRIGGA_NAMESPACE
                             skinEntity = TransformUtil::ParentOf(*mRegistry, skinEntity);
                         }
 
-                        upload.flags = fra::MakeSceneInstanceFlags(mesh.castShadows, false, skinned);
+                        upload.flags =
+                            fra::MakeSceneInstanceFlags(mesh.castShadows, false, skinned);
                         batch.push_back(upload);
                     }
 
