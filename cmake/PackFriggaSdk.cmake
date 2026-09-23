@@ -97,6 +97,13 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/tools/frigga-mcp/server.py")
               "${CMAKE_SOURCE_DIR}/tools/frigga-mcp/transports.py"
          DESTINATION "${FRIGGA_SDK_DIR}/tools/frigga-mcp")
 endif()
+# The docs MCP reuses ../frigga-mcp/transports.py, which is why it is packaged
+# as a sibling rather than standalone.
+if(EXISTS "${CMAKE_SOURCE_DIR}/tools/docs-mcp/server.py")
+    file(MAKE_DIRECTORY "${FRIGGA_SDK_DIR}/tools")
+    file(COPY "${CMAKE_SOURCE_DIR}/tools/docs-mcp/server.py"
+         DESTINATION "${FRIGGA_SDK_DIR}/tools/docs-mcp")
+endif()
 file(WRITE "${FRIGGA_SDK_DIR}/CMakeLists.txt"
      "# Frigga gameplay module SDK (packaged with Editor)\n")
 set(_FRIGGA_SDK_CONFIG
@@ -111,6 +118,13 @@ else()
     string(APPEND _FRIGGA_SDK_CONFIG "set(FRIGGA_SDK_FREYR_PROFILING OFF)\n")
 endif()
 file(WRITE "${FRIGGA_SDK_DIR}/FriggaSdkConfig.cmake" ${_FRIGGA_SDK_CONFIG})
+if(DEFINED FRIGGA_SDK_DEPS)
+    # Documentation pins (Skirnir/Freyr/Freya), consumed by tools/docs-mcp.
+    # Appended unquoted-list-free: the semicolons are CMake list separators and
+    # would be swallowed by the list expansion above.
+    file(APPEND "${FRIGGA_SDK_DIR}/FriggaSdkConfig.cmake"
+         "set(FRIGGA_SDK_DEPS \"${FRIGGA_SDK_DEPS}\")\n")
+endif()
 
 # The Editor POST_BUILD step places a Windows import library in the SDK.
 foreach(_implib IN ITEMS libEditor.dll.a Editor.lib libEditor.lib)

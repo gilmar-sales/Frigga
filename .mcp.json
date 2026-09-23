@@ -5,6 +5,12 @@
       "args": [
         "tools/frigga-mcp/server.py"
       ]
+    },
+    "frigga-docs": {
+      "command": "python3",
+      "args": [
+        "tools/docs-mcp/server.py"
+      ]
     }
   }
 }

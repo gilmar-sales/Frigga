@@ -56,10 +56,20 @@ set(ASSIMP_INJECT_DEBUG_POSTFIX OFF CACHE BOOL "" FORCE)
 
 find_package(Vulkan REQUIRED)
 
+# Version pins for the documented dependencies. The SDK records them in
+# FriggaSdkConfig.cmake (FRIGGA_SDK_DEPS) so tooling such as the docs MCP can
+# fetch the documentation matching exactly what is compiled here, instead of
+# guessing from build/_deps or reading whatever happens to be on main.
+set(FRIGGA_SKIRNIR_TAG "v0.23.2")
+set(FRIGGA_FREYR_TAG "v0.39.6")
+set(FRIGGA_FREYA_TAG "v0.58.0")
+set(FRIGGA_SDK_DEPS
+        "Skirnir=${FRIGGA_SKIRNIR_TAG};Freyr=${FRIGGA_FREYR_TAG};Freya=${FRIGGA_FREYA_TAG}")
+
 FetchContent_Declare(
         skirnir
         GIT_REPOSITORY "https://github.com/gilmar-sales/Skirnir.git"
-        GIT_TAG "v0.23.2"
+        GIT_TAG "${FRIGGA_SKIRNIR_TAG}"
         GIT_SHALLOW TRUE
         OVERRIDE_FIND_PACKAGE TRUE
 )
@@ -68,7 +78,7 @@ FetchContent_MakeAvailable(skirnir)
 FetchContent_Declare(
         freyr
         GIT_REPOSITORY "https://github.com/gilmar-sales/Freyr.git"
-        GIT_TAG "v0.39.6"
+        GIT_TAG "${FRIGGA_FREYR_TAG}"
         GIT_SHALLOW TRUE
 )
 set(FREYR_PROFILING ON CACHE BOOL "Enables Freyr Perfetto profiling" FORCE)
@@ -77,7 +87,7 @@ FetchContent_MakeAvailable(freyr)
 FetchContent_Declare(
         freya
         GIT_REPOSITORY "https://github.com/gilmar-sales/Freya.git"
-        GIT_TAG "v0.58.0"
+        GIT_TAG "${FRIGGA_FREYA_TAG}"
         GIT_SHALLOW TRUE
 )
 
