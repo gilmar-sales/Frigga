@@ -9,24 +9,24 @@
 #include "Editor/Ui/MaterialInspector.hpp"
 #include "Editor/UiScale.hpp"
 #include "Frigga/Asset/FreyaHandles.hpp"
-#include "Frigga/ECS/Components/CameraComponent.hpp"
-#include "Frigga/ECS/Components/LightComponent.hpp"
-#include "Frigga/ECS/Components/AudioSourceComponent.hpp"
-#include "Frigga/ECS/Components/MaterialComponent.hpp"
 #include "Frigga/ECS/Components/AnimatorComponent.hpp"
+#include "Frigga/ECS/Components/AudioSourceComponent.hpp"
 #include "Frigga/ECS/Components/BillboardComponent.hpp"
 #include "Frigga/ECS/Components/BillboardTextComponent.hpp"
+#include "Frigga/ECS/Components/CameraComponent.hpp"
+#include "Frigga/ECS/Components/EntityRef.hpp"
 #include "Frigga/ECS/Components/FullscreenEffectComponent.hpp"
 #include "Frigga/ECS/Components/HealthBarComponent.hpp"
+#include "Frigga/ECS/Components/LightComponent.hpp"
+#include "Frigga/ECS/Components/MaterialComponent.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/NameComponent.hpp"
 #include "Frigga/ECS/Components/ParticleEmitterComponent.hpp"
 #include "Frigga/ECS/Components/PrefabComponent.hpp"
 #include "Frigga/ECS/Components/RigidBodyComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
-#include "Frigga/ECS/TransformUtil.hpp"
 #include "Frigga/ECS/Components/UserDataComponent.hpp"
-#include "Frigga/ECS/Components/EntityRef.hpp"
+#include "Frigga/ECS/TransformUtil.hpp"
 #include "Frigga/Module/FriComponentInspector.hpp"
 #include "Frigga/Module/GameplayTypeIds.hpp"
 #include "Frigga/Rendering/FullscreenEffectCatalog.hpp"
@@ -35,35 +35,34 @@
 #include <SDL3/SDL_dialog.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
-#include <cstdint>
 #include <format>
+#include <imgui.h>
 #include <map>
 #include <sstream>
 #include <system_error>
-#include <imgui.h>
-#include <unordered_set>
 #include <vector>
 
 namespace
 {
     const SDL_DialogFileFilter kTextureFilters[] = {
-        {"Images", "png;jpg;jpeg;tga;bmp;hdr;webp"},
-        {"All files", "*"},
+        {"Images",    "png;jpg;jpeg;tga;bmp;hdr;webp"},
+        {"All files", "*"                            },
     };
 
     const SDL_DialogFileFilter kPrefabFilters[] = {
-        {"Prefabs", "prefab"},
-        {"All files", "*"},
+        {"Prefabs",   "prefab"},
+        {"All files", "*"     },
     };
 
-    constexpr std::string_view kThirdPersonCameraTypeId = fg::kThirdPersonCameraTypeId;
+    constexpr std::string_view kThirdPersonCameraTypeId   = fg::kThirdPersonCameraTypeId;
     constexpr std::string_view kCharacterControllerTypeId = fg::kCharacterControllerTypeId;
 
     glm::quat LookDown()
     {
-        return glm::quatLookAt(glm::vec3 {0.0f, -1.0f, 0.0f}, glm::vec3 {0.0f, 0.0f, 1.0f});
+        return glm::quatLookAt(glm::vec3{0.0f, -1.0f, 0.0f}, glm::vec3{0.0f, 0.0f, 1.0f});
     }
 
     [[nodiscard]] std::string ModelSourceFromMesh(fg::AssetRegistry &assets, fr::Entity entity,
@@ -71,8 +70,8 @@ namespace
     {
         std::string source;
         registry.TryGetComponents<fg::MeshComponent>(entity, [&](fg::MeshComponent &mesh) {
-            fg::ModelAsset model {};
-            std::uint32_t  submesh = 0;
+            fg::ModelAsset model{};
+            std::uint32_t submesh = 0;
             if(assets.TryFindModelByMeshId(mesh.meshId, model, submesh) && model.skinned)
             {
                 source = model.relativePath;
@@ -82,15 +81,14 @@ namespace
     }
 
     [[nodiscard]] std::string ResolveAnimatorModelSource(fg::AssetRegistry &assets,
-                                                         fr::Entity entity,
-                                                         fr::Registry &registry)
+                                                         fr::Entity entity, fr::Registry &registry)
     {
         if(auto source = ModelSourceFromMesh(assets, entity, registry); !source.empty())
         {
             return source;
         }
 
-        for(const auto child : registry.Children(entity))
+        for(const auto child: registry.Children(entity))
         {
             if(auto fromChild = ModelSourceFromMesh(assets, child, registry); !fromChild.empty())
             {
@@ -123,8 +121,7 @@ namespace
         case fg::PropertyKind::Bool:
             ImGui::Checkbox(property.name.c_str(), &value.boolValue);
             break;
-        case fg::PropertyKind::Int64:
-        {
+        case fg::PropertyKind::Int64: {
             int asInt = static_cast<int>(value.intValue);
             if(ImGui::InputInt(property.name.c_str(), &asInt))
             {
@@ -135,8 +132,7 @@ namespace
         case fg::PropertyKind::Float:
             ImGui::DragFloat(property.name.c_str(), &value.floatValue, 0.01f);
             break;
-        case fg::PropertyKind::String:
-        {
+        case fg::PropertyKind::String: {
             char buffer[256];
             std::snprintf(buffer, sizeof(buffer), "%s", value.stringValue.c_str());
             if(ImGui::InputText(property.name.c_str(), buffer, sizeof(buffer)))
@@ -154,17 +150,14 @@ namespace
         case fg::PropertyKind::Vec4:
             ImGui::DragFloat4(property.name.c_str(), &value.vec4Value[0], 0.01f);
             break;
-        case fg::PropertyKind::Entity:
-        {
-            fg::EntityRef ref {};
-            ref.id = value.intValue < 0 ? fr::NullEntity
-                                        : static_cast<fr::Entity>(value.intValue);
+        case fg::PropertyKind::Entity: {
+            fg::EntityRef ref{};
+            ref.id = value.intValue < 0 ? fr::NullEntity : static_cast<fr::Entity>(value.intValue);
             fg::FriComponentInspector ui;
             ui.registry = registry;
             if(ui.EntityField(property.name.c_str(), ref))
             {
-                value.intValue =
-                    ref.id == fr::NullEntity ? -1 : static_cast<std::int64_t>(ref.id);
+                value.intValue = ref.id == fr::NullEntity ? -1 : static_cast<std::int64_t>(ref.id);
             }
             break;
         }
@@ -173,21 +166,17 @@ namespace
     }
 } // namespace
 
-HierarchyLayer::HierarchyLayer(skr::Arc<fr::Registry> registry, skr::Arc<fg::Scene> scene,
-                               skr::Arc<fg::PrimitiveMeshFactory> primitives,
-                               skr::Arc<fg::AssetRegistry> assets,
-                               skr::Arc<SelectionContext> selection,
-                               skr::Arc<fg::SceneSimulationState> simulation,
-                               skr::Arc<fra::Window> window,
-                               skr::Arc<fg::UserComponentRegistry> userComponents,
-                               skr::Arc<ResourcesLayer> resources,
-                               skr::Arc<fg::AudioController> audioController)
-    : mRegistry(std::move(registry)), mScene(std::move(scene)),
-      mPrimitives(std::move(primitives)), mAssets(std::move(assets)),
-      mSelection(std::move(selection)), mSimulation(std::move(simulation)),
-      mWindow(std::move(window)), mUserComponents(std::move(userComponents)),
-      mResources(std::move(resources)), mAudioController(std::move(audioController)),
-      nodeToRename(SelectionContext::Invalid)
+HierarchyLayer::HierarchyLayer(
+    skr::Arc<fr::Registry> registry, skr::Arc<fg::Scene> scene,
+    skr::Arc<fg::PrimitiveMeshFactory> primitives, skr::Arc<fg::AssetRegistry> assets,
+    skr::Arc<SelectionContext> selection, skr::Arc<fg::SceneSimulationState> simulation,
+    skr::Arc<fra::Window> window, skr::Arc<fg::UserComponentRegistry> userComponents,
+    skr::Arc<ResourcesLayer> resources, skr::Arc<fg::AudioController> audioController)
+    : mRegistry(std::move(registry)), mScene(std::move(scene)), mPrimitives(std::move(primitives)),
+      mAssets(std::move(assets)), mSelection(std::move(selection)),
+      mSimulation(std::move(simulation)), mWindow(std::move(window)),
+      mUserComponents(std::move(userComponents)), mResources(std::move(resources)),
+      mAudioController(std::move(audioController)), nodeToRename(SelectionContext::Invalid)
 {
 }
 
@@ -195,14 +184,14 @@ const char *HierarchyLayer::getLightDisplayName(fra::LightType type)
 {
     switch(type)
     {
-        case fra::LightType::Point:
-            return "Point Light";
-        case fra::LightType::Directional:
-            return "Directional Light";
-        case fra::LightType::Spot:
-            return "Spot Light";
-        case fra::LightType::Area:
-            return "Area Light";
+    case fra::LightType::Point:
+        return "Point Light";
+    case fra::LightType::Directional:
+        return "Directional Light";
+    case fra::LightType::Spot:
+        return "Spot Light";
+    case fra::LightType::Area:
+        return "Area Light";
     }
     return "Light";
 }
@@ -211,45 +200,45 @@ const char *HierarchyLayer::getLightIcon(fra::LightType type)
 {
     switch(type)
     {
-        case fra::LightType::Point:
-            return ICON_BTSP_BRIGHTNESSHIGH;
-        case fra::LightType::Directional:
-            return ICON_BTSP_SUN;
-        case fra::LightType::Spot:
-            return ICON_BTSP_LIGHT;
-        case fra::LightType::Area:
-            return ICON_BTSP_BOUNDINGBOX;
+    case fra::LightType::Point:
+        return ICON_BTSP_BRIGHTNESSHIGH;
+    case fra::LightType::Directional:
+        return ICON_BTSP_SUN;
+    case fra::LightType::Spot:
+        return ICON_BTSP_LIGHT;
+    case fra::LightType::Area:
+        return ICON_BTSP_BOUNDINGBOX;
     }
     return ICON_BTSP_LIGHT;
 }
 
 fg::LightComponent HierarchyLayer::makeDefaultLight(fra::LightType type)
 {
-    fg::LightComponent light {.type = type};
+    fg::LightComponent light{.type = type};
     switch(type)
     {
-        case fra::LightType::Point:
-            light.intensity   = 15.0f;
-            light.radius      = 30.0f;
-            light.castShadows = true;
-            break;
-        case fra::LightType::Directional:
-            light.intensity   = 0.8f;
-            light.castShadows = true;
-            break;
-        case fra::LightType::Spot:
-            light.intensity         = 12.0f;
-            light.radius            = 40.0f;
-            light.innerAngleDegrees = 18.0f;
-            light.outerAngleDegrees = 28.0f;
-            light.castShadows       = true;
-            break;
-        case fra::LightType::Area:
-            light.intensity  = 3.0f;
-            light.color      = {1.0f, 0.95f, 0.9f};
-            light.halfWidth  = 0.8f;
-            light.halfHeight = 0.8f;
-            break;
+    case fra::LightType::Point:
+        light.intensity   = 15.0f;
+        light.radius      = 30.0f;
+        light.castShadows = true;
+        break;
+    case fra::LightType::Directional:
+        light.intensity   = 0.8f;
+        light.castShadows = true;
+        break;
+    case fra::LightType::Spot:
+        light.intensity         = 12.0f;
+        light.radius            = 40.0f;
+        light.innerAngleDegrees = 18.0f;
+        light.outerAngleDegrees = 28.0f;
+        light.castShadows       = true;
+        break;
+    case fra::LightType::Area:
+        light.intensity  = 3.0f;
+        light.color      = {1.0f, 0.95f, 0.9f};
+        light.halfWidth  = 0.8f;
+        light.halfHeight = 0.8f;
+        break;
     }
     return light;
 }
@@ -258,40 +247,48 @@ fg::TransformComponent HierarchyLayer::makeDefaultLightTransform(fra::LightType 
 {
     switch(type)
     {
-        case fra::LightType::Point:
-            return fg::TransformComponent {.position = {2.0f, 3.0f, 2.0f},
-                                           .scale    = {1.0f, 1.0f, 1.0f},
-                                           .rotation = LookDown()};
-        case fra::LightType::Directional:
-        {
-            const glm::vec3 dir = glm::normalize(glm::vec3 {-0.4f, -1.0f, -0.3f});
-            return fg::TransformComponent {
-                .position = {0.0f, 4.0f, 0.0f},
-                .scale    = {1.0f, 1.0f, 1.0f},
-                .rotation = glm::quatLookAt(dir, glm::vec3 {0.0f, 1.0f, 0.0f})};
-        }
-        case fra::LightType::Spot:
-        {
-            const glm::vec3 position {2.0f, 4.0f, 2.0f};
-            const glm::vec3 dir = glm::normalize(glm::vec3 {0.0f, 0.0f, 0.0f} - position);
-            return fg::TransformComponent {
-                .position = position,
-                .scale    = {1.0f, 1.0f, 1.0f},
-                .rotation = glm::quatLookAt(dir, glm::vec3 {0.0f, 1.0f, 0.0f})};
-        }
-        case fra::LightType::Area:
-            return fg::TransformComponent {.position = {0.0f, 3.5f, 0.0f},
-                                           .scale    = {1.0f, 1.0f, 1.0f},
-                                           .rotation = LookDown()};
+    case fra::LightType::Point:
+        return fg::TransformComponent{
+            .position = {2.0f, 3.0f, 2.0f},
+              .scale = {1.0f, 1.0f, 1.0f},
+              .rotation = LookDown()
+        };
+    case fra::LightType::Directional: {
+        const glm::vec3 dir = glm::normalize(glm::vec3{-0.4f, -1.0f, -0.3f});
+        return fg::TransformComponent{
+            .position = {0.0f, 4.0f, 0.0f},
+            .scale    = {1.0f, 1.0f, 1.0f},
+            .rotation = glm::quatLookAt(dir, glm::vec3{0.0f, 1.0f, 0.0f}
+              )
+        };
     }
-    return fg::TransformComponent {.position = {0.0f, 3.0f, 0.0f},
-                                   .scale    = {1.0f, 1.0f, 1.0f},
-                                   .rotation = LookDown()};
+    case fra::LightType::Spot: {
+        const glm::vec3 position{2.0f, 4.0f, 2.0f};
+        const glm::vec3 dir = glm::normalize(glm::vec3{0.0f, 0.0f, 0.0f} - position);
+        return fg::TransformComponent{
+            .position = position,
+            .scale    = {1.0f, 1.0f, 1.0f},
+            .rotation = glm::quatLookAt(dir, glm::vec3{0.0f, 1.0f, 0.0f}
+                 )
+        };
+    }
+    case fra::LightType::Area:
+        return fg::TransformComponent{
+            .position = {0.0f, 3.5f, 0.0f},
+              .scale = {1.0f, 1.0f, 1.0f},
+              .rotation = LookDown()
+        };
+    }
+    return fg::TransformComponent{
+        .position = {0.0f, 3.0f, 0.0f},
+          .scale = {1.0f, 1.0f, 1.0f},
+          .rotation = LookDown()
+    };
 }
 
 fg::RigidBodyComponent HierarchyLayer::makeDefaultRigidBody(fr::Entity entity) const
 {
-    fg::RigidBodyComponent rigidBody {};
+    fg::RigidBodyComponent rigidBody{};
     mRegistry->TryGetComponents<fg::MeshComponent>(entity, [&](fg::MeshComponent &mesh) {
         fg::PrimitiveType primitive = fg::PrimitiveType::Cube;
         if(!mPrimitives->TryFindPrimitive(mesh.meshId, primitive))
@@ -328,7 +325,7 @@ fg::RigidBodyComponent HierarchyLayer::makeDefaultRigidBody(fr::Entity entity) c
 
 fg::RigidBodyComponent HierarchyLayer::makeDefaultCharacterRigidBody() const
 {
-    fg::RigidBodyComponent rigidBody {};
+    fg::RigidBodyComponent rigidBody{};
     rigidBody.motion            = fg::BodyMotionType::Dynamic;
     rigidBody.shape             = fg::ColliderShape::Capsule;
     rigidBody.radius            = 0.5f;
@@ -367,9 +364,8 @@ void HierarchyLayer::ensureCharacterRigidBody(fr::Entity entity)
 const char *HierarchyLayer::resolveEntityIcon(fr::Entity entity) const
 {
     const char *icon = nullptr;
-    mRegistry->TryGetComponents<fg::LightComponent>(entity, [&](fg::LightComponent &light) {
-        icon = getLightIcon(light.type);
-    });
+    mRegistry->TryGetComponents<fg::LightComponent>(
+        entity, [&](fg::LightComponent &light) { icon = getLightIcon(light.type); });
     if(icon != nullptr)
     {
         return icon;
@@ -463,8 +459,8 @@ void HierarchyLayer::requestSavePrefabDialog(fr::Entity entity)
 
     {
         std::lock_guard lock(mDialogMutex);
-        mPendingPrefabEntity     = entity;
-        mDialogDefaultLocation   = path.string();
+        mPendingPrefabEntity   = entity;
+        mDialogDefaultLocation = path.string();
     }
 
     std::error_code ec;
@@ -497,8 +493,8 @@ void HierarchyLayer::processPendingPrefabSave()
         {
             return;
         }
-        path                 = *mPendingPrefabPath;
-        entity               = mPendingPrefabEntity;
+        path   = *mPendingPrefabPath;
+        entity = mPendingPrefabEntity;
         mPendingPrefabPath.reset();
         mPendingPrefabEntity = SelectionContext::Invalid;
     }
@@ -526,15 +522,15 @@ void HierarchyLayer::processPendingPrefabSave()
                 relative = path.generic_string();
             }
             mRegistry->AddComponents(entity,
-                                     fg::PrefabComponent {.source = relative.generic_string()});
+                                     fg::PrefabComponent{.source = relative.generic_string()});
         }
         else
         {
             auto relative = fg::AssetRegistry::MakeRelativeToResources(path);
             mRegistry->TryGetComponents<fg::PrefabComponent>(
                 entity, [&](fg::PrefabComponent &prefab) {
-                    prefab.source = relative.empty() ? path.generic_string()
-                                                     : relative.generic_string();
+                    prefab.source =
+                        relative.empty() ? path.generic_string() : relative.generic_string();
                 });
         }
     }
@@ -554,7 +550,7 @@ void HierarchyLayer::createEmptyEntity()
             name.name = entity_name.str();
             parentNewEntity(entity);
         },
-        fg::NameComponent {});
+        fg::NameComponent{});
 }
 
 void HierarchyLayer::createPrimitiveEntity(fg::PrimitiveType type)
@@ -569,9 +565,8 @@ void HierarchyLayer::createPrimitiveEntity(fg::PrimitiveType type)
     const auto materialId   = mPrimitives->GetDefaultMaterial();
 
     const auto entity = mRegistry->CreateEntity(
-        fg::NameComponent {.name = displayName}, fg::TransformComponent {},
-        fg::MeshComponent {.meshId = meshId},
-        fg::MaterialComponent {.materialId = materialId});
+        fg::NameComponent{.name = displayName}, fg::TransformComponent{},
+        fg::MeshComponent{.meshId = meshId}, fg::MaterialComponent{.materialId = materialId});
     parentNewEntity(entity);
 }
 
@@ -583,8 +578,10 @@ void HierarchyLayer::createCameraEntity()
     }
 
     const auto entity = mRegistry->CreateEntity(
-        fg::NameComponent {.name = "Camera"},
-        fg::TransformComponent {.position = {0.0f, 1.5f, -5.0f}}, fg::CameraComponent {});
+        fg::NameComponent{
+            .name = "Camera"
+    },
+        fg::TransformComponent{.position = {0.0f, 1.5f, -5.0f}}, fg::CameraComponent{});
     parentNewEntity(entity);
 }
 
@@ -595,9 +592,9 @@ void HierarchyLayer::createAudioSourceEntity()
         return;
     }
 
-    const auto entity = mRegistry->CreateEntity(fg::NameComponent {.name = "Audio Source"},
-                                                fg::TransformComponent {},
-                                                fg::AudioSourceComponent {});
+    const auto entity =
+        mRegistry->CreateEntity(fg::NameComponent{.name = "Audio Source"}, fg::TransformComponent{},
+                                fg::AudioSourceComponent{});
     parentNewEntity(entity);
 }
 
@@ -608,9 +605,9 @@ void HierarchyLayer::createAudioListenerEntity()
         return;
     }
 
-    const auto entity = mRegistry->CreateEntity(fg::NameComponent {.name = "Audio Listener"},
-                                                fg::TransformComponent {},
-                                                fg::AudioListenerComponent {});
+    const auto entity =
+        mRegistry->CreateEntity(fg::NameComponent{.name = "Audio Listener"},
+                                fg::TransformComponent{}, fg::AudioListenerComponent{});
     parentNewEntity(entity);
 }
 
@@ -621,9 +618,9 @@ void HierarchyLayer::createLightEntity(fra::LightType type)
         return;
     }
 
-    const auto entity = mRegistry->CreateEntity(
-        fg::NameComponent {.name = getLightDisplayName(type)}, makeDefaultLightTransform(type),
-        makeDefaultLight(type));
+    const auto entity =
+        mRegistry->CreateEntity(fg::NameComponent{.name = getLightDisplayName(type)},
+                                makeDefaultLightTransform(type), makeDefaultLight(type));
     parentNewEntity(entity);
 }
 
@@ -634,8 +631,10 @@ void HierarchyLayer::createBillboardEntity()
         return;
     }
     const auto entity = mRegistry->CreateEntity(
-        fg::NameComponent {.name = "Billboard"},
-        fg::TransformComponent {.position = {0.0f, 1.0f, 0.0f}}, fg::BillboardComponent {});
+        fg::NameComponent{
+            .name = "Billboard"
+    },
+        fg::TransformComponent{.position = {0.0f, 1.0f, 0.0f}}, fg::BillboardComponent{});
     parentNewEntity(entity);
 }
 
@@ -646,9 +645,10 @@ void HierarchyLayer::createParticleEntity()
         return;
     }
     const auto entity = mRegistry->CreateEntity(
-        fg::NameComponent {.name = "Particles"},
-        fg::TransformComponent {.position = {0.0f, 0.5f, 0.0f}},
-        fg::ParticleEmitterComponent {});
+        fg::NameComponent{
+            .name = "Particles"
+    },
+        fg::TransformComponent{.position = {0.0f, 0.5f, 0.0f}}, fg::ParticleEmitterComponent{});
     parentNewEntity(entity);
 }
 
@@ -658,9 +658,8 @@ void HierarchyLayer::createFullscreenEffectEntity()
     {
         return;
     }
-    const auto entity =
-        mRegistry->CreateEntity(fg::NameComponent {.name = "Fullscreen Effect"},
-                                fg::FullscreenEffectComponent {});
+    const auto entity = mRegistry->CreateEntity(fg::NameComponent{.name = "Fullscreen Effect"},
+                                                fg::FullscreenEffectComponent{});
     parentNewEntity(entity);
 }
 
@@ -674,7 +673,7 @@ void HierarchyLayer::addRigidBodyToSelection()
     const auto entity = mSelection->Get();
     if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
     {
-        mRegistry->AddComponents(entity, fg::TransformComponent {});
+        mRegistry->AddComponents(entity, fg::TransformComponent{});
     }
     // CharacterController requires RigidBody — keep both when CC is present.
     if(!mRegistry->HasComponent<fg::RigidBodyComponent>(entity))
@@ -693,7 +692,7 @@ void HierarchyLayer::addCharacterControllerToSelection()
     const auto entity = mSelection->Get();
     if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
     {
-        mRegistry->AddComponents(entity, fg::TransformComponent {});
+        mRegistry->AddComponents(entity, fg::TransformComponent{});
     }
     ensureCharacterRigidBody(entity);
     if(hasUserComponentType(kCharacterControllerTypeId))
@@ -712,11 +711,11 @@ void HierarchyLayer::addThirdPersonCameraToSelection()
     const auto entity = mSelection->Get();
     if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
     {
-        mRegistry->AddComponents(entity, fg::TransformComponent {});
+        mRegistry->AddComponents(entity, fg::TransformComponent{});
     }
     if(!mRegistry->HasComponent<fg::CameraComponent>(entity))
     {
-        mRegistry->AddComponents(entity, fg::CameraComponent {});
+        mRegistry->AddComponents(entity, fg::CameraComponent{});
     }
     if(hasUserComponentType(kThirdPersonCameraTypeId))
     {
@@ -733,11 +732,11 @@ void HierarchyLayer::addBillboardToSelection()
     const auto entity = mSelection->Get();
     if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
     {
-        mRegistry->AddComponents(entity, fg::TransformComponent {});
+        mRegistry->AddComponents(entity, fg::TransformComponent{});
     }
     if(!mRegistry->HasComponent<fg::BillboardComponent>(entity))
     {
-        mRegistry->AddComponents(entity, fg::BillboardComponent {});
+        mRegistry->AddComponents(entity, fg::BillboardComponent{});
     }
 }
 
@@ -750,11 +749,11 @@ void HierarchyLayer::addParticleEmitterToSelection()
     const auto entity = mSelection->Get();
     if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
     {
-        mRegistry->AddComponents(entity, fg::TransformComponent {});
+        mRegistry->AddComponents(entity, fg::TransformComponent{});
     }
     if(!mRegistry->HasComponent<fg::ParticleEmitterComponent>(entity))
     {
-        mRegistry->AddComponents(entity, fg::ParticleEmitterComponent {});
+        mRegistry->AddComponents(entity, fg::ParticleEmitterComponent{});
     }
 }
 
@@ -767,11 +766,11 @@ void HierarchyLayer::addHealthBarToSelection()
     const auto entity = mSelection->Get();
     if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
     {
-        mRegistry->AddComponents(entity, fg::TransformComponent {});
+        mRegistry->AddComponents(entity, fg::TransformComponent{});
     }
     if(!mRegistry->HasComponent<fg::HealthBarComponent>(entity))
     {
-        mRegistry->AddComponents(entity, fg::HealthBarComponent {});
+        mRegistry->AddComponents(entity, fg::HealthBarComponent{});
     }
 }
 
@@ -784,11 +783,11 @@ void HierarchyLayer::addBillboardTextToSelection()
     const auto entity = mSelection->Get();
     if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
     {
-        mRegistry->AddComponents(entity, fg::TransformComponent {});
+        mRegistry->AddComponents(entity, fg::TransformComponent{});
     }
     if(!mRegistry->HasComponent<fg::BillboardTextComponent>(entity))
     {
-        fg::BillboardTextComponent label {};
+        fg::BillboardTextComponent label{};
         if(mAssets)
         {
             label.fontId = mAssets->DefaultBillboardFontId();
@@ -806,7 +805,7 @@ void HierarchyLayer::addFullscreenEffectToSelection()
     const auto entity = mSelection->Get();
     if(!mRegistry->HasComponent<fg::FullscreenEffectComponent>(entity))
     {
-        mRegistry->AddComponents(entity, fg::FullscreenEffectComponent {});
+        mRegistry->AddComponents(entity, fg::FullscreenEffectComponent{});
     }
 }
 
@@ -819,11 +818,11 @@ void HierarchyLayer::addAudioSourceToSelection()
     const auto entity = mSelection->Get();
     if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
     {
-        mRegistry->AddComponents(entity, fg::TransformComponent {});
+        mRegistry->AddComponents(entity, fg::TransformComponent{});
     }
     if(!mRegistry->HasComponent<fg::AudioSourceComponent>(entity))
     {
-        mRegistry->AddComponents(entity, fg::AudioSourceComponent {});
+        mRegistry->AddComponents(entity, fg::AudioSourceComponent{});
     }
 }
 
@@ -836,11 +835,11 @@ void HierarchyLayer::addAudioListenerToSelection()
     const auto entity = mSelection->Get();
     if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
     {
-        mRegistry->AddComponents(entity, fg::TransformComponent {});
+        mRegistry->AddComponents(entity, fg::TransformComponent{});
     }
     if(!mRegistry->HasComponent<fg::AudioListenerComponent>(entity))
     {
-        mRegistry->AddComponents(entity, fg::AudioListenerComponent {});
+        mRegistry->AddComponents(entity, fg::AudioListenerComponent{});
     }
 }
 
@@ -885,7 +884,7 @@ void HierarchyLayer::addUserComponentToEntity(fr::Entity entity, std::string_vie
     {
         if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
         {
-            mRegistry->AddComponents(entity, fg::TransformComponent {});
+            mRegistry->AddComponents(entity, fg::TransformComponent{});
         }
         ensureCharacterRigidBody(entity);
     }
@@ -893,11 +892,11 @@ void HierarchyLayer::addUserComponentToEntity(fr::Entity entity, std::string_vie
     {
         if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
         {
-            mRegistry->AddComponents(entity, fg::TransformComponent {});
+            mRegistry->AddComponents(entity, fg::TransformComponent{});
         }
         if(!mRegistry->HasComponent<fg::CameraComponent>(entity))
         {
-            mRegistry->AddComponents(entity, fg::CameraComponent {});
+            mRegistry->AddComponents(entity, fg::CameraComponent{});
         }
     }
 
@@ -926,14 +925,14 @@ void HierarchyLayer::drawModuleAddComponentMenus(fr::Entity entity)
     };
     std::vector<ModuleGroup> groups;
     std::map<std::string, std::size_t> indexById;
-    for(const auto &ops : types)
+    for(const auto &ops: types)
     {
         const auto id = ops.moduleId.empty() ? std::string("modules") : ops.moduleId;
         auto found    = indexById.find(id);
         if(found == indexById.end())
         {
             indexById.emplace(id, groups.size());
-            groups.push_back(ModuleGroup {
+            groups.push_back(ModuleGroup{
                 .id   = id,
                 .name = ops.moduleName.empty() ? id : ops.moduleName,
             });
@@ -947,12 +946,12 @@ void HierarchyLayer::drawModuleAddComponentMenus(fr::Entity entity)
     }
 
     ImGui::Separator();
-    for(const auto &group : groups)
+    for(const auto &group: groups)
     {
         ImGui::PushID(group.id.c_str());
         if(ImGui::BeginMenu(group.name.c_str()))
         {
-            for(const auto &ops : group.components)
+            for(const auto &ops: group.components)
             {
                 ImGui::PushID(ops.typeId.c_str());
                 const bool alreadyHas = ops.has && ops.has(*mRegistry, entity);
@@ -1002,18 +1001,16 @@ bool HierarchyLayer::isEntityLocked(fr::Entity entity) const
     }
 
     bool locked = false;
-    mRegistry->TryGetComponents<fg::CameraComponent>(entity, [&locked](fg::CameraComponent &camera) {
-        locked = camera.locked;
-    });
+    mRegistry->TryGetComponents<fg::CameraComponent>(
+        entity, [&locked](fg::CameraComponent &camera) { locked = camera.locked; });
     return locked;
 }
 
 void HierarchyLayer::setPrimaryCamera(fr::Entity entity)
 {
-    mRegistry->CreateMutation()->Each(
-        [entity](fr::Entity candidate, fg::CameraComponent &camera) {
-            camera.primary = (candidate == entity);
-        });
+    mRegistry->CreateMutation()->Each([entity](fr::Entity candidate, fg::CameraComponent &camera) {
+        camera.primary = (candidate == entity);
+    });
 }
 
 void HierarchyLayer::drawTextureSlot(const char *label, PendingTextureSlot slot,
@@ -1052,7 +1049,7 @@ void HierarchyLayer::drawTextureSlot(const char *label, PendingTextureSlot slot,
 
     if(ImGui::BeginCombo("##pick", "From library..."))
     {
-        for(const auto &texture : mAssets->GetTextures())
+        for(const auto &texture: mAssets->GetTextures())
         {
             const bool selected = textureId && *textureId == texture.textureId;
             if(ImGui::Selectable(texture.relativePath.c_str(), selected))
@@ -1105,10 +1102,10 @@ void HierarchyLayer::processPendingTextureImport()
         {
             return;
         }
-        slot                  = mPendingTextureSlot;
-        path                  = *mPendingTexturePath;
-        entity                = mPendingTextureEntity;
-        mPendingTextureSlot   = PendingTextureSlot::None;
+        slot                = mPendingTextureSlot;
+        path                = *mPendingTexturePath;
+        entity              = mPendingTextureEntity;
+        mPendingTextureSlot = PendingTextureSlot::None;
         mPendingTexturePath.reset();
         mPendingTextureEntity = SelectionContext::Invalid;
     }
@@ -1124,49 +1121,49 @@ void HierarchyLayer::processPendingTextureImport()
         return;
     }
 
-    mRegistry->TryGetComponents<fg::MaterialComponent>(entity, [&](fg::MaterialComponent &material) {
-        if(material.materialId == mPrimitives->GetDefaultMaterial() ||
-           mAssets->IsSharedMaterial(material.materialId))
-        {
-            material.materialId =
-                mAssets->DuplicateMaterial(material.materialId, "Unique Material");
-        }
+    mRegistry->TryGetComponents<fg::MaterialComponent>(
+        entity, [&](fg::MaterialComponent &material) {
+            if(material.materialId == mPrimitives->GetDefaultMaterial() ||
+               mAssets->IsSharedMaterial(material.materialId))
+            {
+                material.materialId =
+                    mAssets->DuplicateMaterial(material.materialId, "Unique Material");
+            }
 
-        auto info = mPrimitives->GetMaterialCreateInfo(material.materialId);
-        switch(slot)
-        {
-        case PendingTextureSlot::Albedo:
-            info.albedo = fg::AsTextureHandle(texture->textureId);
-            break;
-        case PendingTextureSlot::Normal:
-            info.normal = fg::AsTextureHandle(texture->textureId);
-            break;
-        case PendingTextureSlot::Roughness:
-            info.roughness = fg::AsTextureHandle(texture->textureId);
-            break;
-        case PendingTextureSlot::Emissive:
-            info.emissive = fg::AsTextureHandle(texture->textureId);
-            break;
-        case PendingTextureSlot::Metalness:
-            info.metalness = fg::AsTextureHandle(texture->textureId);
-            break;
-        case PendingTextureSlot::Occlusion:
-            info.occlusion = fg::AsTextureHandle(texture->textureId);
-            break;
-        case PendingTextureSlot::Billboard:
-        case PendingTextureSlot::Particle:
-        case PendingTextureSlot::None:
-            break;
-        }
-        mPrimitives->UpdateMaterial(material.materialId, info);
-    });
+            auto info = mPrimitives->GetMaterialCreateInfo(material.materialId);
+            switch(slot)
+            {
+            case PendingTextureSlot::Albedo:
+                info.albedo = fg::AsTextureHandle(texture->textureId);
+                break;
+            case PendingTextureSlot::Normal:
+                info.normal = fg::AsTextureHandle(texture->textureId);
+                break;
+            case PendingTextureSlot::Roughness:
+                info.roughness = fg::AsTextureHandle(texture->textureId);
+                break;
+            case PendingTextureSlot::Emissive:
+                info.emissive = fg::AsTextureHandle(texture->textureId);
+                break;
+            case PendingTextureSlot::Metalness:
+                info.metalness = fg::AsTextureHandle(texture->textureId);
+                break;
+            case PendingTextureSlot::Occlusion:
+                info.occlusion = fg::AsTextureHandle(texture->textureId);
+                break;
+            case PendingTextureSlot::Billboard:
+            case PendingTextureSlot::Particle:
+            case PendingTextureSlot::None:
+                break;
+            }
+            mPrimitives->UpdateMaterial(material.materialId, info);
+        });
 
     if(slot == PendingTextureSlot::Billboard)
     {
         mRegistry->TryGetComponents<fg::BillboardComponent>(
-            entity, [&](fg::BillboardComponent &billboard) {
-                billboard.textureId = texture->textureId;
-            });
+            entity,
+            [&](fg::BillboardComponent &billboard) { billboard.textureId = texture->textureId; });
     }
     if(slot == PendingTextureSlot::Particle)
     {
@@ -1248,8 +1245,8 @@ void HierarchyLayer::onGui()
 
         if(ImGui::BeginMenu(ICON_BTSP_LIGHT " Light"))
         {
-            for(auto type: {fra::LightType::Point, fra::LightType::Directional, fra::LightType::Spot,
-                            fra::LightType::Area})
+            for(auto type: {fra::LightType::Point, fra::LightType::Directional,
+                            fra::LightType::Spot, fra::LightType::Area})
             {
                 const auto label =
                     std::format("{} {}", getLightIcon(type), getLightDisplayName(type));
@@ -1269,21 +1266,18 @@ void HierarchyLayer::onGui()
         ImGui::EndPopup();
     }
 
-    std::unordered_set<fr::Entity> nested;
-    mRegistry->CreateMutation()->Each(
-        [this, &nested](fr::Entity entity, fg::NameComponent &) {
-            if(mRegistry->GetParent(entity) != fr::NullEntity)
-            {
-                nested.insert(entity);
-            }
-        });
-    mRegistry->CreateMutation()->Each(
-        [this, &nested](fr::Entity entity, fg::NameComponent &name) {
-            if(!nested.contains(entity))
-            {
-                drawEntityNode(entity, name);
-            }
-        });
+    std::vector<fr::Entity> roots;
+    mRegistry->CreateMutation()->Each([this, &roots](fr::Entity entity, fg::NameComponent &) {
+        if(mRegistry->GetParent(entity) == fr::NullEntity)
+        {
+            roots.push_back(entity);
+        }
+    });
+    for(const auto entity: roots)
+    {
+        mRegistry->TryGetComponents<fg::NameComponent>(
+            entity, [&](fg::NameComponent &name) { drawEntityNode(entity, name); });
+    }
 
     ImGui::Dummy(ImVec2(ImGui::GetContentRegionAvail().x,
                         std::max(EditorUiScale::S(24.0f), ImGui::GetContentRegionAvail().y)));
@@ -1334,7 +1328,7 @@ void HierarchyLayer::copyComponent(std::string_view kind)
     }
     if(ComponentClipboard::Copy(*mScene, mSelection->Get(), kind))
     {
-        mActiveComponentKind = std::string {kind};
+        mActiveComponentKind = std::string{kind};
     }
 }
 
@@ -1361,8 +1355,7 @@ void HierarchyLayer::copyActiveComponent()
 
 bool HierarchyLayer::canPasteComponent() const
 {
-    return !mSimulation->IsPlaying() && mSelection->HasSelection() &&
-           ComponentClipboard::HasData();
+    return !mSimulation->IsPlaying() && mSelection->HasSelection() && ComponentClipboard::HasData();
 }
 
 void HierarchyLayer::drawComponentContextMenu(std::string_view kind)
@@ -1370,7 +1363,7 @@ void HierarchyLayer::drawComponentContextMenu(std::string_view kind)
     ImGui::PushID(kind.data(), kind.data() + kind.size());
     if(ImGui::BeginPopupContextItem("##ComponentCtx"))
     {
-        mActiveComponentKind = std::string {kind};
+        mActiveComponentKind = std::string{kind};
 
         if(ImGui::MenuItem("Copy Component", "Ctrl+C"))
         {
@@ -1388,7 +1381,7 @@ void HierarchyLayer::drawComponentContextMenu(std::string_view kind)
     }
     else if(ImGui::IsItemClicked(ImGuiMouseButton_Left))
     {
-        mActiveComponentKind = std::string {kind};
+        mActiveComponentKind = std::string{kind};
     }
     ImGui::PopID();
 }
@@ -1396,9 +1389,8 @@ void HierarchyLayer::drawComponentContextMenu(std::string_view kind)
 bool HierarchyLayer::drawComponentHeader(const char *label, std::string_view kind, bool *open)
 {
     const bool expanded =
-        open != nullptr
-            ? ImGui::CollapsingHeader(label, open, ImGuiWindowFlags_ChildWindow)
-            : ImGui::CollapsingHeader(label, nullptr, ImGuiWindowFlags_ChildWindow);
+        open != nullptr ? ImGui::CollapsingHeader(label, open, ImGuiWindowFlags_ChildWindow)
+                        : ImGui::CollapsingHeader(label, nullptr, ImGuiWindowFlags_ChildWindow);
     drawComponentContextMenu(kind);
     return expanded;
 }
@@ -1429,7 +1421,7 @@ bool HierarchyLayer::entityHasVisibleComponents(fr::Entity entity) const
         return false;
     }
 
-    for(const auto &ops : mUserComponents->GetTypes())
+    for(const auto &ops: mUserComponents->GetTypes())
     {
         if(ops.has && ops.has(*mRegistry, entity))
         {
@@ -1444,7 +1436,7 @@ void HierarchyLayer::ensureTransformForPaste(fr::Entity entity)
 {
     if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
     {
-        mRegistry->AddComponents(entity, fg::TransformComponent {});
+        mRegistry->AddComponents(entity, fg::TransformComponent{});
     }
 }
 
@@ -1461,8 +1453,8 @@ void HierarchyLayer::drawComponentsPanelActions()
 
 void HierarchyLayer::handleComponentClipboardInput()
 {
-    if(!ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) ||
-       mSimulation->IsPlaying() || !mSelection->HasSelection())
+    if(!ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) || mSimulation->IsPlaying() ||
+       !mSelection->HasSelection())
     {
         return;
     }
@@ -1481,14 +1473,13 @@ void HierarchyLayer::handleComponentClipboardInput()
 void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
 {
     // Copy: drag-drop below may reparent while the tree is drawn. Freyr keeps insertion order.
-    const auto              childRange = mRegistry->Children(entity);
+    const auto childRange = mRegistry->Children(entity);
     std::vector<fr::Entity> children(childRange.begin(), childRange.end());
 
     const bool renaming = nodeToRename == entity;
 
-    ImGuiTreeNodeFlags flags =
-        ((mSelection->Get() == entity) ? ImGuiTreeNodeFlags_Selected : 0) |
-        ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_OpenOnArrow;
+    ImGuiTreeNodeFlags flags = ((mSelection->Get() == entity) ? ImGuiTreeNodeFlags_Selected : 0) |
+                               ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_OpenOnArrow;
     if(children.empty())
     {
         flags |= ImGuiTreeNodeFlags_Leaf;
@@ -1503,23 +1494,23 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
     }
 
     const char *icon = resolveEntityIcon(entity);
-    bool        opened = false;
+    bool opened      = false;
     if(renaming)
     {
         // Keep the icon in the row; the name is drawn by the overlay InputText.
         opened = icon[0] != '\0'
                      ? ImGui::TreeNodeEx(reinterpret_cast<void *>(static_cast<uintptr_t>(entity)),
-                                        flags, "%s", icon)
+                                         flags, "%s", icon)
                      : ImGui::TreeNodeEx(reinterpret_cast<void *>(static_cast<uintptr_t>(entity)),
-                                        flags, "");
+                                         flags, "");
     }
     else
     {
         opened = icon[0] != '\0'
                      ? ImGui::TreeNodeEx(reinterpret_cast<void *>(static_cast<uintptr_t>(entity)),
-                                        flags, "%s %s", icon, name.name.c_str())
+                                         flags, "%s %s", icon, name.name.c_str())
                      : ImGui::TreeNodeEx(reinterpret_cast<void *>(static_cast<uintptr_t>(entity)),
-                                        flags, "%s", name.name.c_str());
+                                         flags, "%s", name.name.c_str());
     }
 
     if(ImGui::BeginDragDropSource())
@@ -1591,8 +1582,7 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
         }
 
         const auto parent = mRegistry->GetParent(entity);
-        if(ImGui::MenuItem("Unparent", nullptr, false,
-                           !playLocked && parent != fr::NullEntity))
+        if(ImGui::MenuItem("Unparent", nullptr, false, !playLocked && parent != fr::NullEntity))
         {
             fg::TransformUtil::Reparent(*mRegistry, entity, fr::NullEntity, true);
         }
@@ -1602,7 +1592,7 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
         {
             if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
             {
-                mRegistry->AddComponents(entity, fg::TransformComponent {});
+                mRegistry->AddComponents(entity, fg::TransformComponent{});
             }
         }
 
@@ -1610,14 +1600,13 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
         {
             if(!mRegistry->HasComponent<fg::MeshComponent>(entity))
             {
-                mRegistry->AddComponents(
-                    entity, fg::MeshComponent {.meshId = mPrimitives->GetMesh(fg::PrimitiveType::Cube)});
+                mRegistry->AddComponents(entity, fg::MeshComponent{.meshId = mPrimitives->GetMesh(
+                                                                       fg::PrimitiveType::Cube)});
             }
             if(!mRegistry->HasComponent<fg::MaterialComponent>(entity))
             {
                 mRegistry->AddComponents(
-                    entity,
-                    fg::MaterialComponent {.materialId = mPrimitives->GetDefaultMaterial()});
+                    entity, fg::MaterialComponent{.materialId = mPrimitives->GetDefaultMaterial()});
             }
         }
 
@@ -1626,8 +1615,7 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
             if(!mRegistry->HasComponent<fg::MaterialComponent>(entity))
             {
                 mRegistry->AddComponents(
-                    entity,
-                    fg::MaterialComponent {.materialId = mPrimitives->GetDefaultMaterial()});
+                    entity, fg::MaterialComponent{.materialId = mPrimitives->GetDefaultMaterial()});
             }
         }
 
@@ -1635,7 +1623,7 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
         {
             if(!mRegistry->HasComponent<fg::CameraComponent>(entity))
             {
-                mRegistry->AddComponents(entity, fg::CameraComponent {});
+                mRegistry->AddComponents(entity, fg::CameraComponent{});
             }
         }
 
@@ -1645,22 +1633,22 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
             {
                 if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
                 {
-                    mRegistry->AddComponents(entity, fg::TransformComponent {});
+                    mRegistry->AddComponents(entity, fg::TransformComponent{});
                 }
                 if(!mRegistry->HasComponent<fg::BillboardComponent>(entity))
                 {
-                    mRegistry->AddComponents(entity, fg::BillboardComponent {});
+                    mRegistry->AddComponents(entity, fg::BillboardComponent{});
                 }
             }
             if(ImGui::MenuItem("Billboard Text"))
             {
                 if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
                 {
-                    mRegistry->AddComponents(entity, fg::TransformComponent {});
+                    mRegistry->AddComponents(entity, fg::TransformComponent{});
                 }
                 if(!mRegistry->HasComponent<fg::BillboardTextComponent>(entity))
                 {
-                    fg::BillboardTextComponent label {};
+                    fg::BillboardTextComponent label{};
                     if(mAssets)
                     {
                         label.fontId = mAssets->DefaultBillboardFontId();
@@ -1672,11 +1660,11 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
             {
                 if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
                 {
-                    mRegistry->AddComponents(entity, fg::TransformComponent {});
+                    mRegistry->AddComponents(entity, fg::TransformComponent{});
                 }
                 if(!mRegistry->HasComponent<fg::HealthBarComponent>(entity))
                 {
-                    mRegistry->AddComponents(entity, fg::HealthBarComponent {});
+                    mRegistry->AddComponents(entity, fg::HealthBarComponent{});
                 }
             }
             ImGui::EndMenu();
@@ -1685,25 +1673,25 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
         {
             if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
             {
-                mRegistry->AddComponents(entity, fg::TransformComponent {});
+                mRegistry->AddComponents(entity, fg::TransformComponent{});
             }
             if(!mRegistry->HasComponent<fg::ParticleEmitterComponent>(entity))
             {
-                mRegistry->AddComponents(entity, fg::ParticleEmitterComponent {});
+                mRegistry->AddComponents(entity, fg::ParticleEmitterComponent{});
             }
         }
         if(ImGui::MenuItem("Add fullscreen effect"))
         {
             if(!mRegistry->HasComponent<fg::FullscreenEffectComponent>(entity))
             {
-                mRegistry->AddComponents(entity, fg::FullscreenEffectComponent {});
+                mRegistry->AddComponents(entity, fg::FullscreenEffectComponent{});
             }
         }
 
         if(ImGui::BeginMenu(ICON_BTSP_LIGHT " Add light"))
         {
-            for(auto type: {fra::LightType::Point, fra::LightType::Directional, fra::LightType::Spot,
-                            fra::LightType::Area})
+            for(auto type: {fra::LightType::Point, fra::LightType::Directional,
+                            fra::LightType::Spot, fra::LightType::Area})
             {
                 const auto label =
                     std::format("{} {}", getLightIcon(type), getLightDisplayName(type));
@@ -1719,14 +1707,13 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
         {
             if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
             {
-                mRegistry->AddComponents(entity, fg::TransformComponent {});
+                mRegistry->AddComponents(entity, fg::TransformComponent{});
             }
             // CharacterController requires RigidBody — keep both when CC is present.
             if(!mRegistry->HasComponent<fg::RigidBodyComponent>(entity))
             {
                 const bool hasCharacter =
-                    hasUserComponentType(kCharacterControllerTypeId) &&
-                    [&]() {
+                    hasUserComponentType(kCharacterControllerTypeId) && [&]() {
                         const auto ops = mUserComponents->Find(kCharacterControllerTypeId);
                         return ops && ops->has && ops->has(*mRegistry, entity);
                     }();
@@ -1745,9 +1732,8 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
         {
             if(!mRegistry->HasComponent<fg::AnimatorComponent>(entity))
             {
-                fg::AnimatorComponent animator {};
-                animator.modelSource =
-                    ResolveAnimatorModelSource(*mAssets, entity, *mRegistry);
+                fg::AnimatorComponent animator{};
+                animator.modelSource = ResolveAnimatorModelSource(*mAssets, entity, *mRegistry);
                 mRegistry->AddComponents(entity, std::move(animator));
             }
         }
@@ -1756,22 +1742,22 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
         {
             if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
             {
-                mRegistry->AddComponents(entity, fg::TransformComponent {});
+                mRegistry->AddComponents(entity, fg::TransformComponent{});
             }
             if(!mRegistry->HasComponent<fg::AudioSourceComponent>(entity))
             {
-                mRegistry->AddComponents(entity, fg::AudioSourceComponent {});
+                mRegistry->AddComponents(entity, fg::AudioSourceComponent{});
             }
         }
         if(ImGui::MenuItem(ICON_BTSP_MIC " Add audio listener"))
         {
             if(!mRegistry->HasComponent<fg::TransformComponent>(entity))
             {
-                mRegistry->AddComponents(entity, fg::TransformComponent {});
+                mRegistry->AddComponents(entity, fg::TransformComponent{});
             }
             if(!mRegistry->HasComponent<fg::AudioListenerComponent>(entity))
             {
-                mRegistry->AddComponents(entity, fg::AudioListenerComponent {});
+                mRegistry->AddComponents(entity, fg::AudioListenerComponent{});
             }
         }
 
@@ -1782,8 +1768,8 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
     }
 
     // Select on mouse-up so a press+drag to Components does not steal selection.
-    if(!renaming && ImGui::IsItemHovered() &&
-       ImGui::IsMouseReleased(ImGuiMouseButton_Left) && !mHierarchyEntityDragActive)
+    if(!renaming && ImGui::IsItemHovered() && ImGui::IsMouseReleased(ImGuiMouseButton_Left) &&
+       !mHierarchyEntityDragActive)
     {
         mSelection->Select(entity);
     }
@@ -1800,19 +1786,18 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
 
     if(renaming)
     {
-        static char buffer[65] {};
+        static char buffer[65]{};
         static fr::Entity bufferEntity = SelectionContext::Invalid;
-        static bool       needsFocus   = false;
+        static bool needsFocus         = false;
         if(bufferEntity != entity)
         {
             bufferEntity = entity;
             needsFocus   = true;
             buffer[0]    = '\0';
-            mRegistry->TryGetComponents<fg::NameComponent>(
-                entity, [](fg::NameComponent &name) {
-                    std::strncpy(buffer, name.name.c_str(), sizeof(buffer) - 1);
-                    buffer[sizeof(buffer) - 1] = '\0';
-                });
+            mRegistry->TryGetComponents<fg::NameComponent>(entity, [](fg::NameComponent &name) {
+                std::strncpy(buffer, name.name.c_str(), sizeof(buffer) - 1);
+                buffer[sizeof(buffer) - 1] = '\0';
+            });
         }
 
         float labelX = rowMin.x + ImGui::GetTreeNodeToLabelSpacing();
@@ -1822,8 +1807,7 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
         }
 
         const float rowHeight = rowMax.y - rowMin.y;
-        const float framePadY =
-            std::max(0.0f, (rowHeight - ImGui::GetFontSize()) * 0.5f);
+        const float framePadY = std::max(0.0f, (rowHeight - ImGui::GetFontSize()) * 0.5f);
 
         ImGui::SetCursorScreenPos(ImVec2(labelX, rowMin.y));
         ImGui::PushItemWidth(std::max(EditorUiScale::S(24.0f), rowMax.x - labelX));
@@ -1831,9 +1815,8 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
         ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
 
         // Blend with the selected tree-row background.
-        const ImVec4 header =
-            ImGui::GetStyleColorVec4(mSelection->Get() == entity ? ImGuiCol_Header
-                                                                : ImGuiCol_FrameBg);
+        const ImVec4 header = ImGui::GetStyleColorVec4(
+            mSelection->Get() == entity ? ImGuiCol_Header : ImGuiCol_FrameBg);
         ImGui::PushStyleColor(ImGuiCol_FrameBg, header);
         ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, header);
         ImGui::PushStyleColor(ImGuiCol_FrameBgActive, header);
@@ -1844,9 +1827,9 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
             needsFocus = false;
         }
 
-        const bool committed = ImGui::InputText(
-            renameId.data(), buffer, sizeof(buffer),
-            ImGuiInputTextFlags_AutoSelectAll | ImGuiInputTextFlags_EnterReturnsTrue);
+        const bool committed = ImGui::InputText(renameId.data(), buffer, sizeof(buffer),
+                                                ImGuiInputTextFlags_AutoSelectAll |
+                                                    ImGuiInputTextFlags_EnterReturnsTrue);
 
         ImGui::PopStyleColor(3);
         ImGui::PopStyleVar(2);
@@ -1869,12 +1852,11 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
 
     if(opened)
     {
-        for(const auto child : children)
+        for(const auto child: children)
         {
             mRegistry->TryGetComponents<fg::NameComponent>(
-                child, [this, child](fg::NameComponent &childName) {
-                    drawEntityNode(child, childName);
-                });
+                child,
+                [this, child](fg::NameComponent &childName) { drawEntityNode(child, childName); });
         }
         ImGui::TreePop();
     }
@@ -1884,23 +1866,20 @@ void HierarchyLayer::drawComponents()
 {
     const fr::Entity selection = mSelection->Get();
 
-    mRegistry->TryGetComponents<fg::PrefabComponent>(
-        selection, [](fg::PrefabComponent &prefab) {
-            if(ImGui::CollapsingHeader("Prefab", ImGuiTreeNodeFlags_DefaultOpen))
-            {
-                ImGui::TextWrapped("Source: Resources/%s", prefab.source.c_str());
-                ImGui::TextDisabled("Double-click the prefab in Resources to spawn another copy.");
-            }
-        });
+    mRegistry->TryGetComponents<fg::PrefabComponent>(selection, [](fg::PrefabComponent &prefab) {
+        if(ImGui::CollapsingHeader("Prefab", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            ImGui::TextWrapped("Source: Resources/%s", prefab.source.c_str());
+            ImGui::TextDisabled("Double-click the prefab in Resources to spawn another copy.");
+        }
+    });
 
     mRegistry->TryGetComponents<fg::TransformComponent>(
         selection, [this, selection](fg::TransformComponent &transform) {
             static glm::vec3 Rotation;
 
-            const bool hasParent =
-                mRegistry->GetParent(selection) != fr::NullEntity;
-            const char *header =
-                hasParent ? "Transform (Local)" : "Transform Component";
+            const bool hasParent = mRegistry->GetParent(selection) != fr::NullEntity;
+            const char *header   = hasParent ? "Transform (Local)" : "Transform Component";
 
             if(drawComponentHeader(header, "transform"))
             {
@@ -2126,14 +2105,12 @@ void HierarchyLayer::drawComponents()
             if(drawComponentHeader("Fullscreen Effect", "fullscreenEffect", &open))
             {
                 int kindIndex = static_cast<int>(fx.kind);
-                if(ImGui::Combo("Preset",
-                                &kindIndex,
+                if(ImGui::Combo("Preset", &kindIndex,
                                 "Cell\0Outline\0Color Grade\0Underwater\0Heat Haze\0Glow\0Mu "
                                 "Item Glow\0Custom\0"))
                 {
-                    fx.kind = static_cast<fg::FullscreenEffectKind>(kindIndex);
-                    fx.fragment =
-                        fg::FullscreenEffectFragmentPath(fx.kind, fx.fragment);
+                    fx.kind     = static_cast<fg::FullscreenEffectKind>(kindIndex);
+                    fx.fragment = fg::FullscreenEffectFragmentPath(fx.kind, fx.fragment);
                 }
 
                 char nameBuf[64];
@@ -2270,7 +2247,8 @@ void HierarchyLayer::drawComponents()
                 ImGui::DragFloat("Intensity", &light.intensity, 0.1f, 0.0f, 1000.0f);
                 if(ImGui::IsItemHovered())
                 {
-                    ImGui::SetTooltip("Relative to IBL / exposure (Dir ~0.5–1, Area ~2–4, Point ~10–20)");
+                    ImGui::SetTooltip(
+                        "Relative to IBL / exposure (Dir ~0.5–1, Area ~2–4, Point ~10–20)");
                 }
 
                 if(light.type == fra::LightType::Point || light.type == fra::LightType::Spot)
@@ -2302,19 +2280,18 @@ void HierarchyLayer::drawComponents()
             }
         });
 
-    mRegistry->TryGetComponents<fg::MeshComponent>(selection, [this, selection](fg::MeshComponent &mesh) {
+    mRegistry->TryGetComponents<fg::MeshComponent>(selection, [this,
+                                                               selection](fg::MeshComponent &mesh) {
         bool open = true;
         if(drawComponentHeader("Mesh Component", "mesh", &open))
         {
             fg::PrimitiveType currentPrimitive = fg::PrimitiveType::Cube;
-            const bool isPrimitive =
-                mPrimitives->TryFindPrimitive(mesh.meshId, currentPrimitive);
+            const bool isPrimitive = mPrimitives->TryFindPrimitive(mesh.meshId, currentPrimitive);
 
-            fg::ModelAsset currentModel {};
+            fg::ModelAsset currentModel{};
             std::uint32_t currentSubmesh = 0;
-            const bool isImported =
-                !isPrimitive &&
-                mAssets->TryFindModelByMeshId(mesh.meshId, currentModel, currentSubmesh);
+            const bool isImported        = !isPrimitive && mAssets->TryFindModelByMeshId(
+                                                               mesh.meshId, currentModel, currentSubmesh);
 
             std::string preview = "Unknown";
             if(isPrimitive)
@@ -2332,8 +2309,8 @@ void HierarchyLayer::drawComponents()
             {
                 if(ImGui::BeginMenu("Primitives"))
                 {
-                    for(std::uint8_t i = 0;
-                        i < static_cast<std::uint8_t>(fg::PrimitiveType::Count); ++i)
+                    for(std::uint8_t i = 0; i < static_cast<std::uint8_t>(fg::PrimitiveType::Count);
+                        ++i)
                     {
                         const auto type     = static_cast<fg::PrimitiveType>(i);
                         const bool selected = isPrimitive && type == currentPrimitive;
@@ -2356,17 +2333,16 @@ void HierarchyLayer::drawComponents()
                     {
                         ImGui::TextDisabled("Import models in Resources");
                     }
-                    for(const auto &model : mAssets->GetModels())
+                    for(const auto &model: mAssets->GetModels())
                     {
                         for(std::size_t i = 0; i < model.submeshes.size(); ++i)
                         {
-                            const auto label =
-                                model.submeshes.size() == 1
-                                    ? model.label
-                                    : std::format("{} [{}]", model.label, i);
-                            const bool selected =
-                                isImported && model.relativePath == currentModel.relativePath &&
-                                static_cast<std::uint32_t>(i) == currentSubmesh;
+                            const auto label    = model.submeshes.size() == 1
+                                                      ? model.label
+                                                      : std::format("{} [{}]", model.label, i);
+                            const bool selected = isImported &&
+                                                  model.relativePath == currentModel.relativePath &&
+                                                  static_cast<std::uint32_t>(i) == currentSubmesh;
                             if(ImGui::Selectable(label.c_str(), selected))
                             {
                                 mesh.meshId = model.submeshes[i].meshId;
@@ -2415,11 +2391,9 @@ void HierarchyLayer::drawComponents()
 
                 const auto defaultMaterial = mPrimitives->GetDefaultMaterial();
                 const bool isDefault       = material.materialId == defaultMaterial;
-                const bool isShared =
-                    isDefault || mAssets->IsSharedMaterial(material.materialId);
+                const bool isShared = isDefault || mAssets->IsSharedMaterial(material.materialId);
 
-                ImGui::Text("Material ID: %u%s", material.materialId,
-                            isShared ? " (shared)" : "");
+                ImGui::Text("Material ID: %u%s", material.materialId, isShared ? " (shared)" : "");
                 if(isShared)
                 {
                     ImGui::TextDisabled("Make Unique before editing factors/maps.");
@@ -2438,7 +2412,7 @@ void HierarchyLayer::drawComponents()
 
                 if(!mAssets->GetMaterials().empty() && ImGui::BeginCombo("Library", "Assign..."))
                 {
-                    for(const auto &asset : mAssets->GetMaterials())
+                    for(const auto &asset: mAssets->GetMaterials())
                     {
                         const bool selected = asset.materialId == material.materialId;
                         if(ImGui::Selectable(asset.name.c_str(), selected))
@@ -2452,36 +2426,37 @@ void HierarchyLayer::drawComponents()
                 ImGui::BeginDisabled(isShared);
                 auto info = mPrimitives->GetMaterialCreateInfo(material.materialId);
 
-                EditorMaterialUi::TextureSlotContext textureCtx {
+                EditorMaterialUi::TextureSlotContext textureCtx{
                     .assets        = mAssets,
                     .editingLocked = mSimulation->IsPlaying() || isShared,
-                    .requestImport = [this](EditorMaterialUi::TextureSlot slot) {
-                        switch(slot)
-                        {
-                        case EditorMaterialUi::TextureSlot::Albedo:
-                            requestTextureForSlot(PendingTextureSlot::Albedo);
-                            break;
-                        case EditorMaterialUi::TextureSlot::Normal:
-                            requestTextureForSlot(PendingTextureSlot::Normal);
-                            break;
-                        case EditorMaterialUi::TextureSlot::Roughness:
-                            requestTextureForSlot(PendingTextureSlot::Roughness);
-                            break;
-                        case EditorMaterialUi::TextureSlot::Emissive:
-                            requestTextureForSlot(PendingTextureSlot::Emissive);
-                            break;
-                        case EditorMaterialUi::TextureSlot::Metalness:
-                            requestTextureForSlot(PendingTextureSlot::Metalness);
-                            break;
-                        case EditorMaterialUi::TextureSlot::Occlusion:
-                            requestTextureForSlot(PendingTextureSlot::Occlusion);
-                            break;
-                        }
-                    },
+                    .requestImport =
+                        [this](EditorMaterialUi::TextureSlot slot) {
+                            switch(slot)
+                            {
+                            case EditorMaterialUi::TextureSlot::Albedo:
+                                requestTextureForSlot(PendingTextureSlot::Albedo);
+                                break;
+                            case EditorMaterialUi::TextureSlot::Normal:
+                                requestTextureForSlot(PendingTextureSlot::Normal);
+                                break;
+                            case EditorMaterialUi::TextureSlot::Roughness:
+                                requestTextureForSlot(PendingTextureSlot::Roughness);
+                                break;
+                            case EditorMaterialUi::TextureSlot::Emissive:
+                                requestTextureForSlot(PendingTextureSlot::Emissive);
+                                break;
+                            case EditorMaterialUi::TextureSlot::Metalness:
+                                requestTextureForSlot(PendingTextureSlot::Metalness);
+                                break;
+                            case EditorMaterialUi::TextureSlot::Occlusion:
+                                requestTextureForSlot(PendingTextureSlot::Occlusion);
+                                break;
+                            }
+                        },
                 };
 
-                if(EditorMaterialUi::DrawMaterialCreateInfo(info, mSimulation->IsPlaying() || isShared,
-                                                            textureCtx))
+                if(EditorMaterialUi::DrawMaterialCreateInfo(
+                       info, mSimulation->IsPlaying() || isShared, textureCtx))
                 {
                     mPrimitives->UpdateMaterial(material.materialId, info);
                 }
@@ -2592,8 +2567,7 @@ void HierarchyLayer::drawComponents()
                         }
                         else
                         {
-                            rigidBody.collideWithLayers &=
-                                static_cast<std::uint16_t>(~(1u << bit));
+                            rigidBody.collideWithLayers &= static_cast<std::uint16_t>(~(1u << bit));
                         }
                     }
                     ImGui::PopID();
@@ -2642,7 +2616,7 @@ void HierarchyLayer::drawComponents()
                     if(const auto *model = mAssets->FindModel(animator.modelSource);
                        model != nullptr)
                     {
-                        for(const auto &clip : model->clips)
+                        for(const auto &clip: model->clips)
                         {
                             const bool selected = animator.clipName == clip.name;
                             if(ImGui::Selectable(clip.name.c_str(), selected))
@@ -2697,7 +2671,7 @@ void HierarchyLayer::drawComponents()
 
             ImGui::PushID(static_cast<int>(typeIndex));
 
-            bool open = true;
+            bool open                  = true;
             const std::string userKind = std::format("user:{}", ops.typeId);
             if(drawComponentHeader(ops.displayName.c_str(), userKind, &open))
             {
@@ -2719,11 +2693,11 @@ void HierarchyLayer::drawComponents()
                 }
                 else
                 {
-                    fg::UserComponentInstance instance {};
+                    fg::UserComponentInstance instance{};
                     if(ops.toInstance && ops.toInstance(*mRegistry, selection, instance))
                     {
                         ImGui::BeginDisabled(mSimulation->IsPlaying());
-                        for(auto &property : instance.properties)
+                        for(auto &property: instance.properties)
                         {
                             DrawNamedProperty(property, mRegistry.get());
                         }
