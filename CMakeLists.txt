@@ -15,32 +15,32 @@ set(CMAKE_CXX_STANDARD 26)
 
 # MinGW GCC 16+: C++26 constexpr exceptions emit strong std::logic_error /
 # runtime_error copy ctors that collide with libstdc++.a (GCC PR 125151).
-if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+if (WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     add_compile_definitions(
             $<$<COMPILE_LANGUAGE:CXX>:__cpp_lib_constexpr_exceptions=0>)
-endif()
+endif ()
 
 option(FRIGGA_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 option(FRIGGA_ENABLE_COVERAGE "Enable GCC/Clang coverage instrumentation" OFF)
 option(FRIGGA_BUILD_BENCHMARKS "Build Frigga performance benchmarks" OFF)
 option(FRIGGA_PLATFORM_CONTRACT_ONLY "Validate platform conditionals without fetching dependencies" OFF)
 
-if(FRIGGA_PLATFORM_CONTRACT_ONLY)
-    if(NOT APPLE)
+if (FRIGGA_PLATFORM_CONTRACT_ONLY)
+    if (NOT APPLE)
         message(FATAL_ERROR "FRIGGA_PLATFORM_CONTRACT_ONLY is intended for macOS validation")
-    endif()
+    endif ()
     message(STATUS "Frigga macOS platform contract validated")
     return()
-endif()
+endif ()
 
-if(FRIGGA_ENABLE_SANITIZERS)
+if (FRIGGA_ENABLE_SANITIZERS)
     add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
     add_link_options(-fsanitize=address,undefined)
-endif()
-if(FRIGGA_ENABLE_COVERAGE)
+endif ()
+if (FRIGGA_ENABLE_COVERAGE)
     add_compile_options(--coverage)
     add_link_options(--coverage)
-endif()
+endif ()
 
 if (NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
     set(CMAKE_GENERATOR_PLATFORM "x64" CACHE STRING "Target platform" FORCE)
@@ -62,7 +62,7 @@ find_package(Vulkan REQUIRED)
 # guessing from build/_deps or reading whatever happens to be on main.
 set(FRIGGA_SKIRNIR_TAG "v0.23.2")
 set(FRIGGA_FREYR_TAG "v0.40.1-hierarchy")
-set(FRIGGA_FREYA_TAG "v0.58.0")
+set(FRIGGA_FREYA_TAG "v0.58.1")
 set(FRIGGA_SDK_DEPS
         "Skirnir=${FRIGGA_SKIRNIR_TAG};Freyr=${FRIGGA_FREYR_TAG};Freya=${FRIGGA_FREYA_TAG}")
 
@@ -186,9 +186,9 @@ set_source_files_properties(
         PROPERTIES
         SKIP_PRECOMPILE_HEADERS ON
 )
-if(UNIX AND NOT APPLE)
+if (UNIX AND NOT APPLE)
     target_link_libraries(frigga PRIVATE pthread m)
-endif()
+endif ()
 
 set(_FRIGGA_SDK_BINARY_STAMP "${FRIGGA_SDK_DIR}/.engine-libraries.stamp")
 set(_FRIGGA_SDK_BINARY_TARGETS
@@ -202,19 +202,19 @@ set(_FRIGGA_SDK_BINARY_TARGETS
         SDL3::SDL3)
 # Freya transitive deps (and optional profiling) — pack when available.
 # zlibstatic comes from Assimp's contrib zlib (ASSIMP_BUILD_ZLIB).
-foreach(_optional IN ITEMS assimp meshoptimizer perfetto zlibstatic)
-    if(TARGET ${_optional})
+foreach (_optional IN ITEMS assimp meshoptimizer perfetto zlibstatic)
+    if (TARGET ${_optional})
         list(APPEND _FRIGGA_SDK_BINARY_TARGETS ${_optional})
-    endif()
-endforeach()
+    endif ()
+endforeach ()
 set(_FRIGGA_SDK_COPY_COMMANDS
         COMMAND ${CMAKE_COMMAND} -E make_directory "${FRIGGA_SDK_DIR}/lib")
-foreach(_target IN LISTS _FRIGGA_SDK_BINARY_TARGETS)
+foreach (_target IN LISTS _FRIGGA_SDK_BINARY_TARGETS)
     list(APPEND _FRIGGA_SDK_COPY_COMMANDS
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "$<TARGET_FILE:${_target}>"
-                    "${FRIGGA_SDK_DIR}/lib/$<TARGET_FILE_NAME:${_target}>")
-endforeach()
+            "$<TARGET_FILE:${_target}>"
+            "${FRIGGA_SDK_DIR}/lib/$<TARGET_FILE_NAME:${_target}>")
+endforeach ()
 add_custom_command(
         OUTPUT "${_FRIGGA_SDK_BINARY_STAMP}"
         ${_FRIGGA_SDK_COPY_COMMANDS}
@@ -265,8 +265,8 @@ add_dependencies(Runtime FriggaSdkLibraries)
 # binary). Keep those sources in sync whenever Runtime is rebuilt.
 add_custom_command(TARGET Runtime POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${CMAKE_CURRENT_SOURCE_DIR}/src/Runtime"
-                "${FRIGGA_SDK_DIR}/Runtime"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/Runtime"
+        "${FRIGGA_SDK_DIR}/Runtime"
         COMMENT "Sync Runtime sources into Sdk for game publish")
 
 # Headers are seeded at configure time; refresh them on every frigga build so
@@ -274,8 +274,8 @@ add_custom_command(TARGET Runtime POST_BUILD
 # requiring a full CMake reconfigure.
 add_custom_command(TARGET frigga POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${CMAKE_CURRENT_SOURCE_DIR}/include/Frigga"
-                "${FRIGGA_SDK_DIR}/include/Frigga"
+        "${CMAKE_CURRENT_SOURCE_DIR}/include/Frigga"
+        "${FRIGGA_SDK_DIR}/include/Frigga"
         COMMENT "Sync Frigga public headers into Sdk")
 
 # Expose Freyr/Frigga/Skirnir/simdjson (+ filtered Freya screen UI) to modules.
@@ -340,12 +340,12 @@ file(REMOVE
 enable_testing()
 add_subdirectory(test)
 
-if(FRIGGA_BUILD_BENCHMARKS)
+if (FRIGGA_BUILD_BENCHMARKS)
     add_executable(frigga_benchmarks
             bench/AssetPipelineBenchmark.cpp)
     target_compile_features(frigga_benchmarks PRIVATE cxx_std_26)
     target_link_libraries(frigga_benchmarks PRIVATE frigga::frigga)
-endif()
+endif ()
 
 # --- Install / packaging ---------------------------------------------------
 include(GNUInstallDirs)
