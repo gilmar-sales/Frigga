@@ -23,13 +23,18 @@ namespace FRIGGA_NAMESPACE
 
     void MarkDynamicBodiesDirty(fr::Registry &registry)
     {
+        std::vector<fr::Entity> dirty;
         registry.CreateMutation()->Each(
             [&](fr::Entity entity, TransformComponent &, RigidBodyComponent &rigidBody) {
                 if(rigidBody.body.IsValid() && rigidBody.motion != BodyMotionType::Kinematic)
                 {
-                    TransformUtil::MarkDirty(registry, entity);
+                    dirty.push_back(entity);
                 }
             });
+        for(const auto entity : dirty)
+        {
+            TransformUtil::MarkDirty(registry, entity);
+        }
     }
 
     PhysicsSystem::PhysicsSystem(const skr::Arc<fr::Registry> &registry,
