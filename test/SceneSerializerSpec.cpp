@@ -21,6 +21,7 @@
 #include <Frigga/ECS/Components/UserDataComponent.hpp>
 #include <Frigga/ECS/UserComponentReflection.hpp>
 #include <Frigga/ECS/UserComponentRegistry.hpp>
+#include <Frigga/ECS/TransformPolicy.hpp>
 #include <Frigga/Scene/Scene.hpp>
 #include <Frigga/Scene/SceneSerializer.hpp>
 
@@ -225,8 +226,7 @@ class SceneSerializerSpec: public ::testing::Test
         mApp = skr::ApplicationBuilder()
                    .WithExtension<fr::FreyrExtension>([](fr::FreyrExtension &freyr) {
                        freyr.WithComponent<fg::NameComponent>()
-                           .WithComponent<fg::HierarchyComponent>()
-                           .WithComponent<fg::TransformComponent>()
+                           .WithHierarchyPropagation<fg::TransformPolicy>()
                            .WithComponent<fg::MeshComponent>()
                            .WithComponent<fg::MaterialComponent>()
                            .WithComponent<fg::CameraComponent>()
@@ -247,8 +247,8 @@ class SceneSerializerSpec: public ::testing::Test
         mPrimitives = skr::MakeArc<fg::PrimitiveMeshFactory>(fg::PrimitiveMeshFactory::Catalog);
         mAssets     = skr::MakeArc<fg::AssetRegistry>(fg::AssetRegistry::Catalog);
         mUserComponents = skr::MakeArc<fg::UserComponentRegistry>();
-        mScene      = skr::MakeArc<fg::Scene>(skr::Arc<fra::Renderer> {}, mLogger, mRegistry,
-                                              mPrimitives, mAssets, mUserComponents);
+        mScene = skr::MakeArc<fg::Scene>(skr::Arc<fra::Renderer>{}, skr::Arc<fra::Window>{},
+                                         mLogger, mRegistry, mPrimitives, mAssets, mUserComponents);
 
         ASSERT_EQ(mPrimitives->GetMesh(fg::PrimitiveType::Cube), 1u);
         ASSERT_EQ(mPrimitives->GetDefaultMaterial(), 1u);

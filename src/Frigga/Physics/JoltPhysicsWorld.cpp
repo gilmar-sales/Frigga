@@ -345,6 +345,29 @@ namespace FRIGGA_NAMESPACE
 
             contactListener.owner = this;
             physicsSystem.SetContactListener(&contactListener);
+
+            WarmUpSharedMutexes();
+        }
+
+        /// MinGW's std::shared_mutex wraps a statically initialized winpthreads rwlock that is
+        /// created lazily on first use, and that lazy init is not thread-safe: when several
+        /// threads hit a fresh rwlock at once, some get EINVAL (abort under _GLIBCXX_ASSERTIONS,
+        /// a silently unheld lock otherwise). Touch every Jolt SharedMutex once from this
+        /// thread so parallel ECS systems (EachAsync) never race on the first lock.
+        void WarmUpSharedMutexes()
+        {
+            // Body mutex array (BodyInterface / BodyLock*).
+            const JPH::BodyLockInterface &bodyLocks = physicsSystem.GetBodyLockInterface();
+            const auto allBodies                    = bodyLocks.GetAllBodiesMutexMask();
+            bodyLocks.LockWrite(allBodies);
+            bodyLocks.UnlockWrite(allBodies);
+
+            // Broad phase: Optimize takes mUpdateMutex and mQueryLocks[idx ^ 1] (FrameSync);
+            // a query takes mQueryLocks[idx]. An empty tree does not flip idx.
+            physicsSystem.OptimizeBroadPhase();
+            JPH::RayCastResult hit;
+            (void)physicsSystem.GetNarrowPhaseQuery().CastRay(
+                JPH::RRayCast{JPH::RVec3::sZero(), JPH::Vec3(0.0f, -1.0f, 0.0f)}, hit);
         }
 
         ~Impl()

@@ -12,7 +12,6 @@ namespace FRIGGA_NAMESPACE
     void WriteBodyPose(fr::Registry &registry, fr::Entity entity, TransformComponent &transform,
                        const glm::vec3 &position, const glm::quat &rotation)
     {
-        // Read-only on other entities (parent world), so safe inside EachAsync.
         const glm::mat4 parentWorld = TransformUtil::ParentWorldMatrix(registry, entity);
         const glm::vec3 worldScale =
             TransformUtil::Decompose(parentWorld * TransformUtil::LocalMatrix(transform)).scale;
@@ -70,6 +69,7 @@ namespace FRIGGA_NAMESPACE
                 mPhysicsWorld->SetTransform(rigidBody.body, pose.position, pose.rotation);
             });
     }
+
     void PhysicsSystem::Update(float deltaTime)
     {
         if(mStepOnce)

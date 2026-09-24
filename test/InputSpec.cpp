@@ -29,33 +29,32 @@ namespace
         static InputHarness Create()
         {
             InputHarness harness;
-            harness.app =
-                skr::ApplicationBuilder()
-                    .WithExtension<fr::FreyrExtension>([](fr::FreyrExtension &freyr) {
-                        freyr.WithPipeline([](fr::PipelineBuilder &pipeline) {
-                            pipeline.WithName("Simulation");
-                        });
-                    })
-                    .Build<EmptyApp>();
+            harness.app = skr::ApplicationBuilder()
+                              .WithExtension<fr::FreyrExtension>([](fr::FreyrExtension &freyr) {
+                                  freyr.WithPipeline([](fr::PipelineBuilder &pipeline) {
+                                      pipeline.WithName("Simulation");
+                                  });
+                              })
+                              .Build<EmptyApp>();
 
             const auto services = harness.app->GetRootServiceProvider();
             harness.events      = skr::MakeArc<fra::EventManager>();
             auto registry       = services->GetService<fr::Registry>();
             auto physics        = skr::MakeArc<fg::JoltPhysicsWorld>();
-            auto logger =
-                skr::MakeArc<skr::Logger<fg::SceneSimulationState>>(skr::MakeArc<skr::LoggerOptions>());
-            auto primitives = skr::MakeArc<fg::PrimitiveMeshFactory>(fg::PrimitiveMeshFactory::Catalog);
-            auto assets     = skr::MakeArc<fg::AssetRegistry>(fg::AssetRegistry::Catalog);
+            auto logger         = skr::MakeArc<skr::Logger<fg::SceneSimulationState>>(
+                skr::MakeArc<skr::LoggerOptions>());
+            auto primitives =
+                skr::MakeArc<fg::PrimitiveMeshFactory>(fg::PrimitiveMeshFactory::Catalog);
+            auto assets = skr::MakeArc<fg::AssetRegistry>(fg::AssetRegistry::Catalog);
             auto sceneLogger =
                 skr::MakeArc<skr::Logger<fg::Scene>>(skr::MakeArc<skr::LoggerOptions>());
             auto userComponents = skr::MakeArc<fg::UserComponentRegistry>();
             auto scene =
-                skr::MakeArc<fg::Scene>(skr::Arc<fra::Renderer> {}, sceneLogger, registry,
-                                        primitives, assets, userComponents);
+                skr::MakeArc<fg::Scene>(skr::Arc<fra::Renderer>{}, skr::Arc<fra::Window>{},
+                                        sceneLogger, registry, primitives, assets, userComponents);
 
-            harness.simulation =
-                skr::MakeArc<fg::SceneSimulationState>(registry, physics, scene, primitives,
-                                                       userComponents, logger);
+            harness.simulation = skr::MakeArc<fg::SceneSimulationState>(
+                registry, physics, scene, primitives, userComponents, logger);
             harness.input = skr::MakeArc<fg::Input>(harness.events, harness.simulation);
             return harness;
         }

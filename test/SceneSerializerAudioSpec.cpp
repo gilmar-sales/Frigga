@@ -3,6 +3,7 @@
 #include <Frigga/ECS/Components/AudioSourceComponent.hpp>
 #include <Frigga/ECS/Components/NameComponent.hpp>
 #include <Frigga/ECS/Components/TransformComponent.hpp>
+#include <Frigga/ECS/TransformPolicy.hpp>
 #include <Frigga/Scene/Scene.hpp>
 #include <Frigga/Scene/SceneSerializer.hpp>
 
@@ -18,8 +19,7 @@ class SceneSerializerAudioSpec: public ::testing::Test
         mApp = skr::ApplicationBuilder()
                    .WithExtension<fr::FreyrExtension>([](fr::FreyrExtension &freyr) {
                        freyr.WithComponent<fg::NameComponent>()
-                           .WithComponent<fg::HierarchyComponent>()
-                           .WithComponent<fg::TransformComponent>()
+                           .WithHierarchyPropagation<fg::TransformPolicy>()
                            .WithComponent<fg::AudioSourceComponent>()
                            .WithComponent<fg::AudioListenerComponent>();
                    })
@@ -30,9 +30,8 @@ class SceneSerializerAudioSpec: public ::testing::Test
         mPrimitives = skr::MakeArc<fg::PrimitiveMeshFactory>(fg::PrimitiveMeshFactory::Catalog);
         mAssets     = skr::MakeArc<fg::AssetRegistry>(fg::AssetRegistry::Catalog);
         mUserComponents = skr::MakeArc<fg::UserComponentRegistry>();
-        mScene =
-            skr::MakeArc<fg::Scene>(skr::Arc<fra::Renderer> {}, mLogger, mRegistry, mPrimitives,
-                                    mAssets, mUserComponents);
+        mScene = skr::MakeArc<fg::Scene>(skr::Arc<fra::Renderer>{}, skr::Arc<fra::Window>{},
+                                         mLogger, mRegistry, mPrimitives, mAssets, mUserComponents);
     }
 
     skr::Arc<EmptyApp> mApp;

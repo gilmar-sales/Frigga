@@ -22,16 +22,15 @@ namespace FRIGGA_NAMESPACE
             return;
         }
 
-        const float alpha = mPhysicsWorld->GetInterpolationAlpha();
-
         mRegistry->CreateMutation()->EachAsync(
-            [&](fr::Entity entity, TransformComponent &transform, RigidBodyComponent &rigidBody) {
+            [this, alpha = mPhysicsWorld->GetInterpolationAlpha()](
+                fr::Entity entity, TransformComponent &transform, RigidBodyComponent &rigidBody) {
                 if(!rigidBody.body.IsValid() || rigidBody.motion == BodyMotionType::Kinematic)
                 {
                     return;
                 }
-                glm::vec3 position {};
-                glm::quat rotation {1.0f, 0.0f, 0.0f, 0.0f};
+                glm::vec3 position{};
+                glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
                 if(!mPhysicsWorld->GetInterpolatedBodyPose(rigidBody.body, alpha, position,
                                                            rotation))
                 {

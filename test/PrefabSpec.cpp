@@ -12,6 +12,7 @@
 #include <Frigga/ECS/UserComponentRegistry.hpp>
 #include <Frigga/Scene/Prefab.hpp>
 #include <Frigga/Scene/PrefabCache.hpp>
+#include <Frigga/ECS/TransformPolicy.hpp>
 #include <Frigga/Scene/Scene.hpp>
 #include <Frigga/Scene/SceneSerializer.hpp>
 
@@ -31,8 +32,7 @@ class PrefabSpec: public ::testing::Test
         mApp = skr::ApplicationBuilder()
                    .WithExtension<fr::FreyrExtension>([](fr::FreyrExtension &freyr) {
                        freyr.WithComponent<fg::NameComponent>()
-                           .WithComponent<fg::HierarchyComponent>()
-                           .WithComponent<fg::TransformComponent>()
+                           .WithHierarchyPropagation<fg::TransformPolicy>()
                            .WithComponent<fg::MeshComponent>()
                            .WithComponent<fg::MaterialComponent>()
                            .WithComponent<fg::LightComponent>()
@@ -45,8 +45,8 @@ class PrefabSpec: public ::testing::Test
         mPrimitives = skr::MakeArc<fg::PrimitiveMeshFactory>(fg::PrimitiveMeshFactory::Catalog);
         mAssets     = skr::MakeArc<fg::AssetRegistry>(fg::AssetRegistry::Catalog);
         mUserComponents = skr::MakeArc<fg::UserComponentRegistry>();
-        mScene      = skr::MakeArc<fg::Scene>(skr::Arc<fra::Renderer> {}, mLogger, mRegistry,
-                                              mPrimitives, mAssets, mUserComponents);
+        mScene = skr::MakeArc<fg::Scene>(skr::Arc<fra::Renderer>{}, skr::Arc<fra::Window>{},
+                                         mLogger, mRegistry, mPrimitives, mAssets, mUserComponents);
     }
 
     void TearDown() override
@@ -97,9 +97,7 @@ TEST_F(PrefabSpec, RoundTrip_ParentChildPreservesLocalTransforms)
         instance, [&](fg::NameComponent &name) { instanceName = name.name; });
     EXPECT_EQ(instanceName, "Enemy");
 
-    std::vector<fr::Entity> children;
-    mRegistry->TryGetComponents<fg::HierarchyComponent>(
-        instance, [&](fg::HierarchyComponent &hierarchy) { children = hierarchy.children; });
+    const auto children = mRegistry->Children(instance);
     ASSERT_EQ(children.size(), 1u);
     EXPECT_EQ(mRegistry->GetParent(children.front()), instance);
 
