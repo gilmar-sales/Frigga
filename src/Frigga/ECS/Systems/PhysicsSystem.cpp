@@ -23,18 +23,13 @@ namespace FRIGGA_NAMESPACE
 
     void MarkDynamicBodiesDirty(fr::Registry &registry)
     {
-        std::vector<fr::Entity> written;
         registry.CreateMutation()->Each(
             [&](fr::Entity entity, TransformComponent &, RigidBodyComponent &rigidBody) {
                 if(rigidBody.body.IsValid() && rigidBody.motion != BodyMotionType::Kinematic)
                 {
-                    written.push_back(entity);
+                    TransformUtil::MarkDirty(registry, entity);
                 }
             });
-        for(const auto entity: written)
-        {
-            TransformUtil::MarkDirty(registry, entity);
-        }
     }
 
     PhysicsSystem::PhysicsSystem(const skr::Arc<fr::Registry> &registry,
@@ -95,8 +90,8 @@ namespace FRIGGA_NAMESPACE
                 glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
                 mPhysicsWorld->GetTransform(rigidBody.body, position, rotation);
                 WriteBodyPose(*mRegistry, entity, transform, position, rotation);
-                mRegistry->MarkHierarchyDirty<TransformComponent>(entity);
             });
+        MarkDynamicBodiesDirty(*mRegistry);
     }
 
 } // namespace FRIGGA_NAMESPACE
