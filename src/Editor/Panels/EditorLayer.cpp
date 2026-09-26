@@ -86,7 +86,8 @@ void EditorLayer::onUpdate()
 
     if(mPreferences &&
        EditorViewport::ApplyQualityPreferences(*mRenderer,
-                                               mPreferences->graphics.editorViewport))
+                                               mPreferences->graphics.editorViewport,
+                                               mQualityCache))
     {
         fg::GuiLayer::RecreateMainPipeline(mRenderer);
     }
@@ -264,6 +265,7 @@ void EditorLayer::drawToolbar()
     ImGui::SameLine();
     ImGui::Spacing();
     ImGui::SameLine();
+    if constexpr(EditorViewportHost::kDebugClaims)
     {
         const ImVec2 fb  = EditorViewport::FramebufferScale();
         const auto   img = fra::Advanced(*mRenderer).GetViewportImage();

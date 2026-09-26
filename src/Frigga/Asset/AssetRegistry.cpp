@@ -16,12 +16,30 @@ namespace FRIGGA_NAMESPACE
 {
     namespace
     {
-        std::string ToLower(std::string value)
+        [[nodiscard]] bool EqualsInsensitive(std::string_view value, std::string_view expected)
         {
-            std::ranges::transform(value, value.begin(), [](unsigned char ch) {
-                return static_cast<char>(std::tolower(ch));
-            });
-            return value;
+            if(value.size() != expected.size())
+            {
+                return false;
+            }
+            for(std::size_t i = 0; i < value.size(); ++i)
+            {
+                if(std::tolower(static_cast<unsigned char>(value[i])) !=
+                   static_cast<unsigned char>(expected[i]))
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        [[nodiscard]] bool EndsWithInsensitive(std::string_view value, std::string_view suffix)
+        {
+            if(value.size() < suffix.size())
+            {
+                return false;
+            }
+            return EqualsInsensitive(value.substr(value.size() - suffix.size()), suffix);
         }
 
         std::filesystem::path GenericRelative(const std::filesystem::path &path)
@@ -142,10 +160,48 @@ namespace FRIGGA_NAMESPACE
         : mMeshPool(meshPool), mTexturePool(texturePool), mMaterialPool(materialPool),
           mLogger(logger)
     {
+        TrackInstance(this);
         WarmFonts();
     }
 
-    AssetRegistry::AssetRegistry(CatalogTag) {}
+    AssetRegistry::AssetRegistry(CatalogTag)
+    {
+        TrackInstance(this);
+    }
+
+    AssetRegistry::~AssetRegistry()
+    {
+        FlushManifest();
+        UntrackInstance(this);
+    }
+
+    namespace
+    {
+        std::mutex &RegistryListMutex()
+        {
+            static std::mutex mutex;
+            return mutex;
+        }
+
+        std::vector<AssetRegistry *> &RegistryList()
+        {
+            static std::vector<AssetRegistry *> instances;
+            return instances;
+        }
+    } // namespace
+
+    void AssetRegistry::TrackInstance(AssetRegistry *instance)
+    {
+        std::lock_guard lock(RegistryListMutex());
+        RegistryList().push_back(instance);
+    }
+
+    void AssetRegistry::UntrackInstance(AssetRegistry *instance)
+    {
+        std::lock_guard lock(RegistryListMutex());
+        auto &instances = RegistryList();
+        std::erase(instances, instance);
+    }
 
     namespace
     {
@@ -168,14 +224,18 @@ namespace FRIGGA_NAMESPACE
 
     void AssetRegistry::SetResourcesRoot(std::filesystem::path root)
     {
-        if(root.empty())
+        std::filesystem::path next =
+            root.empty() ? EngineResourcesRoot() : std::move(root);
         {
-            MutableResourcesRoot() = EngineResourcesRoot();
+            // Persist pending manifest imports against the previous root
+            // before retargeting lookups.
+            std::lock_guard lock(RegistryListMutex());
+            for(auto *instance : RegistryList())
+            {
+                instance->FlushManifest();
+            }
         }
-        else
-        {
-            MutableResourcesRoot() = std::move(root);
-        }
+        MutableResourcesRoot() = std::move(next);
         PrefabCache::Instance().Clear();
     }
 
@@ -186,6 +246,7 @@ namespace FRIGGA_NAMESPACE
 
     void AssetRegistry::ClearCatalog()
     {
+        FlushManifest();
         mModels.clear();
         mTextures.clear();
         mMaterials.clear();
@@ -199,6 +260,9 @@ namespace FRIGGA_NAMESPACE
         mBankIndexByPath.clear();
         mAudioClipIndexByPath.clear();
         mTexturePathById.clear();
+        mMaterialIds.clear();
+        mEventPathsDirty = true;
+        mSkinnedDirty = true;
         {
             std::lock_guard lock(mMaterialCacheMutex);
             mSharedMaterialByHash.clear();
@@ -222,12 +286,28 @@ namespace FRIGGA_NAMESPACE
         }
         const auto key = normalizeRelativeKey(relativePath);
         const auto id = mManifest.RecordImport(key, type, ResourcesRoot() / key);
-        std::string error;
-        if(!mManifest.Save(root, &error) && mLogger)
-        {
-            mLogger->LogWarning("Unable to save asset manifest '{}': {}", root.string(), error);
-        }
+        mManifestDirty = true;
         return id;
+    }
+
+    void AssetRegistry::FlushManifest()
+    {
+        if(!mManifestDirty)
+        {
+            return;
+        }
+        const auto root = mManifest.Root().empty() ? ResourcesRoot() : mManifest.Root();
+        std::string error;
+        if(!mManifest.Save(root, &error))
+        {
+            if(mLogger)
+            {
+                mLogger->LogWarning("Unable to save asset manifest '{}': {}", root.string(),
+                                    error);
+            }
+            return;
+        }
+        mManifestDirty = false;
     }
 
     void AssetRegistry::SetAudioEngine(const skr::Arc<IAudioEngine> &audioEngine)
@@ -243,6 +323,26 @@ namespace FRIGGA_NAMESPACE
 
     std::filesystem::path AssetRegistry::MakeRelativeToResources(const std::filesystem::path &path)
     {
+        // The canonical root only changes via SetResourcesRoot: cache it per
+        // thread instead of re-canonicalizing on every call.
+        thread_local std::filesystem::path cachedSource;
+        thread_local std::filesystem::path cachedRoot;
+        const auto current = ResourcesRoot();
+        if(current != cachedSource)
+        {
+            std::error_code ec;
+            cachedRoot = std::filesystem::weakly_canonical(current, ec);
+            if(ec)
+            {
+                cachedRoot.clear();
+            }
+            cachedSource = current;
+        }
+        if(cachedRoot.empty())
+        {
+            return {};
+        }
+
         std::error_code ec;
         const auto absolute = std::filesystem::weakly_canonical(path, ec);
         if(ec)
@@ -250,69 +350,68 @@ namespace FRIGGA_NAMESPACE
             return {};
         }
 
-        const auto root = std::filesystem::weakly_canonical(ResourcesRoot(), ec);
-        if(ec || root.empty())
+        const auto relative = std::filesystem::relative(absolute, cachedRoot, ec);
+        if(ec || relative.empty())
+        {
+            return {};
+        }
+        // Single generic_string(): path::native() is wchar_t on Windows MinGW.
+        const std::string generic = relative.generic_string();
+        const std::string_view view = generic;
+        if(view == ".." || view.starts_with("../"))
         {
             return {};
         }
 
-        const auto relative = std::filesystem::relative(absolute, root, ec);
-        // Use generic_string(): path::native() is wchar_t on Windows MinGW.
-        if(ec || relative.empty() || relative.generic_string().starts_with(".."))
-        {
-            return {};
-        }
-
-        return GenericRelative(relative);
+        return std::filesystem::path {generic};
     }
 
     std::string AssetRegistry::normalizeRelativeKey(const std::filesystem::path &relative)
     {
-        return GenericRelative(relative).generic_string();
+        return relative.generic_string();
     }
 
     bool AssetRegistry::IsModelExtension(std::string_view extension)
     {
-        const auto ext = ToLower(std::string(extension));
-        return ext == ".gltf" || ext == ".glb" || ext == ".fbx" || ext == ".obj" ||
-               ext == ".dae" || ext == ".3ds" || ext == ".blend";
+        return EqualsInsensitive(extension, ".gltf") || EqualsInsensitive(extension, ".glb") ||
+               EqualsInsensitive(extension, ".fbx") || EqualsInsensitive(extension, ".obj") ||
+               EqualsInsensitive(extension, ".dae") || EqualsInsensitive(extension, ".3ds") ||
+               EqualsInsensitive(extension, ".blend");
     }
 
     bool AssetRegistry::IsTextureExtension(std::string_view extension)
     {
-        const auto ext = ToLower(std::string(extension));
-        return ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".tga" ||
-               ext == ".bmp" || ext == ".hdr" || ext == ".webp";
+        return EqualsInsensitive(extension, ".png") || EqualsInsensitive(extension, ".jpg") ||
+               EqualsInsensitive(extension, ".jpeg") || EqualsInsensitive(extension, ".tga") ||
+               EqualsInsensitive(extension, ".bmp") || EqualsInsensitive(extension, ".hdr") ||
+               EqualsInsensitive(extension, ".webp");
     }
 
     bool AssetRegistry::IsFontExtension(std::string_view extension)
     {
-        const auto ext = ToLower(std::string(extension));
-        return ext == ".ttf" || ext == ".otf";
+        return EqualsInsensitive(extension, ".ttf") || EqualsInsensitive(extension, ".otf");
     }
 
     bool AssetRegistry::IsPrefabExtension(std::string_view extension)
     {
-        const auto ext = ToLower(std::string(extension));
-        return ext == ".prefab";
+        return EqualsInsensitive(extension, ".prefab");
     }
 
     bool AssetRegistry::IsBankExtension(std::string_view extension)
     {
-        const auto ext = ToLower(std::string(extension));
         // Prefer IsBankFilename: path.extension() for *.audiobank.json is ".json".
-        return ext == ".audiobank.json";
+        return EqualsInsensitive(extension, ".audiobank.json");
     }
 
     bool AssetRegistry::IsBankFilename(std::string_view filename)
     {
-        return ToLower(std::string(filename)).ends_with(".audiobank.json");
+        return EndsWithInsensitive(filename, ".audiobank.json");
     }
 
     bool AssetRegistry::IsAudioClipExtension(std::string_view extension)
     {
-        const auto ext = ToLower(std::string(extension));
-        return ext == ".wav" || ext == ".ogg" || ext == ".mp3" || ext == ".flac";
+        return EqualsInsensitive(extension, ".wav") || EqualsInsensitive(extension, ".ogg") ||
+               EqualsInsensitive(extension, ".mp3") || EqualsInsensitive(extension, ".flac");
     }
 
     std::filesystem::path AssetRegistry::copyIntoResources(const std::filesystem::path &sourcePath,
@@ -335,7 +434,10 @@ namespace FRIGGA_NAMESPACE
         }
 
         auto destination = destDir / filename;
-        if(std::filesystem::exists(destination) &&
+        std::error_code existsEc;
+        // Single existence probe: only enter the numbered-suffix loop when the
+        // target name is actually taken.
+        if(std::filesystem::exists(destination, existsEc) && !existsEc &&
            !std::filesystem::equivalent(sourcePath, destination, ec))
         {
             const auto stem = destination.stem().string();
@@ -343,7 +445,7 @@ namespace FRIGGA_NAMESPACE
             for(int i = 1; i < 1000; ++i)
             {
                 const auto candidate = destDir / std::format("{} ({}){}", stem, i, ext);
-                if(!std::filesystem::exists(candidate))
+                if(!std::filesystem::exists(candidate, existsEc) || existsEc)
                 {
                     destination = candidate;
                     break;
@@ -364,7 +466,7 @@ namespace FRIGGA_NAMESPACE
         }
 
         // Companion .mtl for Wavefront OBJ (best-effort).
-        if(ToLower(sourcePath.extension().string()) == ".obj")
+        if(EqualsInsensitive(sourcePath.extension().string(), ".obj"))
         {
             auto mtlSource = sourcePath;
             mtlSource.replace_extension(".mtl");
@@ -453,6 +555,7 @@ namespace FRIGGA_NAMESPACE
 
         mModelIndexByPath.emplace(key, mModels.size());
         mModels.push_back(std::move(asset));
+        mSkinnedDirty = true;
 
         if(mLogger)
         {
@@ -822,6 +925,7 @@ namespace FRIGGA_NAMESPACE
 
         mBankIndexByPath.emplace(key, mBanks.size());
         mBanks.push_back(std::move(asset));
+        mEventPathsDirty = true;
 
         if(mLogger)
         {
@@ -976,14 +1080,20 @@ namespace FRIGGA_NAMESPACE
 
     std::vector<std::string> AssetRegistry::GetAllEventPaths() const
     {
-        std::vector<std::string> events;
-        for(const auto &bank : mBanks)
+        if(mEventPathsDirty)
         {
-            events.insert(events.end(), bank.eventPaths.begin(), bank.eventPaths.end());
+            mEventPathsCache.clear();
+            for(const auto &bank : mBanks)
+            {
+                mEventPathsCache.insert(mEventPathsCache.end(), bank.eventPaths.begin(),
+                                        bank.eventPaths.end());
+            }
+            std::ranges::sort(mEventPathsCache);
+            mEventPathsCache.erase(std::unique(mEventPathsCache.begin(), mEventPathsCache.end()),
+                                   mEventPathsCache.end());
+            mEventPathsDirty = false;
         }
-        std::ranges::sort(events);
-        events.erase(std::unique(events.begin(), events.end()), events.end());
-        return events;
+        return mEventPathsCache;
     }
 
     std::uint32_t AssetRegistry::CreateMaterial(const fra::MaterialCreateInfo &createInfo,
@@ -1006,6 +1116,7 @@ namespace FRIGGA_NAMESPACE
                 name = std::format("Material {}", materialId);
             }
             mMaterials.push_back(MaterialAsset {.name = std::move(name), .materialId = materialId});
+            mMaterialIds.insert(materialId);
         }
         return materialId;
     }
@@ -1079,21 +1190,14 @@ namespace FRIGGA_NAMESPACE
 
     void AssetRegistry::catalogMaterialIfNew(std::uint32_t materialId, std::string name)
     {
-        if(materialId == 0)
+        if(materialId == 0 || !mMaterialIds.insert(materialId).second)
         {
             return;
-        }
-        for(const auto &existing : mMaterials)
-        {
-            if(existing.materialId == materialId)
-            {
-                return;
-            }
         }
         mMaterials.push_back(MaterialAsset {.name = std::move(name), .materialId = materialId});
     }
 
-    bool AssetRegistry::TryFindModelByMeshId(std::uint32_t meshId, ModelAsset &outModel,
+    bool AssetRegistry::TryFindModelByMeshId(std::uint32_t meshId, const ModelAsset *&outModel,
                                              std::uint32_t &outSubmeshIndex) const
     {
         for(const auto &model : mModels)
@@ -1102,13 +1206,26 @@ namespace FRIGGA_NAMESPACE
             {
                 if(model.submeshes[i].meshId == meshId)
                 {
-                    outModel         = model;
-                    outSubmeshIndex  = static_cast<std::uint32_t>(i);
+                    outModel        = &model;
+                    outSubmeshIndex = static_cast<std::uint32_t>(i);
                     return true;
                 }
             }
         }
+        outModel = nullptr;
         return false;
+    }
+
+    bool AssetRegistry::TryFindModelByMeshId(std::uint32_t meshId, ModelAsset &outModel,
+                                             std::uint32_t &outSubmeshIndex) const
+    {
+        const ModelAsset *found = nullptr;
+        if(!TryFindModelByMeshId(meshId, found, outSubmeshIndex))
+        {
+            return false;
+        }
+        outModel = *found;
+        return true;
     }
 
     bool AssetRegistry::TryGetMeshId(std::string_view relativePath, std::uint32_t submeshIndex,
@@ -1159,15 +1276,19 @@ namespace FRIGGA_NAMESPACE
 
     std::vector<const ModelAsset *> AssetRegistry::GetSkinnedModelsWithClips() const
     {
-        std::vector<const ModelAsset *> result;
-        for(const auto &model : mModels)
+        if(mSkinnedDirty)
         {
-            if(model.skinned && !model.clips.empty())
+            mSkinnedCache.clear();
+            for(const auto &model : mModels)
             {
-                result.push_back(&model);
+                if(model.skinned && !model.clips.empty())
+                {
+                    mSkinnedCache.push_back(&model);
+                }
             }
+            mSkinnedDirty = false;
         }
-        return result;
+        return mSkinnedCache;
     }
 
 } // namespace FRIGGA_NAMESPACE

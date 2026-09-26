@@ -866,12 +866,15 @@ namespace FRIGGA_NAMESPACE
 
         /// JSON stores only fontId. Value may be a GUID or (after migration) a legacy path.
         /// Returns the stable FontAsset.assetId to keep on the component.
+        /// @p fallbackFont is DefaultBillboardFontId() cached once per
+        /// Serialize/Deserialize call (it walks the font catalog).
         std::string ResolveBillboardFontId(const skr::Arc<AssetRegistry> &assets,
-                                           const SceneBillboardTextDto &textDto)
+                                           const SceneBillboardTextDto &textDto,
+                                           const std::string &fallbackFont)
         {
             if(!textDto.fontId || textDto.fontId->empty())
             {
-                return assets ? assets->DefaultBillboardFontId() : std::string {};
+                return assets ? fallbackFont : std::string {};
             }
 
             const auto &raw = *textDto.fontId;
@@ -893,7 +896,7 @@ namespace FRIGGA_NAMESPACE
                     return id;
                 }
 
-                return assets->DefaultBillboardFontId();
+                return assets ? fallbackFont : raw;
             }
             return raw;
         }
@@ -1105,12 +1108,12 @@ namespace FRIGGA_NAMESPACE
                 }
                 else
                 {
-                    ModelAsset model {};
+                    const ModelAsset *model = nullptr;
                     std::uint32_t submesh = 0;
                     if(assets &&
                        assets->TryFindModelByMeshId(mesh.meshId, model, submesh))
                     {
-                        meshDto.source = model.relativePath;
+                        meshDto.source = model->relativePath;
                         meshDto.index  = static_cast<int64_t>(submesh);
                     }
                     else
@@ -1309,7 +1312,7 @@ namespace FRIGGA_NAMESPACE
             if(userComponents)
             {
                 std::vector<SceneUserComponentDto> components;
-                for(const auto &ops : userComponents->GetTypes())
+                for(const auto &ops : userComponents->GetTypesRef())
                 {
                     if(!ops.has || !ops.has(registry, entity) || !ops.toInstance)
                     {
@@ -1468,6 +1471,8 @@ namespace FRIGGA_NAMESPACE
 
         /// Legacy multi-submesh scenes put one Animator per child. Hoist a shared
         /// Animator onto the parent when ≥2 direct children share the same modelSource.
+        /// Batched into two flushes (all Adds, then all Removes): each structural op
+        /// targets a distinct entity, so one ExecuteTasks per phase is sufficient.
         void HoistSharedChildAnimators(fr::Registry &registry,
                                        const std::function<void()> &flush,
                                        const std::function<void(std::string_view, std::size_t)>
@@ -1481,6 +1486,7 @@ namespace FRIGGA_NAMESPACE
                 }
             });
 
+            std::vector<std::pair<std::string, std::vector<fr::Entity>>> hoistedBatches;
             for(const auto parent : parents)
             {
                 if(registry.HasComponent<AnimatorComponent>(parent))
@@ -1540,15 +1546,24 @@ namespace FRIGGA_NAMESPACE
                     registry.AddComponents(parent, TransformComponent {});
                 }
                 registry.AddComponents(parent, std::move(hoisted));
-                flush();
+                hoistedBatches.emplace_back(sharedSource, std::move(animatedChildren));
+            }
 
-                for(const auto child : animatedChildren)
+            if(!hoistedBatches.empty())
+            {
+                flush();
+                for(const auto &batch : hoistedBatches)
                 {
-                    registry.RemoveComponent<AnimatorComponent>(child);
+                    for(const auto child : batch.second)
+                    {
+                        registry.RemoveComponent<AnimatorComponent>(child);
+                    }
                 }
                 flush();
-
-                logHoist(sharedSource, animatedChildren.size());
+                for(const auto &batch : hoistedBatches)
+                {
+                    logHoist(batch.first, batch.second.size());
+                }
             }
         }
 
@@ -1702,6 +1717,33 @@ namespace FRIGGA_NAMESPACE
         std::vector<PendingUserComponent> pendingUserComponents;
         createdEntities.reserve(document.entities.size());
         parentIndices.reserve(document.entities.size());
+
+        // Deduplicate model loads: collect every referenced model source once so the
+        // per-entity LoadModel calls below hit the registry cache instead of disk.
+        if(scene.mAssets)
+        {
+            std::unordered_set<std::string> modelSources;
+            modelSources.reserve(document.entities.size());
+            for(const auto &entityDto : document.entities)
+            {
+                if(entityDto.animator && !entityDto.animator->modelSource.empty())
+                {
+                    modelSources.insert(entityDto.animator->modelSource);
+                }
+                if(entityDto.mesh && entityDto.mesh->source && !entityDto.mesh->source->empty())
+                {
+                    modelSources.insert(*entityDto.mesh->source);
+                }
+            }
+            for(const auto &source : modelSources)
+            {
+                (void)scene.mAssets->LoadModel(source);
+            }
+        }
+
+        // Cached once per Deserialize: DefaultBillboardFontId walks the font catalog.
+        const std::string fallbackFont =
+            scene.mAssets ? scene.mAssets->DefaultBillboardFontId() : std::string {};
 
         for(const auto &entityDto : document.entities)
         {
@@ -2070,7 +2112,7 @@ namespace FRIGGA_NAMESPACE
                 const auto &textDto = *entityDto.billboardText;
                 BillboardTextComponent label {};
                 label.text         = textDto.text;
-                label.fontId       = ResolveBillboardFontId(scene.mAssets, textDto);
+                label.fontId       = ResolveBillboardFontId(scene.mAssets, textDto, fallbackFont);
                 label.heightMeters = textDto.heightMeters;
                 if(!textDto.color.empty() && !ReadVec4(textDto.color, label.color))
                 {
@@ -2608,12 +2650,12 @@ namespace FRIGGA_NAMESPACE
                 }
                 else
                 {
-                    ModelAsset model {};
+                    const ModelAsset *model = nullptr;
                     std::uint32_t submesh = 0;
                     if(scene.mAssets &&
                        scene.mAssets->TryFindModelByMeshId(mesh.meshId, model, submesh))
                     {
-                        meshDto.source = model.relativePath;
+                        meshDto.source = model->relativePath;
                         meshDto.index  = static_cast<int64_t>(submesh);
                     }
                 }
@@ -3318,7 +3360,10 @@ namespace FRIGGA_NAMESPACE
             const auto &textDto = *document.billboardText;
             BillboardTextComponent label {};
             label.text         = textDto.text;
-            label.fontId       = ResolveBillboardFontId(scene.mAssets, textDto);
+            label.fontId       = ResolveBillboardFontId(scene.mAssets, textDto,
+                                                       scene.mAssets
+                                                           ? scene.mAssets->DefaultBillboardFontId()
+                                                           : std::string {});
             label.heightMeters = textDto.heightMeters;
             if(!textDto.color.empty() && !ReadVec4(textDto.color, label.color))
             {

@@ -20,6 +20,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 class ResourcesLayer;
@@ -150,4 +151,9 @@ class HierarchyLayer: public fg::Layer
         fr::Entity parent;
     };
     std::vector<PendingEntityParent> mPendingEntityParents;
+
+    /// Cache of texture id -> display label for drawTextureSlot. Cleared
+    /// whenever the texture catalog size changes (import/remove).
+    mutable std::unordered_map<std::uint32_t, std::string> mTexturePathLabels;
+    mutable std::size_t mTexturePathLabelCatalogSize = 0;
 };

@@ -14,10 +14,8 @@ namespace FRIGGA_NAMESPACE
 {
     namespace
     {
-        std::string EscapeJson(std::string_view value)
+        void AppendEscapedJson(std::string &out, std::string_view value)
         {
-            std::string out;
-            out.reserve(value.size() + 8);
             for(const char ch : value)
             {
                 if(ch == '"' || ch == '\\')
@@ -26,20 +24,32 @@ namespace FRIGGA_NAMESPACE
                 }
                 out.push_back(ch);
             }
-            return out;
         }
 
-        std::string StableGuid(std::string_view type, std::string_view path)
+        void Fnv1aMix(std::uint64_t &hash, std::string_view chunk)
         {
-            // FNV-1a provides a deterministic seed for new entries. The manifest
-            // makes the resulting identity persistent for the project.
-            std::uint64_t hash = 14695981039346656037ull;
-            for(const char ch : std::string(type) + ":" + std::string(path))
+            for(const char ch : chunk)
             {
                 hash ^= static_cast<unsigned char>(ch);
                 hash *= 1099511628211ull;
             }
-            return std::format("asset-{0:016x}", hash);
+        }
+
+        std::uint64_t Fnv1a(std::string_view type, std::string_view path)
+        {
+            // FNV-1a provides a deterministic seed for new entries. The manifest
+            // makes the resulting identity persistent for the project.
+            // Mixes the inputs directly: no "type:path" temporary is built.
+            std::uint64_t hash = 14695981039346656037ull;
+            Fnv1aMix(hash, type);
+            Fnv1aMix(hash, ":");
+            Fnv1aMix(hash, path);
+            return hash;
+        }
+
+        std::string StableGuid(std::string_view type, std::string_view path)
+        {
+            return std::format("asset-{0:016x}", Fnv1a(type, path));
         }
 
         std::uint64_t HashFile(const std::filesystem::path &path)
@@ -69,14 +79,35 @@ namespace FRIGGA_NAMESPACE
             const auto timestamp = std::filesystem::last_write_time(path, ec);
             return ec ? 0 : timestamp.time_since_epoch().count();
         }
-
-        std::string Key(std::string_view type, std::string_view path)
-        {
-            return std::string(type) + ":" + std::string(path);
-        }
-
-        std::string EscapeJson(std::string_view value);
     } // namespace
+
+    std::size_t ManifestKeyHash::operator()(const ManifestKey &key) const noexcept
+    {
+        return Fnv1a(key.type, key.path);
+    }
+
+    std::size_t ManifestKeyHash::operator()(ManifestKeyView view) const noexcept
+    {
+        return Fnv1a(view.type, view.path);
+    }
+
+    bool ManifestKeyEqual::operator()(const ManifestKey &left,
+                                      const ManifestKey &right) const noexcept
+    {
+        return left.type == right.type && left.path == right.path;
+    }
+
+    bool ManifestKeyEqual::operator()(const ManifestKey &left,
+                                      ManifestKeyView right) const noexcept
+    {
+        return left.type == right.type && left.path == right.path;
+    }
+
+    bool ManifestKeyEqual::operator()(ManifestKeyView left,
+                                      const ManifestKey &right) const noexcept
+    {
+        return left.type == right.type && left.path == right.path;
+    }
 
     bool AssetManifest::Load(const std::filesystem::path &resourcesRoot, std::string *error)
     {
@@ -270,7 +301,9 @@ namespace FRIGGA_NAMESPACE
                     record.dependencies.emplace_back(value);
                 }
             }
-            mEntries[Key(type, relativePath)] = std::move(record);
+            mEntries.insert_or_assign(ManifestKey {.type = std::string(type),
+                                                             .path = std::string(relativePath)},
+                                        std::move(record));
         }
         return true;
     }
@@ -288,13 +321,63 @@ namespace FRIGGA_NAMESPACE
             return false;
         }
 
-        std::vector<std::string> keys;
-        keys.reserve(mEntries.size());
+        std::vector<const ImportRecord *> ordered;
+        ordered.reserve(mEntries.size());
         for(const auto &[key, entry] : mEntries)
         {
-            keys.push_back(key);
+            ordered.push_back(&entry);
         }
-        std::ranges::sort(keys);
+        std::ranges::sort(ordered, [](const ImportRecord *left, const ImportRecord *right) {
+            if(left->type != right->type)
+            {
+                return left->type < right->type;
+            }
+            return left->relativePath < right->relativePath;
+        });
+
+        // Serialize into a single buffer and issue one write instead of one
+        // operator<< per field.
+        std::string out;
+        out.reserve(mEntries.size() * 192 + 64);
+        out += "{\n  \"version\": ";
+        out += std::to_string(FormatVersion::AssetManifest);
+        out += ",\n  \"assets\": [\n";
+        for(std::size_t i = 0; i < ordered.size(); ++i)
+        {
+            const auto &entry = *ordered[i];
+            out += "    {\"path\":\"";
+            AppendEscapedJson(out, entry.relativePath);
+            out += "\",\"type\":\"";
+            AppendEscapedJson(out, entry.type);
+            out += "\",\"guid\":\"";
+            AppendEscapedJson(out, entry.guid);
+            out += "\",\"sourceSize\":";
+            out += std::to_string(entry.sourceSize);
+            out += ",\"sourceHash\":";
+            out += std::to_string(entry.sourceHash);
+            out += ",\"sourceTimestamp\":";
+            out += std::to_string(entry.sourceTimestamp);
+            out += ",\"settings\":\"";
+            AppendEscapedJson(out, entry.settings);
+            out += "\",\"dependencies\":[";
+            for(std::size_t dependency = 0; dependency < entry.dependencies.size(); ++dependency)
+            {
+                if(dependency != 0)
+                {
+                    out.push_back(',');
+                }
+                out.push_back('"');
+                AppendEscapedJson(out, entry.dependencies[dependency]);
+                out.push_back('"');
+            }
+            out += "]}";
+            if(i + 1 < ordered.size())
+            {
+                out.push_back(',');
+            }
+            out.push_back('\n');
+        }
+        out += "  ]\n}\n";
 
         std::ofstream file(resourcesRoot / FileName, std::ios::binary | std::ios::trunc);
         if(!file)
@@ -306,39 +389,20 @@ namespace FRIGGA_NAMESPACE
             }
             return false;
         }
-        file << "{\n  \"version\": " << FormatVersion::AssetManifest << ",\n  \"assets\": [\n";
-        for(std::size_t i = 0; i < keys.size(); ++i)
-        {
-            const auto &entry = mEntries.at(keys[i]);
-            const auto separator = i + 1 < keys.size() ? "," : "";
-            file << "    {\"path\":\"" << EscapeJson(entry.relativePath) << "\",\"type\":\""
-                 << EscapeJson(entry.type) << "\",\"guid\":\"" << EscapeJson(entry.guid)
-                 << "\",\"sourceSize\":" << entry.sourceSize << ",\"sourceHash\":"
-                 << entry.sourceHash << ",\"sourceTimestamp\":" << entry.sourceTimestamp
-                 << ",\"settings\":\"" << EscapeJson(entry.settings) << "\",\"dependencies\":[";
-            for(std::size_t dependency = 0; dependency < entry.dependencies.size(); ++dependency)
-            {
-                if(dependency != 0)
-                {
-                    file << ',';
-                }
-                file << "\"" << EscapeJson(entry.dependencies[dependency]) << "\"";
-            }
-            file << "]}" << separator << "\n";
-        }
-        file << "  ]\n}\n";
+        file.write(out.data(), static_cast<std::streamsize>(out.size()));
         return static_cast<bool>(file);
     }
 
     std::string AssetManifest::GetOrCreate(std::string_view relativePath, std::string_view type)
     {
-        const std::string key = Key(type, relativePath);
-        if(const auto it = mEntries.find(key); it != mEntries.end())
+        if(const auto it = mEntries.find(ManifestKeyView {.type = type, .path = relativePath});
+           it != mEntries.end())
         {
             return it->second.guid;
         }
         const auto guid = StableGuid(type, relativePath);
-        mEntries.emplace(key,
+        mEntries.emplace(ManifestKey {.type = std::string(type),
+                                      .path = std::string(relativePath)},
                          ImportRecord {.relativePath = std::string(relativePath),
                                        .type = std::string(type),
                                        .guid = guid});
@@ -351,27 +415,53 @@ namespace FRIGGA_NAMESPACE
                                             std::string settings,
                                             std::vector<std::string> dependencies)
     {
-        const auto key = Key(type, relativePath.generic_string());
-        auto &record = mEntries[key];
-        if(record.guid.empty())
+        // Compute the generic form once: it backs the key view, the guid seed
+        // and the stored record.
+        const std::string relative = relativePath.generic_string();
+        const ManifestKeyView view {.type = type, .path = relative};
+        if(const auto it = mEntries.find(view); it == mEntries.end())
         {
-            record.guid = StableGuid(type, relativePath.generic_string());
+            ImportRecord record {.relativePath = relative,
+                                 .type = std::string(type),
+                                 .guid = StableGuid(type, relative),
+                                 .settings = std::move(settings),
+                                 .dependencies = std::move(dependencies)};
+            std::error_code ec;
+            record.sourceSize = std::filesystem::file_size(sourcePath, ec);
+            record.sourceHash = HashFile(sourcePath);
+            record.sourceTimestamp = FileTimestamp(sourcePath);
+            const auto guid = record.guid;
+            mEntries.emplace(ManifestKey {.type = std::string(type), .path = relative},
+                             std::move(record));
+            return guid;
         }
-        record.relativePath = relativePath.generic_string();
-        record.type         = type;
-        std::error_code ec;
-        record.sourceSize = std::filesystem::file_size(sourcePath, ec);
-        record.sourceHash = HashFile(sourcePath);
-        record.sourceTimestamp = FileTimestamp(sourcePath);
-        record.settings = std::move(settings);
-        record.dependencies = std::move(dependencies);
-        return record.guid;
+        else
+        {
+            auto &record = it->second;
+            // Fast path: skip the content hash when size and timestamp match
+            // the recorded values.
+            std::error_code ec;
+            const auto size = std::filesystem::file_size(sourcePath, ec);
+            const auto timestamp = FileTimestamp(sourcePath);
+            if(ec || size != record.sourceSize || timestamp != record.sourceTimestamp)
+            {
+                record.sourceSize = size;
+                record.sourceHash = HashFile(sourcePath);
+                record.sourceTimestamp = timestamp;
+            }
+            record.relativePath = relative;
+            record.type = type;
+            record.settings = std::move(settings);
+            record.dependencies = std::move(dependencies);
+            return record.guid;
+        }
     }
 
     const AssetManifest::ImportRecord *AssetManifest::Find(std::string_view relativePath,
                                                            std::string_view type) const
     {
-        const auto it = mEntries.find(Key(type, relativePath));
+        const auto it =
+            mEntries.find(ManifestKeyView {.type = type, .path = relativePath});
         return it == mEntries.end() ? nullptr : &it->second;
     }
 
@@ -393,7 +483,17 @@ namespace FRIGGA_NAMESPACE
             {
                 std::error_code ec;
                 const auto size = std::filesystem::file_size(path, ec);
-                if(ec || size != record.sourceSize || HashFile(path) != record.sourceHash)
+                if(ec || size != record.sourceSize)
+                {
+                    result.changed.push_back(record.relativePath);
+                }
+                else if(record.sourceTimestamp != 0 &&
+                        FileTimestamp(path) == record.sourceTimestamp)
+                {
+                    // Size and timestamp both match: content is unchanged,
+                    // skip the content hash.
+                }
+                else if(HashFile(path) != record.sourceHash)
                 {
                     result.changed.push_back(record.relativePath);
                 }

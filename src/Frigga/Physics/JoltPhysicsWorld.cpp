@@ -26,9 +26,12 @@
 #include <Jolt/RegisterTypes.h>
 
 #include <algorithm>
+#include <bit>
 #include <cstdarg>
+#include <cstdint>
 #include <cstdio>
 #include <iostream>
+#include <iterator>
 #include <mutex>
 #include <thread>
 #include <unordered_map>
@@ -291,6 +294,90 @@ namespace FRIGGA_NAMESPACE
         {
             return {q.GetW(), q.GetX(), q.GetY(), q.GetZ()};
         }
+
+        void HashFloatBits(std::uint64_t &hash, float value)
+        {
+            const auto bits = std::bit_cast<std::uint32_t>(value);
+            const auto *bytes = reinterpret_cast<const unsigned char *>(&bits);
+            for(std::size_t i = 0; i < sizeof(bits); ++i)
+            {
+                hash ^= bytes[i];
+                hash *= 1099511628211ull;
+            }
+        }
+
+        /// Content key for the convex-hull cache: point count + scaled-relevant
+        /// inputs (raw points and body scale; the hull is cooked from scaled points).
+        [[nodiscard]] std::uint64_t HashHullPoints(const std::vector<glm::vec3> &points,
+                                                  const glm::vec3 &scale)
+        {
+            std::uint64_t hash = 14695981039346656037ull;
+            const auto count   = static_cast<std::uint64_t>(points.size());
+            const auto *countBytes = reinterpret_cast<const unsigned char *>(&count);
+            for(std::size_t i = 0; i < sizeof(count); ++i)
+            {
+                hash ^= countBytes[i];
+                hash *= 1099511628211ull;
+            }
+            for(const auto &p : points)
+            {
+                HashFloatBits(hash, p.x);
+                HashFloatBits(hash, p.y);
+                HashFloatBits(hash, p.z);
+            }
+            HashFloatBits(hash, scale.x);
+            HashFloatBits(hash, scale.y);
+            HashFloatBits(hash, scale.z);
+            return hash;
+        }
+
+        /// Exact-match query-shape cache (per thread): character ground probes and
+        /// repeated casts reuse the same radii, so skip the `new Shape` per query.
+        /// Ref-counted return; no behavior change (parameters must match exactly).
+        [[nodiscard]] JPH::RefConst<JPH::Shape> SharedSphereShape(float radius)
+        {
+            thread_local JPH::RefConst<JPH::Shape> tShape;
+            thread_local float tRadius = -1.0f;
+            const float r              = std::max(radius, 0.001f);
+            if(tShape.GetPtr() == nullptr || tRadius != r)
+            {
+                tShape  = new JPH::SphereShape(r);
+                tRadius = r;
+            }
+            return tShape;
+        }
+
+        [[nodiscard]] JPH::RefConst<JPH::Shape> SharedCapsuleShape(float radius, float height)
+        {
+            thread_local JPH::RefConst<JPH::Shape> tShape;
+            thread_local float tRadius     = -1.0f;
+            thread_local float tHalfHeight = -1.0f;
+            const float r                  = std::max(radius, 0.001f);
+            const float halfHeight         = std::max(0.5f * height, 0.001f);
+            if(tShape.GetPtr() == nullptr || tRadius != r || tHalfHeight != halfHeight)
+            {
+                tShape      = new JPH::CapsuleShape(halfHeight, r);
+                tRadius     = r;
+                tHalfHeight = halfHeight;
+            }
+            return tShape;
+        }
+
+        [[nodiscard]] JPH::RefConst<JPH::Shape> SharedBoxShape(const glm::vec3 &halfExtents)
+        {
+            thread_local JPH::RefConst<JPH::Shape> tShape;
+            thread_local glm::vec3 tHalf {-1.0f, -1.0f, -1.0f};
+            const JPH::Vec3 half {std::max(halfExtents.x, 0.001f),
+                                  std::max(halfExtents.y, 0.001f),
+                                  std::max(halfExtents.z, 0.001f)};
+            if(tShape.GetPtr() == nullptr || tHalf.x != half.GetX() || tHalf.y != half.GetY() ||
+               tHalf.z != half.GetZ())
+            {
+                tShape = new JPH::BoxShape(half);
+                tHalf  = {half.GetX(), half.GetY(), half.GetZ()};
+            }
+            return tShape;
+        }
     } // namespace
 
     struct JoltPhysicsWorld::Impl
@@ -490,6 +577,12 @@ namespace FRIGGA_NAMESPACE
         std::vector<PhysicsContactEvent> pendingContacts;
         std::vector<PhysicsContactEvent> readyContacts;
 
+        /// Cooked convex hulls keyed by HashHullPoints (points + scale). Hulls from
+        /// the same primitive type share entries instead of re-cooking per body.
+        /// Guarded separately from eventMutex (different threads/timing).
+        std::mutex convexMutex;
+        std::unordered_map<std::uint64_t, JPH::RefConst<JPH::Shape>> convexCache;
+
         std::uint32_t nextJointId = 1;
     };
 
@@ -528,10 +621,16 @@ namespace FRIGGA_NAMESPACE
 
         mImpl->bodyPoses.clear();
 
+        {
+            std::lock_guard lock(mImpl->convexMutex);
+            mImpl->convexCache.clear();
+        }
+
         auto &bodyInterface = mImpl->physicsSystem.GetBodyInterface();
-        JPH::BodyIDVector bodies;
-        mImpl->physicsSystem.GetBodies(bodies);
-        for(const JPH::BodyID id: bodies)
+        thread_local JPH::BodyIDVector tBodies;
+        tBodies.clear();
+        mImpl->physicsSystem.GetBodies(tBodies);
+        for(const JPH::BodyID id : tBodies)
         {
             bodyInterface.RemoveBody(id);
             bodyInterface.DestroyBody(id);
@@ -563,10 +662,11 @@ namespace FRIGGA_NAMESPACE
     void JoltPhysicsWorld::updateBodyInterpolationSamples()
     {
         auto &bodyInterface = mImpl->physicsSystem.GetBodyInterface();
-        JPH::BodyIDVector bodies;
-        mImpl->physicsSystem.GetBodies(bodies);
+        thread_local JPH::BodyIDVector tBodies;
+        tBodies.clear();
+        mImpl->physicsSystem.GetBodies(tBodies);
 
-        for(const JPH::BodyID id: bodies)
+        for(const JPH::BodyID id : tBodies)
         {
             if(!bodyInterface.IsAdded(id))
             {
@@ -600,11 +700,17 @@ namespace FRIGGA_NAMESPACE
     void JoltPhysicsWorld::flushPendingEvents()
     {
         std::lock_guard lock(mImpl->eventMutex);
-        mImpl->readyTriggers.insert(mImpl->readyTriggers.end(), mImpl->pendingTriggers.begin(),
-                                    mImpl->pendingTriggers.end());
+        // Reserve once under the lock, then move (trivially movable payloads):
+        // fewer allocations and minimal time holding eventMutex for the step thread.
+        mImpl->readyTriggers.reserve(mImpl->readyTriggers.size() + mImpl->pendingTriggers.size());
+        mImpl->readyTriggers.insert(mImpl->readyTriggers.end(),
+                                    std::make_move_iterator(mImpl->pendingTriggers.begin()),
+                                    std::make_move_iterator(mImpl->pendingTriggers.end()));
         mImpl->pendingTriggers.clear();
-        mImpl->readyContacts.insert(mImpl->readyContacts.end(), mImpl->pendingContacts.begin(),
-                                    mImpl->pendingContacts.end());
+        mImpl->readyContacts.reserve(mImpl->readyContacts.size() + mImpl->pendingContacts.size());
+        mImpl->readyContacts.insert(mImpl->readyContacts.end(),
+                                    std::make_move_iterator(mImpl->pendingContacts.begin()),
+                                    std::make_move_iterator(mImpl->pendingContacts.end()));
         mImpl->pendingContacts.clear();
     }
 
@@ -680,6 +786,19 @@ namespace FRIGGA_NAMESPACE
             break;
         }
         case ColliderShape::Mesh: {
+            // Reuse cooked hulls across bodies sharing points+scale (e.g. every box
+            // rock from the same primitive). The center-offset wrapper below stays
+            // per-body; only the raw hull is cached.
+            const std::uint64_t hullKey = HashHullPoints(desc.meshPoints, desc.scale);
+            {
+                std::lock_guard lock(mImpl->convexMutex);
+                if(const auto found = mImpl->convexCache.find(hullKey);
+                   found != mImpl->convexCache.end() && found->second.GetPtr() != nullptr)
+                {
+                    shape = found->second;
+                    break;
+                }
+            }
             Array<Vec3> points;
             points.reserve(desc.meshPoints.size());
             for(const auto &p: desc.meshPoints)
@@ -703,6 +822,10 @@ namespace FRIGGA_NAMESPACE
                 {
                     shape = result.Get();
                 }
+            }
+            {
+                std::lock_guard lock(mImpl->convexMutex);
+                mImpl->convexCache.emplace(hullKey, shape);
             }
             break;
         }
@@ -1126,10 +1249,9 @@ namespace FRIGGA_NAMESPACE
         }
         dir /= std::sqrt(dirLenSq);
 
-        RefConst<Shape> shape = new SphereShape(std::max(radius, 0.001f));
-        const RMat44 start =
-            RMat44::sTranslation(RVec3(origin.x, origin.y, origin.z));
-        const RShapeCast shapeCast = RShapeCast::sFromWorldTransform(
+        const RefConst<Shape> shape = SharedSphereShape(radius);
+        const RMat44 start          = RMat44::sTranslation(RVec3(origin.x, origin.y, origin.z));
+        const RShapeCast shapeCast  = RShapeCast::sFromWorldTransform(
             shape, Vec3::sOne(), start, Vec3(dir.x, dir.y, dir.z) * maxDistance);
 
         QueryFilters filters(filter);
@@ -1145,7 +1267,7 @@ namespace FRIGGA_NAMESPACE
         }
 
         const ShapeCastResult &result = collector.mHit;
-        Vec3 normal = result.mPenetrationAxis;
+        Vec3 normal                   = result.mPenetrationAxis;
         if(normal.LengthSq() > 1.0e-12f)
         {
             normal = -normal.Normalized();
@@ -1178,12 +1300,9 @@ namespace FRIGGA_NAMESPACE
         }
         dir /= std::sqrt(dirLenSq);
 
-        const float r          = std::max(radius, 0.001f);
-        const float halfHeight = std::max(0.5f * height, 0.001f);
-        RefConst<Shape> shape  = new CapsuleShape(halfHeight, r);
-        const RMat44 start =
-            RMat44::sTranslation(RVec3(origin.x, origin.y, origin.z));
-        const RShapeCast shapeCast = RShapeCast::sFromWorldTransform(
+        const RefConst<Shape> shape = SharedCapsuleShape(radius, height);
+        const RMat44 start          = RMat44::sTranslation(RVec3(origin.x, origin.y, origin.z));
+        const RShapeCast shapeCast  = RShapeCast::sFromWorldTransform(
             shape, Vec3::sOne(), start, Vec3(dir.x, dir.y, dir.z) * maxDistance);
 
         QueryFilters filters(filter);
@@ -1219,7 +1338,7 @@ namespace FRIGGA_NAMESPACE
         using namespace JPH;
 
         std::vector<OverlapHit> hits;
-        RefConst<Shape> shape = new SphereShape(std::max(radius, 0.001f));
+        const RefConst<Shape> shape = SharedSphereShape(radius);
         const RMat44 com =
             RMat44::sTranslation(RVec3(center.x, center.y, center.z)).PreTranslated(shape->GetCenterOfMass());
 
@@ -1250,9 +1369,7 @@ namespace FRIGGA_NAMESPACE
         using namespace JPH;
 
         std::vector<OverlapHit> hits;
-        const Vec3 half {std::max(halfExtents.x, 0.001f), std::max(halfExtents.y, 0.001f),
-                         std::max(halfExtents.z, 0.001f)};
-        RefConst<Shape> shape = new BoxShape(half);
+        const RefConst<Shape> shape = SharedBoxShape(halfExtents);
         const RMat44 world =
             RMat44::sRotationTranslation(Quat(rotation.x, rotation.y, rotation.z, rotation.w),
                                          RVec3(center.x, center.y, center.z));

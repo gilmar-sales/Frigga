@@ -1019,14 +1019,28 @@ void HierarchyLayer::drawTextureSlot(const char *label, PendingTextureSlot slot,
     std::string pathLabel = "(none)";
     if(textureId)
     {
-        std::string path;
-        if(mAssets->TryGetTexturePath(*textureId, path))
+        if(mTexturePathLabelCatalogSize != mAssets->GetTextures().size())
         {
-            pathLabel = path;
+            mTexturePathLabels.clear();
+            mTexturePathLabelCatalogSize = mAssets->GetTextures().size();
+        }
+        if(const auto it = mTexturePathLabels.find(*textureId);
+           it != mTexturePathLabels.end())
+        {
+            pathLabel = it->second;
         }
         else
         {
-            pathLabel = std::format("id {}", *textureId);
+            std::string path;
+            if(mAssets->TryGetTexturePath(*textureId, path))
+            {
+                pathLabel = path;
+            }
+            else
+            {
+                pathLabel = std::format("id {}", *textureId);
+            }
+            mTexturePathLabels[*textureId] = pathLabel;
         }
     }
 
@@ -1049,13 +1063,20 @@ void HierarchyLayer::drawTextureSlot(const char *label, PendingTextureSlot slot,
 
     if(ImGui::BeginCombo("##pick", "From library..."))
     {
-        for(const auto &texture: mAssets->GetTextures())
+        const auto &textures = mAssets->GetTextures();
+        ImGuiListClipper clipper;
+        clipper.Begin(static_cast<int>(textures.size()));
+        while(clipper.Step())
         {
-            const bool selected = textureId && *textureId == texture.textureId;
-            if(ImGui::Selectable(texture.relativePath.c_str(), selected))
+            for(int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i)
             {
-                textureId = texture.textureId;
-                changed   = true;
+                const auto &texture  = textures[static_cast<std::size_t>(i)];
+                const bool selected = textureId && *textureId == texture.textureId;
+                if(ImGui::Selectable(texture.relativePath.c_str(), selected))
+                {
+                    textureId = texture.textureId;
+                    changed   = true;
+                }
             }
         }
         ImGui::EndCombo();
@@ -1267,16 +1288,23 @@ void HierarchyLayer::onGui()
     }
 
     std::vector<fr::Entity> roots;
+    roots.reserve(128);
     mRegistry->CreateMutation()->Each([this, &roots](fr::Entity entity, fg::NameComponent &) {
         if(mRegistry->GetParent(entity) == fr::NullEntity)
         {
             roots.push_back(entity);
         }
     });
-    for(const auto entity: roots)
+    ImGuiListClipper rootClipper;
+    rootClipper.Begin(static_cast<int>(roots.size()));
+    while(rootClipper.Step())
     {
-        mRegistry->TryGetComponents<fg::NameComponent>(
-            entity, [&](fg::NameComponent &name) { drawEntityNode(entity, name); });
+        for(int i = rootClipper.DisplayStart; i < rootClipper.DisplayEnd; ++i)
+        {
+            const auto entity = roots[static_cast<std::size_t>(i)];
+            mRegistry->TryGetComponents<fg::NameComponent>(
+                entity, [&](fg::NameComponent &name) { drawEntityNode(entity, name); });
+        }
     }
 
     ImGui::Dummy(ImVec2(ImGui::GetContentRegionAvail().x,

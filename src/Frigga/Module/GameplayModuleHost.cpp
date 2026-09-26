@@ -9,10 +9,10 @@
 #include <system_error>
 
 #ifdef _WIN32
-#    define WIN32_LEAN_AND_MEAN
-#    include <windows.h>
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
 #else
-#    include <dlfcn.h>
+#include <dlfcn.h>
 #endif
 
 namespace FRIGGA_NAMESPACE
@@ -68,13 +68,13 @@ namespace FRIGGA_NAMESPACE
         }
 #endif
 
-        [[nodiscard]] std::filesystem::path
-        MakeStagedLibraryPath(const std::filesystem::path &source, std::uint64_t generation)
+        [[nodiscard]] std::filesystem::path MakeStagedLibraryPath(
+            const std::filesystem::path &source, std::uint64_t generation)
         {
             const auto stamp = std::chrono::duration_cast<std::chrono::nanoseconds>(
                                    std::chrono::steady_clock::now().time_since_epoch())
                                    .count();
-            auto staged = source;
+            auto staged      = source;
             staged += ".reload-" + std::to_string(generation) + "-" + std::to_string(stamp);
             return staged;
         }
@@ -99,7 +99,7 @@ namespace FRIGGA_NAMESPACE
             {
                 return;
             }
-            for(const auto &entry : std::filesystem::directory_iterator(parent, ec))
+            for(const auto &entry: std::filesystem::directory_iterator(parent, ec))
             {
                 if(ec || !entry.is_regular_file(ec))
                 {
@@ -140,7 +140,7 @@ namespace FRIGGA_NAMESPACE
     bool GameplayModuleHost::IsLoaded() const
     {
         std::lock_guard lock(mMutex);
-        for(const auto &slot : mModules)
+        for(const auto &slot: mModules)
         {
             if(slot.module && slot.api && slot.attached)
             {
@@ -153,7 +153,7 @@ namespace FRIGGA_NAMESPACE
     bool GameplayModuleHost::IsModuleLoaded(std::string_view id) const
     {
         std::lock_guard lock(mMutex);
-        for(const auto &slot : mModules)
+        for(const auto &slot: mModules)
         {
             if(slot.id == id && slot.module && slot.attached)
             {
@@ -167,7 +167,7 @@ namespace FRIGGA_NAMESPACE
     {
         std::lock_guard lock(mMutex);
         std::size_t count = 0;
-        for(const auto &slot : mModules)
+        for(const auto &slot: mModules)
         {
             if(slot.module && slot.attached)
             {
@@ -181,7 +181,7 @@ namespace FRIGGA_NAMESPACE
     {
         std::lock_guard lock(mMutex);
         std::vector<std::string> ids;
-        for(const auto &slot : mModules)
+        for(const auto &slot: mModules)
         {
             if(slot.module && slot.attached)
             {
@@ -198,7 +198,7 @@ namespace FRIGGA_NAMESPACE
         {
             return ids;
         }
-        for(const auto &ops : mUserComponents->GetTypes())
+        for(const auto &ops: mUserComponents->GetTypes())
         {
             ids.push_back(ops.typeId);
         }
@@ -233,7 +233,11 @@ namespace FRIGGA_NAMESPACE
 
     bool GameplayModuleHost::Load(const std::filesystem::path &libraryPath)
     {
-        return LoadAll({ModuleLoadRequest {.id = "gameplay", .libraryPath = libraryPath}});
+        return LoadAll(
+            {
+                ModuleLoadRequest{.id = "gameplay", .libraryPath = libraryPath}
+        },
+            /*stageForReload=*/true);
     }
 
     bool GameplayModuleHost::Reload()
@@ -246,13 +250,13 @@ namespace FRIGGA_NAMESPACE
                 mLastError = "No module library path set";
                 return false;
             }
-            for(const auto &slot : mModules)
+            for(const auto &slot: mModules)
             {
-                requests.push_back(ModuleLoadRequest {
+                requests.push_back(ModuleLoadRequest{
                     .id = slot.id, .name = slot.name, .libraryPath = slot.libraryPath});
             }
         }
-        return LoadAll(requests);
+        return LoadAll(requests, /*stageForReload=*/true);
     }
 
     void GameplayModuleHost::Unload()
@@ -264,7 +268,7 @@ namespace FRIGGA_NAMESPACE
     void GameplayModuleHost::UpdateModule(float deltaTime)
     {
         std::lock_guard lock(mMutex);
-        for(auto &slot : mModules)
+        for(auto &slot: mModules)
         {
             if(slot.module && slot.api && slot.api->on_update && slot.attached)
             {
@@ -422,12 +426,12 @@ namespace FRIGGA_NAMESPACE
             return;
         }
 
-        FriHost host {.registry        = mRegistry.get(),
-                      .user_components = mUserComponents.get(),
-                      .system_manager  = mSystemManager.get(),
-                      .services        = mServices.get(),
-                      .module_id       = slot.id.c_str(),
-                      .module_name     = slot.name.c_str()};
+        FriHost host{.registry        = mRegistry.get(),
+                     .user_components = mUserComponents.get(),
+                     .system_manager  = mSystemManager.get(),
+                     .services        = mServices.get(),
+                     .module_id       = slot.id.c_str(),
+                     .module_name     = slot.name.c_str()};
         slot.api->on_attach(slot.module, &host);
         slot.attached = true;
 
@@ -443,8 +447,8 @@ namespace FRIGGA_NAMESPACE
         if(restoreAfterAttach && !mPendingRestore.entries.empty())
         {
             const auto restored = mUserComponents->RestoreAll(*mRegistry, mPendingRestore);
-            mLogger->LogInformation(
-                "Restored {} gameplay component instance(s) after module load", restored);
+            mLogger->LogInformation("Restored {} gameplay component instance(s) after module load",
+                                    restored);
             mPendingRestore = {};
         }
     }

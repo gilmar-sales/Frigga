@@ -256,6 +256,8 @@ namespace FRIGGA_NAMESPACE
         }
 
         mBankEvents.emplace(key, outEventPaths);
+        // New events may shadow a cached miss.
+        mHasLastEvent = false;
 
         if(mLogger)
         {
@@ -279,6 +281,8 @@ namespace FRIGGA_NAMESPACE
             mEvents.erase(eventPath);
         }
         mBankEvents.erase(it);
+        // Removed events may be sitting in the single-entry cache.
+        mHasLastEvent = false;
         return true;
     }
 
@@ -297,13 +301,17 @@ namespace FRIGGA_NAMESPACE
     std::optional<MiniaudioEngine::EventDef> MiniaudioEngine::ResolveEvent(
         std::string_view eventPath) const
     {
-        const auto it = mEvents.find(std::string(eventPath));
-        if(it != mEvents.end())
+        if(mHasLastEvent && mLastEventPath == eventPath)
         {
-            return it->second;
+            return mLastEventDef;
         }
 
-        if(IsDirectClipPath(eventPath))
+        std::optional<EventDef> result;
+        if(const auto it = mEvents.find(std::string(eventPath)); it != mEvents.end())
+        {
+            result = it->second;
+        }
+        else if(IsDirectClipPath(eventPath))
         {
             std::filesystem::path clipPath {eventPath};
             if(!clipPath.is_absolute())
@@ -312,11 +320,14 @@ namespace FRIGGA_NAMESPACE
             }
             if(std::filesystem::is_regular_file(clipPath))
             {
-                return EventDef {.clipAbsolute = clipPath};
+                result = EventDef {.clipAbsolute = clipPath};
             }
         }
 
-        return std::nullopt;
+        mLastEventPath = std::string(eventPath);
+        mLastEventDef  = result;
+        mHasLastEvent  = true;
+        return result;
     }
 
     std::optional<AudioEventInfo> MiniaudioEngine::GetEventInfo(std::string_view eventPath) const
@@ -701,27 +712,41 @@ namespace FRIGGA_NAMESPACE
 
         const ma_uint64 bucketFrames =
             std::max<ma_uint64>(1, totalFrames / static_cast<ma_uint64>(targetPeakCount));
-        std::vector<float> frameBuffer(static_cast<std::size_t>(decoder.outputChannels));
+        if(decoder.outputChannels == 0)
+        {
+            ma_decoder_uninit(&decoder);
+            return std::nullopt;
+        }
+
+        // Block reads instead of one ma_decoder_read_pcm_frames(1) per sample:
+        // identical peak sequence, far fewer decoder round-trips.
+        constexpr std::size_t kBlockFrames = 4096;
+        const std::size_t channels          = decoder.outputChannels;
+        std::vector<float> blockBuffer(kBlockFrames * channels);
 
         (void)ma_decoder_seek_to_pcm_frame(&decoder, 0);
         data.peaks.reserve(static_cast<std::size_t>(targetPeakCount));
 
         for(int bucket = 0; bucket < targetPeakCount; ++bucket)
         {
-            float peak = 0.0f;
-            for(ma_uint64 f = 0; f < bucketFrames; ++f)
+            float peak          = 0.0f;
+            ma_uint64 remaining = bucketFrames;
+            while(remaining > 0)
             {
+                const ma_uint64 want = std::min<ma_uint64>(remaining, kBlockFrames);
                 ma_uint64 framesRead = 0;
-                if(ma_decoder_read_pcm_frames(&decoder, frameBuffer.data(), 1, &framesRead) !=
+                if(ma_decoder_read_pcm_frames(&decoder, blockBuffer.data(), want, &framesRead) !=
                        MA_SUCCESS ||
                    framesRead == 0)
                 {
                     break;
                 }
-                for(ma_uint32 ch = 0; ch < decoder.outputChannels; ++ch)
+                const auto *samples = blockBuffer.data();
+                for(ma_uint64 i = 0; i < framesRead * channels; ++i)
                 {
-                    peak = std::max(peak, std::abs(frameBuffer[ch]));
+                    peak = std::max(peak, std::abs(samples[i]));
                 }
+                remaining -= framesRead;
             }
             data.peaks.push_back(peak);
         }

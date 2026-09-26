@@ -20,7 +20,8 @@ namespace FRIGGA_NAMESPACE
     {
       public:
         /// Validate the project manifest and copy its Resources tree to a
-        /// deterministic cooked directory. Existing files are replaced.
+        /// deterministic cooked directory. Up-to-date files (same size and
+        /// timestamp) are skipped; the rest are replaced.
         [[nodiscard]] static AssetCookResult Cook(
             const std::filesystem::path &resourcesRoot,
             const std::filesystem::path &destination);

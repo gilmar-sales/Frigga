@@ -28,6 +28,7 @@ namespace FRIGGA_NAMESPACE
         {
             mOrder.push_back(typeId);
         }
+        mOrderedCacheDirty = true;
     }
 
     void UserComponentRegistry::DetachAll(fr::Registry &registry)
@@ -71,6 +72,8 @@ namespace FRIGGA_NAMESPACE
         std::lock_guard lock(mMutex);
         mTypes.clear();
         mOrder.clear();
+        mOrderedCache.clear();
+        mOrderedCacheDirty = true;
     }
 
     UserComponentWorldSnapshot UserComponentRegistry::CaptureAll(fr::Registry &registry) const
@@ -222,20 +225,37 @@ namespace FRIGGA_NAMESPACE
         return it->second;
     }
 
+    const std::vector<RuntimeComponentOps> &UserComponentRegistry::orderedLocked() const
+    {
+        if(mOrderedCacheDirty)
+        {
+            mOrderedCache.clear();
+            mOrderedCache.reserve(mOrder.size());
+            for(const auto &id : mOrder)
+            {
+                const auto it = mTypes.find(id);
+                if(it != mTypes.end())
+                {
+                    mOrderedCache.push_back(it->second);
+                }
+            }
+            mOrderedCacheDirty = false;
+        }
+        return mOrderedCache;
+    }
+
     std::vector<RuntimeComponentOps> UserComponentRegistry::GetTypes() const
     {
         std::lock_guard lock(mMutex);
-        std::vector<RuntimeComponentOps> result;
-        result.reserve(mOrder.size());
-        for(const auto &id : mOrder)
-        {
-            const auto it = mTypes.find(id);
-            if(it != mTypes.end())
-            {
-                result.push_back(it->second);
-            }
-        }
-        return result;
+        // Copy out of the ordered cache so callers can iterate without the lock.
+        const auto &cached = orderedLocked();
+        return cached;
+    }
+
+    const std::vector<RuntimeComponentOps> &UserComponentRegistry::GetTypesRef() const
+    {
+        std::lock_guard lock(mMutex);
+        return orderedLocked();
     }
 
 } // namespace FRIGGA_NAMESPACE

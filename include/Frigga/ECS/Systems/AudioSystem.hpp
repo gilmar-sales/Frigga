@@ -7,6 +7,10 @@
 
 #include <Freyr/Freyr.hpp>
 
+#include <string>
+#include <unordered_map>
+#include <vector>
+
 namespace FRIGGA_NAMESPACE
 {
 
@@ -22,9 +26,23 @@ namespace FRIGGA_NAMESPACE
         void Update(float deltaTime) override;
 
       private:
-        void releaseSource(AudioSourceComponent &source);
+        /// Last values pushed to the engine per entity; applySourceProperties only
+        /// calls Set* when a value actually changed (miniaudio calls are not free).
+        struct AppliedSourceProps
+        {
+            std::uint64_t instanceId = 0;
+            float volume = 1.0f;
+            float pitch  = 1.0f;
+            bool  loop   = false;
+            bool  is3D   = false;
+            float minDistance = 1.0f;
+            float maxDistance = 50.0f;
+            std::unordered_map<std::string, float> parameters;
+        };
+
+        void releaseSource(fr::Entity entity, AudioSourceComponent &source);
         void stopAllSources();
-        void applySourceProperties(AudioSourceComponent &source);
+        void applySourceProperties(fr::Entity entity, AudioSourceComponent &source);
         void syncListener();
         void syncSources();
 
@@ -33,6 +51,7 @@ namespace FRIGGA_NAMESPACE
         skr::Arc<Scene> mScene;
         skr::Arc<AudioController> mController;
         bool mWasPlaying = false;
+        std::unordered_map<fr::Entity, AppliedSourceProps> mAppliedProps;
     };
 
 } // namespace FRIGGA_NAMESPACE

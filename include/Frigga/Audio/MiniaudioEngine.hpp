@@ -7,6 +7,8 @@
 #include <Skirnir/Skirnir.hpp>
 
 #include <filesystem>
+#include <optional>
+#include <string>
 #include <unordered_map>
 
 namespace FRIGGA_NAMESPACE
@@ -92,6 +94,12 @@ namespace FRIGGA_NAMESPACE
 
         std::unordered_map<std::filesystem::path, std::vector<std::string>> mBankEvents;
         std::unordered_map<std::string, EventDef> mEvents;
+        /// Single-entry ResolveEvent cache: repeated CreateEventInstance calls for the
+        /// same event (e.g. every enemy sharing a bank event) skip the map lookup,
+        /// lowercase copy, and filesystem probes. Invalidated on Load/UnloadBank.
+        mutable std::string mLastEventPath;
+        mutable std::optional<EventDef> mLastEventDef;
+        mutable bool mHasLastEvent = false;
         std::unordered_map<std::uint64_t, InstanceEntry> mInstances;
         std::unordered_map<std::string, float> mBusVolumes;
         std::unordered_map<std::string, bool> mBusMuted;

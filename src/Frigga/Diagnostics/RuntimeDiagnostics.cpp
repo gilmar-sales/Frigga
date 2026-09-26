@@ -75,30 +75,36 @@ namespace FRIGGA_NAMESPACE
             return;
         }
         file << "{\"traceEvents\":[";
+        std::string buffer;
+        buffer.reserve(mEvents.size() * 96);
         std::lock_guard lock(mMutex);
         for(std::size_t i = 0; i < mEvents.size(); ++i)
         {
             const auto &event = mEvents[i];
             if(i != 0)
             {
-                file << ',';
+                buffer += ',';
             }
-            file << "{\"name\":\"";
+            buffer += "{\"name\":\"";
             for(const char ch : event.name)
             {
                 if(ch == '"' || ch == '\\')
                 {
-                    file << '\\';
+                    buffer += '\\';
                 }
-                file << ch;
+                buffer += ch;
             }
-            file << "\",\"cat\":\"frigga\",\"ph\":\"X\",\"ts\":" << event.timestampUs
-                 << ",\"dur\":" << event.durationUs << ",\"pid\":1,\"tid\":1}";
+            buffer += "\",\"cat\":\"frigga\",\"ph\":\"X\",\"ts\":";
+            buffer += std::to_string(event.timestampUs);
+            buffer += ",\"dur\":";
+            buffer += std::to_string(event.durationUs);
+            buffer += ",\"pid\":1,\"tid\":1}";
         }
+        file << buffer;
         file << "]}\n";
     }
 
-    void FrameProfiler::Record(std::string name, std::chrono::steady_clock::duration duration)
+    void FrameProfiler::Record(std::string_view name, std::chrono::steady_clock::duration duration)
     {
         if(mTracePath.empty())
         {
@@ -112,7 +118,7 @@ namespace FRIGGA_NAMESPACE
         std::lock_guard lock(mMutex);
         if(mEvents.size() < 10000)
         {
-            mEvents.push_back(Event {.name = std::move(name),
+            mEvents.push_back(Event {.name = std::string(name),
                                      .timestampUs = timestamp,
                                      .durationUs = elapsed});
         }

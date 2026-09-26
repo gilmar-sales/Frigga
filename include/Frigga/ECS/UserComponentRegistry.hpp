@@ -94,12 +94,22 @@ namespace FRIGGA_NAMESPACE
         [[nodiscard]] bool Has(std::string_view typeId) const;
         [[nodiscard]] std::optional<RuntimeComponentOps> Find(std::string_view typeId) const;
         [[nodiscard]] std::vector<RuntimeComponentOps> GetTypes() const;
+        /// Borrowed view over the ordered type list. Avoids copying the ops vector
+        /// on hot paths (e.g. per-entity scene serialization). The reference is
+        /// valid until the next Register/ClearModuleTypes/DetachAll call and must
+        /// not be retained; Register-side mutation is main-thread only.
+        [[nodiscard]] const std::vector<RuntimeComponentOps> &GetTypesRef() const;
 
       private:
+        /// Rebuild mOrderedCache when dirty. Caller must hold mMutex.
+        const std::vector<RuntimeComponentOps> &orderedLocked() const;
+
         mutable std::mutex mMutex;
         std::unordered_map<std::string, RuntimeComponentOps> mTypes;
         std::vector<std::string> mOrder;
         std::vector<UserComponentSnapshotEntry> mDeferred;
+        mutable std::vector<RuntimeComponentOps> mOrderedCache;
+        mutable bool mOrderedCacheDirty = true;
     };
 
 } // namespace FRIGGA_NAMESPACE

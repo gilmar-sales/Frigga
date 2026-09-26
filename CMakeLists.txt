@@ -24,6 +24,7 @@ option(FRIGGA_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSa
 option(FRIGGA_ENABLE_COVERAGE "Enable GCC/Clang coverage instrumentation" OFF)
 option(FRIGGA_BUILD_BENCHMARKS "Build Frigga performance benchmarks" OFF)
 option(FRIGGA_PLATFORM_CONTRACT_ONLY "Validate platform conditionals without fetching dependencies" OFF)
+option(FRIGGA_UNITY_BUILD "Batch translation units (CMAKE_UNITY_BUILD) for faster full builds" OFF)
 
 if (FRIGGA_PLATFORM_CONTRACT_ONLY)
     if (NOT APPLE)
@@ -48,21 +49,15 @@ endif ()
 
 include(FetchContent)
 
-# One Sdk pack = one CMAKE_BUILD_TYPE. Assimp's debug postfix would otherwise
-# set CMAKE_DEBUG_POSTFIX=d for the whole tree (libfriggad.a, libfreyrd.a, …)
-# and leave Debug/Release archives side-by-side under Sdk/lib.
+
 set(CMAKE_DEBUG_POSTFIX "" CACHE STRING "Frigga SDK uses unprefixed library names" FORCE)
 set(ASSIMP_INJECT_DEBUG_POSTFIX OFF CACHE BOOL "" FORCE)
 
 find_package(Vulkan REQUIRED)
 
-# Version pins for the documented dependencies. The SDK records them in
-# FriggaSdkConfig.cmake (FRIGGA_SDK_DEPS) so tooling such as the docs MCP can
-# fetch the documentation matching exactly what is compiled here, instead of
-# guessing from build/_deps or reading whatever happens to be on main.
 set(FRIGGA_SKIRNIR_TAG "v0.23.2")
 set(FRIGGA_FREYR_TAG "v0.40.1-hierarchy")
-set(FRIGGA_FREYA_TAG "v0.58.1")
+set(FRIGGA_FREYA_TAG "v0.59.0")
 set(FRIGGA_SDK_DEPS
         "Skirnir=${FRIGGA_SKIRNIR_TAG};Freyr=${FRIGGA_FREYR_TAG};Freya=${FRIGGA_FREYA_TAG}")
 
@@ -102,6 +97,8 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(imgui)
 
 set(IMGUIZMO_BUILD_EXAMPLE OFF CACHE BOOL "" FORCE)
+# NOTE: ImGuizmo has no version tags upstream; pinned to rolling master on purpose.
+# Re-evaluate a commit pin if master ever breaks the Editor build.
 FetchContent_Declare(
         imguizmo
         GIT_REPOSITORY "https://github.com/CedricGuillemet/ImGuizmo.git"
@@ -135,6 +132,10 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(miniaudio)
 
+# ccache: Assimp already publishes GLOBAL RULE_LAUNCH_COMPILE/LINK when it finds
+# ccache, and Freyr sets its own language launchers, so Frigga must not add
+# another CMAKE_CXX_COMPILER_LAUNCHER (it double-wraps compiles: ccache ccache).
+
 # Headers needed to scaffold/build gameplay modules from a published Editor.
 file(REMOVE_RECURSE
         "${CMAKE_BINARY_DIR}/Resources/modules"
@@ -153,8 +154,13 @@ add_library(frigga::frigga ALIAS frigga)
 target_compile_features(frigga PUBLIC cxx_std_26)
 
 if (MSVC)
-    target_compile_options(frigga PUBLIC "/ZI")
+    # /Zi (not /ZI): Edit-and-Continue PDBs serialize linking and bloat rebuilds.
+    target_compile_options(frigga PUBLIC "/Zi")
     target_link_options(frigga PUBLIC "/INCREMENTAL")
+endif ()
+
+if (FRIGGA_UNITY_BUILD)
+    set_target_properties(frigga PROPERTIES UNITY_BUILD ON)
 endif ()
 
 target_precompile_headers(frigga PUBLIC "src/Frigga/pch.hpp")
@@ -207,6 +213,8 @@ foreach (_optional IN ITEMS assimp meshoptimizer perfetto zlibstatic)
         list(APPEND _FRIGGA_SDK_BINARY_TARGETS ${_optional})
     endif ()
 endforeach ()
+# copy_if_different keeps the SDK stamp cheap: unchanged archives are not
+# re-copied, so FriggaSdkLibraries stays a no-op ALL target on Debug rebuilds.
 set(_FRIGGA_SDK_COPY_COMMANDS
         COMMAND ${CMAKE_COMMAND} -E make_directory "${FRIGGA_SDK_DIR}/lib")
 foreach (_target IN LISTS _FRIGGA_SDK_BINARY_TARGETS)
@@ -229,13 +237,20 @@ set_source_files_properties(
         COMPILE_OPTIONS "$<$<CXX_COMPILER_ID:GNU,Clang>:-fno-reflection>"
 )
 
-file(GLOB_RECURSE EDITOR_SRC src/Editor/*.cpp src/Editor/*.hpp)
+# NOTE: no CONFIGURE_DEPENDS here used to silently drop newly added Editor
+# files from the build. Keep it so `cmake --build` picks up new panels after
+# a configure; Ninja re-globs automatically on the next build.
+file(GLOB_RECURSE EDITOR_SRC CONFIGURE_DEPENDS src/Editor/*.cpp src/Editor/*.hpp)
 list(FILTER EDITOR_SRC EXCLUDE REGEX "/Resources/Modules/")
 
 add_executable(Editor ${EDITOR_SRC}
         src/Editor/Main.cpp
         src/Editor/EditorApplication.cpp
         src/Editor/EditorApplication.hpp)
+
+if (FRIGGA_UNITY_BUILD)
+    set_target_properties(Editor Runtime PROPERTIES UNITY_BUILD ON)
+endif ()
 
 target_compile_features(Editor PUBLIC cxx_std_26)
 
@@ -326,6 +341,9 @@ if (WIN32 AND CMAKE_NM)
 endif ()
 
 # Engine pack (UI fonts, shaders, bundled modules) plus ProjectTemplate for new games.
+# NOTE: configure-time file(COPY) is intentional — Editor/Runtime resolve
+# "./Resources" relative to the build dir at launch. After adding resource
+# files, re-run `cmake -S . -B build` so they are re-copied.
 file(COPY src/Editor/Resources DESTINATION ${CMAKE_BINARY_DIR})
 file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/Resources/Fonts")
 file(COPY

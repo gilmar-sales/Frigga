@@ -71,7 +71,9 @@ namespace FRIGGA_NAMESPACE
         std::string                runtimeFragment;
         std::string                runtimeStageName;
         FullscreenEffectKind       runtimeKind = FullscreenEffectKind::Cell;
-        float                      timeSec     = 0.0f;
+        /// Last material mask pushed via SyncFullscreenEffectMaterials (runtime).
+        std::vector<std::uint32_t> runtimeMaterialMaskIds;
+        float                      timeSec = 0.0f;
     };
 
 } // namespace FRIGGA_NAMESPACE

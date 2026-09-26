@@ -99,7 +99,8 @@ void GameplayLayer::onUpdate()
     mClaimOutput = true;
     if(mPreferences &&
        EditorViewport::ApplyQualityPreferences(*mRenderer,
-                                               mPreferences->graphics.gameplayViewport))
+                                               mPreferences->graphics.gameplayViewport,
+                                               mQualityCache))
     {
         fg::GuiLayer::RecreateMainPipeline(mRenderer);
     }

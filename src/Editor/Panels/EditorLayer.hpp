@@ -2,6 +2,7 @@
 
 #include "Editor/SelectionContext.hpp"
 #include "Editor/Preferences/EditorPreferences.hpp"
+#include "Editor/ViewportQuality.hpp"
 #include "Editor/ViewportTarget.hpp"
 
 #include "Frigga/Asset/PrimitiveMeshFactory.hpp"
@@ -66,6 +67,7 @@ class EditorLayer: public fg::Layer
     skr::Arc<fg::UserComponentRegistry> mUserComponents;
     skr::Arc<EditorPreferences> mPreferences;
     fg::ViewportTarget mViewport;
+    EditorViewport::AppliedQualityCache mQualityCache {};
     std::uint32_t mWidth         = 0;
     std::uint32_t mHeight        = 0;
     std::uint32_t mPendingWidth  = 1280;

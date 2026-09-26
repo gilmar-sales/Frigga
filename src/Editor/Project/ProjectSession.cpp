@@ -259,6 +259,28 @@ namespace
         return signature.str();
     }
 
+    /// Hash of everything the module configure command depends on. When the
+    /// marker in the build dir matches and CMakeCache.txt exists, configure is
+    /// skipped and only the build runs.
+    std::string ModuleConfigureSignature(const std::filesystem::path &projectRoot,
+                                          const std::filesystem::path &sdk,
+                                          const std::string &compiler,
+                                          const std::string &buildType, bool linkGame)
+    {
+        const auto manifest  = ReadTextFile(projectRoot / ProjectFile::FileName);
+        const auto cmake     = ReadTextFile(projectRoot / "CMakeLists.txt");
+        const auto sdkConfig = ReadTextFile(sdk / "FriggaSdkConfig.cmake");
+        std::ostringstream signature;
+        signature << "buildType=" << buildType << '\n';
+        signature << "linkGame=" << (linkGame ? "1" : "0") << '\n';
+        signature << "compiler=" << compiler << '\n';
+        signature << "sdk=" << sdk.lexically_normal().generic_string() << '\n';
+        signature << "sdkConfigHash=" << std::hash<std::string> {}(sdkConfig) << '\n';
+        signature << "manifestHash=" << std::hash<std::string> {}(manifest) << '\n';
+        signature << "cmakeHash=" << std::hash<std::string> {}(cmake) << '\n';
+        return signature.str();
+    }
+
     std::string PublishedModuleLibrary(std::string_view target)
     {
 #if defined(_WIN32)
@@ -271,8 +293,7 @@ namespace
     }
 
     bool PrepareReleaseBuild(const std::filesystem::path &buildDir,
-                             const std::string &signature,
-                             std::string &error)
+                              const std::string &signature, std::string &error)
     {
         const auto marker = buildDir / ".frigga-release-config";
         if(std::filesystem::exists(buildDir) && std::filesystem::exists(marker) &&
@@ -1499,15 +1520,35 @@ void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::pa
     mBuildProgressDeterminate.store(false, std::memory_order_release);
     mBuildProgress.store(0.1f, std::memory_order_release);
 
-    const int configureCode = RunShellCapturing(configureCmd, [&](std::string_view line) {
-        appendLog(line);
-    });
-    if(configureCode != 0)
+    // Skip configure when the cache and SDK inputs are unchanged — the common
+    // iterative case. The marker is rewritten after every successful configure.
+    const auto configureMarker = buildDir / ".frigga-configure-sig";
+    const std::string configureSignature =
+        ModuleConfigureSignature(root, engine.friggaSdk, cxxCompiler, buildType, publish);
+    const bool configureFresh = !publish &&
+                                std::filesystem::exists(buildDir / "CMakeCache.txt") &&
+                                std::filesystem::exists(configureMarker) &&
+                                ReadTextFile(configureMarker) == configureSignature;
+    if(configureFresh)
     {
-        mBuildExitCode.store(configureCode, std::memory_order_release);
-        mBuildRunning.store(false, std::memory_order_release);
-        mBuildFinished.store(true, std::memory_order_release);
-        return;
+        appendLog("CMake configure up to date, skipping.\n");
+    }
+    else
+    {
+        const int configureCode =
+            RunShellCapturing(configureCmd, [&](std::string_view line) { appendLog(line); });
+        if(configureCode != 0)
+        {
+            mBuildExitCode.store(configureCode, std::memory_order_release);
+            mBuildRunning.store(false, std::memory_order_release);
+            mBuildFinished.store(true, std::memory_order_release);
+            return;
+        }
+        std::ofstream marker(configureMarker, std::ios::binary | std::ios::trunc);
+        if(marker)
+        {
+            marker << configureSignature;
+        }
     }
     if(publish && !WriteReleaseBuildMarker(buildDir, releaseSignature))
     {
@@ -1518,7 +1559,7 @@ void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::pa
         return;
     }
 
-    auto buildCmd = "cmake --build \"" + buildDir.string() + "\"";
+    auto buildCmd = "cmake --build \"" + buildDir.string() + "\" --parallel";
     if(!cmakeTarget.empty())
     {
         buildCmd += " --target \"" + cmakeTarget + "\"";

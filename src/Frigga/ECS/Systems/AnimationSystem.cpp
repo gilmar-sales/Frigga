@@ -16,6 +16,10 @@
 #include <atomic>
 #include <cmath>
 #include <functional>
+#include <mutex>
+#include <span>
+#include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -216,15 +220,37 @@ namespace FRIGGA_NAMESPACE
             return &model.clips.front();
         }
 
-        for(const auto &clip: model.clips)
+        // Exact match via a per-model index first (O(1)); substring scan stays as
+        // compat fallback. Every hit is self-validating (pointed clip name must
+        // match) so a model reload reusing the same address can never return a
+        // stale clip — at worst the index rebuilds below.
         {
-            if(clip.name == clipName)
+            std::lock_guard lock(mClipIndexMutex);
+            auto &index = mClipIndex[&model];
+            const auto *begin = model.clips.data();
+            const auto *end   = begin + model.clips.size();
+            const bool rangeValid =
+                !index.empty() && index.size() == model.clips.size() &&
+                index.begin()->second >= begin && index.begin()->second < end &&
+                index.begin()->second->name == index.begin()->first;
+            if(!rangeValid)
             {
-                return &clip;
+                index.clear();
+                index.reserve(model.clips.size());
+                for(const auto &clip : model.clips)
+                {
+                    index.emplace(clip.name, &clip);
+                }
+            }
+            if(const auto it = index.find(clipName);
+               it != index.end() && it->second >= begin && it->second < end &&
+               it->second->name == clipName)
+            {
+                return it->second;
             }
         }
 
-        for(const auto &clip: model.clips)
+        for(const auto &clip : model.clips)
         {
             if(clip.name.find(clipName) != std::string::npos)
             {
@@ -488,7 +514,7 @@ namespace FRIGGA_NAMESPACE
                     : kInvalidGpuSlot;
             const bool canGpu = skeletonSlot != kInvalidGpuSlot;
 
-            auto uploadCpuSkin = [&](std::vector<glm::mat4> skin) {
+            auto uploadCpuSkin = [&](std::span<const glm::mat4> skin) {
                 if(skin.empty())
                 {
                     return;
@@ -521,7 +547,12 @@ namespace FRIGGA_NAMESPACE
                         }
                     }
                     graph->Advance(advanceDt * animator.speed, &firedEvents);
-                    animator.clipName = std::string{graph->CurrentStateName()};
+                    // string_view compare first: same-state frames skip the allocation.
+                    const std::string_view stateName = graph->CurrentStateName();
+                    if(animator.clipName != stateName)
+                    {
+                        animator.clipName.assign(stateName);
+                    }
                 }
 
                 enqueueEvents(entity, std::move(firedEvents));
@@ -606,8 +637,13 @@ namespace FRIGGA_NAMESPACE
                 const auto animatorSpan = chunk.Column<AnimatorComponent>();
                 const auto entities     = chunk.Entities();
 
-                std::vector<fra::GpuAnimInstance> batch;
-                batch.reserve(chunk.size());
+                // Reused per worker thread; capacity survives across frames.
+                thread_local std::vector<fra::GpuAnimInstance> batch;
+                batch.clear();
+                if(batch.capacity() < chunk.size())
+                {
+                    batch.reserve(chunk.size());
+                }
 
                 for(std::size_t i = 0; i < chunk.size(); ++i)
                 {

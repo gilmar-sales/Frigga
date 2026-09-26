@@ -10,6 +10,7 @@
 #include <cmath>
 #include <glm/gtc/matrix_transform.hpp>
 #include <numbers>
+#include <span>
 #include <vector>
 
 namespace FRIGGA_NAMESPACE
@@ -231,7 +232,7 @@ namespace FRIGGA_NAMESPACE
 
         void DrawMeshHull(ImDrawList *drawList, const glm::mat4 &model, const glm::mat4 &viewProj,
                           const ImVec2 &imageMin, const ImVec2 &imageSize,
-                          const std::vector<glm::vec3> &points, ImU32 color, float thickness)
+                          std::span<const glm::vec3> points, ImU32 color, float thickness)
         {
             if(points.size() < 2)
             {
@@ -316,7 +317,7 @@ namespace FRIGGA_NAMESPACE
                         primitive = PrimitiveType::Cube;
                     }
                     DrawMeshHull(drawList, model, viewProj, imageMin, imageSize,
-                                 PrimitiveMeshFactory::GetColliderHullPoints(primitive), color,
+                                 PrimitiveMeshFactory::GetColliderHullPointsRef(primitive), color,
                                  thickness);
                     break;
                 }

@@ -10,6 +10,40 @@
 
 namespace FRIGGA_NAMESPACE
 {
+    /// Composite manifest key. Stored as two strings so lookups by
+    /// (type, path) views avoid building a concatenated temporary.
+    struct ManifestKey
+    {
+        std::string type;
+        std::string path;
+    };
+
+    struct ManifestKeyView
+    {
+        std::string_view type;
+        std::string_view path;
+    };
+
+    struct ManifestKeyHash
+    {
+        using is_transparent = void;
+
+        [[nodiscard]] std::size_t operator()(const ManifestKey &key) const noexcept;
+        [[nodiscard]] std::size_t operator()(ManifestKeyView view) const noexcept;
+    };
+
+    struct ManifestKeyEqual
+    {
+        using is_transparent = void;
+
+        [[nodiscard]] bool operator()(const ManifestKey &left,
+                                      const ManifestKey &right) const noexcept;
+        [[nodiscard]] bool operator()(const ManifestKey &left,
+                                      ManifestKeyView right) const noexcept;
+        [[nodiscard]] bool operator()(ManifestKeyView left,
+                                      const ManifestKey &right) const noexcept;
+    };
+
     class AssetManifest
     {
       public:
@@ -64,6 +98,6 @@ namespace FRIGGA_NAMESPACE
 
       private:
         std::filesystem::path mRoot;
-        std::unordered_map<std::string, ImportRecord> mEntries;
+        std::unordered_map<ManifestKey, ImportRecord, ManifestKeyHash, ManifestKeyEqual> mEntries;
     };
 } // namespace FRIGGA_NAMESPACE

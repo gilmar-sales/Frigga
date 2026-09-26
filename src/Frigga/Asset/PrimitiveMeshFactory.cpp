@@ -307,6 +307,26 @@ namespace FRIGGA_NAMESPACE
                 {0.5f, 0.5f, 0.5f},   {-0.5f, 0.5f, 0.5f}};
     }
 
+    std::span<const glm::vec3> PrimitiveMeshFactory::GetColliderHullPointsRef(PrimitiveType type)
+    {
+        static const std::array<std::vector<glm::vec3>,
+                                static_cast<std::size_t>(PrimitiveType::Count)>
+            kCached = [] {
+                std::array<std::vector<glm::vec3>,
+                           static_cast<std::size_t>(PrimitiveType::Count)>
+                    out {};
+                for(std::size_t i = 0; i < out.size(); ++i)
+                {
+                    out[i] = GetColliderHullPoints(static_cast<PrimitiveType>(i));
+                }
+                return out;
+            }();
+        const auto index = static_cast<std::size_t>(type);
+        const auto &points =
+            index < kCached.size() ? kCached[index] : kCached[static_cast<std::size_t>(PrimitiveType::Cube)];
+        return {points.data(), points.size()};
+    }
+
     std::uint32_t PrimitiveMeshFactory::createCube()
     {
         std::vector<fra::Vertex> vertices;

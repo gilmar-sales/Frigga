@@ -149,13 +149,16 @@ namespace FRIGGA_NAMESPACE
 
         bool updated = false;
 
-        auto applyCamera = [this, &updated](fr::Entity entity, CameraComponent &camera) {
+        auto applyCamera = [this, &updated](const WorldTransformComponent &world,
+                                            CameraComponent &camera) {
             if(updated)
             {
                 return;
             }
 
-            const auto pose = TransformUtil::GetWorldPose(*mRegistry, entity);
+            // World matrix is already available in the query; decomposing it avoids
+            // a second hierarchy walk via GetWorldPose.
+            const auto pose = TransformUtil::Decompose(world.matrix);
             applyCameraPose(pose.position, pose.rotation, camera.fovDegrees, camera.nearPlane,
                             camera.farPlane);
             updated = true;
@@ -163,31 +166,31 @@ namespace FRIGGA_NAMESPACE
 
         // Prefer an explicitly marked primary camera.
         mRegistry->CreateMutation()->Each(
-            [&applyCamera](fr::Entity entity, WorldTransformComponent &, CameraComponent &camera) {
+            [&applyCamera](fr::Entity, WorldTransformComponent &world, CameraComponent &camera) {
                 if(camera.primary)
                 {
-                    applyCamera(entity, camera);
+                    applyCamera(world, camera);
                 }
             });
 
         // Fallback: locked Main Camera, then any camera.
         if(!updated)
         {
-            mRegistry->CreateMutation()->Each(
-                [&applyCamera](fr::Entity entity, WorldTransformComponent &, CameraComponent &camera) {
-                    if(camera.locked)
-                    {
-                        applyCamera(entity, camera);
-                    }
-                });
+            mRegistry->CreateMutation()->Each([&applyCamera](fr::Entity, WorldTransformComponent &world,
+                                                             CameraComponent &camera) {
+                if(camera.locked)
+                {
+                    applyCamera(world, camera);
+                }
+            });
         }
 
         if(!updated)
         {
-            mRegistry->CreateMutation()->Each(
-                [&applyCamera](fr::Entity entity, WorldTransformComponent &, CameraComponent &camera) {
-                    applyCamera(entity, camera);
-                });
+            mRegistry->CreateMutation()->Each([&applyCamera](fr::Entity, WorldTransformComponent &world,
+                                                             CameraComponent &camera) {
+                applyCamera(world, camera);
+            });
         }
     }
 
@@ -287,17 +290,8 @@ namespace FRIGGA_NAMESPACE
             return isolate && !IsInIsolatedSubtree(*mRegistry, entity, isolatedEntity);
         };
 
-        std::uint32_t instanceCount = 0;
-        mRegistry->CreateMutation()->Each(
-            [&](fr::Entity entity, WorldTransformComponent &, MeshComponent &, MaterialComponent &) {
-                if(!skip(entity))
-                {
-                    ++instanceCount;
-                }
-            });
-
-        // Application owns BeginSceneInstances/EndSceneInstances; Freya sorts at End.
-        mRenderer->ReserveSceneInstances(instanceCount);
+        // No pre-count Each pass: Application owns Begin/EndSceneInstances and Freya
+        // sorts at End; per-chunk batches below reserve incrementally instead.
         mRegistry->CreateQuery()
             ->ForEachChunkAsync<WorldTransformComponent, MeshComponent, MaterialComponent>(
                 [this, skip](const fr::ChunkView &chunk) {
@@ -306,8 +300,13 @@ namespace FRIGGA_NAMESPACE
                     const auto meshes    = chunk.Column<MeshComponent>();
                     const auto materials = chunk.Column<MaterialComponent>();
 
-                    std::vector<fra::SceneInstanceUpload> batch;
-                    batch.reserve(chunk.size());
+                    // Reused per worker thread; capacity survives across frames.
+                    thread_local std::vector<fra::SceneInstanceUpload> batch;
+                    batch.clear();
+                    if(batch.capacity() < chunk.size())
+                    {
+                        batch.reserve(chunk.size());
+                    }
 
                     for(std::size_t i = 0; i < chunk.size(); ++i)
                     {
@@ -390,6 +389,10 @@ namespace FRIGGA_NAMESPACE
             return isolate && !IsInIsolatedSubtree(*mRegistry, entity, isolatedEntity);
         };
 
+        // Cached once per frame: DefaultBillboardFontId walks the font catalog.
+        const std::string fallbackFont =
+            mAssets ? mAssets->DefaultBillboardFontId() : std::string {};
+
         // Freya 0.52+: BillboardDraw / ParticleEmitter submits are thread-safe (SpinLock).
         mRegistry->CreateMutation()->EachAsync(
             [this, skip](fr::Entity entity, WorldTransformComponent &world,
@@ -429,9 +432,10 @@ namespace FRIGGA_NAMESPACE
                                                     bar.background, bar.foreground, bar.align);
         });
 
-        mRegistry->CreateMutation()->EachAsync([this, skip](fr::Entity entity,
-                                                            WorldTransformComponent &world,
-                                                            BillboardTextComponent &label) {
+        mRegistry->CreateMutation()->EachAsync([this, skip,
+                                               fallbackFont](fr::Entity entity,
+                                                             WorldTransformComponent &world,
+                                                             BillboardTextComponent &label) {
             if(skip(entity) || label.text.empty() || !mAssets)
             {
                 return;
@@ -439,8 +443,7 @@ namespace FRIGGA_NAMESPACE
             const auto *font = mAssets->FindFontById(label.fontId);
             if(!font)
             {
-                const auto fallbackId = mAssets->DefaultBillboardFontId();
-                font                  = mAssets->FindFontById(fallbackId);
+                font = mAssets->FindFontById(fallbackFont);
             }
 
             const auto pose = TransformUtil::Decompose(world.matrix);
@@ -493,6 +496,8 @@ namespace FRIGGA_NAMESPACE
                 comp.runtimeFragment  = comp.fragment;
                 comp.runtimeKind      = comp.kind;
                 comp.runtimeStageName = stageName;
+                // Fresh effect has no materials bound; force the mask sync below.
+                comp.runtimeMaterialMaskIds.clear();
                 if(comp.runtimeEffect)
                 {
                     auto stage          = comp.runtimeEffect->MakeStage();
@@ -522,7 +527,13 @@ namespace FRIGGA_NAMESPACE
                 .component = &comp,
             };
             ApplyFullscreenEffectPushConstants(*comp.runtimeEffect, pushState);
-            SyncFullscreenEffectMaterials(*comp.runtimeEffect, comp);
+            // ClearMaterials/BindMaterial churn every frame otherwise; only re-sync
+            // when the mask actually changed.
+            if(comp.runtimeMaterialMaskIds != comp.materialMaskIds)
+            {
+                SyncFullscreenEffectMaterials(*comp.runtimeEffect, comp);
+                comp.runtimeMaterialMaskIds = comp.materialMaskIds;
+            }
         });
     }
 

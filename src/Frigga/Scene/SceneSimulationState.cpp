@@ -284,7 +284,8 @@ namespace FRIGGA_NAMESPACE
             {
                 primitive = PrimitiveType::Cube;
             }
-            desc.meshPoints = PrimitiveMeshFactory::GetColliderHullPoints(primitive);
+            const auto hull = PrimitiveMeshFactory::GetColliderHullPointsRef(primitive);
+            desc.meshPoints.assign(hull.begin(), hull.end());
         }
 
         return desc;
