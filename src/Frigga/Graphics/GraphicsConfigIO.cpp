@@ -1,4 +1,5 @@
 #include "Frigga/Graphics/GraphicsConfigIO.hpp"
+#include <Frigga/Serialization/JsonPretty.hpp>
 
 #define SIMDJSON_STATIC_REFLECTION 1
 #include <simdjson.h>
@@ -395,8 +396,8 @@ namespace FRIGGA_NAMESPACE
                                            std::string *error)
         {
             const auto document = ToDto(config);
-            outJson.clear();
-            if(const auto err = simdjson::to_json(document, outJson); err)
+            std::string minified;
+            if(const auto err = simdjson::to_json(document, minified); err)
             {
                 if(error)
                 {
@@ -404,6 +405,7 @@ namespace FRIGGA_NAMESPACE
                 }
                 return false;
             }
+            outJson = PrettifyJson(minified);
             if(!outJson.empty() && outJson.back() != '\n')
             {
                 outJson.push_back('\n');

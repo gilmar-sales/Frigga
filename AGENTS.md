@@ -26,9 +26,18 @@ python3 tools/docs-mcp/test_docs.py                            # docs MCP tests 
 
 - Before `ctest`, build **all** targets, not just `frigga_tests`: `RuntimeSmoke*` asserts that
   `Runtime[.exe]`, `Resources/**/*.spv`, and `Sdk/FriggaSdkConfig.cmake` exist in the build dir.
+- `build/` is shared with CLion, which configures/builds in that same directory. **Before any
+  `cmake` configure or `cmake --build` (and ideally before `ctest`), check for a competing
+  build:** `Get-Process -Name ninja,cmake -ErrorAction SilentlyContinue`. If anything is
+  listed, CLion (or another agent) owns `build/` — wait and re-check every ~15s (up to
+  ~10 min) instead of building. Concurrent writers fail with
+  `ninja: error: failed recompaction: Permission denied` or `FetchContent ... populate failed`
+  during `--regenerate-during-build`. Never retry in a tight loop and never kill CLion's
+  processes.
 - Tests run with the build dir as CWD; fixtures come from `test/fixtures` (`FRIGGA_TEST_FIXTURES_DIR`).
-- New tests: `test/*.cpp` specs are listed **explicitly** in `test/CMakeLists.txt` — add yours there
-  (no glob).
+- New tests: `test/*Spec.cpp` files are picked up automatically via `file(GLOB_RECURSE ...
+  CONFIGURE_DEPENDS)` in `test/CMakeLists.txt` — just add the file, no list to update
+  (`PrefabModuleProbe.cpp` is excluded from the glob: it builds as its own shared lib).
 - Format with `clang-format` (`.clang-format`: Microsoft base, 4-space, 100 cols,
   `SpaceBeforeParens: Never`, namespace contents indented). `.clang-tidy` exists, but CI runs neither
   formatter nor tidy — keep changes formatted yourself.

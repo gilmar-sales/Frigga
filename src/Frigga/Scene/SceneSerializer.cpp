@@ -1,6 +1,7 @@
 #include <Frigga/Scene/SceneSerializer.hpp>
 #include <Frigga/Asset/FreyaHandles.hpp>
 #include <Frigga/Serialization/FormatVersions.hpp>
+#include <Frigga/Serialization/JsonPretty.hpp>
 
 #include "Frigga/ECS/Components/AnimatorComponent.hpp"
 #include "Frigga/ECS/Components/AudioSourceComponent.hpp"
@@ -1608,13 +1609,14 @@ namespace FRIGGA_NAMESPACE
         AssignChildOfIndices(*registry, serializedEntities, document.entities);
         AssignEntityRefIndices(serializedEntities, document.entities);
 
-        outJson.clear();
-        if(const auto error = simdjson::to_json(document, outJson); error)
+        std::string minified;
+        if(const auto error = simdjson::to_json(document, minified); error)
         {
             scene.mLogger->LogError("Failed to serialize scene: {}",
                                     simdjson::error_message(error));
             return false;
         }
+        outJson = PrettifyJson(minified);
 
         return true;
     }
@@ -2886,11 +2888,12 @@ namespace FRIGGA_NAMESPACE
             return false;
         }
 
-        outJson.clear();
-        if(const auto error = simdjson::to_json(document, outJson); error)
+        std::string minified;
+        if(const auto error = simdjson::to_json(document, minified); error)
         {
             return false;
         }
+        outJson = PrettifyJson(minified);
         return true;
     }
 
@@ -3497,13 +3500,14 @@ namespace FRIGGA_NAMESPACE
             document.entities.front().childOf.reset();
         }
 
-        outJson.clear();
-        if(const auto error = simdjson::to_json(document, outJson); error)
+        std::string minified;
+        if(const auto error = simdjson::to_json(document, minified); error)
         {
             scene.mLogger->LogError("Failed to serialize prefab: {}",
                                     simdjson::error_message(error));
             return false;
         }
+        outJson = PrettifyJson(minified);
         return true;
     }
 

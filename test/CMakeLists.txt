@@ -17,27 +17,13 @@ FetchContent_MakeAvailable(googletest)
 
 include(GoogleTest)
 
+file(GLOB_RECURSE FRIGGA_TEST_SRC CONFIGURE_DEPENDS
+        ${CMAKE_CURRENT_SOURCE_DIR}/*Spec.cpp
+)
+
 add_executable(frigga_tests
-        AssetManifestSpec.cpp
-        DiagnosticsSpec.cpp
+        ${FRIGGA_TEST_SRC}
         EmptyApp.hpp
-        FriModuleSpec.cpp
-        GraphicsConfigSpec.cpp
-        InputSpec.cpp
-        LateSystemRegistrationSpec.cpp
-        EcsLayoutSpec.cpp
-        PhysicsSpec.cpp
-        JoltPhysicsDynamicsSpec.cpp
-        PhysicsParallelSystemsSpec.cpp
-        SceneSerializerSpec.cpp
-        SceneSerializerAudioSpec.cpp
-        AnimGraphDefinitionSpec.cpp
-        PrefabSpec.cpp
-        ModuleHostExportSpec.cpp
-        ProjectFileSpec.cpp
-        OpenCodeMcpSpec.cpp
-        RuntimeProjectSpec.cpp
-        RuntimeSmokeSpec.cpp
         ${CMAKE_SOURCE_DIR}/src/Editor/Project/ProjectFile.cpp
         ${CMAKE_SOURCE_DIR}/src/Editor/Project/OpenCodeMcp.cpp
         ${CMAKE_SOURCE_DIR}/src/Runtime/RuntimeProject.cpp

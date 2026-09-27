@@ -35,7 +35,8 @@ TEST(GraphicsConfig, SerializeRoundTripPreservesDefaults)
     EXPECT_EQ(parsed.deferredDebugView, original.deferredDebugView);
     EXPECT_EQ(parsed.reverseZ, original.reverseZ);
     EXPECT_EQ(parsed.animationQuality, "High");
-    EXPECT_NE(json.find("\"shadowQuality\":\"High\""), std::string::npos);
+    EXPECT_NE(json.find("\"shadowQuality\": \"High\""), std::string::npos);
+    EXPECT_NE(json.find('\n'), std::string::npos);
 }
 
 TEST(GraphicsConfig, ParseOverridesSelectedFields)

@@ -650,7 +650,7 @@ TEST_F(SceneSerializerSpec, RoundTrip_ThirdPersonCamera)
 
     std::string json;
     ASSERT_TRUE(fg::SceneSerializer::Serialize(*mScene, json));
-    EXPECT_NE(json.find("\"kind\":\"Entity\""), std::string::npos);
+    EXPECT_NE(json.find("\"kind\": \"Entity\""), std::string::npos);
     ASSERT_TRUE(mScene->RestoreSnapshot(json));
 
     fr::Entity restoredPlayer = fr::NullEntity;
