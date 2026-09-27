@@ -2,21 +2,20 @@
 
 #include "../EditorWindowLayout.hpp"
 #include "../Preferences/PreferencesStore.hpp"
+#include "ModuleCatalog.hpp"
+#include "ProjectEnginePaths.hpp"
 #include "ProjectFile.hpp"
 #include "ProjectMigrator.hpp"
 #include "ProjectScaffold.hpp"
-#include "ModuleCatalog.hpp"
-#include "ProjectEnginePaths.hpp"
 
-#include <Frigga/Asset/AssetRegistry.hpp>
 #include <Frigga/Asset/AssetCooker.hpp>
+#include <Frigga/Asset/AssetRegistry.hpp>
 #include <Frigga/ECS/EcsLayout.hpp>
 #include <Frigga/Graphics/GraphicsConfigIO.hpp>
 #include <Frigga/Input/InputMapIO.hpp>
 
 #include <algorithm>
 #include <array>
-#include <functional>
 #include <cctype>
 #include <chrono>
 #include <cmath>
@@ -24,20 +23,21 @@
 #include <cstdlib>
 #include <ctime>
 #include <fstream>
+#include <functional>
 #include <initializer_list>
 #include <sstream>
 #include <string_view>
 
 #if defined(_WIN32)
-#    include <stdio.h>
-#    include <windows.h>
+#include <stdio.h>
+#include <windows.h>
 #elif defined(__APPLE__)
-#    include <mach-o/dyld.h>
-#    include <cstdint>
+#include <cstdint>
+#include <mach-o/dyld.h>
 #else
-#    include <spawn.h>
-#    include <sys/wait.h>
-#    include <unistd.h>
+#include <spawn.h>
+#include <sys/wait.h>
+#include <unistd.h>
 extern char **environ;
 #endif
 
@@ -53,7 +53,7 @@ namespace
     {
         std::string out;
         out.reserve(value.size() + 8);
-        for(const char ch : value)
+        for(const char ch: value)
         {
             switch(ch)
             {
@@ -82,10 +82,10 @@ namespace
 
     std::string FormatUtcTimestamp()
     {
-        using clock = std::chrono::system_clock;
+        using clock    = std::chrono::system_clock;
         const auto now = clock::now();
         const auto tt  = clock::to_time_t(now);
-        std::tm tm {};
+        std::tm tm{};
 #if defined(_WIN32)
         gmtime_s(&tm, &tt);
 #else
@@ -155,7 +155,7 @@ namespace
             return -1;
         }
 
-        std::array<char, 512> buffer {};
+        std::array<char, 512> buffer{};
         while(fgets(buffer.data(), static_cast<int>(buffer.size()), pipe) != nullptr)
         {
             onLine(buffer.data());
@@ -185,7 +185,7 @@ namespace
             return {};
         }
         std::ifstream file(cacheFile);
-        std::string   line;
+        std::string line;
         const std::string prefix = std::string(key) + ":";
         while(std::getline(file, line))
         {
@@ -203,10 +203,9 @@ namespace
         return {};
     }
 
-    std::filesystem::path FirstExistingCMakeCache(
-        std::initializer_list<std::filesystem::path> dirs)
+    std::filesystem::path FirstExistingCMakeCache(std::initializer_list<std::filesystem::path> dirs)
     {
-        for(const auto &dir : dirs)
+        for(const auto &dir: dirs)
         {
             if(dir.empty())
             {
@@ -234,8 +233,7 @@ namespace
     }
 
     std::string ReleaseBuildSignature(const std::filesystem::path &projectRoot,
-                                      const std::filesystem::path &sdk,
-                                      const std::string &compiler)
+                                      const std::filesystem::path &sdk, const std::string &compiler)
     {
 #if defined(_WIN32)
         constexpr std::string_view platform = "windows";
@@ -244,8 +242,8 @@ namespace
 #else
         constexpr std::string_view platform = "linux";
 #endif
-        const auto manifest = ReadTextFile(projectRoot / ProjectFile::FileName);
-        const auto cmake    = ReadTextFile(projectRoot / "CMakeLists.txt");
+        const auto manifest  = ReadTextFile(projectRoot / ProjectFile::FileName);
+        const auto cmake     = ReadTextFile(projectRoot / "CMakeLists.txt");
         const auto sdkConfig = ReadTextFile(sdk / "FriggaSdkConfig.cmake");
         std::ostringstream signature;
         signature << "schema=2\n";
@@ -253,9 +251,9 @@ namespace
         signature << "platform=" << platform << '\n';
         signature << "compiler=" << compiler << '\n';
         signature << "sdk=" << sdk.lexically_normal().generic_string() << '\n';
-        signature << "sdkConfigHash=" << std::hash<std::string> {}(sdkConfig) << '\n';
-        signature << "manifestHash=" << std::hash<std::string> {}(manifest) << '\n';
-        signature << "cmakeHash=" << std::hash<std::string> {}(cmake) << '\n';
+        signature << "sdkConfigHash=" << std::hash<std::string>{}(sdkConfig) << '\n';
+        signature << "manifestHash=" << std::hash<std::string>{}(manifest) << '\n';
+        signature << "cmakeHash=" << std::hash<std::string>{}(cmake) << '\n';
         return signature.str();
     }
 
@@ -263,9 +261,9 @@ namespace
     /// marker in the build dir matches and CMakeCache.txt exists, configure is
     /// skipped and only the build runs.
     std::string ModuleConfigureSignature(const std::filesystem::path &projectRoot,
-                                          const std::filesystem::path &sdk,
-                                          const std::string &compiler,
-                                          const std::string &buildType, bool linkGame)
+                                         const std::filesystem::path &sdk,
+                                         const std::string &compiler, const std::string &buildType,
+                                         bool linkGame)
     {
         const auto manifest  = ReadTextFile(projectRoot / ProjectFile::FileName);
         const auto cmake     = ReadTextFile(projectRoot / "CMakeLists.txt");
@@ -275,9 +273,9 @@ namespace
         signature << "linkGame=" << (linkGame ? "1" : "0") << '\n';
         signature << "compiler=" << compiler << '\n';
         signature << "sdk=" << sdk.lexically_normal().generic_string() << '\n';
-        signature << "sdkConfigHash=" << std::hash<std::string> {}(sdkConfig) << '\n';
-        signature << "manifestHash=" << std::hash<std::string> {}(manifest) << '\n';
-        signature << "cmakeHash=" << std::hash<std::string> {}(cmake) << '\n';
+        signature << "sdkConfigHash=" << std::hash<std::string>{}(sdkConfig) << '\n';
+        signature << "manifestHash=" << std::hash<std::string>{}(manifest) << '\n';
+        signature << "cmakeHash=" << std::hash<std::string>{}(cmake) << '\n';
         return signature.str();
     }
 
@@ -292,8 +290,8 @@ namespace
 #endif
     }
 
-    bool PrepareReleaseBuild(const std::filesystem::path &buildDir,
-                              const std::string &signature, std::string &error)
+    bool PrepareReleaseBuild(const std::filesystem::path &buildDir, const std::string &signature,
+                             std::string &error)
     {
         const auto marker = buildDir / ".frigga-release-config";
         if(std::filesystem::exists(buildDir) && std::filesystem::exists(marker) &&
@@ -345,8 +343,7 @@ namespace
 ProjectSession::ProjectSession(skr::Arc<fg::Scene> scene,
                                skr::Arc<fg::GameplayModuleHost> moduleHost,
                                skr::Arc<fg::SceneSimulationState> simulation,
-                               skr::Arc<fg::Input> input,
-                               skr::Arc<fg::AssetRegistry> assets,
+                               skr::Arc<fg::Input> input, skr::Arc<fg::AssetRegistry> assets,
                                skr::Arc<fr::Registry> registry,
                                skr::Arc<EditorPreferences> preferences,
                                skr::Arc<fra::Window> window,
@@ -432,10 +429,10 @@ float ProjectSession::GetBuildProgress() const
     }
 
     // Smooth indeterminate pulse for the UI while configure / unknown build runs.
-    using clock     = std::chrono::steady_clock;
-    const auto ms   = std::chrono::duration_cast<std::chrono::milliseconds>(
-                        clock::now().time_since_epoch())
-                        .count();
+    using clock = std::chrono::steady_clock;
+    const auto ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(clock::now().time_since_epoch())
+            .count();
     const float wave = 0.5f + 0.5f * std::sin(static_cast<float>(ms) * 0.004f);
     return wave * 0.85f;
 }
@@ -462,43 +459,43 @@ std::vector<EditorBackgroundTask> ProjectSession::GetBackgroundTasks() const
     EditorBackgroundTask task;
     const bool publishing = mPublishing.load(std::memory_order_acquire) ||
                             mLastOperationWasPublish.load(std::memory_order_acquire);
-    const char *title       = publishing ? "Publish game" : "Build gameplay module";
-    task.id                 = publishing ? "game-publish" : "gameplay-module-build";
+    const char *title     = publishing ? "Publish game" : "Build gameplay module";
+    task.id               = publishing ? "game-publish" : "gameplay-module-build";
 
     switch(phase)
     {
     case ModuleBuildPhase::Configuring:
         task.title  = title;
         task.detail = "Configuring (CMake)…";
-        task.state   = EditorBackgroundTaskState::Running;
+        task.state  = EditorBackgroundTaskState::Running;
         break;
     case ModuleBuildPhase::Building:
         task.title  = title;
         task.detail = "Compiling…";
-        task.state   = EditorBackgroundTaskState::Running;
+        task.state  = EditorBackgroundTaskState::Running;
         break;
     case ModuleBuildPhase::Reloading:
         task.title  = title;
         task.detail = "Reloading module…";
-        task.state   = EditorBackgroundTaskState::Running;
+        task.state  = EditorBackgroundTaskState::Running;
         break;
     case ModuleBuildPhase::Succeeded:
         task.title  = title;
         task.detail = "Succeeded";
-        task.state   = EditorBackgroundTaskState::Succeeded;
+        task.state  = EditorBackgroundTaskState::Succeeded;
         break;
     case ModuleBuildPhase::Failed:
         task.title  = "Build gameplay module";
         task.detail = GetLastError().empty() ? "Failed" : GetLastError();
-        task.state   = EditorBackgroundTaskState::Failed;
+        task.state  = EditorBackgroundTaskState::Failed;
         break;
     default:
         return {};
     }
 
     task.progress    = GetBuildProgress();
-    task.determinate = IsBuildProgressDeterminate() ||
-                       phase == ModuleBuildPhase::Succeeded || phase == ModuleBuildPhase::Failed;
+    task.determinate = IsBuildProgressDeterminate() || phase == ModuleBuildPhase::Succeeded ||
+                       phase == ModuleBuildPhase::Failed;
     if(phase == ModuleBuildPhase::Succeeded || phase == ModuleBuildPhase::Failed)
     {
         task.progress = 1.0f;
@@ -582,16 +579,16 @@ void ProjectSession::Poll()
 
     joinBuildThread();
 
-    const int exitCode = mBuildExitCode.load(std::memory_order_acquire);
+    const int exitCode       = mBuildExitCode.load(std::memory_order_acquire);
     const bool wasPublishing = mPublishing.exchange(false, std::memory_order_acq_rel);
     mLastOperationWasPublish.store(wasPublishing, std::memory_order_release);
     if(exitCode != 0)
     {
         mBuildPhase.store(ModuleBuildPhase::Failed, std::memory_order_release);
         std::lock_guard lock(mMutex);
-        mLastError     = (wasPublishing ? "Game publication failed (exit "
-                                        : "Module build failed (exit ") +
-                       std::to_string(exitCode) + ")";
+        mLastError =
+            (wasPublishing ? "Game publication failed (exit " : "Module build failed (exit ") +
+            std::to_string(exitCode) + ")";
         mStatusMessage = mLastError;
         mLogger->LogError("{}", mLastError);
         return;
@@ -644,8 +641,7 @@ std::filesystem::path ProjectSession::DiscoverFriggaBuild()
     }
     if(std::filesystem::exists(exeDir / "libfrigga.a") ||
        std::filesystem::exists(exeDir / "libfriggad.a") ||
-       std::filesystem::exists(exeDir / "Editor") ||
-       std::filesystem::exists(exeDir / "Editor.exe"))
+       std::filesystem::exists(exeDir / "Editor") || std::filesystem::exists(exeDir / "Editor.exe"))
     {
         return exeDir;
     }
@@ -663,14 +659,14 @@ std::filesystem::path ProjectSession::DiscoverFriggaRoot()
         return ec ? sdk : canonical;
     }
 
-    const auto build = DiscoverFriggaBuild();
+    const auto build                         = DiscoverFriggaBuild();
     const std::filesystem::path candidates[] = {
         build.parent_path(),
         build / "..",
         std::filesystem::current_path(),
         std::filesystem::current_path().parent_path(),
     };
-    for(const auto &candidate : candidates)
+    for(const auto &candidate: candidates)
     {
         std::error_code ec;
         const auto canonical = std::filesystem::weakly_canonical(candidate, ec);
@@ -720,7 +716,7 @@ bool ProjectSession::CreateProject(const std::filesystem::path &parentDir, std::
     desc.sceneTemplate = sceneTemplate;
     applyLocalEnginePaths(desc);
     desc.moduleLibraryRelative = ProjectDescriptor::DefaultLibraryRelative(desc.moduleTarget);
-    const auto result = ProjectScaffold::Create(parentDir, desc, *mScene);
+    const auto result          = ProjectScaffold::Create(parentDir, desc, *mScene);
     if(!result.ok)
     {
         std::lock_guard lock(mMutex);
@@ -770,8 +766,8 @@ bool ProjectSession::OpenProject(const std::filesystem::path &projectFile)
         return false;
     }
 
-    const bool hadPersistedHostPaths = !loaded->friggaSdk.empty() || !loaded->friggaRoot.empty() ||
-                                       !loaded->friggaBuild.empty();
+    const bool hadPersistedHostPaths =
+        !loaded->friggaSdk.empty() || !loaded->friggaRoot.empty() || !loaded->friggaBuild.empty();
     applyLocalEnginePaths(*loaded);
     if(hadPersistedHostPaths)
     {
@@ -868,8 +864,8 @@ void ProjectSession::ensureProjectGraphicsConfig(const std::filesystem::path &pr
     fg::GraphicsConfig config = fg::MakeDefaultGraphicsConfig();
     if(mPreferences)
     {
-        const auto &g = mPreferences->graphics;
-        const auto &q = g.gameplayViewport;
+        const auto &g             = mPreferences->graphics;
+        const auto &q             = g.gameplayViewport;
         config.width              = g.width;
         config.height             = g.height;
         config.vSync              = g.vSync;
@@ -899,8 +895,7 @@ void ProjectSession::ensureProjectGraphicsConfig(const std::filesystem::path &pr
         config.ssaoIntensity      = g.ssaoIntensity;
         config.deferredDebugView  = g.deferredDebugView;
         config.reverseZ           = g.reverseZ;
-        config.animationQuality =
-            std::string(fg::GraphicsQualityLabel(g.animationQuality));
+        config.animationQuality   = std::string(fg::GraphicsQualityLabel(g.animationQuality));
     }
 
     std::string error;
@@ -916,9 +911,8 @@ void ProjectSession::ensureProjectGraphicsConfig(const std::filesystem::path &pr
 bool ProjectSession::migrateProjectFile(const std::filesystem::path &projectFile,
                                         ProjectDescriptor &desc, bool force)
 {
-    const auto migration =
-        ProjectMigrator::Migrate(projectFile, desc, DiscoverFriggaRoot(), DiscoverFriggaBuild(),
-                                 force);
+    const auto migration = ProjectMigrator::Migrate(projectFile, desc, DiscoverFriggaRoot(),
+                                                    DiscoverFriggaBuild(), force);
     if(!migration.ok)
     {
         std::lock_guard lock(mMutex);
@@ -997,12 +991,11 @@ bool ProjectSession::DeleteProject(const std::filesystem::path &projectFileOrRoo
         mLastError.clear();
     }
 
-    const auto root = projectRootFromPath(projectFileOrRoot);
-    const auto projectFile =
-        (projectFileOrRoot.filename() == ProjectFile::FileName ||
-         projectFileOrRoot.extension() == ".project")
-            ? projectFileOrRoot
-            : root / ProjectFile::FileName;
+    const auto root        = projectRootFromPath(projectFileOrRoot);
+    const auto projectFile = (projectFileOrRoot.filename() == ProjectFile::FileName ||
+                              projectFileOrRoot.extension() == ".project")
+                                 ? projectFileOrRoot
+                                 : root / ProjectFile::FileName;
 
     if(root.empty() || root == root.root_path())
     {
@@ -1146,6 +1139,10 @@ void ProjectSession::bindProjectResources(const std::filesystem::path &projectRo
     if(mAssets)
     {
         mAssets->WarmFonts();
+        for(const auto &bankPath: fg::AssetRegistry::DiscoverBankFiles())
+        {
+            (void)mAssets->LoadBank(bankPath);
+        }
     }
 }
 
@@ -1172,7 +1169,7 @@ std::vector<std::filesystem::path> ProjectSession::ListSceneFiles() const
     }
 
     std::error_code ec;
-    for(const auto &entry : std::filesystem::directory_iterator(dir, ec))
+    for(const auto &entry: std::filesystem::directory_iterator(dir, ec))
     {
         if(ec || !entry.is_regular_file())
         {
@@ -1286,7 +1283,7 @@ bool ProjectSession::CreateScene(std::string name, fg::SceneTemplate sceneTempla
     // Sanitize to a simple file stem.
     std::string stem;
     stem.reserve(name.size());
-    for(const char ch : name)
+    for(const char ch: name)
     {
         if(std::isalnum(static_cast<unsigned char>(ch)) || ch == '_' || ch == '-')
         {
@@ -1371,16 +1368,15 @@ bool ProjectSession::BuildModule(std::string cmakeTarget)
         std::lock_guard lock(mMutex);
         mLastError.clear();
         mBuildLogTail.clear();
-        mStatusMessage = cmakeTarget.empty() ? "Building modules…"
-                                             : "Building module " + cmakeTarget + "…";
+        mStatusMessage =
+            cmakeTarget.empty() ? "Building modules…" : "Building module " + cmakeTarget + "…";
     }
 
     mLogger->LogInformation("Starting async module build for {} target={}", root.string(),
                             cmakeTarget.empty() ? "(all)" : cmakeTarget);
-    mBuildThread =
-        std::thread([this, root, buildDir, cmakeTarget = std::move(cmakeTarget)]() {
-            runBuildJob(root, buildDir, cmakeTarget);
-        });
+    mBuildThread = std::thread([this, root, buildDir, cmakeTarget = std::move(cmakeTarget)]() {
+        runBuildJob(root, buildDir, cmakeTarget);
+    });
     return true;
 }
 
@@ -1406,8 +1402,7 @@ bool ProjectSession::PublishGame(const std::filesystem::path &destination)
     }
 
     std::error_code ec;
-    if(std::filesystem::exists(destination, ec) &&
-       !std::filesystem::is_empty(destination, ec))
+    if(std::filesystem::exists(destination, ec) && !std::filesystem::is_empty(destination, ec))
     {
         std::lock_guard lock(mMutex);
         mLastError = "Publication destination must be empty: " + destination.string();
@@ -1464,7 +1459,7 @@ void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::pa
     applyLocalEnginePaths(engine);
     mDescriptor = engine;
 
-    const auto cachePath = FirstExistingCMakeCache({
+    const auto cachePath   = FirstExistingCMakeCache({
         engine.friggaBuild,
         engine.friggaSdk,
         engine.friggaBuild.parent_path(),
@@ -1487,7 +1482,8 @@ void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::pa
         }
     }
 
-    auto appendCachePath = [](std::string &cmd, const char *name, const std::filesystem::path &path) {
+    auto appendCachePath = [](std::string &cmd, const char *name,
+                              const std::filesystem::path &path) {
         if(path.empty())
         {
             return;
@@ -1499,15 +1495,13 @@ void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::pa
         cmd += "\"";
     };
 
-    const char *buildType = publish ? "Release" : "Debug";
-    std::string configureCmd =
-        "cmake -S \"" + root.string() + "\" -B \"" + buildDir.string() +
-        "\" -G Ninja -DCMAKE_BUILD_TYPE=" + buildType +
-        " -DCMAKE_CXX_STANDARD=26"
-        " -DCMAKE_CXX_STANDARD_REQUIRED=ON"
-        " -DCMAKE_CXX_EXTENSIONS=ON";
-    configureCmd += publish ? " -DFRIGGA_MODULES_LINK_GAME=ON"
-                            : " -DFRIGGA_MODULES_LINK_GAME=OFF";
+    const char *buildType    = publish ? "Release" : "Debug";
+    std::string configureCmd = "cmake -S \"" + root.string() + "\" -B \"" + buildDir.string() +
+                               "\" -G Ninja -DCMAKE_BUILD_TYPE=" + buildType +
+                               " -DCMAKE_CXX_STANDARD=26"
+                               " -DCMAKE_CXX_STANDARD_REQUIRED=ON"
+                               " -DCMAKE_CXX_EXTENSIONS=ON";
+    configureCmd += publish ? " -DFRIGGA_MODULES_LINK_GAME=ON" : " -DFRIGGA_MODULES_LINK_GAME=OFF";
     // Always pass SDK paths so CMakeCache is overwritten on host/OS switches.
     appendCachePath(configureCmd, "FRIGGA_SDK", engine.friggaSdk);
     appendCachePath(configureCmd, "FRIGGA_BUILD", engine.friggaBuild);
@@ -1525,8 +1519,7 @@ void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::pa
     const auto configureMarker = buildDir / ".frigga-configure-sig";
     const std::string configureSignature =
         ModuleConfigureSignature(root, engine.friggaSdk, cxxCompiler, buildType, publish);
-    const bool configureFresh = !publish &&
-                                std::filesystem::exists(buildDir / "CMakeCache.txt") &&
+    const bool configureFresh = !publish && std::filesystem::exists(buildDir / "CMakeCache.txt") &&
                                 std::filesystem::exists(configureMarker) &&
                                 ReadTextFile(configureMarker) == configureSignature;
     if(configureFresh)
@@ -1593,11 +1586,10 @@ void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::pa
         }
         else
         {
-            const auto installCmd = "cmake --install \"" + buildDir.string() +
-                                    "\" --prefix \"" + staging.string() + "\"";
-            buildCode = RunShellCapturing(installCmd, [&](std::string_view line) {
-                appendLog(line);
-            });
+            const auto installCmd = "cmake --install \"" + buildDir.string() + "\" --prefix \"" +
+                                    staging.string() + "\"";
+            buildCode =
+                RunShellCapturing(installCmd, [&](std::string_view line) { appendLog(line); });
         }
 
         if(buildCode == 0)
@@ -1606,7 +1598,7 @@ void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::pa
             if(std::filesystem::exists(projectResources))
             {
                 const auto cookedRoot = staging / ".frigga-cooked-resources";
-                const auto cooked = fg::AssetCooker::Cook(projectResources, cookedRoot);
+                const auto cooked     = fg::AssetCooker::Cook(projectResources, cookedRoot);
                 if(!cooked.ok)
                 {
                     appendLog("Unable to cook project resources: " + cooked.error);
@@ -1614,21 +1606,19 @@ void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::pa
                 }
                 else
                 {
-                    const auto publishedResources =
-                        staging / ProjectDescriptor::ResourcesDirName;
+                    const auto publishedResources = staging / ProjectDescriptor::ResourcesDirName;
                     std::filesystem::create_directories(publishedResources, ec);
-                    for(const auto &entry :
-                        std::filesystem::directory_iterator(cookedRoot, ec))
+                    for(const auto &entry: std::filesystem::directory_iterator(cookedRoot, ec))
                     {
                         if(ec)
                         {
                             break;
                         }
-                        std::filesystem::copy(
-                            entry.path(), publishedResources / entry.path().filename(),
-                            std::filesystem::copy_options::recursive |
-                                std::filesystem::copy_options::overwrite_existing,
-                            ec);
+                        std::filesystem::copy(entry.path(),
+                                              publishedResources / entry.path().filename(),
+                                              std::filesystem::copy_options::recursive |
+                                                  std::filesystem::copy_options::overwrite_existing,
+                                              ec);
                         if(ec)
                         {
                             break;
@@ -1650,9 +1640,9 @@ void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::pa
             publishedDescriptor.friggaSdk.clear();
             publishedDescriptor.friggaRoot.clear();
             publishedDescriptor.friggaBuild.clear();
-            for(auto &entry : publishedDescriptor.modules)
+            for(auto &entry: publishedDescriptor.modules)
             {
-                const auto target = entry.target.empty() ? entry.id : entry.target;
+                const auto target     = entry.target.empty() ? entry.id : entry.target;
                 entry.libraryRelative = PublishedModuleLibrary(target);
             }
             if(!ProjectFile::Save(staging / ProjectFile::FileName, publishedDescriptor))
@@ -1665,16 +1655,16 @@ void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::pa
         if(buildCode == 0)
         {
             std::filesystem::create_directories(publishDestination, ec);
-            for(const auto &entry : std::filesystem::directory_iterator(staging, ec))
+            for(const auto &entry: std::filesystem::directory_iterator(staging, ec))
             {
                 if(ec)
                 {
                     break;
                 }
-                std::filesystem::copy(
-                    entry.path(), publishDestination / entry.path().filename(),
-                    std::filesystem::copy_options::recursive |
-                        std::filesystem::copy_options::overwrite_existing, ec);
+                std::filesystem::copy(entry.path(), publishDestination / entry.path().filename(),
+                                      std::filesystem::copy_options::recursive |
+                                          std::filesystem::copy_options::overwrite_existing,
+                                      ec);
                 if(ec)
                 {
                     break;
@@ -1714,16 +1704,16 @@ bool ProjectSession::ReloadModule()
 
     if(const auto loaded = ProjectFile::Load(*mProjectFile))
     {
-        auto desc = *loaded;
+        auto desc   = *loaded;
         mDescriptor = std::move(desc);
     }
 
     if(!loadEnabledModules())
     {
         std::lock_guard lock(mMutex);
-        mLastError     = mModuleHost->GetLastError();
-        mStatusMessage = mLastError.empty() ? "No module libraries found — build modules first"
-                                            : mLastError;
+        mLastError = mModuleHost->GetLastError();
+        mStatusMessage =
+            mLastError.empty() ? "No module libraries found — build modules first" : mLastError;
         return false;
     }
 
@@ -1731,7 +1721,7 @@ bool ProjectSession::ReloadModule()
         std::lock_guard lock(mMutex);
         const auto typeIds = mModuleHost->GetRegisteredTypeIds();
         std::string listed;
-        for(const auto &id : typeIds)
+        for(const auto &id: typeIds)
         {
             if(!listed.empty())
             {
@@ -1740,8 +1730,7 @@ bool ProjectSession::ReloadModule()
             listed += id;
         }
         mStatusMessage = "Loaded " + std::to_string(mModuleHost->LoadedCount()) +
-                         " module(s) | components: " +
-                         (listed.empty() ? "(none)" : listed);
+                         " module(s) | components: " + (listed.empty() ? "(none)" : listed);
     }
     SyncEcsLayout();
     writeEditorSessionMarker();
@@ -1799,8 +1788,7 @@ bool ProjectSession::enterEditor(const std::filesystem::path &projectFile, Proje
         }
         else
         {
-            opened = "Opened " + mDescriptor.name +
-                     " — build modules to load gameplay code";
+            opened = "Opened " + mDescriptor.name + " — build modules to load gameplay code";
         }
     }
     else if(mModuleHost->IsLoaded())
@@ -1850,7 +1838,7 @@ void ProjectSession::touchRecent()
 
 std::filesystem::path ProjectSession::moduleLibraryAbsolute() const
 {
-    for(const auto &entry : mDescriptor.modules)
+    for(const auto &entry: mDescriptor.modules)
     {
         if(entry.IsGameplay())
         {
@@ -1867,11 +1855,11 @@ std::filesystem::path ProjectSession::moduleLibraryAbsolute(const ProjectModuleE
         return {};
     }
 
-    const auto root = mProjectFile->parent_path();
-    const auto library =
-        entry.libraryRelative.empty() ? ProjectDescriptor::DefaultLibraryRelative(
-                                            entry.target.empty() ? entry.id : entry.target)
-                                      : entry.libraryRelative;
+    const auto root       = mProjectFile->parent_path();
+    const auto library    = entry.libraryRelative.empty()
+                                ? ProjectDescriptor::DefaultLibraryRelative(
+                                      entry.target.empty() ? entry.id : entry.target)
+                                : entry.libraryRelative;
     const auto configured = root / library;
     std::error_code ec;
     if(std::filesystem::is_regular_file(configured, ec))
@@ -1890,20 +1878,17 @@ std::filesystem::path ProjectSession::moduleLibraryAbsolute(const ProjectModuleE
     const std::string names[] = {"lib" + target + ".so", target + ".so"};
 #endif
     const std::filesystem::path dirs[] = {
-        configured.parent_path(),
-        root / "build",
-        root / "build" / "Debug",
-        root / "build" / "Release",
-        root / "build" / "RelWithDebInfo",
-        root / "build" / "MinSizeRel",
+        configured.parent_path(),          root / "build",
+        root / "build" / "Debug",          root / "build" / "Release",
+        root / "build" / "RelWithDebInfo", root / "build" / "MinSizeRel",
     };
-    for(const auto &dir : dirs)
+    for(const auto &dir: dirs)
     {
         if(dir.empty())
         {
             continue;
         }
-        for(const auto &name : names)
+        for(const auto &name: names)
         {
             const auto candidate = dir / name;
             if(std::filesystem::is_regular_file(candidate, ec))
@@ -1923,7 +1908,7 @@ bool ProjectSession::anyEnabledModuleMissing() const
     }
 
     ProjectDescriptor desc = mDescriptor;
-    for(const auto &entry : desc.LoadOrder())
+    for(const auto &entry: desc.LoadOrder())
     {
         const auto lib = moduleLibraryAbsolute(entry);
         if(!std::filesystem::exists(lib))
@@ -1963,7 +1948,7 @@ bool ProjectSession::tryLoadPendingStartupScene()
 bool ProjectSession::loadEnabledModules()
 {
     std::vector<fg::ModuleLoadRequest> requests;
-    for(const auto &entry : mDescriptor.LoadOrder())
+    for(const auto &entry: mDescriptor.LoadOrder())
     {
         const auto lib = moduleLibraryAbsolute(entry);
         if(!std::filesystem::exists(lib))
@@ -1973,13 +1958,13 @@ bool ProjectSession::loadEnabledModules()
         std::string name = entry.id;
         const auto moduleRoot =
             mProjectFile->parent_path() / ProjectDescriptor::ModulesDirName / entry.id;
-        if(const auto manifest = ModuleCatalog::ReadManifest(moduleRoot); manifest &&
-                                                                         !manifest->name.empty())
+        if(const auto manifest = ModuleCatalog::ReadManifest(moduleRoot);
+           manifest && !manifest->name.empty())
         {
             name = manifest->name;
         }
         requests.push_back(
-            fg::ModuleLoadRequest {.id = entry.id, .name = std::move(name), .libraryPath = lib});
+            fg::ModuleLoadRequest{.id = entry.id, .name = std::move(name), .libraryPath = lib});
     }
     if(requests.empty())
     {
@@ -2007,8 +1992,8 @@ bool ProjectSession::CreateModule(std::string name)
         return false;
     }
     std::string error;
-    if(!ProjectScaffold::CreateExtraModule(mProjectFile->parent_path(), mDescriptor, std::move(name),
-                                           error))
+    if(!ProjectScaffold::CreateExtraModule(mProjectFile->parent_path(), mDescriptor,
+                                           std::move(name), error))
     {
         std::lock_guard lock(mMutex);
         mLastError = error;
@@ -2059,7 +2044,7 @@ bool ProjectSession::ExportModule(std::string_view moduleId)
         mLastError = "No project open";
         return false;
     }
-    const auto root = mProjectFile->parent_path();
+    const auto root   = mProjectFile->parent_path();
     const auto source = root / ProjectDescriptor::ModulesDirName / std::string(moduleId);
     if(!std::filesystem::exists(source))
     {
@@ -2092,7 +2077,7 @@ bool ProjectSession::SetModuleEnabled(std::string_view moduleId, bool enabled)
         return false;
     }
     bool found = false;
-    for(auto &entry : mDescriptor.modules)
+    for(auto &entry: mDescriptor.modules)
     {
         if(entry.id == moduleId)
         {
@@ -2161,7 +2146,7 @@ bool ProjectSession::OpenInCodeEditor(const std::filesystem::path &projectFileOr
 
 #ifdef _WIN32
     const std::string shell = "start \"\" " + command + " \"" + root.string() + "\"";
-    const int         code  = std::system(shell.c_str());
+    const int code          = std::system(shell.c_str());
     if(code != 0)
     {
         std::lock_guard lock(mMutex);
@@ -2170,20 +2155,19 @@ bool ProjectSession::OpenInCodeEditor(const std::filesystem::path &projectFileOr
         return false;
     }
 #else
-    const auto        folderUtf8 = root.string();
-    const std::string shellCmd   = command + " \"" + folderUtf8 + "\"";
-    pid_t             pid        = 0;
-    char              shBin[]    = "/bin/sh";
-    char              shArg[]    = "sh";
-    char              dashC[]    = "-c";
-    std::string       shellMut   = shellCmd;
-    char *const       argv[]     = {shArg, dashC, shellMut.data(), nullptr};
-    const int         spawnStatus =
-        posix_spawn(&pid, shBin, nullptr, nullptr, argv, environ);
+    const auto folderUtf8      = root.string();
+    const std::string shellCmd = command + " \"" + folderUtf8 + "\"";
+    pid_t pid                  = 0;
+    char shBin[]               = "/bin/sh";
+    char shArg[]               = "sh";
+    char dashC[]               = "-c";
+    std::string shellMut       = shellCmd;
+    char *const argv[]         = {shArg, dashC, shellMut.data(), nullptr};
+    const int spawnStatus      = posix_spawn(&pid, shBin, nullptr, nullptr, argv, environ);
     if(spawnStatus != 0)
     {
         const std::string background = shellCmd + " >/dev/null 2>&1 &";
-        const int         code       = std::system(background.c_str());
+        const int code               = std::system(background.c_str());
         if(code != 0)
         {
             std::lock_guard lock(mMutex);

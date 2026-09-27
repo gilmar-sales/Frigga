@@ -1,6 +1,6 @@
+#include <Frigga/Animation/ClipEventSidecar.hpp>
 #include <Frigga/Asset/AssetRegistry.hpp>
 #include <Frigga/Asset/FreyaHandles.hpp>
-#include <Frigga/Animation/ClipEventSidecar.hpp>
 
 #include "Frigga/Audio/AudioBankIO.hpp"
 #include "Frigga/Audio/IAudioEngine.hpp"
@@ -315,6 +315,27 @@ namespace FRIGGA_NAMESPACE
     void AssetRegistry::SetAudioEngine(const skr::Arc<IAudioEngine> &audioEngine)
     {
         mAudioEngine = audioEngine;
+        if(mAudioEngine == nullptr)
+        {
+            return;
+        }
+
+        if(!mAudioEngine->IsInitialized())
+        {
+            (void)mAudioEngine->Initialize();
+        }
+
+        for(auto &bank: mBanks)
+        {
+            std::vector<std::string> events;
+            const auto absolute = ToAbsoluteResourcePath(bank.relativePath);
+            if(mAudioEngine->LoadBank(absolute, events))
+            {
+                bank.eventPaths = std::move(events);
+            }
+        }
+
+        mEventPathsDirty = true;
     }
 
     std::filesystem::path AssetRegistry::ToAbsoluteResourcePath(
@@ -535,13 +556,11 @@ namespace FRIGGA_NAMESPACE
                 // Authored clip events survive model reimports via sidecar.
                 {
                     std::error_code sidecarEc;
-                    const auto sidecarAbsolute =
-                        ToAbsoluteResourcePath(ClipEventSidecarPath(key));
-                    if(std::filesystem::is_regular_file(sidecarAbsolute, sidecarEc) &&
-                       !sidecarEc)
+                    const auto sidecarAbsolute = ToAbsoluteResourcePath(ClipEventSidecarPath(key));
+                    if(std::filesystem::is_regular_file(sidecarAbsolute, sidecarEc) && !sidecarEc)
                     {
                         ClipEventMap overrides;
-                        std::string  loadError;
+                        std::string loadError;
                         if(LoadClipEventSidecar(sidecarAbsolute, overrides, &loadError))
                         {
                             ApplyClipEventOverrides(asset.clips, overrides);
@@ -1109,8 +1128,8 @@ namespace FRIGGA_NAMESPACE
         return mBanks[mBankIndexByPath.at(key)];
     }
 
-    bool AssetRegistry::SaveBank(std::string_view relativePath, const AudioBankDefinition &definition,
-                                 std::string *error)
+    bool AssetRegistry::SaveBank(std::string_view relativePath,
+                                 const AudioBankDefinition &definition, std::string *error)
     {
         const auto key = normalizeRelativeKey(relativePath);
         if(key.empty() || !IsBankFilename(key))
@@ -1148,7 +1167,7 @@ namespace FRIGGA_NAMESPACE
             return banks;
         }
 
-        for(const auto &entry : std::filesystem::directory_iterator(bankDir, ec))
+        for(const auto &entry: std::filesystem::directory_iterator(bankDir, ec))
         {
             if(ec)
             {
@@ -1438,10 +1457,8 @@ namespace FRIGGA_NAMESPACE
             std::filesystem::path(normalizeRelativeKey(modelRelativePath)));
     }
 
-    bool AssetRegistry::SetClipEvents(std::string_view modelRelativePath,
-                                      std::string_view clipName,
-                                      std::vector<fra::AnimationEvent> events,
-                                      std::string *error)
+    bool AssetRegistry::SetClipEvents(std::string_view modelRelativePath, std::string_view clipName,
+                                      std::vector<fra::AnimationEvent> events, std::string *error)
     {
         const auto key = normalizeRelativeKey(modelRelativePath);
         const auto it  = mModelIndexByPath.find(key);
@@ -1455,9 +1472,8 @@ namespace FRIGGA_NAMESPACE
         }
 
         ModelAsset &model = mModels[it->second];
-        auto clipIt = std::ranges::find_if(model.clips, [&](const fra::AnimationClip &clip) {
-            return clip.name == clipName;
-        });
+        auto clipIt       = std::ranges::find_if(
+            model.clips, [&](const fra::AnimationClip &clip) { return clip.name == clipName; });
         if(clipIt == model.clips.end())
         {
             if(error)
