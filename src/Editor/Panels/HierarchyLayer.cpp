@@ -651,7 +651,6 @@ void HierarchyLayer::createPostProcessEntity()
     }
     const auto entity = mRegistry->CreateEntity(fg::NameComponent{.name = "Post Process"},
                                                 fg::PostProcessComponent{});
-    mRegistry->SetParent(entity, fr::NullEntity);
     parentNewEntity(entity);
 }
 
@@ -1281,8 +1280,8 @@ void HierarchyLayer::onGui()
 
     std::vector<fr::Entity> roots;
     roots.reserve(128);
-    mRegistry->ForEachRoot([&](fr::Entity entity) {
-        if(mRegistry->HasComponent<fg::NameComponent>(entity))
+    mRegistry->CreateMutation()->Each([&](fr::Entity entity, fg::NameComponent &) {
+        if(mRegistry->GetParent(entity) == fr::NullEntity)
             roots.push_back(entity);
     });
     ImGuiListClipper rootClipper;
