@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <vector>
 
 namespace
 {
@@ -34,9 +35,9 @@ namespace
     // Minimal brace-aware JSON sanity check (balanced + no dangling commas).
     bool LooksLikeValidJson(const std::string &text)
     {
-        int depth          = 0;
-        bool inString      = false;
-        bool escape        = false;
+        std::vector<char> delimiters;
+        bool              inString = false;
+        bool              escape   = false;
         char lastSignificant = '\0';
         for(const char ch : text)
         {
@@ -53,6 +54,7 @@ namespace
                 else if(ch == '"')
                 {
                     inString = false;
+                    lastSignificant = '"';
                 }
                 continue;
             }
@@ -62,7 +64,7 @@ namespace
             }
             else if(ch == '{' || ch == '[')
             {
-                ++depth;
+                delimiters.push_back(ch);
                 lastSignificant = ch;
             }
             else if(ch == '}' || ch == ']')
@@ -71,11 +73,13 @@ namespace
                 {
                     return false;
                 }
-                --depth;
-                if(depth < 0)
+                if(delimiters.empty() ||
+                   (ch == '}' && delimiters.back() != '{') ||
+                   (ch == ']' && delimiters.back() != '['))
                 {
                     return false;
                 }
+                delimiters.pop_back();
                 lastSignificant = ch;
             }
             else if(!std::isspace(static_cast<unsigned char>(ch)))
@@ -83,7 +87,7 @@ namespace
                 lastSignificant = ch;
             }
         }
-        return !inString && depth == 0;
+        return !inString && delimiters.empty();
     }
 } // namespace
 
