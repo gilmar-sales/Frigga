@@ -10,6 +10,7 @@
 #include <cmath>
 #include <glm/gtc/matrix_transform.hpp>
 #include <numbers>
+#include <span>
 #include <vector>
 
 namespace FRIGGA_NAMESPACE
@@ -231,7 +232,7 @@ namespace FRIGGA_NAMESPACE
 
         void DrawMeshHull(ImDrawList *drawList, const glm::mat4 &model, const glm::mat4 &viewProj,
                           const ImVec2 &imageMin, const ImVec2 &imageSize,
-                          const std::vector<glm::vec3> &points, ImU32 color, float thickness)
+                          std::span<const glm::vec3> points, ImU32 color, float thickness)
         {
             if(points.size() < 2)
             {
@@ -283,7 +284,7 @@ namespace FRIGGA_NAMESPACE
                 const ImU32 color =
                     AdjustColor(ColorForMotion(rigidBody.motion), selected, inactive);
                 const float thickness = selected ? 3.0f : 1.5f;
-                glm::mat4 model       = TransformUtil::WorldMatrix(*registry, entity);
+                glm::mat4 model       = TransformUtil::GetWorldMatrix(*registry, entity);
                 if(rigidBody.centerOffset.x != 0.0f || rigidBody.centerOffset.y != 0.0f ||
                    rigidBody.centerOffset.z != 0.0f)
                 {
@@ -316,7 +317,7 @@ namespace FRIGGA_NAMESPACE
                         primitive = PrimitiveType::Cube;
                     }
                     DrawMeshHull(drawList, model, viewProj, imageMin, imageSize,
-                                 PrimitiveMeshFactory::GetColliderHullPoints(primitive), color,
+                                 PrimitiveMeshFactory::GetColliderHullPointsRef(primitive), color,
                                  thickness);
                     break;
                 }
@@ -351,7 +352,7 @@ namespace FRIGGA_NAMESPACE
                         AdjustColor(IM_COL32(220, 120, 255, 220), selected, false);
                     const float thickness = selected ? 3.0f : 1.5f;
                     const float radius    = std::max(desc.radius, 0.001f);
-                    const auto pose       = TransformUtil::WorldPose(*registry, entity);
+                    const auto pose       = TransformUtil::GetWorldPose(*registry, entity);
                     const glm::vec3 center =
                         pose.position + pose.rotation * CapsuleCenterLocalFromDesc(desc);
                     glm::mat4 model = glm::translate(glm::mat4(1.0f), center);

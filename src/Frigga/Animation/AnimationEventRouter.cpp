@@ -67,7 +67,7 @@ namespace FRIGGA_NAMESPACE
             return;
         }
 
-        const auto pose = TransformUtil::WorldPose(*mRegistry, entity);
+        const auto pose = TransformUtil::GetWorldPose(*mRegistry, entity);
 
         for(const auto &event : events)
         {

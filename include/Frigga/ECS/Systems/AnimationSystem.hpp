@@ -16,7 +16,9 @@
 
 #include <atomic>
 #include <cstdint>
+#include <mutex>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -38,13 +40,15 @@ namespace FRIGGA_NAMESPACE
 
         ~AnimationSystem() override = default;
 
-        void Update(float deltaTime) override;
+        /// Evaluates poses then drains clip events (Render pipeline, after HierarchyPropagation).
         void PostUpdate(float deltaTime) override;
 
         /// After Application closes bone/GPU-anim upload sessions for the frame.
         void CommitGpuAnimationFrame();
 
       private:
+        void evaluate(float deltaTime);
+
         /// Must be nothrow move-constructible for rigtorp::UnboundedMPMCQueue.
         struct PendingAnimEvents
         {
@@ -98,6 +102,13 @@ namespace FRIGGA_NAMESPACE
         std::atomic<std::uint32_t> mNextBoneOffset {0};
         std::unordered_set<std::string> mGpuPinnedModels;
         std::atomic<bool> mAnyGpuInstance {false};
+
+        /// Exact clip-name index per model (mutable: resolveClip is const and runs
+        /// on worker threads). Rebuilt when the model's clip count changes.
+        mutable std::mutex mClipIndexMutex;
+        mutable std::unordered_map<const ModelAsset *,
+                                   std::unordered_map<std::string, const fra::AnimationClip *>>
+            mClipIndex;
 
         rigtorp::UnboundedMPMCQueue<PendingAnimEvents> mPendingEvents;
     };

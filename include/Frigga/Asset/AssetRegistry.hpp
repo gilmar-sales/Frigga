@@ -102,6 +102,12 @@ namespace FRIGGA_NAMESPACE
 
         explicit AssetRegistry(CatalogTag);
 
+        ~AssetRegistry();
+
+        /// Persist pending manifest imports. Imports only mark the manifest
+        /// dirty; call this (or ClearCatalog) to flush to disk.
+        void FlushManifest();
+
         /// Copy `sourcePath` into the project Resources/Models (if needed) and load meshes.
         [[nodiscard]] std::optional<ModelAsset> ImportModel(const std::filesystem::path &sourcePath);
 
@@ -202,6 +208,13 @@ namespace FRIGGA_NAMESPACE
             return mMaterials;
         }
 
+        [[nodiscard]] bool TryFindModelByMeshId(std::uint32_t meshId,
+                                                 const ModelAsset *&outModel,
+                                                 std::uint32_t &outSubmeshIndex) const;
+
+        /// Deprecated: copies the whole asset. Use the const ModelAsset*
+        /// overload above.
+        [[deprecated("Use the const ModelAsset* TryFindModelByMeshId overload")]]
         [[nodiscard]] bool TryFindModelByMeshId(std::uint32_t meshId, ModelAsset &outModel,
                                                 std::uint32_t &outSubmeshIndex) const;
 
@@ -273,6 +286,8 @@ namespace FRIGGA_NAMESPACE
         [[nodiscard]] std::string assetIdFor(const std::filesystem::path &relativePath,
                                              std::string_view type);
         void forgetSharedMaterialLocked(std::uint32_t materialId);
+        static void TrackInstance(AssetRegistry *instance);
+        static void UntrackInstance(AssetRegistry *instance);
 
         skr::Arc<fra::MeshPool> mMeshPool;
         skr::Arc<fra::TexturePool> mTexturePool;
@@ -304,6 +319,14 @@ namespace FRIGGA_NAMESPACE
         std::uint32_t mCatalogMaterialSeq = 1000;
         AssetManifest mManifest;
         bool mManifestLoaded = false;
+        bool mManifestDirty  = false;
+
+        std::unordered_set<std::uint32_t> mMaterialIds;
+
+        mutable std::vector<std::string> mEventPathsCache;
+        mutable bool mEventPathsDirty = true;
+        mutable std::vector<const ModelAsset *> mSkinnedCache;
+        mutable bool mSkinnedDirty = true;
     };
 
 } // namespace FRIGGA_NAMESPACE

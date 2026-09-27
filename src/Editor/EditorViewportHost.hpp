@@ -7,6 +7,9 @@
 
 namespace EditorViewportHost
 {
+    /// Gate claim/extent debug overlays (viewport toolbar readouts).
+    inline constexpr bool kDebugClaims = false;
+
     struct ClaimRequest
     {
         fg::ViewportTarget *target = nullptr;

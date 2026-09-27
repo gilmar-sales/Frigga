@@ -14,6 +14,8 @@ namespace FRIGGA_NAMESPACE
     inline constexpr std::string_view kDefaultEcsPipelineName = "Simulation";
     inline constexpr std::string_view kMainPipelineName       = "Main";
     inline constexpr std::string_view kRenderPipelineName     = "Render";
+    /// Created by fr::FreyrExtension::WithHierarchyPropagation; always enabled, right before Render.
+    inline constexpr std::string_view kHierarchyPipelineName  = "HierarchyPropagation";
     inline constexpr float            kSimulationRateHz       = 60.0f;
 
     struct EcsPipelineLayout

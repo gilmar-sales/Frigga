@@ -105,6 +105,12 @@ void PipelinesLayer::persistLayout()
 
 void PipelinesLayer::pinRenderLast()
 {
+    // HierarchyPropagation stays right before Render (world matrices for this frame's draw).
+    if(const auto hierarchyId = mRegistry->FindPipelineId(std::string(fg::kHierarchyPipelineName)))
+    {
+        (void)mRegistry->MovePipeline(*hierarchyId,
+                                      static_cast<std::size_t>(mRegistry->GetPipelineCount()));
+    }
     const auto renderId = mRegistry->FindPipelineId(std::string(fg::kRenderPipelineName));
     if(!renderId)
     {
@@ -291,12 +297,14 @@ void PipelinesLayer::drawPipeline(int32_t pipelineId, std::string_view nameView,
     const bool isMain       = name == fg::kMainPipelineName;
     const bool isSimulation = name == fg::kDefaultEcsPipelineName;
     const bool isRender     = name == fg::kRenderPipelineName;
+    const bool isHierarchy  = name == fg::kHierarchyPipelineName;
+    const bool isPinned     = isRender || isHierarchy;
 
     ImGui::PushID(pipelineId);
     const bool open = ImGui::TreeNodeEx("##pipe", ImGuiTreeNodeFlags_DefaultOpen |
                                                       ImGuiTreeNodeFlags_SpanAvailWidth,
                                         "%s", name.c_str());
-    if(!isRender && ImGui::BeginDragDropSource())
+    if(!isPinned && ImGui::BeginDragDropSource())
     {
         ImGui::SetDragDropPayload(kPipelinePayload, &pipelineId, sizeof(pipelineId));
         ImGui::TextUnformatted(name.c_str());
@@ -321,7 +329,7 @@ void PipelinesLayer::drawPipeline(int32_t pipelineId, std::string_view nameView,
     }
 
     ImGui::SameLine();
-    ImGui::BeginDisabled(isRender || index == 0);
+    ImGui::BeginDisabled(isPinned || index == 0);
     if(ImGui::SmallButton("^"))
     {
         (void)mRegistry->MovePipeline(pipelineId, index - 1);
@@ -330,7 +338,7 @@ void PipelinesLayer::drawPipeline(int32_t pipelineId, std::string_view nameView,
     }
     ImGui::EndDisabled();
     ImGui::SameLine();
-    ImGui::BeginDisabled(isRender || index + 1 >= count);
+    ImGui::BeginDisabled(isPinned || index + 1 >= count);
     if(ImGui::SmallButton("v"))
     {
         (void)mRegistry->MovePipeline(pipelineId, index + 1);
@@ -383,7 +391,7 @@ void PipelinesLayer::drawPipeline(int32_t pipelineId, std::string_view nameView,
         }
 
         float hz = isSimulation ? fg::kSimulationRateHz : fg::StoredRateToHz(storedRate);
-        ImGui::BeginDisabled(isSimulation);
+        ImGui::BeginDisabled(isSimulation || isHierarchy);
         if(ImGui::DragFloat("Hz", &hz, 1.0f, 0.0f, 1000.0f, hz <= 0.0f ? "every frame" : "%.1f"))
         {
             mRegistry->SetPipelineRate(pipelineId, hz);
@@ -397,7 +405,7 @@ void PipelinesLayer::drawPipeline(int32_t pipelineId, std::string_view nameView,
         {
             ImGui::SetTooltip("Simulation is locked at 60 Hz");
         }
-        if(isRender)
+        if(isPinned)
         {
             ImGui::BeginDisabled(true);
             enabled = true;
@@ -405,7 +413,10 @@ void PipelinesLayer::drawPipeline(int32_t pipelineId, std::string_view nameView,
             ImGui::EndDisabled();
             if(ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
             {
-                ImGui::SetTooltip("Render cannot be disabled (draw + animation preview)");
+                ImGui::SetTooltip(isRender
+                                      ? "Render cannot be disabled (draw + animation preview)"
+                                      : "Hierarchy propagation computes world transforms every "
+                                        "frame");
             }
         }
         else if(isSimulation || isMain)

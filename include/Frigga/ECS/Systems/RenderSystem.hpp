@@ -31,7 +31,8 @@ namespace FRIGGA_NAMESPACE
 
         ~RenderSystem() override = default;
 
-        void Update(float deltaTime) override;
+        /// PostUpdate: runs after HierarchyPropagation so draws use this frame's world matrices.
+        void PostUpdate(float deltaTime) override;
 
       private:
         void updateCamera();

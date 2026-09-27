@@ -1,4 +1,4 @@
-# Frigga unit tests (GoogleTest)
+﻿# Frigga unit tests (GoogleTest)
 option(FRIGGA_BUILD_TESTS "Build Frigga unit tests" ON)
 
 if(NOT FRIGGA_BUILD_TESTS)
@@ -27,6 +27,8 @@ add_executable(frigga_tests
         LateSystemRegistrationSpec.cpp
         EcsLayoutSpec.cpp
         PhysicsSpec.cpp
+        JoltPhysicsDynamicsSpec.cpp
+        PhysicsParallelSystemsSpec.cpp
         SceneSerializerSpec.cpp
         SceneSerializerAudioSpec.cpp
         AnimGraphDefinitionSpec.cpp

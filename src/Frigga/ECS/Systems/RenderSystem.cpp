@@ -8,12 +8,11 @@
 #include <Frigga/ECS/Components/CameraComponent.hpp>
 #include <Frigga/ECS/Components/FullscreenEffectComponent.hpp>
 #include <Frigga/ECS/Components/HealthBarComponent.hpp>
-#include <Frigga/ECS/Components/HierarchyComponent.hpp>
 #include <Frigga/ECS/Components/LightComponent.hpp>
 #include <Frigga/ECS/Components/MaterialComponent.hpp>
 #include <Frigga/ECS/Components/MeshComponent.hpp>
 #include <Frigga/ECS/Components/ParticleEmitterComponent.hpp>
-#include <Frigga/ECS/Components/TransformComponent.hpp>
+#include <Frigga/ECS/Components/WorldTransformComponent.hpp>
 #include <Frigga/ECS/TransformUtil.hpp>
 #include <Frigga/Rendering/FullscreenEffectCatalog.hpp>
 #include <Frigga/Scene/Scene.hpp>
@@ -31,19 +30,7 @@ namespace FRIGGA_NAMESPACE
     {
         bool IsInIsolatedSubtree(fr::Registry &registry, fr::Entity entity, fr::Entity root)
         {
-            fr::Entity current = entity;
-            while(current != static_cast<fr::Entity>(-1))
-            {
-                if(current == root)
-                {
-                    return true;
-                }
-                fr::Entity parent = static_cast<fr::Entity>(-1);
-                registry.TryGetComponents<HierarchyComponent>(
-                    current, [&](HierarchyComponent &h) { parent = h.parent; });
-                current = parent;
-            }
-            return false;
+            return entity == root || registry.IsDescendantOf(entity, root);
         }
 
         fra::Light MakeGpuLight(const TransformUtil::Pose &pose, const LightComponent &light)
@@ -99,7 +86,7 @@ namespace FRIGGA_NAMESPACE
     {
     }
 
-    void RenderSystem::Update(float deltaTime)
+    void RenderSystem::PostUpdate(float deltaTime)
     {
         syncLights();
         updateCamera();
@@ -154,13 +141,16 @@ namespace FRIGGA_NAMESPACE
 
         bool updated = false;
 
-        auto applyCamera = [this, &updated](fr::Entity entity, CameraComponent &camera) {
+        auto applyCamera = [this, &updated](const WorldTransformComponent &world,
+                                            CameraComponent &camera) {
             if(updated)
             {
                 return;
             }
 
-            const auto pose = TransformUtil::WorldPose(*mRegistry, entity);
+            // World matrix is already available in the query; decomposing it avoids
+            // a second hierarchy walk via GetWorldPose.
+            const auto pose = TransformUtil::Decompose(world.matrix);
             applyCameraPose(pose.position, pose.rotation, camera.fovDegrees, camera.nearPlane,
                             camera.farPlane);
             updated = true;
@@ -168,31 +158,31 @@ namespace FRIGGA_NAMESPACE
 
         // Prefer an explicitly marked primary camera.
         mRegistry->CreateMutation()->Each(
-            [&applyCamera](fr::Entity entity, TransformComponent &, CameraComponent &camera) {
+            [&applyCamera](fr::Entity, WorldTransformComponent &world, CameraComponent &camera) {
                 if(camera.primary)
                 {
-                    applyCamera(entity, camera);
+                    applyCamera(world, camera);
                 }
             });
 
         // Fallback: locked Main Camera, then any camera.
         if(!updated)
         {
-            mRegistry->CreateMutation()->Each(
-                [&applyCamera](fr::Entity entity, TransformComponent &, CameraComponent &camera) {
-                    if(camera.locked)
-                    {
-                        applyCamera(entity, camera);
-                    }
-                });
+            mRegistry->CreateMutation()->Each([&applyCamera](fr::Entity, WorldTransformComponent &world,
+                                                             CameraComponent &camera) {
+                if(camera.locked)
+                {
+                    applyCamera(world, camera);
+                }
+            });
         }
 
         if(!updated)
         {
-            mRegistry->CreateMutation()->Each(
-                [&applyCamera](fr::Entity entity, TransformComponent &, CameraComponent &camera) {
-                    applyCamera(entity, camera);
-                });
+            mRegistry->CreateMutation()->Each([&applyCamera](fr::Entity, WorldTransformComponent &world,
+                                                             CameraComponent &camera) {
+                applyCamera(world, camera);
+            });
         }
     }
 
@@ -200,7 +190,7 @@ namespace FRIGGA_NAMESPACE
     {
         const bool isolate = mScene->IsUsingPreviewCamera() && mScene->HasRenderIsolation();
         const fr::Entity isolatedEntity =
-            isolate ? mScene->GetRenderIsolation() : static_cast<fr::Entity>(-1);
+            isolate ? mScene->GetRenderIsolation() : fr::NullEntity;
         const auto maxLights = mLightService->GetMaxLights();
 
         const auto isVisible = [this, isolate, isolatedEntity](fr::Entity entity) {
@@ -212,7 +202,7 @@ namespace FRIGGA_NAMESPACE
         bool setChanged            = false;
 
         mRegistry->CreateMutation()->Each(
-            [&](fr::Entity entity, TransformComponent &, LightComponent &light) {
+            [&](fr::Entity entity, WorldTransformComponent &, LightComponent &light) {
                 if(light.handle)
                 {
                     ++handlesInEcs;
@@ -250,18 +240,18 @@ namespace FRIGGA_NAMESPACE
         if(setChanged)
         {
             mLightService->ClearLights();
-            mRegistry->CreateMutation()->Each([&](fr::Entity, TransformComponent &,
+            mRegistry->CreateMutation()->Each([&](fr::Entity, WorldTransformComponent &,
                                                   LightComponent &light) { light.handle = {}; });
 
             std::uint32_t added = 0;
             mRegistry->CreateMutation()->Each(
-                [&](fr::Entity entity, TransformComponent &, LightComponent &light) {
+                [&](fr::Entity entity, WorldTransformComponent &world, LightComponent &light) {
                     if(!isVisible(entity) || added >= maxLights)
                     {
                         return;
                     }
                     light.handle = mLightService->AddLight(
-                        MakeGpuLight(TransformUtil::WorldPose(*mRegistry, entity), light));
+                        MakeGpuLight(TransformUtil::Decompose(world.matrix), light));
                     ++added;
                 });
             return;
@@ -269,14 +259,14 @@ namespace FRIGGA_NAMESPACE
 
         mLightService->ReserveLightUploads(cappedVisible);
         mRegistry->CreateMutation()->EachAsync(
-            [this, isVisible](fr::Entity entity, TransformComponent &, LightComponent &light) {
+            [this, isVisible](fr::Entity entity, WorldTransformComponent &world, LightComponent &light) {
                 if(!isVisible(entity) || !light.handle)
                 {
                     return;
                 }
                 const fra::LightUpload upload{
                     .handle = light.handle,
-                    .light  = MakeGpuLight(TransformUtil::WorldPose(*mRegistry, entity), light),
+                    .light  = MakeGpuLight(TransformUtil::Decompose(world.matrix), light),
                 };
                 mLightService->UploadLightUploads(std::span<const fra::LightUpload>(&upload, 1));
             });
@@ -286,32 +276,29 @@ namespace FRIGGA_NAMESPACE
     {
         const bool isolate = mScene->IsUsingPreviewCamera() && mScene->HasRenderIsolation();
         const fr::Entity isolatedEntity =
-            isolate ? mScene->GetRenderIsolation() : static_cast<fr::Entity>(-1);
+            isolate ? mScene->GetRenderIsolation() : fr::NullEntity;
 
         const auto skip = [this, isolate, isolatedEntity](fr::Entity entity) {
             return isolate && !IsInIsolatedSubtree(*mRegistry, entity, isolatedEntity);
         };
 
-        std::uint32_t instanceCount = 0;
-        mRegistry->CreateMutation()->Each(
-            [&](fr::Entity entity, TransformComponent &, MeshComponent &, MaterialComponent &) {
-                if(!skip(entity))
-                {
-                    ++instanceCount;
-                }
-            });
-
-        // Application owns BeginSceneInstances/EndSceneInstances; Freya sorts at End.
-        mRenderer->ReserveSceneInstances(instanceCount);
+        // No pre-count Each pass: Application owns Begin/EndSceneInstances and Freya
+        // sorts at End; per-chunk batches below reserve incrementally instead.
         mRegistry->CreateQuery()
-            ->ForEachChunkAsync<TransformComponent, MeshComponent, MaterialComponent>(
+            ->ForEachChunkAsync<WorldTransformComponent, MeshComponent, MaterialComponent>(
                 [this, skip](const fr::ChunkView &chunk) {
                     const auto entities  = chunk.Entities();
+                    const auto worlds    = chunk.Column<WorldTransformComponent>();
                     const auto meshes    = chunk.Column<MeshComponent>();
                     const auto materials = chunk.Column<MaterialComponent>();
 
-                    std::vector<fra::SceneInstanceUpload> batch;
-                    batch.reserve(chunk.size());
+                    // Reused per worker thread; capacity survives across frames.
+                    thread_local std::vector<fra::SceneInstanceUpload> batch;
+                    batch.clear();
+                    if(batch.capacity() < chunk.size())
+                    {
+                        batch.reserve(chunk.size());
+                    }
 
                     for(std::size_t i = 0; i < chunk.size(); ++i)
                     {
@@ -323,7 +310,7 @@ namespace FRIGGA_NAMESPACE
 
                         const auto &mesh     = meshes[i];
                         const auto &material = materials[i];
-                        const auto pose      = TransformUtil::WorldPose(*mRegistry, entity);
+                        const auto pose      = TransformUtil::Decompose(worlds[i].matrix);
 
                         fra::SceneInstanceUpload upload{
                             .transform =
@@ -337,12 +324,10 @@ namespace FRIGGA_NAMESPACE
                             .entityId = static_cast<std::uint32_t>(entity),
                         };
 
-                        // Local Animator first (compat); else inherit shared pose from an ancestor.
-                        bool skinned          = false;
-                        fr::Entity skinEntity = entity;
-                        while(skinEntity != kInvalidEntity)
+                        bool       skinned    = false;
+                        fr::Entity skinEntity = mRegistry->FindAncestorWith<AnimatorComponent>(entity);
+                        if(skinEntity != fr::NullEntity)
                         {
-                            bool found = false;
                             mRegistry->TryGetComponents<AnimatorComponent>(
                                 skinEntity, [&](AnimatorComponent &animator) {
                                     if(animator.boneCount > 0 &&
@@ -351,14 +336,8 @@ namespace FRIGGA_NAMESPACE
                                         upload.boneOffset = animator.boneOffset;
                                         upload.boneCount  = animator.boneCount;
                                         skinned           = true;
-                                        found             = true;
                                     }
                                 });
-                            if(found)
-                            {
-                                break;
-                            }
-                            skinEntity = TransformUtil::ParentOf(*mRegistry, skinEntity);
                         }
 
                         upload.flags =
@@ -388,20 +367,25 @@ namespace FRIGGA_NAMESPACE
 
         const bool isolate = mScene->IsUsingPreviewCamera() && mScene->HasRenderIsolation();
         const fr::Entity isolatedEntity =
-            isolate ? mScene->GetRenderIsolation() : static_cast<fr::Entity>(-1);
+            isolate ? mScene->GetRenderIsolation() : fr::NullEntity;
 
         const auto skip = [this, isolate, isolatedEntity](fr::Entity entity) {
             return isolate && !IsInIsolatedSubtree(*mRegistry, entity, isolatedEntity);
         };
 
+        // Cached once per frame: DefaultBillboardFontId walks the font catalog.
+        const std::string fallbackFont =
+            mAssets ? mAssets->DefaultBillboardFontId() : std::string {};
+
         // Freya 0.52+: BillboardDraw / ParticleEmitter submits are thread-safe (SpinLock).
         mRegistry->CreateMutation()->EachAsync(
-            [this, skip](fr::Entity entity, TransformComponent &, BillboardComponent &billboard) {
+            [this, skip](fr::Entity entity, WorldTransformComponent &world,
+                         BillboardComponent &billboard) {
                 if(skip(entity))
                 {
                     return;
                 }
-                const auto pose = TransformUtil::WorldPose(*mRegistry, entity);
+                const auto pose = TransformUtil::Decompose(world.matrix);
                 fra::Billboard quad{};
                 quad.worldPos     = pose.position;
                 quad.size         = {billboard.size.x * std::abs(pose.scale.x),
@@ -419,20 +403,23 @@ namespace FRIGGA_NAMESPACE
                 mRenderer->GetBillboardDraw().Quad(quad);
             });
 
-        mRegistry->CreateMutation()->EachAsync([this, skip](fr::Entity entity, TransformComponent &,
+        mRegistry->CreateMutation()->EachAsync([this, skip](fr::Entity entity,
+                                                            WorldTransformComponent &world,
                                                             HealthBarComponent &bar) {
             if(skip(entity))
             {
                 return;
             }
-            const auto pose = TransformUtil::WorldPose(*mRegistry, entity);
+            const auto pose = TransformUtil::Decompose(world.matrix);
             mRenderer->GetBillboardDraw().HealthBar(pose.position + bar.offset, bar.width,
                                                     bar.height, std::clamp(bar.fill, 0.0f, 1.0f),
                                                     bar.background, bar.foreground, bar.align);
         });
 
-        mRegistry->CreateMutation()->EachAsync([this, skip](fr::Entity entity, TransformComponent &,
-                                                            BillboardTextComponent &label) {
+        mRegistry->CreateMutation()->EachAsync([this, skip,
+                                               fallbackFont](fr::Entity entity,
+                                                             WorldTransformComponent &world,
+                                                             BillboardTextComponent &label) {
             if(skip(entity) || label.text.empty() || !mAssets)
             {
                 return;
@@ -440,18 +427,17 @@ namespace FRIGGA_NAMESPACE
             const auto *font = mAssets->FindFontById(label.fontId);
             if(!font)
             {
-                const auto fallbackId = mAssets->DefaultBillboardFontId();
-                font                  = mAssets->FindFontById(fallbackId);
+                font = mAssets->FindFontById(fallbackFont);
             }
 
-            const auto pose = TransformUtil::WorldPose(*mRegistry, entity);
+            const auto pose = TransformUtil::Decompose(world.matrix);
             mRenderer->GetBillboardDraw().Text(pose.position + label.offset, label.text, *font,
                                                label.heightMeters, label.color, label.borderWidth,
                                                label.borderColor, label.align, label.layer);
         });
 
         mRegistry->CreateMutation()->EachAsync(
-            [this, skip, deltaTime](fr::Entity entity, TransformComponent &,
+            [this, skip, deltaTime](fr::Entity entity, WorldTransformComponent &world,
                                     ParticleEmitterComponent &source) {
                 if(skip(entity))
                 {
@@ -464,7 +450,7 @@ namespace FRIGGA_NAMESPACE
                 {
                     emitter.spawnRate = 0.0f;
                 }
-                emitter.origin       = TransformUtil::WorldPose(*mRegistry, entity).position;
+                emitter.origin       = glm::vec3(world.matrix[3]);
                 emitter.textureIndex = textureHeapIndex(source.textureId);
                 emitter.Tick(deltaTime, mRenderer->GetBillboardDraw());
                 emitter.spawnRate = authored;
@@ -494,6 +480,8 @@ namespace FRIGGA_NAMESPACE
                 comp.runtimeFragment  = comp.fragment;
                 comp.runtimeKind      = comp.kind;
                 comp.runtimeStageName = stageName;
+                // Fresh effect has no materials bound; force the mask sync below.
+                comp.runtimeMaterialMaskIds.clear();
                 if(comp.runtimeEffect)
                 {
                     auto stage          = comp.runtimeEffect->MakeStage();
@@ -523,7 +511,13 @@ namespace FRIGGA_NAMESPACE
                 .component = &comp,
             };
             ApplyFullscreenEffectPushConstants(*comp.runtimeEffect, pushState);
-            SyncFullscreenEffectMaterials(*comp.runtimeEffect, comp);
+            // ClearMaterials/BindMaterial churn every frame otherwise; only re-sync
+            // when the mask actually changed.
+            if(comp.runtimeMaterialMaskIds != comp.materialMaskIds)
+            {
+                SyncFullscreenEffectMaterials(*comp.runtimeEffect, comp);
+                comp.runtimeMaterialMaskIds = comp.materialMaskIds;
+            }
         });
     }
 

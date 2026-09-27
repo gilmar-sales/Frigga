@@ -50,6 +50,25 @@ namespace FRIGGA_NAMESPACE
                                      std::string_view modelSource)
     {
         std::string out;
+        // Single upfront reserve: this runs per entity until the controller's
+        // content-hash cache settles, so avoid repeated small growths.
+        std::size_t estimate = modelSource.size() + graph.entry.size() + 32;
+        for(const auto &param : graph.params)
+        {
+            estimate += param.name.size() + param.kind.size() + 2;
+        }
+        for(const auto &state : graph.states)
+        {
+            estimate += state.name.size() + state.kind.size() + state.clip.size() +
+                        state.blendParam.size() + state.blendParamY.size() + 16;
+            estimate += state.blendSamples.size() * 32;
+        }
+        for(const auto &transition : graph.transitions)
+        {
+            estimate += transition.from.size() + transition.to.size() +
+                        transition.conditionKind.size() + transition.param.size() + 24;
+        }
+        out.reserve(estimate);
         out += modelSource;
         out += '|';
         out += graph.entry;

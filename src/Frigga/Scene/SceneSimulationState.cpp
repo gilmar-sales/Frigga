@@ -235,7 +235,7 @@ namespace FRIGGA_NAMESPACE
                                                        fr::Entity entity) const
     {
         (void)transform;
-        const auto pose = TransformUtil::WorldPose(*mRegistry, entity);
+        const auto pose = TransformUtil::GetWorldPose(*mRegistry, entity);
         PhysicsBodyDesc desc {
             .motion            = rigidBody.motion,
             .shape             = rigidBody.shape,
@@ -284,7 +284,8 @@ namespace FRIGGA_NAMESPACE
             {
                 primitive = PrimitiveType::Cube;
             }
-            desc.meshPoints = PrimitiveMeshFactory::GetColliderHullPoints(primitive);
+            const auto hull = PrimitiveMeshFactory::GetColliderHullPointsRef(primitive);
+            desc.meshPoints.assign(hull.begin(), hull.end());
         }
 
         return desc;

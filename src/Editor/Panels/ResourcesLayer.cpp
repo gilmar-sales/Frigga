@@ -6,7 +6,6 @@
 #include "Editor/UiScale.hpp"
 #include "Frigga/ECS/Components/AnimatorComponent.hpp"
 #include "Frigga/ECS/Components/AudioSourceComponent.hpp"
-#include "Frigga/ECS/Components/HierarchyComponent.hpp"
 #include "Frigga/ECS/Components/MaterialComponent.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"
 #include "Frigga/ECS/Components/NameComponent.hpp"
@@ -465,7 +464,7 @@ void ResourcesLayer::acceptHierarchyPrefabDrop(const std::filesystem::path &dest
 
 bool ResourcesLayer::CreatePrefabFromEntity(fr::Entity entity, std::filesystem::path destRelative)
 {
-    if(mSimulation->IsPlaying() || entity == fg::kInvalidEntity)
+    if(mSimulation->IsPlaying() || entity == fr::NullEntity)
     {
         mStatus = mSimulation->IsPlaying() ? "Stop Play mode to create prefabs"
                                            : "Invalid entity for prefab";
@@ -1228,7 +1227,7 @@ void ResourcesLayer::spawnModel(const std::filesystem::path &relativePath)
                 fg::NameComponent {.name = name}, fg::TransformComponent {},
                 fg::MeshComponent {.meshId = submesh.meshId},
                 fg::MaterialComponent {.materialId = materialId});
-            fg::TransformUtil::SetParent(*mRegistry, child, root, false);
+            fg::TransformUtil::Reparent(*mRegistry, child, root, false);
         }
 
         mSelection->Select(root);
@@ -1282,7 +1281,7 @@ bool ResourcesLayer::InstantiatePrefab(const std::filesystem::path &relativePath
     }
 
     const auto absolute = fg::AssetRegistry::ToAbsoluteResourcePath(relativePath);
-    fr::Entity root     = fg::kInvalidEntity;
+    fr::Entity root     = fr::NullEntity;
     if(!fg::Prefab::Load(*mScene, absolute, parent, root))
     {
         mStatus = std::format("Failed to instantiate prefab '{}'", relativePath.string());
@@ -1307,20 +1306,20 @@ bool ResourcesLayer::HandleDrop(const ResourceDragPayload &payload, fr::Entity p
         return InstantiatePrefab(payload.relativePath, parent);
     case EntryKind::Primitive:
         spawnPrimitive(payload.primitive);
-        if(parent != fg::kInvalidEntity && mSelection->Get() != SelectionContext::Invalid)
+        if(parent != fr::NullEntity && mSelection->Get() != SelectionContext::Invalid)
         {
-            fg::TransformUtil::SetParent(*mRegistry, mSelection->Get(), parent, true);
+            fg::TransformUtil::Reparent(*mRegistry, mSelection->Get(), parent, true);
         }
         return true;
     case EntryKind::Model:
         spawnModel(payload.relativePath);
-        if(parent != fg::kInvalidEntity && mSelection->Get() != SelectionContext::Invalid)
+        if(parent != fr::NullEntity && mSelection->Get() != SelectionContext::Invalid)
         {
-            fg::TransformUtil::SetParent(*mRegistry, mSelection->Get(), parent, true);
+            fg::TransformUtil::Reparent(*mRegistry, mSelection->Get(), parent, true);
         }
         return true;
     case EntryKind::Material:
-        if(parent != fg::kInvalidEntity)
+        if(parent != fr::NullEntity)
         {
             const auto previous = mSelection->Get();
             mSelection->Select(parent);

@@ -39,7 +39,7 @@ void CharacterMovementSystem::Update(float)
             {
                 return;
             }
-            cameraRotation = fg::TransformUtil::WorldPose(*mRegistry, entity).rotation;
+            cameraRotation = fg::TransformUtil::GetWorldPose(*mRegistry, entity).rotation;
             hasCamera      = true;
         });
 

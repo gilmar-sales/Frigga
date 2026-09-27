@@ -4,6 +4,7 @@
 
 #include <array>
 #include <cstdint>
+#include <span>
 #include <string_view>
 #include <vector>
 
@@ -53,6 +54,11 @@ namespace FRIGGA_NAMESPACE
         [[nodiscard]] static const char *GetDisplayName(PrimitiveType type);
         [[nodiscard]] static bool TryParsePrimitive(std::string_view name, PrimitiveType &outType);
         [[nodiscard]] static std::vector<glm::vec3> GetColliderHullPoints(PrimitiveType type);
+        /// Allocation-free view over cached hull points (same content as
+        /// GetColliderHullPoints). Prefer this on hot paths; the span stays valid
+        /// for the process lifetime.
+        [[nodiscard]] static std::span<const glm::vec3> GetColliderHullPointsRef(
+            PrimitiveType type);
 
       private:
         void createDefaultMaterial();

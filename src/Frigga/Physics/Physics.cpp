@@ -252,7 +252,7 @@ namespace FRIGGA_NAMESPACE
         glm::quat rotation {1.0f, 0.0f, 0.0f, 0.0f};
         if(mRegistry->HasComponent<TransformComponent>(entity))
         {
-            rotation = TransformUtil::WorldPose(*mRegistry, entity).rotation;
+            rotation = TransformUtil::GetWorldPose(*mRegistry, entity).rotation;
             TransformUtil::SetWorldPosition(*mRegistry, entity, worldPosition);
         }
 
@@ -272,22 +272,25 @@ namespace FRIGGA_NAMESPACE
             return;
         }
 
-        glm::vec3 position {};
-        if(mRegistry->HasComponent<TransformComponent>(entity))
-        {
-            const auto pose = TransformUtil::WorldPose(*mRegistry, entity);
-            position        = pose.position;
-            TransformUtil::SetWorldPose(*mRegistry, entity, pose.position, worldRotation);
-        }
-
         const auto handle = BodyHandle(mRegistry, entity);
+        glm::vec3  position {};
         if(handle.IsValid())
         {
-            if(position == glm::vec3 {})
+            glm::quat ignored {1.0f, 0.0f, 0.0f, 0.0f};
+            mWorld->GetTransform(handle, position, ignored);
+        }
+
+        if(mRegistry->HasComponent<TransformComponent>(entity))
+        {
+            if(!handle.IsValid())
             {
-                glm::quat ignored {1.0f, 0.0f, 0.0f, 0.0f};
-                mWorld->GetTransform(handle, position, ignored);
+                position = TransformUtil::GetWorldPose(*mRegistry, entity).position;
             }
+            TransformUtil::SetWorldPose(*mRegistry, entity, position, worldRotation);
+        }
+
+        if(handle.IsValid())
+        {
             mWorld->SetTransform(handle, position, worldRotation);
             mWorld->SetAngularVelocity(handle, {});
         }
@@ -355,7 +358,7 @@ namespace FRIGGA_NAMESPACE
                 return;
             }
 
-            const auto pose = TransformUtil::WorldPose(*mRegistry, entity);
+            const auto pose = TransformUtil::GetWorldPose(*mRegistry, entity);
             PhysicsBodyDesc desc {};
             desc.motion            = rb.motion;
             desc.shape             = rb.shape;

@@ -220,7 +220,7 @@ namespace FRIGGA_NAMESPACE
 
         registry->CreateMutation()->Each(
             [&](fr::Entity entity, TransformComponent &transform, LightComponent &light) {
-                const auto pose = TransformUtil::WorldPose(*registry, entity);
+                const auto pose = TransformUtil::GetWorldPose(*registry, entity);
                 TransformComponent worldXf = transform;
                 worldXf.position           = pose.position;
                 worldXf.rotation           = pose.rotation;
@@ -253,7 +253,7 @@ namespace FRIGGA_NAMESPACE
         registry->CreateMutation()->Each(
             [&](fr::Entity entity, TransformComponent &, LightComponent &) {
                 ImVec2 screen {};
-                if(!Project(TransformUtil::WorldPose(*registry, entity).position, viewProj,
+                if(!Project(TransformUtil::GetWorldPose(*registry, entity).position, viewProj,
                             imageMin, imageSize, screen))
                 {
                     return;

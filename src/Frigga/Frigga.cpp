@@ -15,7 +15,6 @@
 #include <Frigga/ECS/Components/CameraComponent.hpp>
 #include <Frigga/ECS/Components/FullscreenEffectComponent.hpp>
 #include <Frigga/ECS/Components/HealthBarComponent.hpp>
-#include <Frigga/ECS/Components/HierarchyComponent.hpp>
 #include <Frigga/ECS/Components/LightComponent.hpp>
 #include <Frigga/ECS/Components/MaterialComponent.hpp>
 #include <Frigga/ECS/Components/MeshComponent.hpp>
@@ -24,17 +23,18 @@
 #include <Frigga/ECS/Components/PrefabComponent.hpp>
 #include <Frigga/ECS/Components/RigidBodyComponent.hpp>
 #include <Frigga/ECS/Components/TransformComponent.hpp>
+#include <Frigga/ECS/Components/WorldTransformComponent.hpp>
 #include <Frigga/ECS/Systems/AnimationSystem.hpp>
 #include <Frigga/ECS/Systems/AudioSystem.hpp>
-#include <Frigga/ECS/Systems/PhysicsInterpolationSystem.hpp>
 #include <Frigga/ECS/Systems/PhysicsSystem.hpp>
 #include <Frigga/ECS/Systems/RenderSystem.hpp>
+#include <Frigga/ECS/TransformPolicy.hpp>
 #include <Frigga/ECS/UserComponentRegistry.hpp>
 #include <Frigga/Input/Input.hpp>
+#include <Frigga/Module/GameplayModuleHost.hpp>
 #include <Frigga/Physics/IPhysicsWorld.hpp>
 #include <Frigga/Physics/JoltPhysicsWorld.hpp>
 #include <Frigga/Physics/Physics.hpp>
-#include <Frigga/Module/GameplayModuleHost.hpp>
 #include <Frigga/Scene/Scene.hpp>
 #include <Frigga/Scene/SceneSimulationState.hpp>
 
@@ -45,8 +45,6 @@ namespace FRIGGA_NAMESPACE
         applicationBuilder
             .WithExtension<fr::FreyrExtension>([](fr::FreyrExtension &freyr) {
                 freyr.WithComponent<NameComponent>()
-                    .WithComponent<HierarchyComponent>()
-                    .WithComponent<TransformComponent>()
                     .WithComponent<MeshComponent>()
                     .WithComponent<MaterialComponent>()
                     .WithComponent<CameraComponent>()
@@ -62,20 +60,13 @@ namespace FRIGGA_NAMESPACE
                     .WithComponent<AudioListenerComponent>()
                     .WithComponent<PrefabComponent>()
                     .WithPipeline([](fr::PipelineBuilder &pipeline) {
-                        // Play mode only (Editor disables this pipeline while editing).
-                        pipeline.WithName("Simulation")
-                            .WithRate(60)
-                            .WithSystem<PhysicsSystem>();
+                        pipeline.WithName("Simulation").WithRate(60).WithSystem<PhysicsSystem>();
                     })
                     .WithPipeline([](fr::PipelineBuilder &pipeline) {
-                        // Play mode only, display rate (e.g. third-person camera, audio).
-                        pipeline.WithName("Main")
-                            .WithSystem<PhysicsInterpolationSystem>()
-                            .WithSystem<AudioSystem>();
+                        pipeline.WithName("Main").WithSystem<AudioSystem>();
                     })
+                    .WithHierarchyPropagation<TransformPolicy>()
                     .WithPipeline([](fr::PipelineBuilder &pipeline) {
-                        // Always: pose preview then draw. Animation stays here so Edit
-                        // can preview clips without ticking Main/Simulation.
                         pipeline.WithName("Render")
                             .WithSystem<AnimationSystem>()
                             .WithSystem<RenderSystem>();

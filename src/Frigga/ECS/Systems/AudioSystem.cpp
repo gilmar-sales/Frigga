@@ -1,7 +1,6 @@
 #include <Frigga/ECS/Systems/AudioSystem.hpp>
 
 #include "Frigga/ECS/Components/AudioSourceComponent.hpp"
-#include "Frigga/ECS/Components/HierarchyComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/ECS/TransformUtil.hpp"
 
@@ -22,7 +21,7 @@ namespace FRIGGA_NAMESPACE
         }
     }
 
-    void AudioSystem::releaseSource(AudioSourceComponent &source)
+    void AudioSystem::releaseSource(fr::Entity entity, AudioSourceComponent &source)
     {
         if(source.instance.IsValid())
         {
@@ -31,6 +30,7 @@ namespace FRIGGA_NAMESPACE
             source.instance = {};
         }
         source.engineStarted = false;
+        mAppliedProps.erase(entity);
     }
 
     void AudioSystem::stopAllSources()
@@ -41,56 +41,91 @@ namespace FRIGGA_NAMESPACE
         }
     }
 
-    void AudioSystem::applySourceProperties(AudioSourceComponent &source)
+    void AudioSystem::applySourceProperties(fr::Entity entity, AudioSourceComponent &source)
     {
         if(!source.instance.IsValid())
         {
             return;
         }
 
-        mAudioEngine->SetEventVolume(source.instance, source.volume);
-        mAudioEngine->SetEventPitch(source.instance, source.pitch);
-        mAudioEngine->SetEventLoop(source.instance, source.loop);
-        mAudioEngine->SetEventSpatialization(source.instance, source.is3D);
-        if(source.is3D)
+        // New (or re-created) instance: the engine holds bank defaults, so push
+        // every property unconditionally. Otherwise only push what changed —
+        // miniaudio Set* calls every frame are pure overhead in the steady state.
+        const auto it = mAppliedProps.find(entity);
+        const bool fullPush =
+            it == mAppliedProps.end() || it->second.instanceId != source.instance.id;
+        const AppliedSourceProps prev = fullPush ? AppliedSourceProps {} : it->second;
+
+        AppliedSourceProps next = prev;
+        next.instanceId          = source.instance.id;
+        if(fullPush || prev.volume != source.volume)
+        {
+            mAudioEngine->SetEventVolume(source.instance, source.volume);
+            next.volume = source.volume;
+        }
+        if(fullPush || prev.pitch != source.pitch)
+        {
+            mAudioEngine->SetEventPitch(source.instance, source.pitch);
+            next.pitch = source.pitch;
+        }
+        if(fullPush || prev.loop != source.loop)
+        {
+            mAudioEngine->SetEventLoop(source.instance, source.loop);
+            next.loop = source.loop;
+        }
+        if(fullPush || prev.is3D != source.is3D)
+        {
+            mAudioEngine->SetEventSpatialization(source.instance, source.is3D);
+            next.is3D = source.is3D;
+        }
+        if(source.is3D && (fullPush || prev.minDistance != source.minDistance ||
+                           prev.maxDistance != source.maxDistance))
         {
             mAudioEngine->SetEventMinMaxDistance(source.instance, source.minDistance,
                                                  source.maxDistance);
+            next.minDistance = source.minDistance;
+            next.maxDistance = source.maxDistance;
         }
 
         for(const auto &[name, value] : source.parameters)
         {
-            (void)mAudioEngine->SetEventParameter(source.instance, name, value);
+            const auto paramIt = prev.parameters.find(name);
+            if(fullPush || paramIt == prev.parameters.end() || paramIt->second != value)
+            {
+                (void)mAudioEngine->SetEventParameter(source.instance, name, value);
+            }
         }
+        next.parameters = source.parameters;
+        mAppliedProps[entity] = std::move(next);
     }
 
     void AudioSystem::syncListener()
     {
-        fr::Entity listenerEntity = kInvalidEntity;
+        fr::Entity listenerEntity = fr::NullEntity;
         mRegistry->CreateMutation()->Each(
             [&](fr::Entity entity, AudioListenerComponent &listener, TransformComponent &) {
-                if(listener.active && listenerEntity == kInvalidEntity)
+                if(listener.active && listenerEntity == fr::NullEntity)
                 {
                     listenerEntity = entity;
                 }
             });
 
-        if(listenerEntity == kInvalidEntity && mScene)
+        if(listenerEntity == fr::NullEntity && mScene)
         {
             listenerEntity = mScene->GetMainCameraEntity();
-            if(listenerEntity != kInvalidEntity &&
+            if(listenerEntity != fr::NullEntity &&
                !mRegistry->HasComponent<TransformComponent>(listenerEntity))
             {
-                listenerEntity = kInvalidEntity;
+                listenerEntity = fr::NullEntity;
             }
         }
 
-        if(listenerEntity == kInvalidEntity)
+        if(listenerEntity == fr::NullEntity)
         {
             return;
         }
 
-        const auto pose = TransformUtil::WorldPose(*mRegistry, listenerEntity);
+        const auto pose = TransformUtil::GetWorldPose(*mRegistry, listenerEntity);
         mAudioEngine->SetListenerTransform(pose.position, pose.rotation);
     }
 
@@ -100,7 +135,7 @@ namespace FRIGGA_NAMESPACE
             [&](fr::Entity entity, AudioSourceComponent &source, TransformComponent &) {
                 if(source.eventPath.empty())
                 {
-                    releaseSource(source);
+                    releaseSource(entity, source);
                     return;
                 }
 
@@ -113,7 +148,7 @@ namespace FRIGGA_NAMESPACE
 
                 if(source.desired == AudioPlaybackState::Stopped)
                 {
-                    releaseSource(source);
+                    releaseSource(entity, source);
                     return;
                 }
 
@@ -126,12 +161,12 @@ namespace FRIGGA_NAMESPACE
                         source.oneShot = false;
                         return;
                     }
-                    applySourceProperties(source);
+                    applySourceProperties(entity, source);
                     if(source.desired == AudioPlaybackState::Playing)
                     {
                         if(!mAudioEngine->StartEvent(source.instance))
                         {
-                            releaseSource(source);
+                            releaseSource(entity, source);
                             source.desired       = AudioPlaybackState::Stopped;
                             source.oneShot       = false;
                             source.engineStarted = false;
@@ -150,7 +185,7 @@ namespace FRIGGA_NAMESPACE
                 }
                 else
                 {
-                    applySourceProperties(source);
+                    applySourceProperties(entity, source);
 
                     const bool enginePlaying = mAudioEngine->IsEventPlaying(source.instance);
                     if(source.desired == AudioPlaybackState::Playing)
@@ -162,7 +197,7 @@ namespace FRIGGA_NAMESPACE
                             if(source.engineStarted && !source.loop &&
                                mAudioEngine->IsEventAtEnd(source.instance))
                             {
-                                releaseSource(source);
+                                releaseSource(entity, source);
                                 source.desired       = AudioPlaybackState::Stopped;
                                 source.oneShot       = false;
                                 source.engineStarted = false;
@@ -186,7 +221,7 @@ namespace FRIGGA_NAMESPACE
 
                 if(source.instance.IsValid() && source.is3D)
                 {
-                    const auto pose = TransformUtil::WorldPose(*mRegistry, entity);
+                    const auto pose = TransformUtil::GetWorldPose(*mRegistry, entity);
                     mAudioEngine->SetEvent3DAttributes(source.instance, pose.position,
                                                        glm::vec3(0.0f));
                 }

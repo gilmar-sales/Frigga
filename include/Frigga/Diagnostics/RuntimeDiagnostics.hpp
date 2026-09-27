@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <mutex>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace FRIGGA_NAMESPACE
@@ -21,7 +22,7 @@ namespace FRIGGA_NAMESPACE
         explicit FrameProfiler(std::filesystem::path tracePath);
         ~FrameProfiler();
 
-        void Record(std::string name, std::chrono::steady_clock::duration duration);
+        void Record(std::string_view name, std::chrono::steady_clock::duration duration);
 
       private:
         struct Event

@@ -47,6 +47,10 @@ namespace FRIGGA_NAMESPACE
 
             std::optional<fra::AnimGraph> animGraph;
             std::string                   graphFingerprint;
+            /// FNV-1a content hash of the authored definition + model source.
+            /// SyncAnimGraph skips the (allocating) full fingerprint while this is
+            /// unchanged; the fingerprint stays authoritative on mismatch.
+            std::uint64_t graphContentHash = 0;
         };
 
         AnimationController(const skr::Arc<fr::Registry> &registry,

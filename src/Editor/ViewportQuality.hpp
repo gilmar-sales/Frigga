@@ -14,6 +14,33 @@ namespace EditorViewport
         return std::clamp(value, 0, 4);
     }
 
+    /// Per-layer cache of the last applied prefs. Lets callers skip the
+    /// renderer getters entirely when prefs are unchanged (cheap early-out
+    /// before touching Freya state every frame).
+    struct AppliedQualityCache
+    {
+        int shadow = -1;
+        int ssao   = -1;
+        int taa    = -1;
+        int bloom  = -1;
+
+        [[nodiscard]] bool Matches(const ViewportQualityPreferences &quality) const
+        {
+            return shadow == ClampQualityIndex(quality.shadowQuality) &&
+                   ssao == ClampQualityIndex(quality.ssaoQuality) &&
+                   taa == ClampQualityIndex(quality.taaQuality) &&
+                   bloom == ClampQualityIndex(quality.bloomQuality);
+        }
+
+        void Store(const ViewportQualityPreferences &quality)
+        {
+            shadow = ClampQualityIndex(quality.shadowQuality);
+            ssao   = ClampQualityIndex(quality.ssaoQuality);
+            taa    = ClampQualityIndex(quality.taaQuality);
+            bloom  = ClampQualityIndex(quality.bloomQuality);
+        }
+    };
+
     /// Apply Freya pass qualities when they differ (safe to call every frame).
     inline bool ApplyQualityPreferences(fra::Renderer &renderer,
                                         const ViewportQualityPreferences &quality)
@@ -52,6 +79,23 @@ namespace EditorViewport
             changed = true;
         }
 
+        return changed;
+    }
+
+    /// Cached variant: returns false immediately when prefs match the last
+    /// applied set, without querying the renderer. Callers keep one cache per
+    /// viewport prefs block (editor / gameplay / preview).
+    inline bool ApplyQualityPreferences(fra::Renderer &renderer,
+                                        const ViewportQualityPreferences &quality,
+                                        AppliedQualityCache &cache)
+    {
+        if(cache.Matches(quality))
+        {
+            return false;
+        }
+        const bool changed =
+            ApplyQualityPreferences(renderer, quality);
+        cache.Store(quality);
         return changed;
     }
 } // namespace EditorViewport

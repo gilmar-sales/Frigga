@@ -137,7 +137,7 @@ namespace FRIGGA_NAMESPACE
         // Draw every scene camera so gizmos are visible and pickable; highlight selection.
         registry->CreateMutation()->Each(
             [&](fr::Entity entity, TransformComponent &transform, CameraComponent &camera) {
-                const auto pose = TransformUtil::WorldPose(*registry, entity);
+                const auto pose = TransformUtil::GetWorldPose(*registry, entity);
                 TransformComponent worldXf = transform;
                 worldXf.position           = pose.position;
                 worldXf.rotation           = pose.rotation;
@@ -193,7 +193,7 @@ namespace FRIGGA_NAMESPACE
 
         registry->CreateMutation()->Each(
             [&](fr::Entity entity, TransformComponent &transform, CameraComponent &camera) {
-                const auto pose = TransformUtil::WorldPose(*registry, entity);
+                const auto pose = TransformUtil::GetWorldPose(*registry, entity);
                 TransformComponent worldXf = transform;
                 worldXf.position           = pose.position;
                 worldXf.rotation           = pose.rotation;

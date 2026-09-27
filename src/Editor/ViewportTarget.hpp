@@ -7,6 +7,7 @@
 #include <Freya/Advanced.hpp>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdlib>
 #include <glm/glm.hpp>
@@ -33,7 +34,10 @@ namespace fg
     class ViewportTarget
     {
       public:
-        static constexpr std::uint32_t kResizeThreshold = 2;
+        // Debounce resize: ignore sub-pixel drag noise (threshold) and rate-limit
+        // GPU reallocs so a live window drag cannot realloc every frame.
+        static constexpr std::uint32_t kResizeThreshold = 8;
+        static constexpr std::chrono::milliseconds kMinReallocInterval {100};
 
         explicit ViewportTarget(skr::Arc<fra::Renderer> renderer): mRenderer(std::move(renderer)) {}
 
@@ -69,6 +73,15 @@ namespace fg
                 reactivating || !mImageValid || SizeChanged(width, height) ||
                 FreyaExtentMismatched(width, height);
 
+            // Debounce: skip the realloc burst while dragging, but keep the old
+            // mWidth/mHeight so the pending size is retried once the interval elapses.
+            if(resizeNeeded && !reactivating && mImageValid &&
+               std::chrono::steady_clock::now() - mLastRealloc < kMinReallocInterval)
+            {
+                refreshTexture(false);
+                return;
+            }
+
             if(mClaimed)
             {
                 if(resizeNeeded)
@@ -79,7 +92,8 @@ namespace fg
                     }
                     else
                     {
-                        mImageValid = true;
+                        mImageValid   = true;
+                        mLastRealloc = std::chrono::steady_clock::now();
                     }
                 }
             }
@@ -89,8 +103,9 @@ namespace fg
                 {
                     return;
                 }
-                mClaimed    = true;
-                mImageValid = true;
+                mClaimed     = true;
+                mImageValid  = true;
+                mLastRealloc = std::chrono::steady_clock::now();
             }
 
             refreshTexture(reactivating || resizeNeeded);
@@ -335,6 +350,7 @@ namespace fg
         const void *mBoundSampler  = nullptr;
         std::uint32_t mWidth       = 0;
         std::uint32_t mHeight      = 0;
+        std::chrono::steady_clock::time_point mLastRealloc {};
         bool mClaimed              = false;
         bool mImageValid           = false;
     };

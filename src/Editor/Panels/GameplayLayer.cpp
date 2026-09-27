@@ -99,7 +99,8 @@ void GameplayLayer::onUpdate()
     mClaimOutput = true;
     if(mPreferences &&
        EditorViewport::ApplyQualityPreferences(*mRenderer,
-                                               mPreferences->graphics.gameplayViewport))
+                                               mPreferences->graphics.gameplayViewport,
+                                               mQualityCache))
     {
         fg::GuiLayer::RecreateMainPipeline(mRenderer);
     }
@@ -364,7 +365,7 @@ bool GameplayLayer::computeActiveCamera(glm::mat4 &viewOut, glm::mat4 &projectio
 
     mRegistry->TryGetComponents<fg::TransformComponent>(
         camera, [&](const fg::TransformComponent &transform) {
-            const auto pose = fg::TransformUtil::WorldPose(*mRegistry, camera);
+            const auto pose = fg::TransformUtil::GetWorldPose(*mRegistry, camera);
             position        = pose.position;
             rotation        = pose.rotation;
             (void)transform;

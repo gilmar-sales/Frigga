@@ -2,6 +2,7 @@
 
 #include "Editor/SelectionContext.hpp"
 #include "Editor/Preferences/EditorPreferences.hpp"
+#include "Editor/ViewportQuality.hpp"
 #include "Editor/ViewportTarget.hpp"
 
 #include <Frigga/Frigga.hpp>
@@ -54,6 +55,7 @@ class GameplayLayer: public fg::Layer
     skr::Arc<fg::Input> mInput;
     skr::Arc<fra::Window> mWindow;
     fg::ViewportTarget mViewport;
+    EditorViewport::AppliedQualityCache mQualityCache {};
     std::uint32_t mPendingWidth    = 1280;
     std::uint32_t mPendingHeight   = 720;
     bool mClaimOutput              = false;

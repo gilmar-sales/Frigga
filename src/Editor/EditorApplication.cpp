@@ -79,7 +79,12 @@ void EditorApplication::RenderScene()
 
 void EditorApplication::Update()
 {
-    mMcp.Poll();
+    mMcpPollAccum += mWindow ? mWindow->GetDeltaTime() : 0.0f;
+    if(mMcpPollAccum >= 1.0f / 30.0f)
+    {
+        mMcpPollAccum = 0.0f;
+        mMcp.Poll();
+    }
     // Poll every frame: monitor moves often skip DISPLAY_SCALE_CHANGED until resize.
     EditorUiScale::Sync(mWindow->GetScale());
 

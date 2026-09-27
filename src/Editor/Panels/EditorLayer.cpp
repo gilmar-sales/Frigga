@@ -86,7 +86,8 @@ void EditorLayer::onUpdate()
 
     if(mPreferences &&
        EditorViewport::ApplyQualityPreferences(*mRenderer,
-                                               mPreferences->graphics.editorViewport))
+                                               mPreferences->graphics.editorViewport,
+                                               mQualityCache))
     {
         fg::GuiLayer::RecreateMainPipeline(mRenderer);
     }
@@ -264,6 +265,7 @@ void EditorLayer::drawToolbar()
     ImGui::SameLine();
     ImGui::Spacing();
     ImGui::SameLine();
+    if constexpr(EditorViewportHost::kDebugClaims)
     {
         const ImVec2 fb  = EditorViewport::FramebufferScale();
         const auto   img = fra::Advanced(*mRenderer).GetViewportImage();
@@ -649,7 +651,7 @@ void EditorLayer::drawGizmos(const ImVec2 &imageMin, const ImVec2 &imageSize, bo
 
     mRegistry->TryGetComponents<fg::TransformComponent>(
         selected, [this, &view, &proj, selected](fg::TransformComponent &) {
-            glm::mat4 model = fg::TransformUtil::WorldMatrix(*mRegistry, selected);
+            glm::mat4 model = fg::TransformUtil::GetWorldMatrix(*mRegistry, selected);
 
             ImGuizmo::Manipulate(glm::value_ptr(view), glm::value_ptr(proj), mOperation, mMode,
                                  glm::value_ptr(model));

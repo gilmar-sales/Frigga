@@ -34,4 +34,7 @@ class EditorApplication final: public fg::AbstractApplication
     skr::Arc<fg::SceneSimulationState> mSimulation;
     skr::Arc<fg::Input> mInput;
     EditorMcpService mMcp;
+    /// Throttle MCP polling to ~30 Hz (Poll every frame wastes a mutex + queue
+    /// swap at display rate; MCP clients tolerate 33 ms latency).
+    float mMcpPollAccum = 0.0f;
 };

@@ -3,10 +3,88 @@
 #include "Frigga/Animation/AnimGraphDefinition.hpp"
 
 #include <algorithm>
+#include <bit>
 #include <mutex>
 
 namespace FRIGGA_NAMESPACE
 {
+    namespace
+    {
+        constexpr std::uint64_t kFnvOffset = 14695981039346656037ull;
+        constexpr std::uint64_t kFnvPrime  = 1099511628211ull;
+
+        void HashBytes(std::uint64_t &hash, const void *data, std::size_t size)
+        {
+            const auto *bytes = static_cast<const unsigned char *>(data);
+            for(std::size_t i = 0; i < size; ++i)
+            {
+                hash ^= bytes[i];
+                hash *= kFnvPrime;
+            }
+        }
+
+        void HashString(std::uint64_t &hash, std::string_view text)
+        {
+            HashBytes(hash, text.data(), text.size());
+            HashBytes(hash, "|", 1);
+        }
+
+        void HashFloat(std::uint64_t &hash, float value)
+        {
+            const auto bits = std::bit_cast<std::uint32_t>(value);
+            HashBytes(hash, &bits, sizeof(bits));
+        }
+
+        /// Allocation-free content hash mirroring AnimGraphFingerprint inputs.
+        [[nodiscard]] std::uint64_t HashAnimGraph(const AnimGraphDefinition &graph,
+                                                 std::string_view modelSource)
+        {
+            std::uint64_t hash = kFnvOffset;
+            HashString(hash, modelSource);
+            HashString(hash, graph.entry);
+            for(const auto &param : graph.params)
+            {
+                HashString(hash, param.name);
+                HashString(hash, param.kind);
+                HashFloat(hash, param.defaultFloat);
+                HashBytes(hash, &param.defaultBool, sizeof(param.defaultBool));
+                HashFloat(hash, param.minValue);
+                HashFloat(hash, param.maxValue);
+                HashBytes(hash, &param.hasRange, sizeof(param.hasRange));
+            }
+            for(const auto &state : graph.states)
+            {
+                HashString(hash, state.name);
+                HashString(hash, state.kind);
+                HashString(hash, state.clip);
+                HashString(hash, state.blendParam);
+                HashString(hash, state.blendParamY);
+                HashBytes(hash, &state.loop, sizeof(state.loop));
+                HashBytes(hash, &state.syncPhase, sizeof(state.syncPhase));
+                HashFloat(hash, state.playbackSpeed);
+                for(const auto &sample : state.blendSamples)
+                {
+                    HashString(hash, sample.clip);
+                    HashFloat(hash, sample.value);
+                    HashFloat(hash, sample.x);
+                    HashFloat(hash, sample.y);
+                    HashBytes(hash, &sample.loop, sizeof(sample.loop));
+                    HashFloat(hash, sample.playbackSpeed);
+                }
+            }
+            for(const auto &transition : graph.transitions)
+            {
+                HashString(hash, transition.from);
+                HashString(hash, transition.to);
+                HashString(hash, transition.conditionKind);
+                HashString(hash, transition.param);
+                HashFloat(hash, transition.threshold);
+                HashFloat(hash, transition.blendDuration);
+            }
+            return hash;
+        }
+    } // namespace
+
     namespace
     {
         AnimationController::EntityRuntime &EnsureRuntimeLocked(
@@ -304,12 +382,22 @@ namespace FRIGGA_NAMESPACE
         {
             runtime.animGraph.reset();
             runtime.graphFingerprint.clear();
+            runtime.graphContentHash = 0;
+            return;
+        }
+
+        // Content hash first (no allocation): the full fingerprint below builds
+        // strings with std::to_string per state/transition every frame.
+        const std::uint64_t contentHash = HashAnimGraph(animator.animGraph, model.relativePath);
+        if(runtime.animGraph && runtime.graphContentHash == contentHash)
+        {
             return;
         }
 
         const auto fingerprint = AnimGraphFingerprint(animator.animGraph, model.relativePath);
         if(runtime.animGraph && runtime.graphFingerprint == fingerprint)
         {
+            runtime.graphContentHash = contentHash;
             return;
         }
 
@@ -318,11 +406,13 @@ namespace FRIGGA_NAMESPACE
         {
             runtime.animGraph.reset();
             runtime.graphFingerprint.clear();
+            runtime.graphContentHash = contentHash;
             return;
         }
 
         runtime.animGraph        = std::move(*compiled);
         runtime.graphFingerprint = fingerprint;
+        runtime.graphContentHash = contentHash;
 
         for(const auto &[name, value] : runtime.floats)
         {

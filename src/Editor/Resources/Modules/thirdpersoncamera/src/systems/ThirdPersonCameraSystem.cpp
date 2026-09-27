@@ -2,7 +2,6 @@
 
 #include "components/ThirdPersonCameraComponent.hpp"
 
-#include <Frigga/ECS/Components/HierarchyComponent.hpp>
 #include <Frigga/ECS/Components/TransformComponent.hpp>
 #include <Frigga/ECS/TransformUtil.hpp>
 
@@ -38,12 +37,12 @@ void ThirdPersonCameraSystem::Update(float)
             orbit.distance -= mInput->GetAxis(orbit.zoomAxis);
             orbit.distance = std::clamp(orbit.distance, orbit.minDistance, orbit.maxDistance);
 
-            glm::vec3 targetPos = fg::TransformUtil::WorldPose(*mRegistry, entity).position;
-            if(orbit.target.id != fg::kInvalidEntity &&
+            glm::vec3 targetPos = fg::TransformUtil::GetWorldPose(*mRegistry, entity).position;
+            if(orbit.target.id != fr::NullEntity &&
                mRegistry->HasComponent<fg::TransformComponent>(orbit.target.id))
             {
                 targetPos =
-                    fg::TransformUtil::WorldPose(*mRegistry, orbit.target.id).position;
+                    fg::TransformUtil::GetWorldPose(*mRegistry, orbit.target.id).position;
             }
 
             const glm::vec3 pivot = targetPos + orbit.pivotOffset;

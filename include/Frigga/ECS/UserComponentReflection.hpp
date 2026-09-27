@@ -103,7 +103,7 @@ namespace FRIGGA_NAMESPACE
             else if constexpr(IsEntityRef<U>)
             {
                 value.intValue =
-                    field.id == kInvalidEntity ? -1 : static_cast<std::int64_t>(field.id);
+                    field.id == fr::NullEntity ? -1 : static_cast<std::int64_t>(field.id);
             }
             else if constexpr(IsInteger<U>)
             {
@@ -148,7 +148,7 @@ namespace FRIGGA_NAMESPACE
             {
                 if(value.kind == PropertyKind::Entity)
                 {
-                    field.id = value.intValue < 0 ? kInvalidEntity
+                    field.id = value.intValue < 0 ? fr::NullEntity
                                                   : static_cast<fr::Entity>(value.intValue);
                 }
             }
