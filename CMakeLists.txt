@@ -57,7 +57,7 @@ find_package(Vulkan REQUIRED)
 
 set(FRIGGA_SKIRNIR_TAG "v0.23.2")
 set(FRIGGA_FREYR_TAG "v0.40.2")
-set(FRIGGA_FREYA_TAG "v0.60.0")
+set(FRIGGA_FREYA_TAG "v0.61.0")
 set(FRIGGA_SDK_DEPS
         "Skirnir=${FRIGGA_SKIRNIR_TAG};Freyr=${FRIGGA_FREYR_TAG};Freya=${FRIGGA_FREYA_TAG}")
 

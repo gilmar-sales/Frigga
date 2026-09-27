@@ -22,6 +22,7 @@ namespace FRIGGA_NAMESPACE
             {
                 return false;
             }
+
             for(std::size_t i = 0; i < value.size(); ++i)
             {
                 if(std::tolower(static_cast<unsigned char>(value[i])) !=
@@ -57,7 +58,7 @@ namespace FRIGGA_NAMESPACE
 
             const float hz = std::max(bakeHz, 1.0f);
             asset.bakedClips.reserve(asset.clips.size());
-            for(const auto &clip : asset.clips)
+            for(const auto &clip: asset.clips)
             {
                 asset.bakedClips.push_back(fra::BakeClip(asset.skeleton, clip, hz));
             }
@@ -224,13 +225,12 @@ namespace FRIGGA_NAMESPACE
 
     void AssetRegistry::SetResourcesRoot(std::filesystem::path root)
     {
-        std::filesystem::path next =
-            root.empty() ? EngineResourcesRoot() : std::move(root);
+        std::filesystem::path next = root.empty() ? EngineResourcesRoot() : std::move(root);
         {
             // Persist pending manifest imports against the previous root
             // before retargeting lookups.
             std::lock_guard lock(RegistryListMutex());
-            for(auto *instance : RegistryList())
+            for(auto *instance: RegistryList())
             {
                 instance->FlushManifest();
             }
@@ -262,7 +262,7 @@ namespace FRIGGA_NAMESPACE
         mTexturePathById.clear();
         mMaterialIds.clear();
         mEventPathsDirty = true;
-        mSkinnedDirty = true;
+        mSkinnedDirty    = true;
         {
             std::lock_guard lock(mMaterialCacheMutex);
             mSharedMaterialByHash.clear();
@@ -285,7 +285,7 @@ namespace FRIGGA_NAMESPACE
             mManifestLoaded = true;
         }
         const auto key = normalizeRelativeKey(relativePath);
-        const auto id = mManifest.RecordImport(key, type, ResourcesRoot() / key);
+        const auto id  = mManifest.RecordImport(key, type, ResourcesRoot() / key);
         mManifestDirty = true;
         return id;
     }
@@ -302,8 +302,7 @@ namespace FRIGGA_NAMESPACE
         {
             if(mLogger)
             {
-                mLogger->LogWarning("Unable to save asset manifest '{}': {}", root.string(),
-                                    error);
+                mLogger->LogWarning("Unable to save asset manifest '{}': {}", root.string(), error);
             }
             return;
         }
@@ -356,14 +355,14 @@ namespace FRIGGA_NAMESPACE
             return {};
         }
         // Single generic_string(): path::native() is wchar_t on Windows MinGW.
-        const std::string generic = relative.generic_string();
+        const std::string generic   = relative.generic_string();
         const std::string_view view = generic;
         if(view == ".." || view.starts_with("../"))
         {
             return {};
         }
 
-        return std::filesystem::path {generic};
+        return std::filesystem::path{generic};
     }
 
     std::string AssetRegistry::normalizeRelativeKey(const std::filesystem::path &relative)
@@ -479,7 +478,7 @@ namespace FRIGGA_NAMESPACE
             }
         }
 
-        return GenericRelative(std::filesystem::path {subdir} / destination.filename());
+        return GenericRelative(std::filesystem::path{subdir} / destination.filename());
     }
 
     std::optional<ModelAsset> AssetRegistry::loadModelAbsolute(
@@ -492,35 +491,33 @@ namespace FRIGGA_NAMESPACE
         }
 
         const auto baseLabel = relativePath.stem().string();
-        ModelAsset asset {.assetId      = assetIdFor(key, "model"),
-                          .relativePath = key,
-                          .label        = relativePath.filename().string()};
+        ModelAsset asset{.assetId      = assetIdFor(key, "model"),
+                         .relativePath = key,
+                         .label        = relativePath.filename().string()};
 
-        const auto appendSubmeshes =
-            [&](const std::vector<fra::ModelSubmesh> &parts) {
-                for(std::size_t i = 0; i < parts.size(); ++i)
+        const auto appendSubmeshes = [&](const std::vector<fra::ModelSubmesh> &parts) {
+            for(std::size_t i = 0; i < parts.size(); ++i)
+            {
+                const auto meshId     = FromHandle(parts[i].mesh);
+                const auto materialId = FromHandle(parts[i].material);
+                asset.submeshes.push_back(ModelSubmeshAsset{
+                    .meshId     = meshId,
+                    .materialId = materialId,
+                });
+                if(materialId != 0)
                 {
-                    const auto meshId     = FromHandle(parts[i].mesh);
-                    const auto materialId = FromHandle(parts[i].material);
-                    asset.submeshes.push_back(ModelSubmeshAsset {
-                        .meshId     = meshId,
-                        .materialId = materialId,
-                    });
-                    if(materialId != 0)
-                    {
-                        const auto matName =
-                            parts.size() == 1
-                                ? std::format("{} Material", baseLabel)
-                                : std::format("{} Material {}", baseLabel, i);
-                        catalogMaterialIfNew(materialId, matName);
-                    }
+                    const auto matName = parts.size() == 1
+                                             ? std::format("{} Material", baseLabel)
+                                             : std::format("{} Material {}", baseLabel, i);
+                    catalogMaterialIfNew(materialId, matName);
                 }
-            };
+            }
+        };
 
         if(mMeshPool == nullptr)
         {
             asset.submeshes.push_back(
-                ModelSubmeshAsset {.meshId = ++mCatalogMeshSeq, .materialId = 0});
+                ModelSubmeshAsset{.meshId = ++mCatalogMeshSeq, .materialId = 0});
         }
         else
         {
@@ -528,14 +525,10 @@ namespace FRIGGA_NAMESPACE
             auto skinned = mMeshPool->CreateSkinnedModelFromFile(absolutePath.string());
             if(skinned.skeleton.JointCount() > 0 && !skinned.submeshes.empty())
             {
-                asset.skinned  = true;
+                asset.skinned = true;
                 appendSubmeshes(skinned.submeshes);
                 asset.skeleton = std::move(skinned.skeleton);
                 asset.clips    = std::move(skinned.clips);
-                for(auto &clip : asset.clips)
-                {
-                    fra::EnsureDefaultFootstepEvents(clip);
-                }
                 BakeModelClips(asset, 30.0f);
             }
             else
@@ -585,9 +578,9 @@ namespace FRIGGA_NAMESPACE
             return mTextures[it->second];
         }
 
-        TextureAsset asset {.assetId      = assetIdFor(key, "texture"),
-                            .relativePath = key,
-                            .label        = relativePath.filename().string()};
+        TextureAsset asset{.assetId      = assetIdFor(key, "texture"),
+                           .relativePath = key,
+                           .label        = relativePath.filename().string()};
 
         if(mTexturePool == nullptr)
         {
@@ -648,7 +641,8 @@ namespace FRIGGA_NAMESPACE
         return loadModelAbsolute(ToAbsoluteResourcePath(relative), relative);
     }
 
-    std::optional<TextureAsset> AssetRegistry::ImportTexture(const std::filesystem::path &sourcePath)
+    std::optional<TextureAsset> AssetRegistry::ImportTexture(
+        const std::filesystem::path &sourcePath)
     {
         if(!std::filesystem::is_regular_file(sourcePath))
         {
@@ -698,7 +692,8 @@ namespace FRIGGA_NAMESPACE
         return loadModelAbsolute(absolute, key);
     }
 
-    std::optional<TextureAsset> AssetRegistry::LoadTexture(const std::filesystem::path &relativePath)
+    std::optional<TextureAsset> AssetRegistry::LoadTexture(
+        const std::filesystem::path &relativePath)
     {
         const auto key = normalizeRelativeKey(relativePath);
         if(const auto it = mTextureIndexByPath.find(key); it != mTextureIndexByPath.end())
@@ -743,10 +738,10 @@ namespace FRIGGA_NAMESPACE
             return false;
         }
 
-        FontAsset asset {.assetId      = assetIdFor(key, "font"),
-                         .relativePath = key,
-                         .label        = relativePath.filename().string(),
-                         .atlas        = std::make_unique<fra::FontAtlas>(std::move(atlas))};
+        FontAsset asset{.assetId      = assetIdFor(key, "font"),
+                        .relativePath = key,
+                        .label        = relativePath.filename().string(),
+                        .atlas        = std::make_unique<fra::FontAtlas>(std::move(atlas))};
 
         const auto index = mFonts.size();
         mFontIndexByPath.emplace(key, index);
@@ -781,8 +776,7 @@ namespace FRIGGA_NAMESPACE
 
         if(!IsFontExtension(absolute.extension().string()) && mLogger)
         {
-            mLogger->LogWarning("Unrecognized font extension '{}'",
-                                absolute.extension().string());
+            mLogger->LogWarning("Unrecognized font extension '{}'", absolute.extension().string());
         }
 
         return loadFontAbsolute(absolute, key);
@@ -805,7 +799,7 @@ namespace FRIGGA_NAMESPACE
             return;
         }
 
-        for(const auto &entry : std::filesystem::directory_iterator(fontsDir, ec))
+        for(const auto &entry: std::filesystem::directory_iterator(fontsDir, ec))
         {
             if(ec || !entry.is_regular_file())
             {
@@ -882,7 +876,7 @@ namespace FRIGGA_NAMESPACE
         {
             return id;
         }
-        for(const auto &font : mFonts)
+        for(const auto &font: mFonts)
         {
             if(font.atlas && font.atlas->Valid() && !font.assetId.empty())
             {
@@ -901,9 +895,9 @@ namespace FRIGGA_NAMESPACE
             return mBanks[it->second];
         }
 
-        BankAsset asset {.assetId      = assetIdFor(key, "audio-bank"),
-                         .relativePath = key,
-                         .label        = relativePath.filename().string()};
+        BankAsset asset{.assetId      = assetIdFor(key, "audio-bank"),
+                        .relativePath = key,
+                        .label        = relativePath.filename().string()};
 
         if(mAudioEngine != nullptr)
         {
@@ -945,9 +939,9 @@ namespace FRIGGA_NAMESPACE
             return mAudioClips[it->second];
         }
 
-        AudioClipAsset asset {.assetId      = assetIdFor(key, "audio-clip"),
-                              .relativePath = key,
-                              .label        = relativePath.filename().string()};
+        AudioClipAsset asset{.assetId      = assetIdFor(key, "audio-clip"),
+                             .relativePath = key,
+                             .label        = relativePath.filename().string()};
 
         if(mAudioEngine != nullptr)
         {
@@ -1083,7 +1077,7 @@ namespace FRIGGA_NAMESPACE
         if(mEventPathsDirty)
         {
             mEventPathsCache.clear();
-            for(const auto &bank : mBanks)
+            for(const auto &bank: mBanks)
             {
                 mEventPathsCache.insert(mEventPathsCache.end(), bank.eventPaths.begin(),
                                         bank.eventPaths.end());
@@ -1115,7 +1109,7 @@ namespace FRIGGA_NAMESPACE
             {
                 name = std::format("Material {}", materialId);
             }
-            mMaterials.push_back(MaterialAsset {.name = std::move(name), .materialId = materialId});
+            mMaterials.push_back(MaterialAsset{.name = std::move(name), .materialId = materialId});
             mMaterialIds.insert(materialId);
         }
         return materialId;
@@ -1137,7 +1131,8 @@ namespace FRIGGA_NAMESPACE
         }
     }
 
-    std::uint32_t AssetRegistry::GetOrCreateSharedMaterial(const fra::MaterialCreateInfo &createInfo)
+    std::uint32_t AssetRegistry::GetOrCreateSharedMaterial(
+        const fra::MaterialCreateInfo &createInfo)
     {
         const auto hash = HashMaterialCreateInfo(createInfo);
 
@@ -1194,13 +1189,13 @@ namespace FRIGGA_NAMESPACE
         {
             return;
         }
-        mMaterials.push_back(MaterialAsset {.name = std::move(name), .materialId = materialId});
+        mMaterials.push_back(MaterialAsset{.name = std::move(name), .materialId = materialId});
     }
 
     bool AssetRegistry::TryFindModelByMeshId(std::uint32_t meshId, const ModelAsset *&outModel,
                                              std::uint32_t &outSubmeshIndex) const
     {
-        for(const auto &model : mModels)
+        for(const auto &model: mModels)
         {
             for(std::size_t i = 0; i < model.submeshes.size(); ++i)
             {
@@ -1279,7 +1274,7 @@ namespace FRIGGA_NAMESPACE
         if(mSkinnedDirty)
         {
             mSkinnedCache.clear();
-            for(const auto &model : mModels)
+            for(const auto &model: mModels)
             {
                 if(model.skinned && !model.clips.empty())
                 {
