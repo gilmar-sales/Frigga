@@ -30,15 +30,7 @@ namespace FRIGGA_NAMESPACE
     {
         bool IsInIsolatedSubtree(fr::Registry &registry, fr::Entity entity, fr::Entity root)
         {
-            for(fr::Entity current = entity; current != fr::NullEntity;
-                current            = registry.GetParent(current))
-            {
-                if(current == root)
-                {
-                    return true;
-                }
-            }
-            return false;
+            return entity == root || registry.IsDescendantOf(entity, root);
         }
 
         fra::Light MakeGpuLight(const TransformUtil::Pose &pose, const LightComponent &light)
@@ -332,12 +324,10 @@ namespace FRIGGA_NAMESPACE
                             .entityId = static_cast<std::uint32_t>(entity),
                         };
 
-                        // Local Animator first (compat); else inherit shared pose from an ancestor.
-                        bool skinned          = false;
-                        fr::Entity skinEntity = entity;
-                        while(skinEntity != fr::NullEntity)
+                        bool       skinned    = false;
+                        fr::Entity skinEntity = mRegistry->FindAncestorWith<AnimatorComponent>(entity);
+                        if(skinEntity != fr::NullEntity)
                         {
-                            bool found = false;
                             mRegistry->TryGetComponents<AnimatorComponent>(
                                 skinEntity, [&](AnimatorComponent &animator) {
                                     if(animator.boneCount > 0 &&
@@ -346,14 +336,8 @@ namespace FRIGGA_NAMESPACE
                                         upload.boneOffset = animator.boneOffset;
                                         upload.boneCount  = animator.boneCount;
                                         skinned           = true;
-                                        found             = true;
                                     }
                                 });
-                            if(found)
-                            {
-                                break;
-                            }
-                            skinEntity = mRegistry->GetParent(skinEntity);
                         }
 
                         upload.flags =

@@ -1460,15 +1460,6 @@ namespace FRIGGA_NAMESPACE
             }
         }
 
-        void CollectSubtree(fr::Registry &registry, fr::Entity root, std::vector<fr::Entity> &out)
-        {
-            out.push_back(root);
-            for(const auto child : registry.Children(root))
-            {
-                CollectSubtree(registry, child, out);
-            }
-        }
-
         /// Legacy multi-submesh scenes put one Animator per child. Hoist a shared
         /// Animator onto the parent when ≥2 direct children share the same modelSource.
         /// Batched into two flushes (all Adds, then all Removes): each structural op
@@ -1593,21 +1584,14 @@ namespace FRIGGA_NAMESPACE
 
         std::vector<fr::Entity> serializedEntities;
         serializedEntities.reserve(named.size());
-        const auto visit = [&](const auto &self, fr::Entity entity) -> void {
-            serializedEntities.push_back(entity);
-            for(const auto child : registry->Children(entity))
-            {
-                if(namedSet.contains(child))
-                {
-                    self(self, child);
-                }
-            }
-        };
         for(const auto entity : named)
         {
             if(!namedSet.contains(registry->GetParent(entity)))
             {
-                visit(visit, entity);
+                serializedEntities.push_back(entity);
+                registry->ForEachDescendant(
+                    entity, [&](fr::Entity e) { return namedSet.contains(e); },
+                    [&](fr::Entity e) { serializedEntities.push_back(e); });
             }
         }
 
@@ -3468,7 +3452,8 @@ namespace FRIGGA_NAMESPACE
         }
 
         std::vector<fr::Entity> entities;
-        CollectSubtree(*registry, root, entities);
+        entities.push_back(root);
+        registry->ForEachDescendant(root, [&](fr::Entity entity) { entities.push_back(entity); });
 
         PrefabDocument document {};
         document.version = kSceneVersion;

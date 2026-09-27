@@ -148,22 +148,22 @@ namespace FRIGGA_NAMESPACE::TransformUtil
     void RefreshWorld(fr::Registry &registry, fr::Entity entity)
     {
         StoreWorld(registry, entity, ParentWorldMatrix(registry, entity));
-        // Pre-order: each parent is stored before its children read it.
-        registry.ForEachDescendant(entity, [&](fr::Entity child) {
-            StoreWorld(registry, child, ParentWorldMatrix(registry, child));
+        // Pre-order: parent is stored before children read it; parent passed directly.
+        registry.ForEachDescendantWithParent(entity, [&](fr::Entity child, fr::Entity parent) {
+            glm::mat4 parentMatrix(1.0f);
+            registry.TryGetComponents<WorldTransformComponent>(
+                parent, [&](WorldTransformComponent &world) { parentMatrix = world.matrix; });
+            StoreWorld(registry, child, parentMatrix);
         });
     }
 
     void RefreshAllWorlds(fr::Registry &registry)
     {
         std::vector<fr::Entity> roots;
-        registry.CreateMutation()->Each(
-            [&](fr::Entity entity, TransformComponent &, WorldTransformComponent &) {
-                if(registry.GetParent(entity) == fr::NullEntity)
-                {
-                    roots.push_back(entity);
-                }
-            });
+        registry.ForEachRoot([&](fr::Entity entity) {
+            if(registry.HasComponents<TransformComponent, WorldTransformComponent>(entity))
+                roots.push_back(entity);
+        });
         for(const auto root : roots)
         {
             RefreshWorld(registry, root);

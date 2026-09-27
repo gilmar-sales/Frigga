@@ -100,16 +100,7 @@ namespace
 
     [[nodiscard]] bool HasAncestorAnimator(fr::Registry &registry, fr::Entity entity)
     {
-        auto parent = registry.GetParent(entity);
-        while(parent != fr::NullEntity)
-        {
-            if(registry.HasComponent<fg::AnimatorComponent>(parent))
-            {
-                return true;
-            }
-            parent = registry.GetParent(parent);
-        }
-        return false;
+        return registry.FindAncestorWith<fg::AnimatorComponent>(entity) != fr::NullEntity;
     }
 
     void DrawNamedProperty(fg::NamedProperty &property, fr::Registry *registry)
@@ -1289,11 +1280,9 @@ void HierarchyLayer::onGui()
 
     std::vector<fr::Entity> roots;
     roots.reserve(128);
-    mRegistry->CreateMutation()->Each([this, &roots](fr::Entity entity, fg::NameComponent &) {
-        if(mRegistry->GetParent(entity) == fr::NullEntity)
-        {
+    mRegistry->ForEachRoot([&](fr::Entity entity) {
+        if(mRegistry->HasComponent<fg::NameComponent>(entity))
             roots.push_back(entity);
-        }
     });
     ImGuiListClipper rootClipper;
     rootClipper.Begin(static_cast<int>(roots.size()));
@@ -1583,11 +1572,9 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
         {
             const auto selected = mSelection->Get();
             bool clearSelection = false;
-            for(auto current = selected; current != fr::NullEntity;
-                current      = mRegistry->GetParent(current))
-            {
-                clearSelection = clearSelection || current == entity;
-            }
+            clearSelection = clearSelection
+                          || selected == entity
+                          || mRegistry->IsDescendantOf(selected, entity);
             // DestroyEntity cascades to the whole subtree.
             mRegistry->DestroyEntity(entity);
             mRegistry->ExecuteTasks();
