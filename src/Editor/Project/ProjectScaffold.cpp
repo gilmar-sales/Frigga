@@ -1,6 +1,7 @@
 #include "ProjectScaffold.hpp"
 
 #include "ModuleCatalog.hpp"
+#include "OpenCodeMcp.hpp"
 #include "ProjectEnginePaths.hpp"
 #include "ProjectFile.hpp"
 
@@ -312,7 +313,8 @@ struct Health: fr::Component
                "without requiring the Editor, SDK, CMake, or source tree.\n\n";
         out << "## Debug gameplay code\n\n";
         out << "1. Keep the Frigga Editor open on this project.\n";
-        out << "2. Open this folder in Cursor or VS Code (`.cursor/mcp.json` is scaffolded "
+        out << "2. Open this folder in Cursor, VS Code or OpenCode (`.cursor/mcp.json` and "
+               "`opencode.json` are scaffolded "
                "so the Frigga Editor MCP works from the project workspace).\n";
         out << "3. Run **Frigga: Attach Debugger to Editor** (requires C/C++ extension / GDB).\n";
         out << "4. Set breakpoints in your gameplay sources and hit Play in the Editor.\n";
@@ -540,6 +542,10 @@ bool ProjectScaffold::EnsureCursorMcp(const std::filesystem::path &projectRoot,
     if(!WriteTextFile(projectRoot / ".cursor" / "mcp.json", kMcpJson))
     {
         error = "Failed to write .cursor/mcp.json";
+        return false;
+    }
+    if(!OpenCodeMcp::Ensure(projectRoot, error))
+    {
         return false;
     }
     return true;

@@ -1,14 +1,16 @@
 # MCP local do Editor
 
-O Frigga Editor expõe um endpoint MCP local para permitir que o Cursor
+O Frigga Editor expõe um endpoint MCP local para permitir que o Cursor,
+o OpenCode e outros clientes MCP
 inspecione e ajuste o projeto através de ferramentas controladas. O desenho é
-local-only: o Cursor inicia o bridge via stdio e o bridge conversa com uma
+local-only: o cliente inicia o bridge via stdio e o bridge conversa com uma
 instância do Editor por um socket TCP restrito a `127.0.0.1`.
 
 ## Uso
 
 1. Compile o Editor.
-2. Configure o MCP do workspace com `.cursor/mcp.json` (uma vez).
+2. Configure o MCP do workspace com `.cursor/mcp.json` (Cursor) ou
+   `opencode.json` (OpenCode) — ambos usam o mesmo bridge stdio.
 3. Inicie `Editor` e abra um projeto.
 4. Use as ferramentas MCP; o bridge sobe sem o Editor e conecta sob demanda.
 
@@ -22,16 +24,22 @@ Editor. O arquivo é removido ao encerrar o Editor.
 Ao criar, migrar ou abrir um projeto, o Editor grava:
 
 - `.cursor/mcp.json` — aponta o bridge para
-  `${workspaceFolder}/tools/frigga-mcp/server.py`
+  `${workspaceFolder}/tools/frigga-mcp/server.py` (Cursor / Claude Code)
+- `opencode.json` — mesmo bridge no formato do OpenCode
+  (`"mcp": { "frigga-editor": { "type": "local", "command": [...] } }`).
+  O arquivo é **mesclado, nunca sobrescrito**: chaves do usuário
+  (`model`, outros servidores, permissões) são preservadas; só a entrada
+  `frigga-editor` é inserida quando falta.
 - `tools/frigga-mcp/{server.py,transports.py}` — cópia do bridge empacotado no
   SDK (`Sdk/tools/frigga-mcp`)
 
 Assim o Cursor pode abrir a pasta do jogo como workspace e falar com o Editor
 em execução, sem precisar do repositório do engine.
 
-Fechar e reabrir o Editor **não** exige reiniciar o MCP no Cursor: o bridge
+Fechar e reabrir o Editor **não** exige reiniciar o MCP no cliente: o bridge
 reconecta automaticamente no próximo `tools/call`. Só é preciso reiniciar o
-servidor MCP se o processo do bridge cair ou se `.cursor/mcp.json` mudar.
+servidor MCP se o processo do bridge cair ou se `.cursor/mcp.json` /
+`opencode.json` mudar.
 
 No Windows, o mesmo protocolo usa loopback TCP; o caminho do endpoint segue a
 área temporária do sistema.

@@ -291,8 +291,10 @@ class McpServer:
     def handle(self, request: dict[str, Any]) -> dict[str, Any] | None:
         method = request.get("method")
         request_id = request.get("id")
-        if method == "notifications/initialized":
+        if isinstance(method, str) and method.startswith("notifications/"):
             return None
+        if method == "ping":
+            return {"jsonrpc": "2.0", "id": request_id, "result": {}}
         if method == "initialize":
             return {
                 "jsonrpc": "2.0",

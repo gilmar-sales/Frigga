@@ -1,0 +1,15 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "frigga-editor": {
+      "type": "local",
+      "command": ["python3", "tools/frigga-mcp/server.py"],
+      "enabled": true
+    },
+    "frigga-docs": {
+      "type": "local",
+      "command": ["python3", "tools/docs-mcp/server.py"],
+      "enabled": true
+    }
+  }
+}

@@ -35,9 +35,11 @@ add_executable(frigga_tests
         PrefabSpec.cpp
         ModuleHostExportSpec.cpp
         ProjectFileSpec.cpp
+        OpenCodeMcpSpec.cpp
         RuntimeProjectSpec.cpp
         RuntimeSmokeSpec.cpp
         ${CMAKE_SOURCE_DIR}/src/Editor/Project/ProjectFile.cpp
+        ${CMAKE_SOURCE_DIR}/src/Editor/Project/OpenCodeMcp.cpp
         ${CMAKE_SOURCE_DIR}/src/Runtime/RuntimeProject.cpp
 )
 

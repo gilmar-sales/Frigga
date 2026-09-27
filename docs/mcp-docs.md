@@ -6,7 +6,8 @@ ferramentas MCP, **lendo direto do GitHub na versão pinada** — não de
 servidor funcionar para quem tem o engine compilado e para usuário final que
 nunca clonou nada: só precisa de rede.
 
-Registrado em `.mcp.json` ao lado do `frigga-editor`, iniciado por stdio pelo
+Registrado em `.mcp.json` (Cursor / Claude Code) e `opencode.json` (OpenCode)
+ao lado do `frigga-editor`, iniciado por stdio pelo
 cliente. Não exige o Editor em execução.
 
 ## Por que git (e não `build/_deps`)

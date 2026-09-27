@@ -87,10 +87,11 @@ once a project is open). UI is organized into **Workflows** (`src/Editor/Workflo
 ECS, Animation, Audio, Shading), each with its own dock layout and panels (`src/Editor/Panels`).
 Edit vs Play: entering Play snapshots transforms and enables Simulation/Main; Stop restores.
 The Editor also hosts a local MCP service (`src/Editor/Mcp`) reached through the Python stdio
-bridge in `tools/frigga-mcp` (configured in `.mcp.json`; tools are the `mcp__frigga-editor__*`
+bridge in `tools/frigga-mcp` (configured in `.mcp.json` for Cursor/Claude and in
+`opencode.json` for OpenCode; tools are the `mcp__frigga-editor__*`
 set). The Editor must be running for those tools to work. See `docs/mcp-editor.md`.
 
-`.mcp.json` also starts `tools/docs-mcp`, a second stdio server that needs neither the Editor nor a
+`.mcp.json` / `opencode.json` also start `tools/docs-mcp`, a second stdio server that needs neither the Editor nor a
 local checkout: it lists and reads the dependency documentation on GitHub at the ref resolved from
 `FRIGGA_SDK_DEPS` (SDK config) → `GIT_TAG` → `main`, caching tree listings per ref and blobs by
 SHA. Its tools are the `docs.*` set (`docs.catalog`, `docs.search`, `docs.read`, `docs.refresh`),

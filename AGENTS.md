@@ -74,10 +74,11 @@ python3 tools/docs-mcp/test_docs.py                            # docs MCP tests 
 
 ## MCP (controlling the Editor)
 
-- `.mcp.json` starts the Python stdio bridge `tools/frigga-mcp/server.py`; the **Editor must be
+- `.mcp.json` (Cursor / Claude Code) and `opencode.json` (OpenCode, `"mcp"` key with
+  `"type": "local"` entries) start the Python stdio bridge `tools/frigga-mcp/server.py`; the **Editor must be
   running** (the bridge starts lazily and reconnects on the next tool call). Details and tool list:
   `docs/mcp-editor.md`.
-- `.mcp.json` also starts `tools/docs-mcp/server.py`, which searches the Freyr/Freya/Skirnir
+- `.mcp.json` / `opencode.json` also start `tools/docs-mcp/server.py`, which searches the Freyr/Freya/Skirnir
   markdown docs **from GitHub at the pinned ref** (no `build/_deps` needed). It imports
   `../frigga-mcp/transports.py`, so the two directories must stay siblings (also when packaged
   into `Sdk/tools/`). Version pins resolve from `FRIGGA_SDK_DEPS` → `GIT_TAG` → `main`. Details:

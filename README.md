@@ -42,8 +42,9 @@ The standalone runtime accepts optional diagnostics environment variables:
 
 ### MCP local do Editor
 
-O Editor pode ser controlado pelo Cursor através do bridge MCP configurado em
-`.cursor/mcp.json`. O bridge sobe de forma lazy e reconecta automaticamente se
+O Editor pode ser controlado pelo Cursor, OpenCode ou Claude Code através do
+bridge MCP configurado em
+`.cursor/mcp.json` / `opencode.json` / `.mcp.json`. O bridge sobe de forma lazy e reconecta automaticamente se
 você fechar e reabrir o Editor — o Editor precisa estar rodando apenas no
 momento da tool call. Use as ferramentas para inspecionar projetos,
 editar/capturar cenas, validar/cozinhar assets, controlar Play mode e consultar

@@ -55,8 +55,10 @@ class ProjectScaffold
     static bool EnsureDefaultGraphicsJson(const std::filesystem::path &projectRoot,
                                           std::string &error);
 
-    /// Writes `.cursor/mcp.json` and syncs `tools/frigga-mcp` from the SDK/engine so
-    /// opening the project folder in Cursor can talk to a running Frigga Editor.
+    /// Writes `.cursor/mcp.json` + `opencode.json` and syncs `tools/frigga-mcp` from the
+    /// SDK/engine so opening the project folder in Cursor or OpenCode can talk to a
+    /// running Frigga Editor. `opencode.json` is merged, never overwritten: existing
+    /// user keys are preserved.
     static bool EnsureCursorMcp(const std::filesystem::path &projectRoot,
                                 const ProjectDescriptor &desc, std::string &error);
 
