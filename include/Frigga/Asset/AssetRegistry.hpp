@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Frigga/Audio/AudioTypes.hpp"
+#include "Frigga/Animation/ClipEventSidecar.hpp"
 #include "Frigga/Asset/AssetManifest.hpp"
 
 #include <Freya/Freya.hpp>
@@ -197,6 +198,18 @@ namespace FRIGGA_NAMESPACE
 
         /// Loaded skinned models that expose at least one animation clip.
         [[nodiscard]] std::vector<const ModelAsset *> GetSkinnedModelsWithClips() const;
+
+        /// Replace the authored event list of one clip and persist it to the
+        /// model sidecar (`Models/<stem>.anim-events.json`). Returns false with
+        /// `*error` set when the model/clip is unknown or the save fails.
+        [[nodiscard]] bool SetClipEvents(std::string_view modelRelativePath,
+                                         std::string_view clipName,
+                                         std::vector<fra::AnimationEvent> events,
+                                         std::string *error = nullptr);
+
+        /// Sidecar path (relative to Resources/) holding authored clip events.
+        [[nodiscard]] static std::filesystem::path
+        ClipEventSidecarPath(std::string_view modelRelativePath);
 
         [[nodiscard]] const std::vector<TextureAsset> &GetTextures() const
         {

@@ -22,10 +22,10 @@ namespace FRIGGA_NAMESPACE
     class RenderSystem: public fr::System
     {
       public:
-        RenderSystem(const skr::Arc<fr::Registry> &registry, const skr::Arc<fra::Renderer> &renderer,
-                     const skr::Arc<fra::Window> &window,
-                     const skr::Arc<fra::LightService> &lightService,
-                     const skr::Arc<Scene> &scene, const skr::Arc<AssetRegistry> &assets,
+        RenderSystem(const skr::Arc<fr::Registry> &registry,
+                     const skr::Arc<fra::Renderer> &renderer, const skr::Arc<fra::Window> &window,
+                     const skr::Arc<fra::LightService> &lightService, const skr::Arc<Scene> &scene,
+                     const skr::Arc<AssetRegistry> &assets,
                      const skr::Arc<fra::FreyaOptions> &freyaOptions,
                      const skr::Arc<fra::TexturePool> &textures,
                      const skr::Arc<fra::PostProcessBuilder> &effectBuilder);

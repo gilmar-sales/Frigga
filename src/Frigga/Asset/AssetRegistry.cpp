@@ -1,5 +1,6 @@
 #include <Frigga/Asset/AssetRegistry.hpp>
 #include <Frigga/Asset/FreyaHandles.hpp>
+#include <Frigga/Animation/ClipEventSidecar.hpp>
 
 #include "Frigga/Audio/IAudioEngine.hpp"
 #include "Frigga/Scene/PrefabCache.hpp"
@@ -8,6 +9,7 @@
 #include <cctype>
 #include <cstring>
 #include <format>
+#include <map>
 #include <mutex>
 #include <system_error>
 #include <utility>
@@ -529,6 +531,28 @@ namespace FRIGGA_NAMESPACE
                 appendSubmeshes(skinned.submeshes);
                 asset.skeleton = std::move(skinned.skeleton);
                 asset.clips    = std::move(skinned.clips);
+                // Authored clip events survive model reimports via sidecar.
+                {
+                    std::error_code sidecarEc;
+                    const auto sidecarAbsolute =
+                        ToAbsoluteResourcePath(ClipEventSidecarPath(key));
+                    if(std::filesystem::is_regular_file(sidecarAbsolute, sidecarEc) &&
+                       !sidecarEc)
+                    {
+                        ClipEventMap overrides;
+                        std::string  loadError;
+                        if(LoadClipEventSidecar(sidecarAbsolute, overrides, &loadError))
+                        {
+                            ApplyClipEventOverrides(asset.clips, overrides);
+                        }
+                        else if(mLogger)
+                        {
+                            mLogger->LogWarning("Ignoring malformed clip event sidecar "
+                                                "'{}': {}",
+                                                sidecarAbsolute.string(), loadError);
+                        }
+                    }
+                }
                 BakeModelClips(asset, 30.0f);
             }
             else
@@ -1267,6 +1291,70 @@ namespace FRIGGA_NAMESPACE
             return nullptr;
         }
         return &mModels[it->second];
+    }
+
+    std::filesystem::path AssetRegistry::ClipEventSidecarPath(std::string_view modelRelativePath)
+    {
+        return ClipEventSidecarRelativePath(
+            std::filesystem::path(normalizeRelativeKey(modelRelativePath)));
+    }
+
+    bool AssetRegistry::SetClipEvents(std::string_view modelRelativePath,
+                                      std::string_view clipName,
+                                      std::vector<fra::AnimationEvent> events,
+                                      std::string *error)
+    {
+        const auto key = normalizeRelativeKey(modelRelativePath);
+        const auto it  = mModelIndexByPath.find(key);
+        if(it == mModelIndexByPath.end())
+        {
+            if(error)
+            {
+                *error = "Unknown model: " + key;
+            }
+            return false;
+        }
+
+        ModelAsset &model = mModels[it->second];
+        auto clipIt = std::ranges::find_if(model.clips, [&](const fra::AnimationClip &clip) {
+            return clip.name == clipName;
+        });
+        if(clipIt == model.clips.end())
+        {
+            if(error)
+            {
+                *error = "Unknown clip '" + std::string(clipName) + "' on model " + key;
+            }
+            return false;
+        }
+
+        NormalizeClipEvents(events, clipIt->duration);
+        clipIt->events = events;
+
+        // Merge into the sidecar so other clips keep their authored events and
+        // stale entries for removed clips are pruned.
+        ClipEventMap sidecar;
+        const auto sidecarAbsolute = ToAbsoluteResourcePath(ClipEventSidecarPath(key));
+        {
+            std::string loadError;
+            (void)LoadClipEventSidecar(sidecarAbsolute, sidecar, &loadError);
+        }
+        sidecar[std::string(clipName)] = events;
+        std::erase_if(sidecar, [&](const auto &entry) {
+            if(entry.first == clipName)
+            {
+                return false;
+            }
+            return std::ranges::none_of(model.clips, [&](const fra::AnimationClip &clip) {
+                return clip.name == entry.first;
+            });
+        });
+
+        if(!SaveClipEventSidecar(sidecarAbsolute, sidecar, error))
+        {
+            return false;
+        }
+        return true;
     }
 
     std::vector<const ModelAsset *> AssetRegistry::GetSkinnedModelsWithClips() const

@@ -69,6 +69,7 @@ function(_frigga_resolve_sdk_library OUT_VAR NAME)
         set(_candidates
                 "${_FRIGGA_LIB_DIR}/${NAME}.lib"
                 "${_FRIGGA_LIB_DIR}/lib${_lower}.lib"
+                "${_FRIGGA_LIB_DIR}/lib${NAME}.a"
                 "${_FRIGGA_LIB_DIR}/lib${_lower}.a")
     else()
         set(_candidates "${_FRIGGA_LIB_DIR}/lib${NAME}.a")
@@ -252,7 +253,7 @@ function(frigga_add_game TARGET)
             # Without it, publish modules that call fra::UiContext fail to link.
             _frigga_resolve_sdk_library(_lib_freya Freya)
             set(_freya_module_filter
-                    "_ZN3fra9UiContext|_ZNK3fra9UiContext|_ZN3fra8Renderer12GetUiContext|_ZN3fra8Renderer9GetUiDraw|_ZN3fra16RendererAdvanced16GetViewportImage|_ZN3fra11TexturePool23CreateTextureFromMemory|_ZNK3fra6Window8GetWidth|_ZNK3fra6Window9GetHeight")
+                    "_ZN3fra9UiContext|_ZNK3fra9UiContext|_ZN3fra8Renderer12GetUiContext|_ZN3fra8Renderer9GetUiDraw|_ZN3fra8Renderer16GetBillboardDraw|3fra10SplineRope|_ZN3fra16RendererAdvanced16GetViewportImage|_ZN3fra11TexturePool23CreateTextureFromMemory|_ZNK3fra6Window8GetWidth|_ZNK3fra6Window9GetHeight")
             # -D vars must appear before -P or the script never sees them.
             set(_exports_cmd
                     ${CMAKE_COMMAND}
