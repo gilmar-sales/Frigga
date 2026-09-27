@@ -6,7 +6,7 @@
 #include <Frigga/ECS/Components/BillboardComponent.hpp>
 #include <Frigga/ECS/Components/BillboardTextComponent.hpp>
 #include <Frigga/ECS/Components/CameraComponent.hpp>
-#include <Frigga/ECS/Components/FullscreenEffectComponent.hpp>
+#include <Frigga/ECS/Components/PostProcessComponent.hpp>
 #include <Frigga/ECS/Components/HealthBarComponent.hpp>
 #include <Frigga/ECS/Components/LightComponent.hpp>
 #include <Frigga/ECS/Components/MaterialComponent.hpp>
@@ -14,7 +14,7 @@
 #include <Frigga/ECS/Components/ParticleEmitterComponent.hpp>
 #include <Frigga/ECS/Components/WorldTransformComponent.hpp>
 #include <Frigga/ECS/TransformUtil.hpp>
-#include <Frigga/Rendering/FullscreenEffectCatalog.hpp>
+#include <Frigga/Rendering/PostProcessCatalog.hpp>
 #include <Frigga/Scene/Scene.hpp>
 
 #include <algorithm>
@@ -92,7 +92,7 @@ namespace FRIGGA_NAMESPACE
         updateCamera();
         drawMeshes();
         drawBillboards(deltaTime);
-        syncFullscreenEffects();
+        syncPostProcessComponents();
     }
 
     void RenderSystem::applyCameraPose(const glm::vec3 &position, const glm::quat &rotation,
@@ -457,7 +457,7 @@ namespace FRIGGA_NAMESPACE
             });
     }
 
-    void RenderSystem::syncFullscreenEffects()
+    void RenderSystem::syncPostProcessComponents()
     {
         if(!mRenderer || !mEffectBuilder)
         {
@@ -466,8 +466,21 @@ namespace FRIGGA_NAMESPACE
 
         auto advanced = fra::Advanced(*mRenderer);
 
-        mRegistry->CreateMutation()->Each([&](fr::Entity entity, FullscreenEffectComponent &comp) {
-            const auto stageName = std::format("{}##{}", comp.name.empty() ? "Effect" : comp.name,
+        // Disable orphaned stages from removed or destroyed PostProcessComponent entities.
+        // There is no RemoveFrameStage in the Freya API; SetEnabled(false) makes the pass a no-op.
+        mRegistry->CreateQuery()->ForEachRemoved<PostProcessComponent>(
+            [&](const fr::EntityHandle &handle) {
+            const fr::Entity e = handle.entity;
+            auto it = mPostProcessEffects.find(e);
+            if(it != mPostProcessEffects.end())
+            {
+                it->second->SetEnabled(false);
+                mPostProcessEffects.erase(it);
+            }
+        });
+
+        mRegistry->CreateMutation()->Each([&](fr::Entity entity, PostProcessComponent &comp) {
+            const auto stageName = std::format("{}##{}", comp.name.empty() ? "PostProcess" : comp.name,
                                                static_cast<std::uint32_t>(entity));
 
             const auto previousName = comp.runtimeStageName;
@@ -475,7 +488,7 @@ namespace FRIGGA_NAMESPACE
                                  comp.runtimeKind != comp.kind || previousName != stageName;
             if(rebuild)
             {
-                ConfigureFullscreenEffectBuilder(*mEffectBuilder, stageName, comp);
+                ConfigurePostProcessBuilder(*mEffectBuilder, stageName, comp);
                 comp.runtimeEffect    = mEffectBuilder->Build();
                 comp.runtimeFragment  = comp.fragment;
                 comp.runtimeKind      = comp.kind;
@@ -491,6 +504,7 @@ namespace FRIGGA_NAMESPACE
                     {
                         advanced.InsertFrameStage("BillboardVfx", std::move(stage));
                     }
+                    mPostProcessEffects[entity] = comp.runtimeEffect;
                 }
             }
 
@@ -505,17 +519,17 @@ namespace FRIGGA_NAMESPACE
                 comp.timeSec += mWindow->GetDeltaTime();
             }
 
-            const FullscreenEffectPushState pushState{
+            const PostProcessPushState pushState {
                 .timeSec   = comp.timeSec,
                 .reverseZ  = mFreyaOptions && mFreyaOptions->ReverseZ,
                 .component = &comp,
             };
-            ApplyFullscreenEffectPushConstants(*comp.runtimeEffect, pushState);
+            ApplyPostProcessPushConstants(*comp.runtimeEffect, pushState);
             // ClearMaterials/BindMaterial churn every frame otherwise; only re-sync
             // when the mask actually changed.
             if(comp.runtimeMaterialMaskIds != comp.materialMaskIds)
             {
-                SyncFullscreenEffectMaterials(*comp.runtimeEffect, comp);
+                SyncPostProcessMaterials(*comp.runtimeEffect, comp);
                 comp.runtimeMaterialMaskIds = comp.materialMaskIds;
             }
         });

@@ -669,9 +669,9 @@ void MainLayer::drawMenuBar()
             {
                 mHierarchy->createParticleEntity();
             }
-            if(ImGui::MenuItem(ICON_BTSP_LAYERS " Create Fullscreen Effect"))
+            if(ImGui::MenuItem(ICON_BTSP_LAYERS " Create Post Process"))
             {
-                mHierarchy->createFullscreenEffectEntity();
+                mHierarchy->createPostProcessEntity();
             }
             if(ImGui::BeginMenu(ICON_BTSP_LIGHT " Create Light"))
             {
@@ -722,9 +722,9 @@ void MainLayer::drawMenuBar()
                 {
                     mHierarchy->addParticleEmitterToSelection();
                 }
-                if(ImGui::MenuItem("Fullscreen Effect"))
+                if(ImGui::MenuItem("Post Process"))
                 {
-                    mHierarchy->addFullscreenEffectToSelection();
+                    mHierarchy->addPostProcessToSelection();
                 }
                 if(ImGui::MenuItem(ICON_BTSP_VOLUMEUP " Audio Source"))
                 {

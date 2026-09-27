@@ -7,7 +7,7 @@
 #include "Frigga/ECS/Components/BillboardComponent.hpp"
 #include "Frigga/ECS/Components/BillboardTextComponent.hpp"
 #include "Frigga/ECS/Components/CameraComponent.hpp"
-#include "Frigga/ECS/Components/FullscreenEffectComponent.hpp"
+#include "Frigga/ECS/Components/PostProcessComponent.hpp"
 #include "Frigga/ECS/Components/HealthBarComponent.hpp"
 #include "Frigga/ECS/Components/LightComponent.hpp"
 #include "Frigga/ECS/Components/MaterialComponent.hpp"
@@ -277,7 +277,7 @@ namespace FRIGGA_NAMESPACE
             std::string                layer {"Ui"};
         };
 
-        struct SceneFullscreenEffectDto
+        struct ScenePostProcessDto
         {
             std::optional<std::uint32_t> kind;
             std::string                  name {"Cell"};
@@ -366,7 +366,7 @@ namespace FRIGGA_NAMESPACE
             std::optional<SceneParticleEmitterDto> particles;
             std::optional<SceneHealthBarDto>   healthBar;
             std::optional<SceneBillboardTextDto> billboardText;
-            std::optional<SceneFullscreenEffectDto> fullscreenEffect;
+            std::optional<ScenePostProcessDto> postProcess;
             std::optional<std::vector<SceneUserComponentDto>> userComponents;
             std::optional<std::string>             prefabSource;
             /// Index of the fr::ChildOf parent in `entities` (v8+; was `parent`).
@@ -1276,9 +1276,9 @@ namespace FRIGGA_NAMESPACE
                     };
                 });
 
-            registry.TryGetComponents<FullscreenEffectComponent>(
-                entity, [&](FullscreenEffectComponent &fx) {
-                    dto.fullscreenEffect = SceneFullscreenEffectDto {
+            registry.TryGetComponents<PostProcessComponent>(
+                entity, [&](PostProcessComponent &fx) {
+                    dto.postProcess = ScenePostProcessDto {
                         .kind              = static_cast<std::uint32_t>(fx.kind),
                         .name              = fx.name,
                         .fragment          = fx.fragment,
@@ -2125,14 +2125,14 @@ namespace FRIGGA_NAMESPACE
                 billboardText = label;
             }
 
-            std::optional<FullscreenEffectComponent> fullscreenEffect;
-            if(entityDto.fullscreenEffect)
+            std::optional<PostProcessComponent> postProcess;
+            if(entityDto.postProcess)
             {
-                const auto &fxDto = *entityDto.fullscreenEffect;
-                FullscreenEffectComponent fx {};
+                const auto &fxDto = *entityDto.postProcess;
+                PostProcessComponent fx {};
                 if(fxDto.kind.has_value())
                 {
-                    fx.kind = static_cast<FullscreenEffectKind>(*fxDto.kind);
+                    fx.kind = static_cast<PostProcessKind>(*fxDto.kind);
                 }
                 if(!fxDto.name.empty())
                 {
@@ -2150,7 +2150,7 @@ namespace FRIGGA_NAMESPACE
                 fx.strength          = fxDto.strength;
                 if(!fxDto.edgeColor.empty() && !ReadVec4(fxDto.edgeColor, fx.edgeColor))
                 {
-                    scene.mLogger->LogError("Invalid fullscreenEffect.edgeColor on '{}'",
+                    scene.mLogger->LogError("Invalid postProcess.edgeColor on '{}'",
                                             entityDto.name);
                     return false;
                 }
@@ -2184,7 +2184,7 @@ namespace FRIGGA_NAMESPACE
                 {
                     fx.muGlowLevel = *fxDto.muGlowLevel;
                 }
-                fullscreenEffect = fx;
+                postProcess = fx;
             }
 
             // Prefer a single CreateEntity(Name, ...) so Freyr writes one archetype row.
@@ -2199,7 +2199,7 @@ namespace FRIGGA_NAMESPACE
             const bool hasA  = animator.has_value();
             const bool hasFx = billboard.has_value() || particles.has_value() ||
                                healthBar.has_value() || billboardText.has_value() ||
-                               fullscreenEffect.has_value();
+                               postProcess.has_value();
 
             if(hasT && hasM && hasMat && !hasC && !hasL && hasR && hasA && !hasFx)
             {
@@ -2294,9 +2294,9 @@ namespace FRIGGA_NAMESPACE
                 {
                     attach(*billboardText);
                 }
-                if(fullscreenEffect)
+                if(postProcess)
                 {
-                    attach(*fullscreenEffect);
+                    attach(*postProcess);
                 }
             }
 
@@ -2483,7 +2483,7 @@ namespace FRIGGA_NAMESPACE
             std::optional<SceneParticleEmitterDto> particles;
             std::optional<SceneHealthBarDto>   healthBar;
             std::optional<SceneBillboardTextDto> billboardText;
-            std::optional<SceneFullscreenEffectDto> fullscreenEffect;
+            std::optional<ScenePostProcessDto> postProcess;
             std::optional<SceneUserComponentDto> userComponent;
         };
 
@@ -2847,12 +2847,12 @@ namespace FRIGGA_NAMESPACE
                 return false;
             }
         }
-        else if(kind == "fullscreenEffect")
+        else if(kind == "postProcess")
         {
             bool found = false;
-            registry->TryGetComponents<FullscreenEffectComponent>(
-                entity, [&](FullscreenEffectComponent &fx) {
-                    document.fullscreenEffect = SceneFullscreenEffectDto {
+            registry->TryGetComponents<PostProcessComponent>(
+                entity, [&](PostProcessComponent &fx) {
+                    document.postProcess = ScenePostProcessDto {
                         .kind              = static_cast<std::uint32_t>(fx.kind),
                         .name              = fx.name,
                         .fragment          = fx.fragment,
@@ -3372,13 +3372,14 @@ namespace FRIGGA_NAMESPACE
             return true;
         }
 
-        if(document.kind == "fullscreenEffect" && document.fullscreenEffect)
+        if((document.kind == "postProcess" || document.kind == "fullscreenEffect") &&
+           document.postProcess)
         {
-            const auto &fxDto = *document.fullscreenEffect;
-            FullscreenEffectComponent fx {};
+            const auto &fxDto = *document.postProcess;
+            PostProcessComponent fx {};
             if(fxDto.kind.has_value())
             {
-                fx.kind = static_cast<FullscreenEffectKind>(*fxDto.kind);
+                fx.kind = static_cast<PostProcessKind>(*fxDto.kind);
             }
             if(!fxDto.name.empty())
             {

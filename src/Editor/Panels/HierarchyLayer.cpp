@@ -15,7 +15,7 @@
 #include "Frigga/ECS/Components/BillboardTextComponent.hpp"
 #include "Frigga/ECS/Components/CameraComponent.hpp"
 #include "Frigga/ECS/Components/EntityRef.hpp"
-#include "Frigga/ECS/Components/FullscreenEffectComponent.hpp"
+#include "Frigga/ECS/Components/PostProcessComponent.hpp"
 #include "Frigga/ECS/Components/HealthBarComponent.hpp"
 #include "Frigga/ECS/Components/LightComponent.hpp"
 #include "Frigga/ECS/Components/MaterialComponent.hpp"
@@ -29,7 +29,7 @@
 #include "Frigga/ECS/TransformUtil.hpp"
 #include "Frigga/Module/FriComponentInspector.hpp"
 #include "Frigga/Module/GameplayTypeIds.hpp"
-#include "Frigga/Rendering/FullscreenEffectCatalog.hpp"
+#include "Frigga/Rendering/PostProcessCatalog.hpp"
 #include "Frigga/Scene/Prefab.hpp"
 
 #include <SDL3/SDL_dialog.h>
@@ -374,7 +374,7 @@ const char *HierarchyLayer::resolveEntityIcon(fr::Entity entity) const
     {
         return ICON_BTSP_VOLUMEUP;
     }
-    if(mRegistry->HasComponent<fg::FullscreenEffectComponent>(entity))
+    if(mRegistry->HasComponent<fg::PostProcessComponent>(entity))
     {
         return ICON_BTSP_LAYERS;
     }
@@ -643,14 +643,15 @@ void HierarchyLayer::createParticleEntity()
     parentNewEntity(entity);
 }
 
-void HierarchyLayer::createFullscreenEffectEntity()
+void HierarchyLayer::createPostProcessEntity()
 {
     if(mSimulation->IsPlaying())
     {
         return;
     }
-    const auto entity = mRegistry->CreateEntity(fg::NameComponent{.name = "Fullscreen Effect"},
-                                                fg::FullscreenEffectComponent{});
+    const auto entity = mRegistry->CreateEntity(fg::NameComponent{.name = "Post Process"},
+                                                fg::PostProcessComponent{});
+    mRegistry->SetParent(entity, fr::NullEntity);
     parentNewEntity(entity);
 }
 
@@ -787,16 +788,16 @@ void HierarchyLayer::addBillboardTextToSelection()
     }
 }
 
-void HierarchyLayer::addFullscreenEffectToSelection()
+void HierarchyLayer::addPostProcessToSelection()
 {
     if(!mSelection->HasSelection() || mSimulation->IsPlaying())
     {
         return;
     }
     const auto entity = mSelection->Get();
-    if(!mRegistry->HasComponent<fg::FullscreenEffectComponent>(entity))
+    if(!mRegistry->HasComponent<fg::PostProcessComponent>(entity))
     {
-        mRegistry->AddComponents(entity, fg::FullscreenEffectComponent{});
+        mRegistry->AddComponents(entity, fg::PostProcessComponent{});
     }
 }
 
@@ -1250,9 +1251,9 @@ void HierarchyLayer::onGui()
         {
             createParticleEntity();
         }
-        if(ImGui::MenuItem(ICON_BTSP_LAYERS " Fullscreen Effect"))
+        if(ImGui::MenuItem(ICON_BTSP_LAYERS " Post Process"))
         {
-            createFullscreenEffectEntity();
+            createPostProcessEntity();
         }
 
         if(ImGui::BeginMenu(ICON_BTSP_LIGHT " Light"))
@@ -1425,7 +1426,7 @@ bool HierarchyLayer::entityHasVisibleComponents(fr::Entity entity) const
        mRegistry->HasComponent<fg::ParticleEmitterComponent>(entity) ||
        mRegistry->HasComponent<fg::HealthBarComponent>(entity) ||
        mRegistry->HasComponent<fg::BillboardTextComponent>(entity) ||
-       mRegistry->HasComponent<fg::FullscreenEffectComponent>(entity) ||
+       mRegistry->HasComponent<fg::PostProcessComponent>(entity) ||
        mRegistry->HasComponent<fg::PrefabComponent>(entity) ||
        mRegistry->HasComponent<fg::AudioSourceComponent>(entity) ||
        mRegistry->HasComponent<fg::AudioListenerComponent>(entity))
@@ -1695,11 +1696,11 @@ void HierarchyLayer::drawEntityNode(fr::Entity entity, fg::NameComponent &name)
                 mRegistry->AddComponents(entity, fg::ParticleEmitterComponent{});
             }
         }
-        if(ImGui::MenuItem("Add fullscreen effect"))
+        if(ImGui::MenuItem("Add post process"))
         {
-            if(!mRegistry->HasComponent<fg::FullscreenEffectComponent>(entity))
+            if(!mRegistry->HasComponent<fg::PostProcessComponent>(entity))
             {
-                mRegistry->AddComponents(entity, fg::FullscreenEffectComponent{});
+                mRegistry->AddComponents(entity, fg::PostProcessComponent{});
             }
         }
 
@@ -2114,18 +2115,18 @@ void HierarchyLayer::drawComponents()
             }
         });
 
-    mRegistry->TryGetComponents<fg::FullscreenEffectComponent>(
-        selection, [this, selection](fg::FullscreenEffectComponent &fx) {
+    mRegistry->TryGetComponents<fg::PostProcessComponent>(
+        selection, [this, selection](fg::PostProcessComponent &fx) {
             bool open = true;
-            if(drawComponentHeader("Fullscreen Effect", "fullscreenEffect", &open))
+            if(drawComponentHeader("Post Process", "postProcess", &open))
             {
                 int kindIndex = static_cast<int>(fx.kind);
                 if(ImGui::Combo("Preset", &kindIndex,
                                 "Cell\0Outline\0Color Grade\0Underwater\0Heat Haze\0Glow\0Mu "
                                 "Item Glow\0Custom\0"))
                 {
-                    fx.kind     = static_cast<fg::FullscreenEffectKind>(kindIndex);
-                    fx.fragment = fg::FullscreenEffectFragmentPath(fx.kind, fx.fragment);
+                    fx.kind     = static_cast<fg::PostProcessKind>(kindIndex);
+                    fx.fragment = fg::PostProcessFragmentPath(fx.kind, fx.fragment);
                 }
 
                 char nameBuf[64];
@@ -2135,7 +2136,7 @@ void HierarchyLayer::drawComponents()
                     fx.name = nameBuf;
                 }
 
-                if(fx.kind == fg::FullscreenEffectKind::Custom)
+                if(fx.kind == fg::PostProcessKind::Custom)
                 {
                     char fragBuf[256];
                     std::snprintf(fragBuf, sizeof(fragBuf), "%s", fx.fragment.c_str());
@@ -2184,7 +2185,7 @@ void HierarchyLayer::drawComponents()
                 ImGui::Separator();
                 switch(fx.kind)
                 {
-                case fg::FullscreenEffectKind::Cell:
+                case fg::PostProcessKind::Cell:
                     ImGui::TextDisabled("Cell shader parameters");
                     ImGui::DragFloat("Bands", &fx.bands, 0.1f, 1.0f, 16.0f);
                     ImGui::DragFloat("Edge Depth", &fx.edgeDepthScale, 0.5f, 0.0f, 400.0f);
@@ -2194,7 +2195,7 @@ void HierarchyLayer::drawComponents()
                     ImGui::DragFloat("Shadow Lift", &fx.shadowLift, 0.01f, 0.0f, 1.0f);
                     ImGui::DragFloat("Edge Width", &fx.edgeWidth, 0.05f, 0.0f, 8.0f);
                     break;
-                case fg::FullscreenEffectKind::Outline:
+                case fg::PostProcessKind::Outline:
                     ImGui::TextDisabled("Outline parameters");
                     ImGui::DragFloat("Edge Depth", &fx.edgeDepthScale, 0.5f, 0.0f, 400.0f);
                     ImGui::DragFloat("Edge Normal", &fx.edgeNormalScale, 0.05f, 0.0f, 20.0f);
@@ -2202,14 +2203,14 @@ void HierarchyLayer::drawComponents()
                     ImGui::ColorEdit4("Edge Color", &fx.edgeColor[0]);
                     ImGui::DragFloat("Edge Width", &fx.edgeWidth, 0.05f, 0.0f, 8.0f);
                     break;
-                case fg::FullscreenEffectKind::ColorGrade:
+                case fg::PostProcessKind::ColorGrade:
                     ImGui::TextDisabled("Color grade parameters");
                     ImGui::DragFloat("Contrast", &fx.contrast, 0.01f, 0.0f, 4.0f);
                     ImGui::DragFloat("Saturation", &fx.saturation, 0.01f, 0.0f, 4.0f);
                     ImGui::DragFloat("Exposure", &fx.exposure, 0.01f, -4.0f, 4.0f);
                     ImGui::DragFloat("Vignette", &fx.vignette, 0.01f, 0.0f, 1.0f);
                     break;
-                case fg::FullscreenEffectKind::Underwater:
+                case fg::PostProcessKind::Underwater:
                     ImGui::TextDisabled("Underwater parameters");
                     ImGui::DragFloat("Strength", &fx.strength, 0.01f, 0.0f, 2.0f);
                     ImGui::DragFloat("Tint Strength", &fx.tintStrength, 0.01f, 0.0f, 1.0f);
@@ -2217,25 +2218,25 @@ void HierarchyLayer::drawComponents()
                     ImGui::ColorEdit4("Tint Color", &fx.tintColor[0]);
                     ImGui::DragFloat("Max Depth", &fx.maxDepth, 0.01f, 0.0f, 1.0f);
                     break;
-                case fg::FullscreenEffectKind::HeatHaze:
+                case fg::PostProcessKind::HeatHaze:
                     ImGui::TextDisabled("Heat haze parameters");
                     ImGui::DragFloat("Strength", &fx.strength, 0.01f, 0.0f, 2.0f);
                     ImGui::DragFloat("Speed", &fx.heatSpeed, 0.01f, 0.0f, 8.0f);
                     break;
-                case fg::FullscreenEffectKind::Glow:
+                case fg::PostProcessKind::Glow:
                     ImGui::TextDisabled("Glow parameters");
                     ImGui::DragFloat("Intensity", &fx.glowIntensity, 0.05f, 0.0f, 16.0f);
                     ImGui::DragFloat("Radius", &fx.glowRadius, 0.1f, 0.0f, 32.0f);
                     ImGui::DragFloat("Fill", &fx.glowFill, 0.01f, 0.0f, 1.0f);
                     ImGui::ColorEdit4("Color", &fx.glowColor[0]);
                     break;
-                case fg::FullscreenEffectKind::MuItemGlow:
+                case fg::PostProcessKind::MuItemGlow:
                     ImGui::TextDisabled("Mu item glow parameters");
                     ImGui::DragFloat("Level", &fx.muGlowLevel, 0.1f, 0.0f, 32.0f);
                     ImGui::DragFloat("Intensity", &fx.glowIntensity, 0.05f, 0.0f, 16.0f);
                     ImGui::DragFloat("Radius", &fx.glowRadius, 0.1f, 0.0f, 32.0f);
                     break;
-                case fg::FullscreenEffectKind::Custom:
+                case fg::PostProcessKind::Custom:
                     ImGui::TextDisabled("Custom SPIR-V — push constants depend on shader");
                     break;
                 }
@@ -2243,7 +2244,7 @@ void HierarchyLayer::drawComponents()
             }
             if(!open && !mSimulation->IsPlaying())
             {
-                mRegistry->RemoveComponent<fg::FullscreenEffectComponent>(selection);
+                mRegistry->RemoveComponent<fg::PostProcessComponent>(selection);
             }
         });
 

@@ -15,7 +15,7 @@
 namespace FRIGGA_NAMESPACE
 {
 
-    enum class FullscreenEffectKind : std::uint8_t
+    enum class PostProcessKind : std::uint8_t
     {
         Cell = 0,
         Outline,
@@ -28,12 +28,12 @@ namespace FRIGGA_NAMESPACE
     };
 
     /// Hosts a Freya PostProcess fullscreen pass (stock or custom SPIR-V).
-    struct FullscreenEffectComponent: fr::Component
+    struct PostProcessComponent: fr::Component
     {
-        FullscreenEffectKind kind     = FullscreenEffectKind::Cell;
-        std::string          name     = "Cell";
-        std::string          fragment = "Cell/cell.frag.spv";
-        bool                 enabled  = true;
+        PostProcessKind kind     = PostProcessKind::Cell;
+        std::string     name     = "Cell";
+        std::string     fragment = "Cell/cell.frag.spv";
+        bool            enabled  = true;
 
         /// G-buffer material IDs (0–255) masked by BindMaterial. Empty = all pixels.
         std::vector<std::uint32_t> materialMaskIds;
@@ -70,8 +70,8 @@ namespace FRIGGA_NAMESPACE
         skr::Arc<fra::PostProcess> runtimeEffect;
         std::string                runtimeFragment;
         std::string                runtimeStageName;
-        FullscreenEffectKind       runtimeKind = FullscreenEffectKind::Cell;
-        /// Last material mask pushed via SyncFullscreenEffectMaterials (runtime).
+        PostProcessKind            runtimeKind = PostProcessKind::Cell;
+        /// Last material mask pushed via SyncPostProcessMaterials (runtime).
         std::vector<std::uint32_t> runtimeMaterialMaskIds;
         float                      timeSec = 0.0f;
     };

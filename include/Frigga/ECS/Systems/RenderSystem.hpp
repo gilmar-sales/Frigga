@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Frigga/ECS/Components/FullscreenEffectComponent.hpp"
+#include "Frigga/ECS/Components/PostProcessComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 
 #include <Freya/Advanced.hpp>
@@ -10,6 +10,7 @@
 
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace FRIGGA_NAMESPACE
@@ -41,7 +42,7 @@ namespace FRIGGA_NAMESPACE
         void syncLights();
         void drawMeshes();
         void drawBillboards(float deltaTime);
-        void syncFullscreenEffects();
+        void syncPostProcessComponents();
 
         [[nodiscard]] std::uint32_t textureHeapIndex(std::optional<std::uint32_t> textureId) const;
 
@@ -53,6 +54,8 @@ namespace FRIGGA_NAMESPACE
         skr::Arc<fra::FreyaOptions> mFreyaOptions;
         skr::Arc<fra::TexturePool> mTextures;
         skr::Arc<fra::PostProcessBuilder> mEffectBuilder;
+        /// Tracks active PostProcess effects by entity so removal can disable orphaned stages.
+        std::unordered_map<fr::Entity, skr::Arc<fra::PostProcess>> mPostProcessEffects;
     };
 
 } // namespace FRIGGA_NAMESPACE

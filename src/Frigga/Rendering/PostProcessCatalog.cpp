@@ -1,4 +1,4 @@
-#include <Frigga/Rendering/FullscreenEffectCatalog.hpp>
+#include <Frigga/Rendering/PostProcessCatalog.hpp>
 
 namespace FRIGGA_NAMESPACE
 {
@@ -81,26 +81,26 @@ namespace FRIGGA_NAMESPACE
             float     edgeWidth  = 1.0f;
         };
 
-        [[nodiscard]] bool UsesSceneDepthNormal(FullscreenEffectKind kind)
+        [[nodiscard]] bool UsesSceneDepthNormal(PostProcessKind kind)
         {
             switch(kind)
             {
-            case FullscreenEffectKind::Cell:
-            case FullscreenEffectKind::Outline:
+            case PostProcessKind::Cell:
+            case PostProcessKind::Outline:
                 return true;
             default:
                 return false;
             }
         }
 
-        [[nodiscard]] bool UsesSceneDepth(FullscreenEffectKind kind)
+        [[nodiscard]] bool UsesSceneDepth(PostProcessKind kind)
         {
             switch(kind)
             {
-            case FullscreenEffectKind::Underwater:
-            case FullscreenEffectKind::HeatHaze:
-            case FullscreenEffectKind::Glow:
-            case FullscreenEffectKind::MuItemGlow:
+            case PostProcessKind::Underwater:
+            case PostProcessKind::HeatHaze:
+            case PostProcessKind::Glow:
+            case PostProcessKind::MuItemGlow:
                 return true;
             default:
                 return UsesSceneDepthNormal(kind);
@@ -108,37 +108,36 @@ namespace FRIGGA_NAMESPACE
         }
     } // namespace
 
-    std::string FullscreenEffectFragmentPath(const FullscreenEffectKind kind,
-                                             const std::string_view customFragment)
+    std::string PostProcessFragmentPath(const PostProcessKind kind,
+                                        const std::string_view customFragment)
     {
         switch(kind)
         {
-        case FullscreenEffectKind::Cell:
+        case PostProcessKind::Cell:
             return "Cell/cell.frag.spv";
-        case FullscreenEffectKind::Outline:
+        case PostProcessKind::Outline:
             return "Post/outline.frag.spv";
-        case FullscreenEffectKind::ColorGrade:
+        case PostProcessKind::ColorGrade:
             return "Post/color_grade.frag.spv";
-        case FullscreenEffectKind::Underwater:
+        case PostProcessKind::Underwater:
             return "Post/underwater.frag.spv";
-        case FullscreenEffectKind::HeatHaze:
+        case PostProcessKind::HeatHaze:
             return "Post/heat_haze.frag.spv";
-        case FullscreenEffectKind::Glow:
+        case PostProcessKind::Glow:
             return "Post/glow.frag.spv";
-        case FullscreenEffectKind::MuItemGlow:
+        case PostProcessKind::MuItemGlow:
             return "Post/mu_item_glow.frag.spv";
-        case FullscreenEffectKind::Custom:
+        case PostProcessKind::Custom:
             return std::string(customFragment);
         }
         return std::string(customFragment);
     }
 
-    void ConfigureFullscreenEffectBuilder(fra::PostProcessBuilder &builder,
-                                          const std::string_view stageName,
-                                          const FullscreenEffectComponent &component)
+    void ConfigurePostProcessBuilder(fra::PostProcessBuilder &builder,
+                                     const std::string_view stageName,
+                                     const PostProcessComponent &component)
     {
-        const std::string fragment =
-            FullscreenEffectFragmentPath(component.kind, component.fragment);
+        const std::string fragment = PostProcessFragmentPath(component.kind, component.fragment);
         builder.SetName(std::string(stageName)).SetFragment(fragment);
 
         std::vector<fra::PostProcessInput> inputs {fra::PostProcessInput::SceneColor};
@@ -155,28 +154,28 @@ namespace FRIGGA_NAMESPACE
         std::uint32_t pushSize = 0;
         switch(component.kind)
         {
-        case FullscreenEffectKind::Cell:
+        case PostProcessKind::Cell:
             pushSize = static_cast<std::uint32_t>(sizeof(CellPushConstants));
             break;
-        case FullscreenEffectKind::Outline:
+        case PostProcessKind::Outline:
             pushSize = static_cast<std::uint32_t>(sizeof(OutlinePush));
             break;
-        case FullscreenEffectKind::ColorGrade:
+        case PostProcessKind::ColorGrade:
             pushSize = static_cast<std::uint32_t>(sizeof(GradePush));
             break;
-        case FullscreenEffectKind::Underwater:
+        case PostProcessKind::Underwater:
             pushSize = static_cast<std::uint32_t>(sizeof(UnderwaterPush));
             break;
-        case FullscreenEffectKind::HeatHaze:
+        case PostProcessKind::HeatHaze:
             pushSize = static_cast<std::uint32_t>(sizeof(HeatPush));
             break;
-        case FullscreenEffectKind::Glow:
+        case PostProcessKind::Glow:
             pushSize = static_cast<std::uint32_t>(sizeof(GlowPush));
             break;
-        case FullscreenEffectKind::MuItemGlow:
+        case PostProcessKind::MuItemGlow:
             pushSize = static_cast<std::uint32_t>(sizeof(MuGlowPush));
             break;
-        case FullscreenEffectKind::Custom:
+        case PostProcessKind::Custom:
             if(fragment.find("cell.frag") != std::string::npos)
             {
                 pushSize = static_cast<std::uint32_t>(sizeof(CellPushConstants));
@@ -189,8 +188,8 @@ namespace FRIGGA_NAMESPACE
         builder.SetInputs(std::move(inputs)).SetPushConstantSize(pushSize);
     }
 
-    void ApplyFullscreenEffectPushConstants(fra::PostProcess &effect,
-                                            const FullscreenEffectPushState &state)
+    void ApplyPostProcessPushConstants(fra::PostProcess &effect,
+                                       const PostProcessPushState &state)
     {
         if(state.component == nullptr)
         {
@@ -202,7 +201,7 @@ namespace FRIGGA_NAMESPACE
 
         switch(component.kind)
         {
-        case FullscreenEffectKind::Cell:
+        case PostProcessKind::Cell:
         {
             CellPushConstants cell {};
             cell.bands           = component.bands;
@@ -216,7 +215,7 @@ namespace FRIGGA_NAMESPACE
             effect.SetPushConstants(cell);
             break;
         }
-        case FullscreenEffectKind::Outline:
+        case PostProcessKind::Outline:
         {
             OutlinePush push {};
             push.edgeDepthScale  = component.edgeDepthScale;
@@ -228,7 +227,7 @@ namespace FRIGGA_NAMESPACE
             effect.SetPushConstants(push);
             break;
         }
-        case FullscreenEffectKind::ColorGrade:
+        case PostProcessKind::ColorGrade:
         {
             GradePush push {};
             push.contrast   = component.contrast;
@@ -240,7 +239,7 @@ namespace FRIGGA_NAMESPACE
             effect.SetPushConstants(push);
             break;
         }
-        case FullscreenEffectKind::Underwater:
+        case PostProcessKind::Underwater:
         {
             UnderwaterPush push {};
             push.time         = state.timeSec;
@@ -253,7 +252,7 @@ namespace FRIGGA_NAMESPACE
             effect.SetPushConstants(push);
             break;
         }
-        case FullscreenEffectKind::HeatHaze:
+        case PostProcessKind::HeatHaze:
         {
             HeatPush push {};
             push.time     = state.timeSec;
@@ -263,7 +262,7 @@ namespace FRIGGA_NAMESPACE
             effect.SetPushConstants(push);
             break;
         }
-        case FullscreenEffectKind::Glow:
+        case PostProcessKind::Glow:
         {
             GlowPush push {};
             push.intensity = component.glowIntensity;
@@ -274,7 +273,7 @@ namespace FRIGGA_NAMESPACE
             effect.SetPushConstants(push);
             break;
         }
-        case FullscreenEffectKind::MuItemGlow:
+        case PostProcessKind::MuItemGlow:
         {
             MuGlowPush push {};
             push.time      = state.timeSec;
@@ -286,7 +285,7 @@ namespace FRIGGA_NAMESPACE
             effect.SetPushConstants(push);
             break;
         }
-        case FullscreenEffectKind::Custom:
+        case PostProcessKind::Custom:
             if(component.fragment.find("cell.frag") != std::string::npos)
             {
                 CellPushConstants cell {};
@@ -304,8 +303,8 @@ namespace FRIGGA_NAMESPACE
         }
     }
 
-    void SyncFullscreenEffectMaterials(fra::PostProcess &effect,
-                                       const FullscreenEffectComponent &component)
+    void SyncPostProcessMaterials(fra::PostProcess &effect,
+                                  const PostProcessComponent &component)
     {
         effect.ClearMaterials();
         for(const auto materialId : component.materialMaskIds)

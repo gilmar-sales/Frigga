@@ -13,7 +13,7 @@
 #include <Frigga/ECS/Components/BillboardComponent.hpp>
 #include <Frigga/ECS/Components/BillboardTextComponent.hpp>
 #include <Frigga/ECS/Components/CameraComponent.hpp>
-#include <Frigga/ECS/Components/FullscreenEffectComponent.hpp>
+#include <Frigga/ECS/Components/PostProcessComponent.hpp>
 #include <Frigga/ECS/Components/HealthBarComponent.hpp>
 #include <Frigga/ECS/Components/LightComponent.hpp>
 #include <Frigga/ECS/Components/MaterialComponent.hpp>
@@ -54,7 +54,7 @@ namespace FRIGGA_NAMESPACE
                     .WithComponent<BillboardTextComponent>()
                     .WithComponent<HealthBarComponent>()
                     .WithComponent<ParticleEmitterComponent>()
-                    .WithComponent<FullscreenEffectComponent>()
+                    .WithComponent<PostProcessComponent>()
                     .WithComponent<AnimatorComponent>()
                     .WithComponent<AudioSourceComponent>()
                     .WithComponent<AudioListenerComponent>()

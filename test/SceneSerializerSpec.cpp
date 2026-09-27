@@ -6,7 +6,7 @@
 #include <Frigga/ECS/Components/BillboardComponent.hpp>
 #include <Frigga/ECS/Components/BillboardTextComponent.hpp>
 #include <Frigga/ECS/Components/CameraComponent.hpp>
-#include <Frigga/ECS/Components/FullscreenEffectComponent.hpp>
+#include <Frigga/ECS/Components/PostProcessComponent.hpp>
 #include <Frigga/ECS/Components/HealthBarComponent.hpp>
 #include <Frigga/ECS/Components/EntityRef.hpp>
 #include <Frigga/ECS/Components/LightComponent.hpp>
@@ -237,7 +237,7 @@ class SceneSerializerSpec: public ::testing::Test
                            .WithComponent<fg::BillboardTextComponent>()
                            .WithComponent<fg::HealthBarComponent>()
                            .WithComponent<fg::ParticleEmitterComponent>()
-                           .WithComponent<fg::FullscreenEffectComponent>()
+                           .WithComponent<fg::PostProcessComponent>()
                            .WithComponent<fg::PrefabComponent>();
                    })
                    .Build<EmptyApp>();
@@ -697,7 +697,7 @@ TEST_F(SceneSerializerSpec, RoundTrip_BillboardParticlesAndCellEffect)
                                 particles);
     }
     mRegistry->CreateEntity(fg::NameComponent {.name = "Toon"},
-                            fg::FullscreenEffectComponent {.bands = 6.0f, .edgeWidth = 2.0f});
+                            fg::PostProcessComponent {.bands = 6.0f, .edgeWidth = 2.0f});
     mRegistry->ExecuteTasks();
 
     std::string json;
@@ -730,7 +730,7 @@ TEST_F(SceneSerializerSpec, RoundTrip_BillboardParticlesAndCellEffect)
             EXPECT_NEAR(particles.runtime.lifetime, 1.25f, kEpsilon);
         });
     mRegistry->CreateMutation()->Each(
-        [&](fg::NameComponent &name, fg::FullscreenEffectComponent &fx) {
+        [&](fg::NameComponent &name, fg::PostProcessComponent &fx) {
             if(name.name != "Toon")
             {
                 return;

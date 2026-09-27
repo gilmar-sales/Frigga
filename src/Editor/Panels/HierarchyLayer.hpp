@@ -45,7 +45,7 @@ class HierarchyLayer: public fg::Layer
     void createAudioListenerEntity();
     void createBillboardEntity();
     void createParticleEntity();
-    void createFullscreenEffectEntity();
+    void createPostProcessEntity();
     void addRigidBodyToSelection();
     void addCharacterControllerToSelection();
     void addThirdPersonCameraToSelection();
@@ -53,7 +53,7 @@ class HierarchyLayer: public fg::Layer
     void addParticleEmitterToSelection();
     void addHealthBarToSelection();
     void addBillboardTextToSelection();
-    void addFullscreenEffectToSelection();
+    void addPostProcessToSelection();
     void addAudioSourceToSelection();
     void addAudioListenerToSelection();
     void addLightToSelection(fra::LightType type);
