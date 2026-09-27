@@ -2,6 +2,7 @@
 #include <Frigga/Asset/FreyaHandles.hpp>
 #include <Frigga/Animation/ClipEventSidecar.hpp>
 
+#include "Frigga/Audio/AudioBankIO.hpp"
 #include "Frigga/Audio/IAudioEngine.hpp"
 #include "Frigga/Scene/PrefabCache.hpp"
 
@@ -923,6 +924,15 @@ namespace FRIGGA_NAMESPACE
                         .relativePath = key,
                         .label        = relativePath.filename().string()};
 
+        {
+            std::string parseError;
+            if(!LoadAudioBankFile(absolutePath, asset.definition, &parseError) && mLogger)
+            {
+                mLogger->LogWarning("Unable to read audio bank '{}': {}", absolutePath.string(),
+                                    parseError);
+            }
+        }
+
         if(mAudioEngine != nullptr)
         {
             if(!mAudioEngine->IsInitialized())
@@ -1029,6 +1039,135 @@ namespace FRIGGA_NAMESPACE
         }
 
         return loadBankAbsolute(absolute, key);
+    }
+
+    std::optional<BankAsset> AssetRegistry::ReloadBank(std::string_view relativePath)
+    {
+        const auto key      = normalizeRelativeKey(relativePath);
+        const auto absolute = ToAbsoluteResourcePath(key);
+        if(!std::filesystem::is_regular_file(absolute))
+        {
+            if(mLogger)
+            {
+                mLogger->LogError("Bank resource not found: {}", absolute.string());
+            }
+            return std::nullopt;
+        }
+
+        BankAsset asset{.assetId      = assetIdFor(key, "audio-bank"),
+                        .relativePath = key,
+                        .label        = std::filesystem::path(key).filename().string()};
+
+        std::string parseError;
+        if(!LoadAudioBankFile(absolute, asset.definition, &parseError))
+        {
+            if(mLogger)
+            {
+                mLogger->LogError("Failed to read audio bank '{}': {}", absolute.string(),
+                                  parseError);
+            }
+            return std::nullopt;
+        }
+
+        if(mAudioEngine != nullptr)
+        {
+            // Force a re-parse: LoadBank short-circuits on an already-loaded key.
+            (void)mAudioEngine->UnloadBank(absolute);
+            if(!mAudioEngine->IsInitialized())
+            {
+                (void)mAudioEngine->Initialize();
+            }
+            std::vector<std::string> events;
+            if(!mAudioEngine->LoadBank(absolute, events))
+            {
+                if(mLogger)
+                {
+                    mLogger->LogError("Failed to load audio bank '{}'", absolute.string());
+                }
+                return std::nullopt;
+            }
+            asset.eventPaths = std::move(events);
+        }
+
+        if(const auto it = mBankIndexByPath.find(key); it != mBankIndexByPath.end())
+        {
+            mBanks[it->second] = std::move(asset);
+        }
+        else
+        {
+            mBankIndexByPath.emplace(key, mBanks.size());
+            mBanks.push_back(std::move(asset));
+        }
+        mEventPathsDirty = true;
+
+        if(mLogger)
+        {
+            const auto &stored = mBanks[mBankIndexByPath.at(key)];
+            mLogger->LogInformation("Reloaded bank '{}' ({} events)", key,
+                                    stored.eventPaths.size());
+        }
+        return mBanks[mBankIndexByPath.at(key)];
+    }
+
+    bool AssetRegistry::SaveBank(std::string_view relativePath, const AudioBankDefinition &definition,
+                                 std::string *error)
+    {
+        const auto key = normalizeRelativeKey(relativePath);
+        if(key.empty() || !IsBankFilename(key))
+        {
+            if(error)
+            {
+                *error = "Bank path must end with .audiobank.json: " + key;
+            }
+            return false;
+        }
+
+        if(!SaveAudioBankFile(ToAbsoluteResourcePath(key), definition, error))
+        {
+            return false;
+        }
+
+        if(!ReloadBank(key))
+        {
+            if(error)
+            {
+                *error = "Saved bank but failed to reload it: " + key;
+            }
+            return false;
+        }
+        return true;
+    }
+
+    std::vector<std::filesystem::path> AssetRegistry::DiscoverBankFiles()
+    {
+        std::vector<std::filesystem::path> banks;
+        const auto bankDir = ResourcesRoot() / "Audio" / "Banks";
+        std::error_code ec;
+        if(!std::filesystem::is_directory(bankDir, ec))
+        {
+            return banks;
+        }
+
+        for(const auto &entry : std::filesystem::directory_iterator(bankDir, ec))
+        {
+            if(ec)
+            {
+                break;
+            }
+            if(!entry.is_regular_file(ec))
+            {
+                continue;
+            }
+            const auto filename = entry.path().filename().string();
+            if(!IsBankFilename(filename))
+            {
+                continue;
+            }
+            banks.push_back(std::filesystem::path("Audio") / "Banks" / filename);
+        }
+
+        std::ranges::sort(banks);
+        return banks;
     }
 
     std::optional<AudioClipAsset> AssetRegistry::ImportAudioClip(

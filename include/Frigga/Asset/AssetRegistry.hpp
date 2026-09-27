@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Frigga/Audio/AudioBankDefinition.hpp"
 #include "Frigga/Audio/AudioTypes.hpp"
 #include "Frigga/Animation/ClipEventSidecar.hpp"
 #include "Frigga/Asset/AssetManifest.hpp"
@@ -75,6 +76,10 @@ namespace FRIGGA_NAMESPACE
         std::string relativePath;
         std::string label;
         std::vector<std::string> eventPaths;
+        /// Raw authored file contents, kept for the bank editor. `eventPaths`
+        /// lists only events the engine accepted (existing clips); `definition`
+        /// mirrors the file, including events whose clip is missing.
+        AudioBankDefinition definition;
     };
 
     struct AudioClipAsset
@@ -148,6 +153,17 @@ namespace FRIGGA_NAMESPACE
 
         [[nodiscard]] std::optional<BankAsset> ImportBank(const std::filesystem::path &sourcePath);
         [[nodiscard]] std::optional<BankAsset> LoadBank(const std::filesystem::path &relativePath);
+        /// Re-read a bank file from disk (unloading and reloading it in the audio
+        /// engine) and refresh the catalog in place. Use after editing a bank.
+        [[nodiscard]] std::optional<BankAsset> ReloadBank(std::string_view relativePath);
+        /// Write @p definition to `Resources/<relativePath>` and reload it. Creates
+        /// the file and parent directory when missing. Returns false with `*error`.
+        [[nodiscard]] bool SaveBank(std::string_view relativePath,
+                                    const AudioBankDefinition &definition,
+                                    std::string *error = nullptr);
+        /// Bank files (`Audio/Banks/*.audiobank.json`) present on disk, sorted,
+        /// relative to Resources/. Includes files not yet loaded in the catalog.
+        [[nodiscard]] static std::vector<std::filesystem::path> DiscoverBankFiles();
         [[nodiscard]] std::optional<AudioClipAsset> ImportAudioClip(
             const std::filesystem::path &sourcePath);
         [[nodiscard]] std::optional<AudioClipAsset> LoadAudioClip(

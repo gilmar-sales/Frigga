@@ -1,38 +1,20 @@
 #include <Frigga/Audio/MiniaudioEngine.hpp>
 
 #include "Frigga/Asset/AssetRegistry.hpp"
+#include "Frigga/Audio/AudioBankIO.hpp"
 
 #define MINIAUDIO_IMPLEMENTATION
 #include "miniaudio.h"
-
-#define SIMDJSON_STATIC_REFLECTION 1
-#include <simdjson.h>
 
 #include <algorithm>
 #include <cmath>
 #include <fstream>
 #include <memory>
-#include <sstream>
 
 namespace FRIGGA_NAMESPACE
 {
     namespace
     {
-        struct AudioBankEventDto
-        {
-            std::string          path;
-            std::string          clip;
-            std::optional<float> volume;
-            std::optional<float> pitch;
-            std::optional<bool>  loop;
-            std::optional<std::string> bus;
-        };
-
-        struct AudioBankDto
-        {
-            std::vector<AudioBankEventDto> events;
-        };
-
         glm::vec3 ForwardFromQuat(const glm::quat &rotation)
         {
             return rotation * glm::vec3(0.0f, 0.0f, -1.0f);
@@ -210,49 +192,46 @@ namespace FRIGGA_NAMESPACE
             return false;
         }
 
-        std::ostringstream buffer;
-        buffer << file.rdbuf();
-
-        AudioBankDto bank {};
-        const simdjson::padded_string padded(buffer.str());
-        if(const auto error = simdjson::from(padded).get(bank); error)
+        AudioBankDefinition bank;
+        std::string         parseError;
+        if(!LoadAudioBankFile(absolutePath, bank, &parseError))
         {
             if(mLogger)
             {
                 mLogger->LogError("Invalid audio bank JSON '{}': {}", absolutePath.string(),
-                                  simdjson::error_message(error));
+                                  parseError);
             }
             return false;
         }
 
         outEventPaths.clear();
-        for(const auto &eventDto : bank.events)
+        for(const auto &eventDef : bank.events)
         {
-            if(eventDto.path.empty() || eventDto.clip.empty())
+            if(eventDef.path.empty() || eventDef.clip.empty())
             {
                 continue;
             }
 
-            const auto clipAbsolute = AssetRegistry::ToAbsoluteResourcePath(eventDto.clip);
+            const auto clipAbsolute = AssetRegistry::ToAbsoluteResourcePath(eventDef.clip);
             if(!std::filesystem::is_regular_file(clipAbsolute))
             {
                 if(mLogger)
                 {
                     mLogger->LogWarning("Audio bank '{}' references missing clip '{}'",
-                                        absolutePath.string(), eventDto.clip);
+                                        absolutePath.string(), eventDef.clip);
                 }
                 continue;
             }
 
             EventDef def {
                 .clipAbsolute = clipAbsolute,
-                .volume       = eventDto.volume.value_or(1.0f),
-                .pitch        = eventDto.pitch.value_or(1.0f),
-                .loop         = eventDto.loop.value_or(false),
-                .bus          = eventDto.bus.value_or("bus:/SFX"),
+                .volume       = eventDef.volume,
+                .pitch        = eventDef.pitch,
+                .loop         = eventDef.loop,
+                .bus          = eventDef.bus,
             };
-            mEvents[eventDto.path] = def;
-            outEventPaths.push_back(eventDto.path);
+            mEvents[eventDef.path] = def;
+            outEventPaths.push_back(eventDef.path);
         }
 
         mBankEvents.emplace(key, outEventPaths);
