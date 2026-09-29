@@ -2,7 +2,18 @@ cmake_minimum_required(VERSION 3.29)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# CI release builds pass -DFRIGGA_VERSION=<tag without leading v>.
+if (${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_SOURCE_DIR})
+    find_program(FREYR_CCACHE_PROGRAM ccache)
+    if (FREYR_CCACHE_PROGRAM)
+        message(STATUS "Using ccache: ${FREYR_CCACHE_PROGRAM}")
+        set(CMAKE_C_COMPILER_LAUNCHER "${FREYR_CCACHE_PROGRAM}")
+        set(CMAKE_CXX_COMPILER_LAUNCHER "${FREYR_CCACHE_PROGRAM}")
+    else ()
+        message(STATUS "ccache not found; compiling without cache")
+    endif ()
+endif ()
+
+
 set(FRIGGA_VERSION "0.12.0" CACHE STRING "Frigga package version")
 set(FRIGGA_SDK_ABI_VERSION "1" CACHE STRING "Frigga gameplay SDK ABI version")
 project(Frigga LANGUAGES CXX VERSION ${FRIGGA_VERSION})
@@ -132,9 +143,19 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(miniaudio)
 
-# ccache: Assimp already publishes GLOBAL RULE_LAUNCH_COMPILE/LINK when it finds
-# ccache, and Freyr sets its own language launchers, so Frigga must not add
-# another CMAKE_CXX_COMPILER_LAUNCHER (it double-wraps compiles: ccache ccache).
+# ENet: reliable-UDP transport for the ECS networking layer
+# (NetworkServer/NetworkClient in src/Frigga/Network).
+FetchContent_Declare(
+        enet
+        GIT_REPOSITORY "https://github.com/lsalzman/enet.git"
+        GIT_TAG "v1.3.18"
+        GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(enet)
+# ENet's CMake does not publish its include dir; expose it so
+# <enet/enet.h> resolves for frigga and its consumers.
+target_include_directories(enet PUBLIC
+        $<BUILD_INTERFACE:${enet_SOURCE_DIR}/include>)
 
 # Headers needed to scaffold/build gameplay modules from a published Editor.
 file(REMOVE_RECURSE
@@ -180,6 +201,7 @@ target_link_libraries(frigga PUBLIC
         freyr::freyr
         imgui::imgui
         skirnir::skirnir
+        enet
         Jolt
         Vulkan::Vulkan
         SDL3::SDL3

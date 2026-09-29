@@ -26,12 +26,17 @@
 #include <Frigga/ECS/Components/WorldTransformComponent.hpp>
 #include <Frigga/ECS/Systems/AnimationSystem.hpp>
 #include <Frigga/ECS/Systems/AudioSystem.hpp>
+#include <Frigga/ECS/Systems/NetworkSystems.hpp>
 #include <Frigga/ECS/Systems/PhysicsSystem.hpp>
 #include <Frigga/ECS/Systems/RenderSystem.hpp>
 #include <Frigga/ECS/TransformPolicy.hpp>
 #include <Frigga/ECS/UserComponentRegistry.hpp>
 #include <Frigga/Input/Input.hpp>
 #include <Frigga/Module/GameplayModuleHost.hpp>
+#include <Frigga/Network/NetworkClient.hpp>
+#include <Frigga/Network/NetworkComponents.hpp>
+#include <Frigga/Network/NetworkController.hpp>
+#include <Frigga/Network/NetworkServer.hpp>
 #include <Frigga/Physics/IPhysicsWorld.hpp>
 #include <Frigga/Physics/JoltPhysicsWorld.hpp>
 #include <Frigga/Physics/Physics.hpp>
@@ -59,8 +64,15 @@ namespace FRIGGA_NAMESPACE
                     .WithComponent<AudioSourceComponent>()
                     .WithComponent<AudioListenerComponent>()
                     .WithComponent<PrefabComponent>()
+                    .WithComponent<NetworkIdentity>()
+                    .WithComponent<Replicated>()
+                    .WithComponent<NetworkOwner>()
                     .WithPipeline([](fr::PipelineBuilder &pipeline) {
-                        pipeline.WithName("Simulation").WithRate(60).WithSystem<PhysicsSystem>();
+                        pipeline.WithName("Simulation")
+                            .WithRate(60)
+                            .WithSystem<PhysicsSystem>()
+                            .WithSystem<NetworkServerSystem>()
+                            .WithSystem<NetworkClientSystem>();
                     })
                     .WithPipeline([](fr::PipelineBuilder &pipeline) {
                         pipeline.WithName("Main").WithSystem<AudioSystem>();
@@ -98,6 +110,9 @@ namespace FRIGGA_NAMESPACE
         services.AddSingleton<fg::Input>();
         services.AddSingleton<fg::UserComponentRegistry>();
         services.AddSingleton<fg::GameplayModuleHost>();
+        services.AddSingleton<fg::NetworkServer>();
+        services.AddSingleton<fg::NetworkClient>();
+        services.AddSingleton<fg::NetworkController>();
         services.AddScoped<fg::LayerStack>();
         services.AddSingleton<fg::GuiLayer>();
     }

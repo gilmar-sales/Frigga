@@ -78,7 +78,8 @@ namespace FRIGGA_NAMESPACE
     {
         return LabelEndsWith(label, "AnimationSystem") || LabelEndsWith(label, "RenderSystem") ||
                LabelEndsWith(label, "PhysicsSystem") || LabelEndsWith(label, "AudioSystem") ||
-               IsHierarchySystemLabel(label);
+               LabelEndsWith(label, "NetworkServerSystem") ||
+               LabelEndsWith(label, "NetworkClientSystem") || IsHierarchySystemLabel(label);
     }
 
     const char *EngineSystemBuiltinPipeline(std::string_view label)
