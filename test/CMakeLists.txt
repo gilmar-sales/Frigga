@@ -21,7 +21,7 @@ file(GLOB_RECURSE FRIGGA_TEST_SRC CONFIGURE_DEPENDS
         ${CMAKE_CURRENT_SOURCE_DIR}/*Spec.cpp
 )
 
-add_executable(frigga_tests
+add_executable(FriggaTests
         ${FRIGGA_TEST_SRC}
         EmptyApp.hpp
         ${CMAKE_SOURCE_DIR}/src/Editor/Project/ProjectFile.cpp
@@ -32,28 +32,28 @@ add_executable(frigga_tests
         ${CMAKE_SOURCE_DIR}/src/Runtime/RuntimeProject.cpp
 )
 
-target_compile_features(frigga_tests PRIVATE cxx_std_26)
-target_precompile_headers(frigga_tests PRIVATE "${CMAKE_SOURCE_DIR}/src/Frigga/pch.hpp")
-target_compile_definitions(frigga_tests PRIVATE
+target_compile_features(FriggaTests PRIVATE cxx_std_26)
+target_precompile_headers(FriggaTests PRIVATE "${CMAKE_SOURCE_DIR}/src/Frigga/pch.hpp")
+target_compile_definitions(FriggaTests PRIVATE
         FRIGGA_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
         FRIGGA_SOURCE_ROOT="${CMAKE_SOURCE_DIR}"
 )
 
-target_include_directories(frigga_tests PRIVATE
+target_include_directories(FriggaTests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_SOURCE_DIR}/src
         ${CMAKE_SOURCE_DIR}/src/Editor
         ${CMAKE_SOURCE_DIR}/src/Runtime
 )
 
-target_link_libraries(frigga_tests PRIVATE
+target_link_libraries(FriggaTests PRIVATE
         frigga::frigga
         GTest::gtest_main
 )
 
 if(UNIX AND NOT APPLE)
     # Gameplay modules leave Frigga symbols UND; host must export them for dlopen.
-    target_link_options(frigga_tests PRIVATE -Wl,--export-dynamic)
+    target_link_options(FriggaTests PRIVATE -Wl,--export-dynamic)
 
     add_library(prefab_module_probe SHARED PrefabModuleProbe.cpp)
     target_compile_features(prefab_module_probe PRIVATE cxx_std_26)
@@ -62,12 +62,12 @@ if(UNIX AND NOT APPLE)
     set_target_properties(prefab_module_probe PROPERTIES
             LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-    add_dependencies(frigga_tests prefab_module_probe Runtime)
-    target_compile_definitions(frigga_tests PRIVATE
+    add_dependencies(FriggaTests prefab_module_probe Runtime)
+    target_compile_definitions(FriggaTests PRIVATE
             FRIGGA_PREFAB_MODULE_PROBE="$<TARGET_FILE:prefab_module_probe>")
 endif()
 
-gtest_discover_tests(frigga_tests
+gtest_discover_tests(FriggaTests
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
         DISCOVERY_TIMEOUT 60
 )

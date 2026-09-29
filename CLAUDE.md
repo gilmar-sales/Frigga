@@ -19,18 +19,18 @@ GCC (`C:/mingw64/bin/g++.exe`), Ninja, Debug.
 
 ```bash
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug   # first configure is slow (FetchContent + shaders)
-cmake --build build                                      # targets: Frigga, Editor, Runtime, frigga_tests
-cmake --build build --target frigga_tests
+cmake --build build                                      # targets: Frigga, Editor, Runtime, FriggaTests
+cmake --build build --target FriggaTests
 ctest --test-dir build --output-on-failure
 ctest --test-dir build -R SceneSerializer --output-on-failure   # single test / suite (gtest_discover_tests)
-build/frigga_tests --gtest_filter='PrefabSpec.*'                # or run the binary directly
+build/FriggaTests --gtest_filter='PrefabSpec.*'                # or run the binary directly
 ```
 
 - Tests are GoogleTest `*Spec.cpp` files in `test/`, **listed explicitly** in
   `test/CMakeLists.txt` — add new specs there. Fixtures: `test/fixtures` (`FRIGGA_TEST_FIXTURES_DIR`).
   Tests run with the build dir as working directory.
 - Options: `FRIGGA_BUILD_TESTS` (default ON), `FRIGGA_ENABLE_SANITIZERS`, `FRIGGA_ENABLE_COVERAGE`,
-  `FRIGGA_BUILD_BENCHMARKS` (target `frigga_benchmarks`, source in `bench/`).
+  `FRIGGA_BUILD_BENCHMARKS` (target `FriggaBenchmarks`, source in `bench/`).
 - Run `Editor` / `Runtime` **from the build directory**: CMake copies `src/Editor/Resources` to
   `build/Resources` (engine pack: fonts, shaders, bundled modules, `ProjectTemplate/`).
 - Formatting: `.clang-format` (Microsoft base, 4-space, 100 cols, `SpaceBeforeParens: Never`,

@@ -1,13 +1,12 @@
 #pragma once
 
 #include <Frigga/Macro.hpp>
+#include <Frigga/Serialization/FormatVersionProject.hpp>
 
 #include <cstdint>
 
 namespace FRIGGA_NAMESPACE::FormatVersion
 {
-    inline constexpr std::uint32_t LegacyProject = 1;
-    inline constexpr std::uint32_t Project = 5;
     inline constexpr std::uint32_t Scene = 8;
     inline constexpr std::uint32_t Prefab = Scene;
     inline constexpr std::uint32_t Material = 1;

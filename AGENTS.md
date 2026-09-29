@@ -16,15 +16,15 @@ When touching Editor UI, also read `src/Editor/AGENTS.md` (font/DPI scale rules)
 
 ```bash
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug   # only if not configured yet
-cmake --build build                    # targets: frigga, Editor, Runtime, frigga_tests
+cmake --build build                    # targets: Frigga, Editor, Runtime, FriggaTests
 ctest --test-dir build --output-on-failure
 ctest --test-dir build -R SceneSerializer --output-on-failure   # one suite
-build/frigga_tests --gtest_filter='PrefabSpec.*'                # one test (.exe on Windows)
+build/FriggaTests --gtest_filter='PrefabSpec.*'                # one test (.exe on Windows)
 python3 tools/frigga-mcp/test_server.py                         # MCP bridge tests (stdlib unittest)
 python3 tools/docs-mcp/test_docs.py                            # docs MCP tests (stdlib, mocked network)
 ```
 
-- Before `ctest`, build **all** targets, not just `frigga_tests`: `RuntimeSmoke*` asserts that
+- Before `ctest`, build **all** targets, not just `FriggaTests`: `RuntimeSmoke*` asserts that
   `Runtime[.exe]`, `Resources/**/*.spv`, and `Sdk/FriggaSdkConfig.cmake` exist in the build dir.
 - `build/` is shared with CLion, which configures/builds in that same directory. **Before any
   `cmake` configure or `cmake --build` (and ideally before `ctest`), check for a competing

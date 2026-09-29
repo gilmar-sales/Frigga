@@ -1,4 +1,6 @@
 #include <Frigga/Scene/Scene.hpp>
+#include <Frigga/Asset/PrimitiveMeshFactory.hpp>
+#include <Frigga/ECS/UserComponentRegistry.hpp>
 
 #include "Frigga/ECS/Components/CameraComponent.hpp"
 #include "Frigga/ECS/Components/LightComponent.hpp"

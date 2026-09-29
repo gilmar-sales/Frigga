@@ -378,10 +378,10 @@ enable_testing()
 add_subdirectory(test)
 
 if (FRIGGA_BUILD_BENCHMARKS)
-    add_executable(frigga_benchmarks
+    add_executable(FriggaBenchmarks
             bench/AssetPipelineBenchmark.cpp)
-    target_compile_features(frigga_benchmarks PRIVATE cxx_std_26)
-    target_link_libraries(frigga_benchmarks PRIVATE frigga::frigga)
+    target_compile_features(FriggaBenchmarks PRIVATE cxx_std_26)
+    target_link_libraries(FriggaBenchmarks PRIVATE frigga::frigga)
 endif ()
 
 # --- Install / packaging ---------------------------------------------------

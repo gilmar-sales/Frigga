@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Frigga/Scene/Scene.hpp>
-#include <Frigga/Serialization/FormatVersions.hpp>
+#include <Frigga/Serialization/FormatVersionProject.hpp>
 
 #include <cctype>
 #include <cstdint>

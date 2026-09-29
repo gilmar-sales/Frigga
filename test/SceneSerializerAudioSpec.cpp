@@ -1,4 +1,6 @@
 #include "EmptyApp.hpp"
+#include <Frigga/Asset/PrimitiveMeshFactory.hpp>
+#include <Frigga/ECS/UserComponentRegistry.hpp>
 #include <Frigga/Asset/AssetRegistry.hpp>
 
 #include <Frigga/ECS/Components/AudioSourceComponent.hpp>

@@ -116,7 +116,7 @@ Targets:
 | `frigga`       | Engine library                                            |
 | `Editor`       | Editor executable                                         |
 | `Runtime`      | Standalone game runtime executable                        |
-| `frigga_tests` | GoogleTest suite (SceneSerializer round-trips / fixtures) |
+| `FriggaTests` | GoogleTest suite (SceneSerializer round-trips / fixtures) |
 | `Shaders`      | Freya SPIR-V compile (built as a Freya dependency)        |
 | `package`      | CPack archive (`cpack` / `ninja package`)                 |
 
@@ -133,9 +133,9 @@ Each gameplay project gets its own `Resources/` (Models, Textures, Prefabs, Font
 
 ```bash
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DFRIGGA_BUILD_TESTS=ON
-cmake --build build --target frigga_tests
+cmake --build build --target FriggaTests
 cd build && ctest --output-on-failure
-# or: ./frigga_tests
+# or: ./FriggaTests
 ```
 
 Disable with `-DFRIGGA_BUILD_TESTS=OFF`.

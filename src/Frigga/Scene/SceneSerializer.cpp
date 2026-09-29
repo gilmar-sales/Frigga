@@ -1,4 +1,5 @@
 #include <Frigga/Scene/SceneSerializer.hpp>
+#include <Frigga/Asset/PrimitiveMeshFactory.hpp>
 #include <Frigga/Asset/AssetRegistry.hpp>
 #include <Frigga/Asset/FreyaHandles.hpp>
 #include <Frigga/Serialization/FormatVersions.hpp>

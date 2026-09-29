@@ -142,7 +142,7 @@ jobs:
           cmake -S . -B build-sanitize -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
             -DFRIGGA_ENABLE_SANITIZERS=ON
-          cmake --build build-sanitize --target frigga_tests --parallel 2
+          cmake --build build-sanitize --target FriggaTests --parallel 2
           ctest --test-dir build-sanitize --output-on-failure
 
       - name: Coverage build
@@ -152,7 +152,7 @@ jobs:
           cmake -S . -B build-coverage -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
             -DFRIGGA_ENABLE_COVERAGE=ON
-          cmake --build build-coverage --target frigga_tests --parallel 2
+          cmake --build build-coverage --target FriggaTests --parallel 2
           ctest --test-dir build-coverage --output-on-failure
           gcovr --root . --object-directory build-coverage \
             --xml-pretty --output coverage.xml \
@@ -165,8 +165,8 @@ jobs:
           cmake -S . -B build-bench -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DFRIGGA_BUILD_BENCHMARKS=ON
-          cmake --build build-bench --target frigga_benchmarks --parallel 2
-          ./build-bench/frigga_benchmarks
+          cmake --build build-bench --target FriggaBenchmarks --parallel 2
+          ./build-bench/FriggaBenchmarks
 
       - name: Stage
         shell: bash

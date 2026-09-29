@@ -1,8 +1,6 @@
 #pragma once
 
 #include "Frigga/Asset/AssetFwd.hpp"
-#include "Frigga/Asset/PrimitiveMeshFactory.hpp"
-#include "Frigga/ECS/UserComponentRegistry.hpp"
 #include "Frigga/Scene/EditorCamera.hpp"
 
 #include <Freya/Core/Renderer.hpp>
@@ -18,6 +16,9 @@
 
 namespace FRIGGA_NAMESPACE
 {
+
+    class PrimitiveMeshFactory;
+    class UserComponentRegistry;
 
     class SceneSerializer;
 
