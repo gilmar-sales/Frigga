@@ -1,8 +1,10 @@
 #pragma once
 
-#include "Frigga/Asset/AssetRegistry.hpp"
+#include "Frigga/Asset/AssetFwd.hpp"
 #include "Frigga/ECS/Components/AnimatorComponent.hpp"
 
+#include <Freya/Config.hpp>
+#include <Freya/Asset/AnimationClip.hpp>
 #include <Freya/Asset/AnimGraph.hpp>
 #include <Freyr/Freyr.hpp>
 

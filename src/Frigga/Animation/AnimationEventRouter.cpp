@@ -1,4 +1,5 @@
 #include <Frigga/Animation/AnimationEventRouter.hpp>
+#include <Frigga/Asset/AssetRegistry.hpp>
 
 #include "Frigga/ECS/Components/AudioSourceComponent.hpp"
 

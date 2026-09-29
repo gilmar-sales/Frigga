@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Frigga/Physics/IPhysicsWorld.hpp"
+#include "Frigga/Physics/PhysicsFwd.hpp"
 #include "Frigga/Scene/SceneSimulationState.hpp"
 
 #include <Freyr/Freyr.hpp>

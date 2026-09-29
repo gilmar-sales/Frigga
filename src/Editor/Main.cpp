@@ -15,6 +15,7 @@
 #include "Preferences/EditorPreferences.hpp"
 #include "Preferences/PreferencesStore.hpp"
 #include "Project/ProjectSession.hpp"
+#include "Publish/PublishCli.hpp"
 #include "SelectionContext.hpp"
 #include "MaterialSelectionContext.hpp"
 #include "Workflows/AnimationWorkflow.hpp"
@@ -86,6 +87,12 @@ namespace
 
 int main(int argc, char *argv[])
 {
+    // Headless publish (CI): no window, no Freya/SDL, exits with the pipeline result.
+    if(publish::IsPublishCommand(argc, argv))
+    {
+        return publish::RunPublishCli(argc, argv);
+    }
+
     const char *crashFile = std::getenv("FRIGGA_CRASH_FILE");
     fg::CrashReporter::Install(crashFile != nullptr ? crashFile : "frigga-crash.log");
 
@@ -131,6 +138,10 @@ int main(int argc, char *argv[])
             [startupPreferences](skr::ServiceProvider &) { return startupPreferences; })
         .AddSingleton<SelectionContext>()
         .AddSingleton<MaterialSelectionContext>()
+        .AddSingleton<publish::IProcessRunner, publish::SystemProcessRunner>()
+        .AddSingleton<publish::IAssetService, publish::DefaultAssetService>()
+        .AddTransient<skr::Logger<publish::Pipeline>>()
+        .AddTransient<publish::PipelineFactory>()
         .AddSingleton<ProjectSession>()
         .AddTransient<skr::Logger<EditorMcpService>>()
         .AddTransient<HomeLayer>()

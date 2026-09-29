@@ -4,7 +4,7 @@
 #include "Editor/Preferences/EditorPreferences.hpp"
 #include "Editor/SelectionContext.hpp"
 #include "Frigga/Animation/AnimationController.hpp"
-#include "Frigga/Asset/AssetRegistry.hpp"
+#include "Frigga/Asset/AssetFwd.hpp"
 #include "Frigga/Scene/Scene.hpp"
 #include "Frigga/Scene/SceneSimulationState.hpp"
 #include "Workflow.hpp"

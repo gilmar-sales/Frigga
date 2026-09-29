@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Frigga/Asset/AssetRegistry.hpp"
+#include "Frigga/Asset/AssetFwd.hpp"
 #include "Frigga/Audio/AudioBankDefinition.hpp"
 #include "Frigga/Audio/AudioController.hpp"
 #include "Frigga/Audio/IAudioEngine.hpp"

@@ -2,7 +2,7 @@
 
 #include "../Project/ProjectSession.hpp"
 
-#include <Frigga/Asset/AssetRegistry.hpp>
+#include <Frigga/Asset/AssetFwd.hpp>
 #include <Frigga/Module/GameplayModuleHost.hpp>
 #include <Frigga/Scene/Scene.hpp>
 #include <Frigga/Scene/SceneSimulationState.hpp>

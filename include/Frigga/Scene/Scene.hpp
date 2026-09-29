@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Frigga/Asset/AssetRegistry.hpp"
+#include "Frigga/Asset/AssetFwd.hpp"
 #include "Frigga/Asset/PrimitiveMeshFactory.hpp"
 #include "Frigga/ECS/UserComponentRegistry.hpp"
 #include "Frigga/Scene/EditorCamera.hpp"

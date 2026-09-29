@@ -2,7 +2,7 @@
 
 #include "Editor/Panels/HierarchyLayer.hpp"
 #include "Editor/SelectionContext.hpp"
-#include "Frigga/Asset/AssetRegistry.hpp"
+#include "Frigga/Asset/AssetFwd.hpp"
 #include "Frigga/Audio/AudioController.hpp"
 #include "Frigga/Audio/IAudioEngine.hpp"
 #include "Frigga/Scene/SceneSimulationState.hpp"

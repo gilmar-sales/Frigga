@@ -1,4 +1,5 @@
 #include <Frigga/Animation/AnimGraphDefinition.hpp>
+#include <Frigga/Asset/AssetRegistry.hpp>
 
 #include <gtest/gtest.h>
 

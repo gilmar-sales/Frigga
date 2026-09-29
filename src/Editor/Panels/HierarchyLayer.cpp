@@ -1,4 +1,5 @@
 #include "HierarchyLayer.hpp"
+#include <Frigga/Asset/AssetRegistry.hpp>
 
 #include "Editor/BoostrapIconsFont.hpp"
 #include "Editor/DockLayout.hpp"

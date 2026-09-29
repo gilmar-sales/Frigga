@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Frigga/Asset/AssetRegistry.hpp"
+#include "Frigga/Asset/AssetFwd.hpp"
 #include "Frigga/Asset/FreyaHandles.hpp"
 
 #include <Freya/Freya.hpp>

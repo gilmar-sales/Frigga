@@ -26,10 +26,14 @@ add_executable(frigga_tests
         EmptyApp.hpp
         ${CMAKE_SOURCE_DIR}/src/Editor/Project/ProjectFile.cpp
         ${CMAKE_SOURCE_DIR}/src/Editor/Project/OpenCodeMcp.cpp
+        ${CMAKE_SOURCE_DIR}/src/Editor/Publish/AssetService.cpp
+        ${CMAKE_SOURCE_DIR}/src/Editor/Publish/ProcessRunner.cpp
+        ${CMAKE_SOURCE_DIR}/src/Editor/Publish/PublishPipeline.cpp
         ${CMAKE_SOURCE_DIR}/src/Runtime/RuntimeProject.cpp
 )
 
 target_compile_features(frigga_tests PRIVATE cxx_std_26)
+target_precompile_headers(frigga_tests PRIVATE "${CMAKE_SOURCE_DIR}/src/Frigga/pch.hpp")
 target_compile_definitions(frigga_tests PRIVATE
         FRIGGA_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
         FRIGGA_SOURCE_ROOT="${CMAKE_SOURCE_DIR}"

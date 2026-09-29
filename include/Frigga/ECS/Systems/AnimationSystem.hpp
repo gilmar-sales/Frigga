@@ -2,7 +2,7 @@
 
 #include "Frigga/Animation/AnimationController.hpp"
 #include "Frigga/Animation/AnimationEventRouter.hpp"
-#include "Frigga/Asset/AssetRegistry.hpp"
+#include "Frigga/Asset/AssetFwd.hpp"
 #include "Frigga/Scene/Scene.hpp"
 #include "Frigga/Scene/SceneSimulationState.hpp"
 

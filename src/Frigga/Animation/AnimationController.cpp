@@ -1,4 +1,5 @@
 #include <Frigga/Animation/AnimationController.hpp>
+#include <Frigga/Asset/AssetRegistry.hpp>
 
 #include "Frigga/Animation/AnimGraphDefinition.hpp"
 

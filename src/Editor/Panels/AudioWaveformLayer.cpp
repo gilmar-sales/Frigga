@@ -1,4 +1,5 @@
 #include "AudioWaveformLayer.hpp"
+#include <Frigga/Asset/AssetRegistry.hpp>
 
 #include "Editor/DockLayout.hpp"
 

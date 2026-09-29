@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Editor/MaterialSelectionContext.hpp"
-#include "Frigga/Asset/AssetRegistry.hpp"
+#include "Frigga/Asset/AssetFwd.hpp"
 #include "Frigga/Asset/PrimitiveMeshFactory.hpp"
 #include "Frigga/Scene/SceneSimulationState.hpp"
 

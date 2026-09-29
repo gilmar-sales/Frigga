@@ -1,4 +1,5 @@
 #include <Frigga/Scene/SceneSimulationState.hpp>
+#include <Frigga/Physics/IPhysicsWorld.hpp>
 
 #include "Frigga/Audio/AudioController.hpp"
 #include "Frigga/ECS/Components/MeshComponent.hpp"

@@ -7,6 +7,8 @@
 #include "ProjectFile.hpp"
 #include "ProjectMigrator.hpp"
 #include "ProjectScaffold.hpp"
+#include "../Publish/ProcessRunner.hpp"
+#include "../Publish/PublishPipeline.hpp"
 
 #include <Frigga/Asset/AssetCooker.hpp>
 #include <Frigga/Asset/AssetRegistry.hpp>
@@ -49,212 +51,14 @@ namespace
         return path.empty() ? std::filesystem::current_path() : path.parent_path();
     }
 
-    std::string EscapeJson(std::string_view value)
-    {
-        std::string out;
-        out.reserve(value.size() + 8);
-        for(const char ch: value)
-        {
-            switch(ch)
-            {
-            case '"':
-                out += "\\\"";
-                break;
-            case '\\':
-                out += "\\\\";
-                break;
-            case '\n':
-                out += "\\n";
-                break;
-            case '\r':
-                out += "\\r";
-                break;
-            case '\t':
-                out += "\\t";
-                break;
-            default:
-                out.push_back(ch);
-                break;
-            }
-        }
-        return out;
-    }
-
-    std::string FormatUtcTimestamp()
-    {
-        using clock    = std::chrono::system_clock;
-        const auto now = clock::now();
-        const auto tt  = clock::to_time_t(now);
-        std::tm tm{};
-#if defined(_WIN32)
-        gmtime_s(&tm, &tt);
-#else
-        gmtime_r(&tt, &tm);
-#endif
-        char buffer[32];
-        std::snprintf(buffer, sizeof(buffer), "%04d-%02d-%02dT%02d:%02d:%02dZ", tm.tm_year + 1900,
-                      tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
-        return buffer;
-    }
-
     bool LooksLikeFriggaRoot(const std::filesystem::path &path)
     {
         return LooksLikeFriggaEngineRoot(path);
     }
 
-    /// Parse Ninja-style "[12/74]" progress. Returns true when a fraction was found.
-    bool TryParseNinjaProgress(std::string_view line, float &outProgress)
+    std::string DiscoverCxxCompiler(const ProjectDescriptor &engine)
     {
-        const auto open = line.find('[');
-        if(open == std::string_view::npos)
-        {
-            return false;
-        }
-        const auto slash = line.find('/', open + 1);
-        if(slash == std::string_view::npos)
-        {
-            return false;
-        }
-        const auto close = line.find(']', slash + 1);
-        if(close == std::string_view::npos)
-        {
-            return false;
-        }
-
-        int current = 0;
-        int total   = 0;
-        try
-        {
-            current = std::stoi(std::string(line.substr(open + 1, slash - open - 1)));
-            total   = std::stoi(std::string(line.substr(slash + 1, close - slash - 1)));
-        }
-        catch(...)
-        {
-            return false;
-        }
-
-        if(total <= 0)
-        {
-            return false;
-        }
-        outProgress = static_cast<float>(current) / static_cast<float>(total);
-        return true;
-    }
-
-    int RunShellCapturing(const std::string &command,
-                          const std::function<void(std::string_view)> &onLine)
-    {
-        const std::string wrapped = command + " 2>&1";
-#ifdef _WIN32
-        FILE *pipe = _popen(wrapped.c_str(), "r");
-#else
-        FILE *pipe = popen(wrapped.c_str(), "r");
-#endif
-        if(!pipe)
-        {
-            return -1;
-        }
-
-        std::array<char, 512> buffer{};
-        while(fgets(buffer.data(), static_cast<int>(buffer.size()), pipe) != nullptr)
-        {
-            onLine(buffer.data());
-        }
-
-#ifdef _WIN32
-        return _pclose(pipe);
-#else
-        const int status = pclose(pipe);
-        if(status == -1)
-        {
-            return -1;
-        }
-        if(WIFEXITED(status))
-        {
-            return WEXITSTATUS(status);
-        }
-        return -1;
-#endif
-    }
-
-    /// Prefer the same C++ compiler the Frigga Editor was built with.
-    std::string ReadCMakeCacheValue(const std::filesystem::path &cacheFile, std::string_view key)
-    {
-        if(!std::filesystem::exists(cacheFile))
-        {
-            return {};
-        }
-        std::ifstream file(cacheFile);
-        std::string line;
-        const std::string prefix = std::string(key) + ":";
-        while(std::getline(file, line))
-        {
-            if(line.rfind(prefix, 0) != 0)
-            {
-                continue;
-            }
-            const auto eq = line.find('=');
-            if(eq == std::string::npos)
-            {
-                continue;
-            }
-            return line.substr(eq + 1);
-        }
-        return {};
-    }
-
-    std::filesystem::path FirstExistingCMakeCache(std::initializer_list<std::filesystem::path> dirs)
-    {
-        for(const auto &dir: dirs)
-        {
-            if(dir.empty())
-            {
-                continue;
-            }
-            const auto cache = dir / "CMakeCache.txt";
-            if(std::filesystem::exists(cache))
-            {
-                return cache;
-            }
-        }
-        return {};
-    }
-
-    std::string ReadTextFile(const std::filesystem::path &path)
-    {
-        std::ifstream file(path, std::ios::binary);
-        if(!file)
-        {
-            return {};
-        }
-        std::ostringstream contents;
-        contents << file.rdbuf();
-        return contents.str();
-    }
-
-    std::string ReleaseBuildSignature(const std::filesystem::path &projectRoot,
-                                      const std::filesystem::path &sdk, const std::string &compiler)
-    {
-#if defined(_WIN32)
-        constexpr std::string_view platform = "windows";
-#elif defined(__APPLE__)
-        constexpr std::string_view platform = "macos";
-#else
-        constexpr std::string_view platform = "linux";
-#endif
-        const auto manifest  = ReadTextFile(projectRoot / ProjectFile::FileName);
-        const auto cmake     = ReadTextFile(projectRoot / "CMakeLists.txt");
-        const auto sdkConfig = ReadTextFile(sdk / "FriggaSdkConfig.cmake");
-        std::ostringstream signature;
-        signature << "schema=2\n";
-        signature << "configuration=Release\n";
-        signature << "platform=" << platform << '\n';
-        signature << "compiler=" << compiler << '\n';
-        signature << "sdk=" << sdk.lexically_normal().generic_string() << '\n';
-        signature << "sdkConfigHash=" << std::hash<std::string>{}(sdkConfig) << '\n';
-        signature << "manifestHash=" << std::hash<std::string>{}(manifest) << '\n';
-        signature << "cmakeHash=" << std::hash<std::string>{}(cmake) << '\n';
-        return signature.str();
+        return publish::DiscoverCxxCompiler(engine, ExecutableDirectory());
     }
 
     /// Hash of everything the module configure command depends on. When the
@@ -265,78 +69,18 @@ namespace
                                          const std::string &compiler, const std::string &buildType,
                                          bool linkGame)
     {
-        const auto manifest  = ReadTextFile(projectRoot / ProjectFile::FileName);
-        const auto cmake     = ReadTextFile(projectRoot / "CMakeLists.txt");
-        const auto sdkConfig = ReadTextFile(sdk / "FriggaSdkConfig.cmake");
+        const auto manifest  = publish::ReadTextFile(projectRoot / ProjectFile::FileName);
+        const auto cmake     = publish::ReadTextFile(projectRoot / "CMakeLists.txt");
+        const auto sdkConfig = publish::ReadTextFile(sdk / "FriggaSdkConfig.cmake");
         std::ostringstream signature;
         signature << "buildType=" << buildType << '\n';
         signature << "linkGame=" << (linkGame ? "1" : "0") << '\n';
         signature << "compiler=" << compiler << '\n';
         signature << "sdk=" << sdk.lexically_normal().generic_string() << '\n';
-        signature << "sdkConfigHash=" << std::hash<std::string>{}(sdkConfig) << '\n';
-        signature << "manifestHash=" << std::hash<std::string>{}(manifest) << '\n';
-        signature << "cmakeHash=" << std::hash<std::string>{}(cmake) << '\n';
+        signature << "sdkConfigHash=" << publish::Fnv1a64Hex(sdkConfig) << '\n';
+        signature << "manifestHash=" << publish::Fnv1a64Hex(manifest) << '\n';
+        signature << "cmakeHash=" << publish::Fnv1a64Hex(cmake) << '\n';
         return signature.str();
-    }
-
-    std::string PublishedModuleLibrary(std::string_view target)
-    {
-#if defined(_WIN32)
-        return "Modules/" + std::string(target) + ".dll";
-#elif defined(__APPLE__)
-        return "Modules/lib" + std::string(target) + ".dylib";
-#else
-        return "Modules/lib" + std::string(target) + ".so";
-#endif
-    }
-
-    bool PrepareReleaseBuild(const std::filesystem::path &buildDir, const std::string &signature,
-                             std::string &error)
-    {
-        const auto marker = buildDir / ".frigga-release-config";
-        if(std::filesystem::exists(buildDir) && std::filesystem::exists(marker) &&
-           ReadTextFile(marker) != signature)
-        {
-            std::error_code ec;
-            std::filesystem::remove_all(buildDir, ec);
-            if(ec)
-            {
-                error = "Unable to reset incompatible Release build: " + ec.message();
-                return false;
-            }
-        }
-        else if(std::filesystem::exists(buildDir) && !std::filesystem::exists(marker))
-        {
-            std::error_code ec;
-            std::filesystem::remove_all(buildDir, ec);
-            if(ec)
-            {
-                error = "Unable to reset untracked Release build: " + ec.message();
-                return false;
-            }
-        }
-
-        std::error_code ec;
-        std::filesystem::create_directories(buildDir, ec);
-        if(ec)
-        {
-            error = "Unable to create Release build directory: " + ec.message();
-            return false;
-        }
-        return true;
-    }
-
-    bool WriteReleaseBuildMarker(const std::filesystem::path &buildDir,
-                                 const std::string &signature)
-    {
-        std::ofstream marker(buildDir / ".frigga-release-config",
-                             std::ios::binary | std::ios::trunc);
-        if(!marker)
-        {
-            return false;
-        }
-        marker << signature;
-        return static_cast<bool>(marker);
     }
 } // namespace
 
@@ -347,11 +91,16 @@ ProjectSession::ProjectSession(skr::Arc<fg::Scene> scene,
                                skr::Arc<fr::Registry> registry,
                                skr::Arc<EditorPreferences> preferences,
                                skr::Arc<fra::Window> window,
-                               skr::Arc<skr::Logger<ProjectSession>> logger)
+                               skr::Arc<skr::Logger<ProjectSession>> logger,
+                               skr::Arc<publish::IProcessRunner> processRunner,
+                               skr::Arc<publish::IAssetService> assetService,
+                               skr::Arc<publish::PipelineFactory> pipelineFactory)
     : mScene(std::move(scene)), mModuleHost(std::move(moduleHost)),
       mSimulation(std::move(simulation)), mInput(std::move(input)), mAssets(std::move(assets)),
       mRegistry(std::move(registry)), mPreferences(std::move(preferences)),
-      mWindow(std::move(window)), mLogger(std::move(logger))
+      mWindow(std::move(window)), mLogger(std::move(logger)),
+      mProcessRunner(std::move(processRunner)), mAssetService(std::move(assetService)),
+      mPipelineFactory(std::move(pipelineFactory))
 {
 }
 
@@ -461,17 +210,22 @@ std::vector<EditorBackgroundTask> ProjectSession::GetBackgroundTasks() const
                             mLastOperationWasPublish.load(std::memory_order_acquire);
     const char *title     = publishing ? "Publish game" : "Build gameplay module";
     task.id               = publishing ? "game-publish" : "gameplay-module-build";
+    const auto publishStageLabel = [this](const char *fallback) {
+        std::lock_guard lock(mMutex);
+        return mPublishStageLabel.empty() ? std::string(fallback) : mPublishStageLabel;
+    };
 
     switch(phase)
     {
     case ModuleBuildPhase::Configuring:
         task.title  = title;
-        task.detail = "Configuring (CMake)…";
+        task.detail = publishing ? publishStageLabel("Configuring (CMake)…")
+                                 : "Configuring (CMake)…";
         task.state  = EditorBackgroundTaskState::Running;
         break;
     case ModuleBuildPhase::Building:
         task.title  = title;
-        task.detail = "Compiling…";
+        task.detail = publishing ? publishStageLabel("Compiling…") : "Compiling…";
         task.state  = EditorBackgroundTaskState::Running;
         break;
     case ModuleBuildPhase::Reloading:
@@ -485,7 +239,7 @@ std::vector<EditorBackgroundTask> ProjectSession::GetBackgroundTasks() const
         task.state  = EditorBackgroundTaskState::Succeeded;
         break;
     case ModuleBuildPhase::Failed:
-        task.title  = "Build gameplay module";
+        task.title  = title;
         task.detail = GetLastError().empty() ? "Failed" : GetLastError();
         task.state  = EditorBackgroundTaskState::Failed;
         break;
@@ -542,11 +296,11 @@ void ProjectSession::writeEditorSessionMarker()
     std::ostringstream json;
     json << "{\n";
     json << "  \"pid\": " << pid << ",\n";
-    json << "  \"editorPath\": \"" << EscapeJson(editorPath.generic_string()) << "\",\n";
-    json << "  \"soSearchPath\": \"" << EscapeJson(soSearch.generic_string()) << "\",\n";
-    json << "  \"moduleLibrary\": \"" << EscapeJson(moduleLib.generic_string()) << "\",\n";
-    json << "  \"projectRoot\": \"" << EscapeJson(projectRoot.generic_string()) << "\",\n";
-    json << "  \"updatedAt\": \"" << FormatUtcTimestamp() << "\"\n";
+    json << "  \"editorPath\": \"" << publish::EscapeJson(editorPath.generic_string()) << "\",\n";
+    json << "  \"soSearchPath\": \"" << publish::EscapeJson(soSearch.generic_string()) << "\",\n";
+    json << "  \"moduleLibrary\": \"" << publish::EscapeJson(moduleLib.generic_string()) << "\",\n";
+    json << "  \"projectRoot\": \"" << publish::EscapeJson(projectRoot.generic_string()) << "\",\n";
+    json << "  \"updatedAt\": \"" << publish::FormatUtcTimestamp() << "\"\n";
     json << "}\n";
 
     std::ofstream file(markerPath, std::ios::binary | std::ios::trunc);
@@ -586,9 +340,16 @@ void ProjectSession::Poll()
     {
         mBuildPhase.store(ModuleBuildPhase::Failed, std::memory_order_release);
         std::lock_guard lock(mMutex);
-        mLastError =
-            (wasPublishing ? "Game publication failed (exit " : "Module build failed (exit ") +
-            std::to_string(exitCode) + ")";
+        if(wasPublishing && !mPublishError.empty())
+        {
+            mLastError = "Game publication failed: " + mPublishError;
+        }
+        else
+        {
+            mLastError =
+                (wasPublishing ? "Game publication failed (exit " : "Module build failed (exit ") +
+                std::to_string(exitCode) + ")";
+        }
         mStatusMessage = mLastError;
         mLogger->LogError("{}", mLastError);
         return;
@@ -1374,13 +1135,17 @@ bool ProjectSession::BuildModule(std::string cmakeTarget)
 
     mLogger->LogInformation("Starting async module build for {} target={}", root.string(),
                             cmakeTarget.empty() ? "(all)" : cmakeTarget);
-    mBuildThread = std::thread([this, root, buildDir, cmakeTarget = std::move(cmakeTarget)]() {
-        runBuildJob(root, buildDir, cmakeTarget);
+    // Resolve host engine paths on the caller thread: the job only sees a copy.
+    applyLocalEnginePaths(mDescriptor);
+    mBuildThread = std::thread([this, root, buildDir, cmakeTarget = std::move(cmakeTarget),
+                                engine = mDescriptor]() {
+        runBuildJob(root, buildDir, cmakeTarget, engine);
     });
     return true;
 }
 
-bool ProjectSession::PublishGame(const std::filesystem::path &destination)
+bool ProjectSession::PublishGame(const std::filesystem::path &destination, publish::Profile profile,
+                                 bool cleanDestination)
 {
     if(IsBuilding())
     {
@@ -1401,89 +1166,120 @@ bool ProjectSession::PublishGame(const std::filesystem::path &destination)
         return false;
     }
 
-    std::error_code ec;
-    if(std::filesystem::exists(destination, ec) && !std::filesystem::is_empty(destination, ec))
-    {
-        std::lock_guard lock(mMutex);
-        mLastError = "Publication destination must be empty: " + destination.string();
-        return false;
-    }
-    std::filesystem::create_directories(destination, ec);
-    if(ec)
-    {
-        std::lock_guard lock(mMutex);
-        mLastError = "Unable to create publication destination: " + ec.message();
-        return false;
-    }
-
     joinBuildThread();
-    const auto root     = mProjectFile->parent_path();
-    const auto buildDir = root / "build-release";
+
+    // Resolve host engine paths here, on the caller thread: the job only sees a copy.
+    applyLocalEnginePaths(mDescriptor);
+    publish::Options options;
+    options.projectRoot      = mProjectFile->parent_path();
+    options.destination      = destination;
+    options.profile          = profile;
+    options.cleanDestination = cleanDestination;
+    options.descriptor       = mDescriptor;
+    options.cxxCompiler      = DiscoverCxxCompiler(mDescriptor);
+
     mPublishDestination = destination;
     mPublishing.store(true, std::memory_order_release);
     mReloadAfterBuild = false;
     mBuildFinished.store(false, std::memory_order_release);
     mBuildExitCode.store(0, std::memory_order_release);
     mBuildPhase.store(ModuleBuildPhase::Configuring, std::memory_order_release);
-    mBuildProgress.store(0.05f, std::memory_order_release);
+    mBuildProgress.store(0.0f, std::memory_order_release);
     mBuildProgressDeterminate.store(false, std::memory_order_release);
     mBuildRunning.store(true, std::memory_order_release);
     {
         std::lock_guard lock(mMutex);
         mLastError.clear();
+        mPublishError.clear();
         mBuildLogTail.clear();
-        mStatusMessage = "Publishing game…";
+        mPublishStageLabel = std::string(publish::StageLabel(publish::Stage::Validate));
+        mStatusMessage     = "Publishing game…";
     }
 
-    mBuildThread = std::thread([this, root, buildDir, destination]() {
-        runBuildJob(root, buildDir, {}, true, destination);
+    mLogger->LogInformation("Publishing {} ({}) to {}", options.projectRoot.string(),
+                            publish::ToString(profile), destination.string());
+    if(!mPipelineFactory)
+    {
+        std::lock_guard lock(mMutex);
+        mLastError     = "Publish pipeline factory not injected (Skirnir wiring missing)";
+        mStatusMessage = mLastError;
+        mLogger->LogError("{}", mLastError);
+        mBuildRunning.store(false, std::memory_order_release);
+        mBuildFinished.store(true, std::memory_order_release);
+        mBuildExitCode.store(1, std::memory_order_release);
+        mBuildPhase.store(ModuleBuildPhase::Failed, std::memory_order_release);
+        mPublishing.store(false, std::memory_order_release);
+        return false;
+    }
+    mBuildThread = std::thread([this, options = std::move(options)]() mutable {
+        publish::Observer observer;
+        observer.onLog      = [this](std::string_view line) { appendBuildLog(line); };
+        observer.onProgress = [this](publish::Stage stage, float progress, bool determinate) {
+            const bool early = stage == publish::Stage::Validate ||
+                               stage == publish::Stage::Configure;
+            mBuildPhase.store(early ? ModuleBuildPhase::Configuring : ModuleBuildPhase::Building,
+                              std::memory_order_release);
+            mBuildProgress.store(progress, std::memory_order_release);
+            mBuildProgressDeterminate.store(determinate, std::memory_order_release);
+            std::lock_guard lock(mMutex);
+            mPublishStageLabel = std::string(publish::StageLabel(stage));
+        };
+
+        publish::Pipeline pipeline = mPipelineFactory->Create(std::move(options), std::move(observer));
+        const auto report          = pipeline.Run();
+        if(!report.ok)
+        {
+            std::lock_guard lock(mMutex);
+            mPublishError = report.error;
+            const std::string stage =
+                report.failedStage ? std::string(publish::ToString(*report.failedStage)) : "?";
+            mLogger->LogError("Publish failed at stage {}: {}", stage, report.error);
+        }
+        else
+        {
+            mLogger->LogInformation("Publish finished -> {} ({} files)",
+                                    report.destination.string(), report.files.size());
+        }
+        mBuildExitCode.store(report.ok ? 0 : report.exitCode, std::memory_order_release);
+        mBuildRunning.store(false, std::memory_order_release);
+        mBuildFinished.store(true, std::memory_order_release);
     });
     return true;
 }
 
-void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::path buildDir,
-                                 std::string cmakeTarget, bool publish,
-                                 std::filesystem::path publishDestination)
+void ProjectSession::appendBuildLog(std::string_view line)
 {
-    const auto appendLog = [this](std::string_view line) {
-        std::lock_guard lock(mMutex);
-        mBuildLogTail.append(line);
-        constexpr std::size_t kMaxTail = 4000;
-        if(mBuildLogTail.size() > kMaxTail)
-        {
-            mBuildLogTail.erase(0, mBuildLogTail.size() - kMaxTail);
-        }
+    std::lock_guard lock(mMutex);
+    mBuildLogTail.append(line);
+    constexpr std::size_t kMaxTail = 4000;
+    if(mBuildLogTail.size() > kMaxTail)
+    {
+        mBuildLogTail.erase(0, mBuildLogTail.size() - kMaxTail);
+    }
+}
+
+void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::path buildDir,
+                                 std::string cmakeTarget, ProjectDescriptor engine)
+{
+    const auto appendLog = [this](std::string_view line) { appendBuildLog(line); };
+    const auto finish    = [this](int code) {
+        mBuildExitCode.store(code, std::memory_order_release);
+        mBuildRunning.store(false, std::memory_order_release);
+        mBuildFinished.store(true, std::memory_order_release);
     };
 
-    ProjectDescriptor engine = mDescriptor;
-    applyLocalEnginePaths(engine);
-    mDescriptor = engine;
-
-    const auto cachePath   = FirstExistingCMakeCache({
-        engine.friggaBuild,
-        engine.friggaSdk,
-        engine.friggaBuild.parent_path(),
-        engine.friggaSdk.parent_path(),
-        ExecutableDirectory(),
-    });
-    const auto cxxCompiler = ReadCMakeCacheValue(cachePath, "CMAKE_CXX_COMPILER");
-    std::string releaseSignature;
-    if(publish)
+    if(!mProcessRunner)
     {
-        releaseSignature = ReleaseBuildSignature(root, engine.friggaSdk, cxxCompiler);
-        std::string releaseError;
-        if(!PrepareReleaseBuild(buildDir, releaseSignature, releaseError))
-        {
-            appendLog(releaseError);
-            mBuildExitCode.store(1, std::memory_order_release);
-            mBuildRunning.store(false, std::memory_order_release);
-            mBuildFinished.store(true, std::memory_order_release);
-            return;
-        }
+        appendLog("Process runner not injected (Skirnir wiring missing)\n");
+        mLogger->LogError("Module build failed: process runner not injected");
+        finish(1);
+        return;
     }
+    auto &runner            = *mProcessRunner;
+    const auto cxxCompiler = DiscoverCxxCompiler(engine);
 
-    auto appendCachePath = [](std::string &cmd, const char *name,
-                              const std::filesystem::path &path) {
+    const auto appendCachePath = [](std::string &cmd, const char *name,
+                                    const std::filesystem::path &path) {
         if(path.empty())
         {
             return;
@@ -1495,13 +1291,12 @@ void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::pa
         cmd += "\"";
     };
 
-    const char *buildType    = publish ? "Release" : "Debug";
     std::string configureCmd = "cmake -S \"" + root.string() + "\" -B \"" + buildDir.string() +
-                               "\" -G Ninja -DCMAKE_BUILD_TYPE=" + buildType +
+                               "\" -G Ninja -DCMAKE_BUILD_TYPE=Debug"
                                " -DCMAKE_CXX_STANDARD=26"
                                " -DCMAKE_CXX_STANDARD_REQUIRED=ON"
-                               " -DCMAKE_CXX_EXTENSIONS=ON";
-    configureCmd += publish ? " -DFRIGGA_MODULES_LINK_GAME=ON" : " -DFRIGGA_MODULES_LINK_GAME=OFF";
+                               " -DCMAKE_CXX_EXTENSIONS=ON"
+                               " -DFRIGGA_MODULES_LINK_GAME=OFF";
     // Always pass SDK paths so CMakeCache is overwritten on host/OS switches.
     appendCachePath(configureCmd, "FRIGGA_SDK", engine.friggaSdk);
     appendCachePath(configureCmd, "FRIGGA_BUILD", engine.friggaBuild);
@@ -1518,23 +1313,20 @@ void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::pa
     // iterative case. The marker is rewritten after every successful configure.
     const auto configureMarker = buildDir / ".frigga-configure-sig";
     const std::string configureSignature =
-        ModuleConfigureSignature(root, engine.friggaSdk, cxxCompiler, buildType, publish);
-    const bool configureFresh = !publish && std::filesystem::exists(buildDir / "CMakeCache.txt") &&
+        ModuleConfigureSignature(root, engine.friggaSdk, cxxCompiler, "Debug", false);
+    const bool configureFresh = std::filesystem::exists(buildDir / "CMakeCache.txt") &&
                                 std::filesystem::exists(configureMarker) &&
-                                ReadTextFile(configureMarker) == configureSignature;
+                                publish::ReadTextFile(configureMarker) == configureSignature;
     if(configureFresh)
     {
         appendLog("CMake configure up to date, skipping.\n");
     }
     else
     {
-        const int configureCode =
-            RunShellCapturing(configureCmd, [&](std::string_view line) { appendLog(line); });
+        const int configureCode = runner.Run(configureCmd, appendLog);
         if(configureCode != 0)
         {
-            mBuildExitCode.store(configureCode, std::memory_order_release);
-            mBuildRunning.store(false, std::memory_order_release);
-            mBuildFinished.store(true, std::memory_order_release);
+            finish(configureCode);
             return;
         }
         std::ofstream marker(configureMarker, std::ios::binary | std::ios::trunc);
@@ -1542,14 +1334,6 @@ void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::pa
         {
             marker << configureSignature;
         }
-    }
-    if(publish && !WriteReleaseBuildMarker(buildDir, releaseSignature))
-    {
-        appendLog("Unable to write Release build configuration marker");
-        mBuildExitCode.store(1, std::memory_order_release);
-        mBuildRunning.store(false, std::memory_order_release);
-        mBuildFinished.store(true, std::memory_order_release);
-        return;
     }
 
     auto buildCmd = "cmake --build \"" + buildDir.string() + "\" --parallel";
@@ -1561,132 +1345,23 @@ void ProjectSession::runBuildJob(std::filesystem::path root, std::filesystem::pa
     mBuildProgress.store(0.15f, std::memory_order_release);
     mBuildProgressDeterminate.store(false, std::memory_order_release);
 
-    int buildCode = RunShellCapturing(buildCmd, [&](std::string_view line) {
+    const int buildCode = runner.Run(buildCmd, [&](std::string_view line) {
         appendLog(line);
         float fraction = 0.0f;
-        if(TryParseNinjaProgress(line, fraction))
+        if(publish::TryParseNinjaProgress(line, fraction))
         {
             // Map build stage into 0.15 .. 0.9
-            const float mapped = 0.15f + fraction * 0.75f;
-            mBuildProgress.store(mapped, std::memory_order_release);
+            mBuildProgress.store(0.15f + fraction * 0.75f, std::memory_order_release);
             mBuildProgressDeterminate.store(true, std::memory_order_release);
         }
     });
 
-    if(buildCode == 0 && publish)
-    {
-        const auto staging = root / ".frigga" / "publish-staging";
-        std::error_code ec;
-        std::filesystem::remove_all(staging, ec);
-        std::filesystem::create_directories(staging, ec);
-        if(ec)
-        {
-            appendLog("Unable to create publication staging directory: " + ec.message());
-            buildCode = 1;
-        }
-        else
-        {
-            const auto installCmd = "cmake --install \"" + buildDir.string() + "\" --prefix \"" +
-                                    staging.string() + "\"";
-            buildCode =
-                RunShellCapturing(installCmd, [&](std::string_view line) { appendLog(line); });
-        }
-
-        if(buildCode == 0)
-        {
-            const auto projectResources = root / ProjectDescriptor::ResourcesDirName;
-            if(std::filesystem::exists(projectResources))
-            {
-                const auto cookedRoot = staging / ".frigga-cooked-resources";
-                const auto cooked     = fg::AssetCooker::Cook(projectResources, cookedRoot);
-                if(!cooked.ok)
-                {
-                    appendLog("Unable to cook project resources: " + cooked.error);
-                    buildCode = 1;
-                }
-                else
-                {
-                    const auto publishedResources = staging / ProjectDescriptor::ResourcesDirName;
-                    std::filesystem::create_directories(publishedResources, ec);
-                    for(const auto &entry: std::filesystem::directory_iterator(cookedRoot, ec))
-                    {
-                        if(ec)
-                        {
-                            break;
-                        }
-                        std::filesystem::copy(entry.path(),
-                                              publishedResources / entry.path().filename(),
-                                              std::filesystem::copy_options::recursive |
-                                                  std::filesystem::copy_options::overwrite_existing,
-                                              ec);
-                        if(ec)
-                        {
-                            break;
-                        }
-                    }
-                    std::filesystem::remove_all(cookedRoot, ec);
-                    if(ec)
-                    {
-                        appendLog("Unable to merge cooked project resources: " + ec.message());
-                        buildCode = 1;
-                    }
-                }
-            }
-        }
-
-        if(buildCode == 0)
-        {
-            auto publishedDescriptor = mDescriptor;
-            publishedDescriptor.friggaSdk.clear();
-            publishedDescriptor.friggaRoot.clear();
-            publishedDescriptor.friggaBuild.clear();
-            for(auto &entry: publishedDescriptor.modules)
-            {
-                const auto target     = entry.target.empty() ? entry.id : entry.target;
-                entry.libraryRelative = PublishedModuleLibrary(target);
-            }
-            if(!ProjectFile::Save(staging / ProjectFile::FileName, publishedDescriptor))
-            {
-                appendLog("Unable to write sanitized published project manifest");
-                buildCode = 1;
-            }
-        }
-
-        if(buildCode == 0)
-        {
-            std::filesystem::create_directories(publishDestination, ec);
-            for(const auto &entry: std::filesystem::directory_iterator(staging, ec))
-            {
-                if(ec)
-                {
-                    break;
-                }
-                std::filesystem::copy(entry.path(), publishDestination / entry.path().filename(),
-                                      std::filesystem::copy_options::recursive |
-                                          std::filesystem::copy_options::overwrite_existing,
-                                      ec);
-                if(ec)
-                {
-                    break;
-                }
-            }
-            if(ec)
-            {
-                appendLog("Unable to copy publication: " + ec.message());
-                buildCode = 1;
-            }
-        }
-        std::filesystem::remove_all(staging, ec);
-    }
-
-    mBuildExitCode.store(buildCode, std::memory_order_release);
     if(buildCode == 0)
     {
         mBuildProgress.store(0.92f, std::memory_order_release);
         mBuildProgressDeterminate.store(true, std::memory_order_release);
     }
-    mBuildRunning.store(false, std::memory_order_release);
-    mBuildFinished.store(true, std::memory_order_release);
+    finish(buildCode);
 }
 
 bool ProjectSession::ReloadModule()

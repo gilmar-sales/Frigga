@@ -143,39 +143,24 @@ file(REMOVE_RECURSE
         "${CMAKE_BINARY_DIR}/Resources/Shaders/Shaders")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/PackFriggaSdk.cmake")
 
-file(GLOB_RECURSE FRIGGA_SRC CONFIGURE_DEPENDS
-        src/Frigga/*.cpp
-        include/Frigga/*.hpp
-        include/Frigga/*.h)
+# Shared external dependencies + build settings for every engine module.
+add_library(FriggaDeps INTERFACE)
+add_library(Frigga::Deps ALIAS FriggaDeps)
 
-add_library(frigga ${FRIGGA_SRC})
-add_library(frigga::frigga ALIAS frigga)
-
-target_compile_features(frigga PUBLIC cxx_std_26)
+target_compile_features(FriggaDeps INTERFACE cxx_std_26)
 
 if (MSVC)
     # /Zi (not /ZI): Edit-and-Continue PDBs serialize linking and bloat rebuilds.
-    target_compile_options(frigga PUBLIC "/Zi")
-    target_link_options(frigga PUBLIC "/INCREMENTAL")
+    target_compile_options(FriggaDeps INTERFACE "/Zi")
+    target_link_options(FriggaDeps INTERFACE "/INCREMENTAL")
 endif ()
 
-if (FRIGGA_UNITY_BUILD)
-    set_target_properties(frigga PROPERTIES UNITY_BUILD ON)
-endif ()
-
-target_precompile_headers(frigga PUBLIC "src/Frigga/pch.hpp")
-
-target_include_directories(frigga
-        PUBLIC
+target_include_directories(FriggaDeps INTERFACE
         $<INSTALL_INTERFACE:include>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/src
-        ${CMAKE_CURRENT_SOURCE_DIR}/include/Frigga)
+        ${Vulkan_INCLUDE_DIRS})
 
-target_include_directories(frigga PUBLIC ${Vulkan_INCLUDE_DIRS})
-
-target_link_libraries(frigga PUBLIC
+target_link_libraries(FriggaDeps INTERFACE
         Freya::Freya
         freyr::freyr
         imgui::imgui
@@ -186,19 +171,52 @@ target_link_libraries(frigga PUBLIC
         ${CMAKE_DL_LIBS}
 )
 
-target_include_directories(frigga PRIVATE ${miniaudio_SOURCE_DIR})
+# Engine modules (see cmake/FriggaModules.cmake). The first one owns the
+# std-only, PRIVATE PCH: consumers (Editor/Runtime/tests) must not inherit it,
+# and non-GUI engine code must not pay for ImGui.
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FriggaModules.cmake")
+frigga_add_module(FriggaBase DIRS Serialization Diagnostics Graphics Rendering)
+frigga_add_module(FriggaAsset DIRS Asset Animation)
+frigga_add_module(FriggaScene DIRS Scene)
+frigga_add_module(FriggaECS DIRS ECS)
+frigga_add_module(FriggaPhysics DIRS Physics)
+frigga_add_module(FriggaAudio DIRS Audio)
+frigga_add_module(FriggaInput DIRS Input)
+frigga_add_module(FriggaModule DIRS Module)
+frigga_add_module(FriggaGui DIRS Gui Editor)
+frigga_add_module(FriggaCore DIRS Core FILES Frigga.cpp)
+
+# libfrigga.a: every module's objects in one archive (SDK contract).
+set(_frigga_objects)
+foreach (_module IN LISTS FRIGGA_MODULE_TARGETS)
+    list(APPEND _frigga_objects $<TARGET_OBJECTS:${_module}>)
+endforeach ()
+add_library(Frigga STATIC ${_frigga_objects})
+add_library(Frigga::Frigga ALIAS Frigga)
+# Legacy name, kept for in-tree consumers and existing docs.
+add_library(frigga::frigga ALIAS Frigga)
+set_target_properties(Frigga PROPERTIES OUTPUT_NAME frigga)
+
+# Same contract as FriggaSdk.cmake: public headers rely on Macro.hpp being
+# force-included (FRIGGA_NAMESPACE, BIT), so in-tree consumers get it too.
+target_compile_options(Frigga INTERFACE
+        "$<$<CXX_COMPILER_ID:MSVC>:/FI${CMAKE_CURRENT_SOURCE_DIR}/include/Frigga/Macro.hpp>"
+        "$<$<NOT:$<CXX_COMPILER_ID:MSVC>>:SHELL:-include ${CMAKE_CURRENT_SOURCE_DIR}/include/Frigga/Macro.hpp>")
+target_link_libraries(Frigga PUBLIC Frigga::Deps)
+
+target_include_directories(FriggaAudio PRIVATE ${miniaudio_SOURCE_DIR})
 set_source_files_properties(
         src/Frigga/Audio/MiniaudioEngine.cpp
         PROPERTIES
         SKIP_PRECOMPILE_HEADERS ON
 )
 if (UNIX AND NOT APPLE)
-    target_link_libraries(frigga PRIVATE pthread m)
+    target_link_libraries(Frigga PRIVATE pthread m)
 endif ()
 
 set(_FRIGGA_SDK_BINARY_STAMP "${FRIGGA_SDK_DIR}/.engine-libraries.stamp")
 set(_FRIGGA_SDK_BINARY_TARGETS
-        frigga
+        Frigga
         Freya::Freya
         freyr::freyr
         skirnir::skirnir
@@ -253,6 +271,7 @@ if (FRIGGA_UNITY_BUILD)
 endif ()
 
 target_compile_features(Editor PUBLIC cxx_std_26)
+target_precompile_headers(Editor PRIVATE "src/Editor/pch.hpp")
 
 target_link_libraries(Editor PUBLIC
         frigga::frigga
@@ -287,7 +306,7 @@ add_custom_command(TARGET Runtime POST_BUILD
 # Headers are seeded at configure time; refresh them on every frigga build so
 # new public APIs reach published game hosts without
 # requiring a full CMake reconfigure.
-add_custom_command(TARGET frigga POST_BUILD
+add_custom_command(TARGET Frigga POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_CURRENT_SOURCE_DIR}/include/Frigga"
         "${FRIGGA_SDK_DIR}/include/Frigga"
@@ -319,7 +338,7 @@ if (WIN32 AND CMAKE_NM)
             OUTPUT "${_module_exports}"
             COMMAND ${CMAKE_COMMAND}
             -D "NM=${CMAKE_NM}"
-            -D "LIB0=$<TARGET_FILE:frigga>"
+            -D "LIB0=$<TARGET_FILE:Frigga>"
             -D "LIB1=$<TARGET_FILE:freyr>"
             -D "LIB2=$<TARGET_FILE:skirnir>"
             -D "LIB3=$<TARGET_FILE:simdjson>"
@@ -327,7 +346,7 @@ if (WIN32 AND CMAKE_NM)
             -D "FILTER4=${_freya_module_filter}"
             -D "OUT=${_module_exports}"
             -P "${CMAKE_SOURCE_DIR}/cmake/GenerateModuleExports.cmake"
-            DEPENDS frigga freyr skirnir simdjson Freya
+            DEPENDS Frigga freyr skirnir simdjson Freya
             "${CMAKE_SOURCE_DIR}/cmake/GenerateModuleExports.cmake"
             VERBATIM
             COMMENT "Generate gameplay module export table")

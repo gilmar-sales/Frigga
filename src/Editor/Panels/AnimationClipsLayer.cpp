@@ -1,4 +1,5 @@
 #include "AnimationClipsLayer.hpp"
+#include <Frigga/Asset/AssetRegistry.hpp>
 
 #include "Editor/DockLayout.hpp"
 #include "Frigga/ECS/Components/AnimatorComponent.hpp"

@@ -1,4 +1,5 @@
 #include "MaterialPropertiesLayer.hpp"
+#include <Frigga/Asset/AssetRegistry.hpp>
 
 #include "Editor/DockLayout.hpp"
 #include "Editor/Ui/MaterialInspector.hpp"

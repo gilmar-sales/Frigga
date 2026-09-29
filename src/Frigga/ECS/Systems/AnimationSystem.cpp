@@ -1,4 +1,5 @@
 #include <Frigga/ECS/Systems/AnimationSystem.hpp>
+#include <Frigga/Asset/AssetRegistry.hpp>
 
 #include "Frigga/ECS/Components/AnimatorComponent.hpp"
 #include "Frigga/ECS/Components/CameraComponent.hpp"

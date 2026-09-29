@@ -1,4 +1,5 @@
 #include "StatusBar.hpp"
+#include <Frigga/Asset/AssetRegistry.hpp>
 
 #include "../BoostrapIconsFont.hpp"
 #include "../UiScale.hpp"

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Editor/SelectionContext.hpp"
-#include "Frigga/Asset/AssetRegistry.hpp"
+#include "Frigga/Asset/AssetFwd.hpp"
 #include "Frigga/Scene/SceneSimulationState.hpp"
 
 #include <Freya/Core/Window.hpp>

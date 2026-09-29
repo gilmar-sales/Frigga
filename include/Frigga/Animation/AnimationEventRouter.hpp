@@ -5,6 +5,7 @@
 #include "Frigga/ECS/TransformUtil.hpp"
 #include "Frigga/Scene/SceneSimulationState.hpp"
 
+#include <Freya/Config.hpp>
 #include <Freya/Asset/AnimationClip.hpp>
 #include <Freyr/Freyr.hpp>
 

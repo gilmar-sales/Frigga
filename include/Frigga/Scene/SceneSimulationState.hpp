@@ -4,7 +4,7 @@
 #include "Frigga/ECS/Components/RigidBodyComponent.hpp"
 #include "Frigga/ECS/Components/TransformComponent.hpp"
 #include "Frigga/ECS/UserComponentRegistry.hpp"
-#include "Frigga/Physics/IPhysicsWorld.hpp"
+#include "Frigga/Physics/PhysicsFwd.hpp"
 #include "Frigga/Scene/Scene.hpp"
 
 #include <Freyr/Freyr.hpp>

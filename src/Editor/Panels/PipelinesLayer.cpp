@@ -1,4 +1,6 @@
 #include "PipelinesLayer.hpp"
+#include <Frigga/Asset/AssetRegistry.hpp>
+#include <Frigga/Physics/IPhysicsWorld.hpp>
 
 #include "Editor/DockLayout.hpp"
 #include "Editor/UiScale.hpp"

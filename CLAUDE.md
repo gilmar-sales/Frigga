@@ -19,7 +19,7 @@ GCC (`C:/mingw64/bin/g++.exe`), Ninja, Debug.
 
 ```bash
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug   # first configure is slow (FetchContent + shaders)
-cmake --build build                                      # targets: frigga, Editor, Runtime, frigga_tests
+cmake --build build                                      # targets: Frigga, Editor, Runtime, frigga_tests
 cmake --build build --target frigga_tests
 ctest --test-dir build --output-on-failure
 ctest --test-dir build -R SceneSerializer --output-on-failure   # single test / suite (gtest_discover_tests)
@@ -44,10 +44,27 @@ build/frigga_tests --gtest_filter='PrefabSpec.*'                # or run the bin
 
 ## Architecture
 
-**Three executables/libs.** `frigga` (static engine lib from `src/Frigga` + `include/Frigga`,
-PCH `src/Frigga/pch.hpp`), `Editor` (`src/Editor`), and `Runtime` (`src/Runtime`, standalone
-game host). Both executables set `ENABLE_EXPORTS` so dynamically loaded gameplay modules can
-resolve Frigga symbols from the host (`cmake/GenerateModuleExports.cmake` produces the `.def`).
+**Three executables/libs.** `Frigga` (static engine lib from `src/Frigga` + `include/Frigga`;
+alias `Frigga::Frigga`, legacy `frigga::frigga`, archive still `libfrigga.a`), `Editor`
+(`src/Editor`), and `Runtime` (`src/Runtime`, standalone game host). Both executables set
+`ENABLE_EXPORTS` so dynamically loaded gameplay modules can resolve Frigga symbols from the host
+(`cmake/GenerateModuleExports.cmake` produces the `.def`).
+
+**Engine modules.** `cmake/FriggaModules.cmake` splits `Frigga` into PascalCase `OBJECT` libraries
+(`FriggaBase`, `FriggaAsset`, `FriggaScene`, `FriggaECS`, `FriggaPhysics`, `FriggaAudio`,
+`FriggaInput`, `FriggaModule`, `FriggaGui`, `FriggaCore`; aliases `Frigga::Base`, ...) that are all
+archived into the single `libfrigga.a` the SDK expects. They are deliberately not linked to each
+other: ECS/Scene/Asset/Animation/Audio are mutually dependent, so a static-library graph between
+them would be cyclic. New source files go in the matching `src/Frigga/<Dir>` (globbed per module);
+a new directory needs a `frigga_add_module(...)` line in the root `CMakeLists.txt`.
+
+**Build-time hygiene.** Header fan-out, not linking, dominates incremental builds. The engine PCH
+(`src/Frigga/pch.hpp`, `PRIVATE`) is std-only; ImGui lives only in `src/Editor/pch.hpp`. Consumers
+get `Macro.hpp` via a forced include (same contract as `FriggaSdk.cmake`). Headers that only hold
+`skr::Arc<T>` or take `const T &` use `Asset/AssetFwd.hpp` / `Physics/PhysicsFwd.hpp` instead of
+`AssetRegistry.hpp` / `IPhysicsWorld.hpp`; the `.cpp` includes the full header, and so must any
+place that registers the type with Skirnir DI (it needs the complete type). Don't add heavy
+includes (`Freya.hpp`, `Freya/Asset/*` without `Freya/Config.hpp` first) to widely included headers.
 
 **Application bootstrap.** `FriggaExtension` (`src/Frigga/Frigga.cpp`) is a Skirnir extension
 that registers all built-in ECS components with Freyr, defines the pipelines, configures Freya,
@@ -77,6 +94,13 @@ reflection). `GameplayModuleHost` loads/unloads modules (hot reload) and `FriMod
 records detach ops. SDK ABI version is `FRIGGA_SDK_ABI_VERSION`; bump it on ABI breaks.
 The `Runtime` post-build step syncs `src/Runtime` into `Sdk/Runtime`, which is what
 "Publish Game" compiles — keep Runtime sources self-contained.
+
+**Publish.** `src/Editor/Publish/PublishPipeline` runs the staged pipeline (Validate → Configure →
+Build → Install → Cook → Stage → Finalize) behind an injectable `IProcessRunner`; staging sits next to
+the destination and is swapped in atomically, and a `frigga-release.json` (file sizes + hashes,
+stage timings) is written. `ProjectSession::PublishGame` is a thin async adapter; headless:
+`Editor --publish <project> --out <dir> [--profile development|shipping] [--clean]`. Tests:
+`test/PublishPipelineSpec.cpp`.
 
 **Versioned formats.** `frigga.project` and scene/prefab JSON versions are in
 `include/Frigga/Serialization/FormatVersions.hpp`; format changes need a version bump plus a

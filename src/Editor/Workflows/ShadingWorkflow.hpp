@@ -2,7 +2,7 @@
 
 #include "Editor/MaterialSelectionContext.hpp"
 #include "Editor/Preferences/EditorPreferences.hpp"
-#include "Frigga/Asset/AssetRegistry.hpp"
+#include "Frigga/Asset/AssetFwd.hpp"
 #include "Frigga/Asset/PrimitiveMeshFactory.hpp"
 #include "Frigga/Scene/Scene.hpp"
 #include "Frigga/Scene/SceneSimulationState.hpp"

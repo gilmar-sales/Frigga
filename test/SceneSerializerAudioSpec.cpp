@@ -1,4 +1,5 @@
 #include "EmptyApp.hpp"
+#include <Frigga/Asset/AssetRegistry.hpp>
 
 #include <Frigga/ECS/Components/AudioSourceComponent.hpp>
 #include <Frigga/ECS/Components/NameComponent.hpp>

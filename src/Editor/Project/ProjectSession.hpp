@@ -4,8 +4,9 @@
 #include "ModuleCatalog.hpp"
 #include "../Preferences/EditorPreferences.hpp"
 #include "../Paths/EditorPaths.hpp"
+#include "../Publish/PublishPipeline.hpp"
 
-#include <Frigga/Asset/AssetRegistry.hpp>
+#include <Frigga/Asset/AssetFwd.hpp>
 #include <Frigga/Input/Input.hpp>
 #include <Frigga/Module/GameplayModuleHost.hpp>
 #include <Frigga/Scene/Scene.hpp>
@@ -72,7 +73,10 @@ class ProjectSession
                    skr::Arc<fr::Registry> registry,
                    skr::Arc<EditorPreferences> preferences,
                    skr::Arc<fra::Window> window,
-                   skr::Arc<skr::Logger<ProjectSession>> logger);
+                   skr::Arc<skr::Logger<ProjectSession>> logger,
+                   skr::Arc<publish::IProcessRunner> processRunner,
+                   skr::Arc<publish::IAssetService> assetService,
+                   skr::Arc<publish::PipelineFactory> pipelineFactory);
     ~ProjectSession();
 
     ProjectSession(const ProjectSession &)            = delete;
@@ -146,8 +150,11 @@ class ProjectSession
 
     /// Starts an asynchronous cmake configure+build. Empty @p cmakeTarget builds all modules.
     bool BuildModule(std::string cmakeTarget = {});
-    /// Builds and installs a self-contained Release game package.
-    bool PublishGame(const std::filesystem::path &destination);
+    /// Runs the staged publish pipeline (validate, configure, build, install, cook, stage,
+    /// finalize) asynchronously. A non-empty destination is only replaced with @p cleanDestination.
+    bool PublishGame(const std::filesystem::path &destination,
+                     publish::Profile profile = publish::Profile::Shipping,
+                     bool cleanDestination    = false);
     bool ReloadModule();
     void UnloadModule();
     void DismissBuildUi();
@@ -185,8 +192,8 @@ class ProjectSession
     void unbindProjectResources();
     void joinBuildThread();
     void runBuildJob(std::filesystem::path root, std::filesystem::path buildDir,
-                     std::string cmakeTarget, bool publish = false,
-                     std::filesystem::path publishDestination = {});
+                     std::string cmakeTarget, ProjectDescriptor engine);
+    void appendBuildLog(std::string_view line);
     void writeEditorSessionMarker();
     void clearEditorSessionMarker();
     [[nodiscard]] std::filesystem::path moduleLibraryAbsolute() const;
@@ -206,6 +213,9 @@ class ProjectSession
     skr::Arc<EditorPreferences> mPreferences;
     skr::Arc<fra::Window> mWindow;
     skr::Arc<skr::Logger<ProjectSession>> mLogger;
+    skr::Arc<publish::IProcessRunner> mProcessRunner;
+    skr::Arc<publish::IAssetService> mAssetService;
+    skr::Arc<publish::PipelineFactory> mPipelineFactory;
 
     EditorSessionMode mMode = EditorSessionMode::Home;
     std::optional<std::filesystem::path> mProjectFile;
@@ -225,6 +235,8 @@ class ProjectSession
     std::atomic<bool> mPublishing {false};
     std::atomic<bool> mLastOperationWasPublish {false};
     std::filesystem::path mPublishDestination;
+    std::string mPublishStageLabel; ///< guarded by mMutex
+    std::string mPublishError;      ///< guarded by mMutex
     std::string mBuildLogTail;
     bool mReloadAfterBuild = false;
     std::thread mBuildThread;

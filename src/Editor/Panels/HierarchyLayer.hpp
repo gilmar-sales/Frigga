@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Editor/SelectionContext.hpp"
-#include "Frigga/Asset/AssetRegistry.hpp"
+#include "Frigga/Asset/AssetFwd.hpp"
 #include "Frigga/Asset/PrimitiveMeshFactory.hpp"
 #include "Frigga/ECS/Components/EntityRef.hpp"
 #include "Frigga/ECS/Components/LightComponent.hpp"

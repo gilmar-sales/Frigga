@@ -1,4 +1,5 @@
 #include "MaterialInspector.hpp"
+#include <Frigga/Asset/AssetRegistry.hpp>
 
 #include <algorithm>
 #include <format>
