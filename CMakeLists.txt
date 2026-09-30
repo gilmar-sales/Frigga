@@ -2,10 +2,20 @@ cmake_minimum_required(VERSION 3.29)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# CI release builds pass -DFRIGGA_VERSION=<tag without leading v>.
 set(FRIGGA_VERSION "0.12.0" CACHE STRING "Frigga package version")
 set(FRIGGA_SDK_ABI_VERSION "1" CACHE STRING "Frigga gameplay SDK ABI version")
 project(Frigga LANGUAGES CXX VERSION ${FRIGGA_VERSION})
+
+if (${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_SOURCE_DIR})
+    find_program(FREYR_CCACHE_PROGRAM ccache)
+    if (FREYR_CCACHE_PROGRAM)
+        message(STATUS "Using ccache: ${FREYR_CCACHE_PROGRAM}")
+        set(CMAKE_C_COMPILER_LAUNCHER "${FREYR_CCACHE_PROGRAM}")
+        set(CMAKE_CXX_COMPILER_LAUNCHER "${FREYR_CCACHE_PROGRAM}")
+    else ()
+        message(STATUS "ccache not found; compiling without cache")
+    endif ()
+endif ()
 
 if (NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
     message(FATAL_ERROR "Frigga requires a 64-bit build; CMAKE_SIZEOF_VOID_P is ${CMAKE_SIZEOF_VOID_P}.")
@@ -24,7 +34,6 @@ option(FRIGGA_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSa
 option(FRIGGA_ENABLE_COVERAGE "Enable GCC/Clang coverage instrumentation" OFF)
 option(FRIGGA_BUILD_BENCHMARKS "Build Frigga performance benchmarks" OFF)
 option(FRIGGA_PLATFORM_CONTRACT_ONLY "Validate platform conditionals without fetching dependencies" OFF)
-option(FRIGGA_UNITY_BUILD "Batch translation units (CMAKE_UNITY_BUILD) for faster full builds" OFF)
 
 if (FRIGGA_PLATFORM_CONTRACT_ONLY)
     if (NOT APPLE)
@@ -55,9 +64,9 @@ set(ASSIMP_INJECT_DEBUG_POSTFIX OFF CACHE BOOL "" FORCE)
 
 find_package(Vulkan REQUIRED)
 
-set(FRIGGA_SKIRNIR_TAG "v0.23.2")
+set(FRIGGA_SKIRNIR_TAG "v0.24.0")
 set(FRIGGA_FREYR_TAG "v0.40.2")
-set(FRIGGA_FREYA_TAG "v0.61.0")
+set(FRIGGA_FREYA_TAG "v0.62.0")
 set(FRIGGA_SDK_DEPS
         "Skirnir=${FRIGGA_SKIRNIR_TAG};Freyr=${FRIGGA_FREYR_TAG};Freya=${FRIGGA_FREYA_TAG}")
 
@@ -170,6 +179,10 @@ target_link_libraries(FriggaDeps INTERFACE
         SDL3::SDL3
         ${CMAKE_DL_LIBS}
 )
+if(WIN32)
+    target_link_libraries(FriggaDeps INTERFACE dbghelp)
+endif()
+target_compile_definitions(FriggaDeps INTERFACE FRIGGA_VERSION_STRING="${FRIGGA_VERSION}")
 
 # Engine modules (see cmake/FriggaModules.cmake). The first one owns the
 # std-only, PRIVATE PCH: consumers (Editor/Runtime/tests) must not inherit it,
@@ -265,10 +278,6 @@ add_executable(Editor ${EDITOR_SRC}
         src/Editor/Main.cpp
         src/Editor/EditorApplication.cpp
         src/Editor/EditorApplication.hpp)
-
-if (FRIGGA_UNITY_BUILD)
-    set_target_properties(Editor Runtime PROPERTIES UNITY_BUILD ON)
-endif ()
 
 target_compile_features(Editor PUBLIC cxx_std_26)
 target_precompile_headers(Editor PRIVATE "src/Editor/pch.hpp")

@@ -40,10 +40,6 @@ function(frigga_add_module NAME)
             ${CMAKE_SOURCE_DIR}/src
             ${CMAKE_SOURCE_DIR}/include/Frigga)
 
-    if (FRIGGA_UNITY_BUILD)
-        set_target_properties(${NAME} PROPERTIES UNITY_BUILD ON)
-    endif ()
-
     # One std-only PCH, built by the first module and shared by the rest.
     if (NOT FRIGGA_PCH_OWNER)
         target_precompile_headers(${NAME} PRIVATE "${CMAKE_SOURCE_DIR}/src/Frigga/pch.hpp")
