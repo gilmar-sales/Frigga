@@ -49,7 +49,7 @@ namespace
         {
             return "FriggaGame";
         }
-        for(char &ch : value)
+        for(char &ch: value)
         {
             if(!std::isalnum(static_cast<unsigned char>(ch)) && ch != '_')
             {
@@ -67,12 +67,11 @@ namespace
     {
         std::ostringstream out;
         out << ProjectScaffold::ManagedModuleSubdirsBegin << "\n";
-        for(const auto &entry : desc.modules)
+        for(const auto &entry: desc.modules)
         {
             const auto folder = entry.id.empty() ? entry.target : entry.id;
-            out << "if(EXISTS \"${CMAKE_CURRENT_SOURCE_DIR}/"
-                << ProjectDescriptor::ModulesDirName << "/" << folder
-                << "/CMakeLists.txt\")\n";
+            out << "if(EXISTS \"${CMAKE_CURRENT_SOURCE_DIR}/" << ProjectDescriptor::ModulesDirName
+                << "/" << folder << "/CMakeLists.txt\")\n";
             out << "  add_subdirectory(" << ProjectDescriptor::ModulesDirName << "/" << folder
                 << ")\n";
             out << "endif()\n";
@@ -95,15 +94,18 @@ namespace
         out << "set(CMAKE_POSITION_INDEPENDENT_CODE ON)\n";
         out << "set(CMAKE_CXX_SCAN_FOR_MODULES 0)\n\n";
         out << "set(FRIGGA_SDK \"\" CACHE PATH \"Frigga SDK or source tree\")\n";
-        out << "if(NOT FRIGGA_SDK AND DEFINED ENV{FRIGGA_SDK} AND NOT \"$ENV{FRIGGA_SDK}\" STREQUAL \"\")\n";
-        out << "  set(FRIGGA_SDK \"$ENV{FRIGGA_SDK}\" CACHE PATH \"Frigga SDK or source tree\" FORCE)\n";
+        out << "if(NOT FRIGGA_SDK AND DEFINED ENV{FRIGGA_SDK} AND NOT \"$ENV{FRIGGA_SDK}\" "
+               "STREQUAL \"\")\n";
+        out << "  set(FRIGGA_SDK \"$ENV{FRIGGA_SDK}\" CACHE PATH \"Frigga SDK or source tree\" "
+               "FORCE)\n";
         out << "endif()\n";
         out << "if(NOT FRIGGA_SDK)\n";
         out << "  message(FATAL_ERROR \"Frigga SDK not found. Configure with -DFRIGGA_SDK=<path> "
                "or set the FRIGGA_SDK environment variable.\")\n";
         out << "endif()\n";
         out << "if(NOT EXISTS \"${FRIGGA_SDK}/cmake/FriggaSdk.cmake\")\n";
-        out << "  message(FATAL_ERROR \"Invalid Frigga SDK: ${FRIGGA_SDK}/cmake/FriggaSdk.cmake not found\")\n";
+        out << "  message(FATAL_ERROR \"Invalid Frigga SDK: ${FRIGGA_SDK}/cmake/FriggaSdk.cmake "
+               "not found\")\n";
         out << "endif()\n";
         out << "include(\"${FRIGGA_SDK}/cmake/FriggaSdk.cmake\")\n\n";
         out << "frigga_add_game(" << target << "\n";
@@ -233,7 +235,7 @@ using fg::FriTryGet;
 #include <Freyr/Freyr.hpp>
 
 /// Example project component. Register in GameplayModule on_attach.
-struct Health: fr::Component
+struct Health
 {
     float current = 100.0f;
     float max     = 100.0f;
@@ -261,11 +263,12 @@ struct Health: fr::Component
                "`identifier`. Optional platform icons can be set with `iconWindows` (`.ico`), "
                "`iconLinux` (`.png`), and `iconMacOS` (`.icns`).\n\n";
         out << "## Project components\n\n";
-        out << "1. Declare `struct Foo : fr::Component { float x; };`\n";
+        out << "1. Declare `struct Foo  { float x; };`\n";
         out << "2. In `FRI_MODULE`: `module.Component<Foo>()`\n";
         out << "3. Build + **Reload Gameplay Module**.\n";
         out << "4. In the Editor: Entity → Add Component → Gameplay → Foo.\n";
-        out << "5. In a Freyr `System::Update`: `CreateMutation()->Each([](fr::Entity, Foo& foo) { ... })` "
+        out << "5. In a Freyr `System::Update`: `CreateMutation()->Each([](fr::Entity, Foo& foo) { "
+               "... })` "
                "(Simulation pipeline — Play mode only).\n\n";
         out << "## Gameplay systems\n\n";
         out << "Inherit `fr::System` and register with `module.System<MySystem>()` "
@@ -396,7 +399,7 @@ ProjectManagedWriteResult ProjectScaffold::WriteManagedFiles(
     }
 
     if(!WriteTextFile(projectRoot / "include/frigga_user_components.hpp",
-                       MakeUserComponentsHeader()))
+                      MakeUserComponentsHeader()))
     {
         result.error = "Failed to write frigga_user_components.hpp";
         return result;
@@ -477,7 +480,7 @@ namespace
             desc.friggaRoot / "tools" / "frigga-mcp",
             desc.friggaBuild / "tools" / "frigga-mcp",
         };
-        for(const auto &dir : candidates)
+        for(const auto &dir: candidates)
         {
             if(std::filesystem::exists(dir / "server.py") &&
                std::filesystem::exists(dir / "transports.py"))
@@ -498,8 +501,7 @@ namespace
             error = "Failed to create " + dst.parent_path().string();
             return false;
         }
-        std::filesystem::copy_file(src, dst, std::filesystem::copy_options::overwrite_existing,
-                                   ec);
+        std::filesystem::copy_file(src, dst, std::filesystem::copy_options::overwrite_existing, ec);
         if(ec)
         {
             error = "Failed to copy " + src.filename().string() + ": " + ec.message();
@@ -585,7 +587,7 @@ bool ProjectScaffold::EnsureProjectResources(const std::filesystem::path &projec
         {
             return;
         }
-        for(const auto &entry : std::filesystem::directory_iterator(sourceDir, ec))
+        for(const auto &entry: std::filesystem::directory_iterator(sourceDir, ec))
         {
             if(ec || !entry.is_regular_file(ec))
             {
@@ -606,7 +608,7 @@ bool ProjectScaffold::EnsureProjectResources(const std::filesystem::path &projec
         templateRoot.clear();
     }
 
-    for(const auto folder : kFolders)
+    for(const auto folder: kFolders)
     {
         const auto destDir = destRoot / folder;
         std::filesystem::create_directories(destDir, ec);
@@ -652,7 +654,7 @@ bool ProjectScaffold::MaybeRewriteManagedModuleEntry(const std::filesystem::path
 {
     const auto modulePath =
         projectRoot / ProjectDescriptor::ModulesDirName / "gameplay" / "src/GameplayModule.cpp";
-    const bool exists     = std::filesystem::exists(modulePath);
+    const bool exists = std::filesystem::exists(modulePath);
     if(exists && !FileContains(modulePath, ManagedModuleMarker))
     {
         return true;
@@ -668,16 +670,15 @@ bool ProjectScaffold::MaybeRewriteManagedModuleEntry(const std::filesystem::path
 bool ProjectScaffold::MaybeRewriteManagedGameplaySystem(const std::filesystem::path &projectRoot,
                                                         std::string &error)
 {
-    const auto hppPath = projectRoot / ProjectDescriptor::ModulesDirName / "gameplay" /
-                         "src/systems/GameplaySystem.hpp";
-    const auto cppPath = projectRoot / ProjectDescriptor::ModulesDirName / "gameplay" /
-                         "src/systems/GameplaySystem.cpp";
+    const auto hppPath   = projectRoot / ProjectDescriptor::ModulesDirName / "gameplay" /
+                           "src/systems/GameplaySystem.hpp";
+    const auto cppPath   = projectRoot / ProjectDescriptor::ModulesDirName / "gameplay" /
+                           "src/systems/GameplaySystem.cpp";
     const bool hppExists = std::filesystem::exists(hppPath);
     const bool cppExists = std::filesystem::exists(cppPath);
 
-    const bool managedHpp =
-        !hppExists || FileContains(hppPath, ManagedGameplaySystemMarker) ||
-        FileContains(hppPath, "GameplaySystem(fr::Registry *registry)");
+    const bool managedHpp = !hppExists || FileContains(hppPath, ManagedGameplaySystemMarker) ||
+                            FileContains(hppPath, "GameplaySystem(fr::Registry *registry)");
     const bool managedCpp =
         !cppExists || FileContains(cppPath, ManagedGameplaySystemMarker) ||
         FileContains(cppPath, "GameplaySystem::GameplaySystem(fr::Registry *registry)");
@@ -703,7 +704,7 @@ namespace
     {
         std::string out;
         bool upper = true;
-        for(const char ch : raw)
+        for(const char ch: raw)
         {
             if(!std::isalnum(static_cast<unsigned char>(ch)))
             {
@@ -744,7 +745,7 @@ FRI_MODULE(module)
 
     bool RegisterModuleEntry(ProjectDescriptor &desc, ProjectModuleEntry entry)
     {
-        for(auto &existing : desc.modules)
+        for(auto &existing: desc.modules)
         {
             if(existing.id == entry.id || existing.target == entry.target)
             {
@@ -777,7 +778,7 @@ bool ProjectScaffold::SyncManagedModuleSubdirs(const std::filesystem::path &proj
     const auto end   = text.find(ManagedModuleSubdirsEnd);
     if(begin != std::string::npos && end != std::string::npos && end > begin)
     {
-        const auto endLine = text.find('\n', end);
+        const auto endLine      = text.find('\n', end);
         const auto replaceUntil = endLine == std::string::npos ? text.size() : endLine + 1;
         text.replace(begin, replaceUntil - begin, block);
     }
@@ -802,7 +803,7 @@ bool ProjectScaffold::CreateExtraModule(const std::filesystem::path &projectRoot
                                         ProjectDescriptor &desc, std::string name,
                                         std::string &error)
 {
-    const auto id = ModuleCatalog::SanitizeId(name);
+    const auto id         = ModuleCatalog::SanitizeId(name);
     const auto moduleRoot = projectRoot / ProjectDescriptor::ModulesDirName / id;
     if(std::filesystem::exists(moduleRoot))
     {
@@ -822,21 +823,21 @@ bool ProjectScaffold::CreateExtraModule(const std::filesystem::path &projectRoot
     }
 
     DiscoveredModule manifest;
-    manifest.id               = id;
-    manifest.name             = name.empty() ? id : name;
-    manifest.target           = id;
-    manifest.libraryRelative  = ProjectDescriptor::DefaultLibraryRelative(id);
+    manifest.id              = id;
+    manifest.name            = name.empty() ? id : name;
+    manifest.target          = id;
+    manifest.libraryRelative = ProjectDescriptor::DefaultLibraryRelative(id);
     if(!ModuleCatalog::WriteManifest(moduleRoot, manifest))
     {
         error = "Failed to write module.json";
         return false;
     }
 
-    RegisterModuleEntry(desc, ProjectModuleEntry {.id              = id,
-                                                  .target          = id,
-                                                  .libraryRelative = manifest.libraryRelative,
-                                                  .enabled         = true,
-                                                  .source          = ModuleSource::Project});
+    RegisterModuleEntry(desc, ProjectModuleEntry{.id              = id,
+                                                 .target          = id,
+                                                 .libraryRelative = manifest.libraryRelative,
+                                                 .enabled         = true,
+                                                 .source          = ModuleSource::Project});
     if(!SyncManagedModuleSubdirs(projectRoot, desc, error))
     {
         return false;
@@ -862,7 +863,8 @@ bool ProjectScaffold::InstallModule(const std::filesystem::path &projectRoot,
     }
     if(!std::filesystem::exists(moduleRoot / "CMakeLists.txt"))
     {
-        const auto sourceFile = ToPascalCase(discovered->name.empty() ? id : discovered->name) + "Module.cpp";
+        const auto sourceFile =
+            ToPascalCase(discovered->name.empty() ? id : discovered->name) + "Module.cpp";
         if(!WriteTextFile(moduleRoot / "CMakeLists.txt", MakeExtraModuleCMake(id, sourceFile)))
         {
             error = "Failed to write installed module CMakeLists.txt";
@@ -870,21 +872,18 @@ bool ProjectScaffold::InstallModule(const std::filesystem::path &projectRoot,
         }
     }
 
-    RegisterModuleEntry(desc, ProjectModuleEntry {.id              = id,
-                                                  .target          = discovered->target.empty()
-                                                                         ? id
-                                                                         : discovered->target,
-                                                  .libraryRelative = ProjectDescriptor::DefaultLibraryRelative(
-                                                      discovered->target.empty() ? id
-                                                                                 : discovered->target),
-                                                  .enabled         = true,
-                                                  .source          = ModuleSource::User});
+    RegisterModuleEntry(
+        desc, ProjectModuleEntry{.id     = id,
+                                 .target = discovered->target.empty() ? id : discovered->target,
+                                 .libraryRelative = ProjectDescriptor::DefaultLibraryRelative(
+                                     discovered->target.empty() ? id : discovered->target),
+                                 .enabled = true,
+                                 .source  = ModuleSource::User});
     return SyncManagedModuleSubdirs(projectRoot, desc, error);
 }
 
 ProjectScaffoldResult ProjectScaffold::Create(const std::filesystem::path &parentDir,
-                                              const ProjectDescriptor &descIn,
-                                              fg::Scene &scene)
+                                              const ProjectDescriptor &descIn, fg::Scene &scene)
 {
     ProjectScaffoldResult result;
     ProjectDescriptor desc = descIn;

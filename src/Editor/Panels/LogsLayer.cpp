@@ -1,6 +1,7 @@
 #include "LogsLayer.hpp"
 
 #include "Editor/DockLayout.hpp"
+#include "Editor/Project/ProjectSession.hpp"
 #include "Editor/UiScale.hpp"
 
 #include <algorithm>
@@ -56,8 +57,9 @@ namespace
     }
 } // namespace
 
-LogsLayer::LogsLayer(skr::Arc<skr::LoggerOptions> loggerOptions)
-    : fg::Layer("Logs"), mLoggerOptions(std::move(loggerOptions))
+LogsLayer::LogsLayer(skr::Arc<skr::LoggerOptions> loggerOptions,
+                     skr::Arc<ProjectSession> session)
+    : fg::Layer("Logs"), mLoggerOptions(std::move(loggerOptions)), mSession(std::move(session))
 {
 }
 
@@ -103,8 +105,39 @@ void LogsLayer::Write(const skr::LogRecord &record)
     }
 }
 
-void LogsLayer::drawToolbar()
+void LogsLayer::drawToolbar(const std::vector<std::string> &sources)
 {
+    // Source combo: everything currently executing (Editor + background tasks).
+    if(!sources.empty())
+    {
+        if(mSourceIndex < 0 || mSourceIndex >= static_cast<int>(sources.size()))
+        {
+            mSourceIndex = 0;
+        }
+        ImGui::SetNextItemWidth(EditorUiScale::S(200.0f));
+        if(ImGui::BeginCombo("##LogSource", sources[static_cast<std::size_t>(mSourceIndex)].c_str()))
+        {
+            for(int i = 0; i < static_cast<int>(sources.size()); ++i)
+            {
+                const bool selected = i == mSourceIndex;
+                if(ImGui::Selectable(sources[static_cast<std::size_t>(i)].c_str(), selected))
+                {
+                    mSourceIndex = i;
+                }
+                if(selected)
+                {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+            ImGui::EndCombo();
+        }
+        if(ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("Log source: Editor or a running background task");
+        }
+        ImGui::SameLine();
+    }
+
     if(ImGui::SmallButton("Clear"))
     {
         std::lock_guard<std::mutex> lock(mMutex);
@@ -150,7 +183,7 @@ void LogsLayer::drawToolbar()
     }
 }
 
-void LogsLayer::drawList()
+void LogsLayer::drawList(const std::string &categoryFilter)
 {
     std::deque<Entry> snapshot;
     {
@@ -165,6 +198,10 @@ void LogsLayer::drawList()
         std::size_t shown = 0;
         for(const auto &entry : snapshot)
         {
+            if(!categoryFilter.empty() && entry.category != categoryFilter)
+            {
+                continue;
+            }
             const bool matches = [&] {
                 switch(entry.level)
                 {
@@ -209,6 +246,82 @@ void LogsLayer::drawList()
     ImGui::EndChild();
 }
 
+void LogsLayer::drawTaskView(const EditorBackgroundTask &task)
+{
+    ImVec4 stateColor = ImGui::GetStyleColorVec4(ImGuiCol_Text);
+    const char *stateLabel = "Running";
+    if(task.state == EditorBackgroundTaskState::Succeeded)
+    {
+        stateColor = ImVec4(0.35f, 0.78f, 0.45f, 1.0f);
+        stateLabel = "Succeeded";
+    }
+    else if(task.state == EditorBackgroundTaskState::Failed)
+    {
+        stateColor = ImVec4(0.92f, 0.38f, 0.38f, 1.0f);
+        stateLabel = "Failed";
+    }
+
+    ImGui::TextUnformatted(task.title.c_str());
+    ImGui::SameLine();
+    ImGui::TextColored(stateColor, "%s", stateLabel);
+    if(!task.detail.empty())
+    {
+        ImGui::SameLine();
+        ImGui::TextDisabled("%s", task.detail.c_str());
+    }
+
+    ImGui::PushStyleColor(ImGuiCol_PlotHistogram, stateColor);
+    if(task.state == EditorBackgroundTaskState::Running && !task.determinate)
+    {
+        ImGui::ProgressBar(task.progress, ImVec2(-1.0f, 0.0f), "");
+    }
+    else
+    {
+        char overlay[16] {};
+        if(task.state == EditorBackgroundTaskState::Running && task.determinate)
+        {
+            std::snprintf(overlay, sizeof(overlay), "%.0f%%", task.progress * 100.0f);
+        }
+        else if(task.state == EditorBackgroundTaskState::Succeeded)
+        {
+            std::snprintf(overlay, sizeof(overlay), "Done");
+        }
+        else if(task.state == EditorBackgroundTaskState::Failed)
+        {
+            std::snprintf(overlay, sizeof(overlay), "Failed");
+        }
+        ImGui::ProgressBar(task.progress, ImVec2(-1.0f, 0.0f),
+                           overlay[0] != '\0' ? overlay : "");
+    }
+    ImGui::PopStyleColor();
+
+    const float availHeight = ImGui::GetContentRegionAvail().y;
+    const float logHeight =
+        availHeight > EditorUiScale::S(28.0f) ? availHeight - EditorUiScale::S(28.0f) : availHeight;
+    if(ImGui::BeginChild("##TaskLog", ImVec2(0, logHeight), true,
+                         ImGuiWindowFlags_HorizontalScrollbar))
+    {
+        if(task.logTail.empty())
+        {
+            ImGui::TextDisabled("No output yet.");
+        }
+        else
+        {
+            ImGui::TextUnformatted(task.logTail.c_str());
+            if(mAutoScroll && task.state == EditorBackgroundTaskState::Running)
+            {
+                ImGui::SetScrollHereY(1.0f);
+            }
+        }
+    }
+    ImGui::EndChild();
+
+    if(!task.logTail.empty() && ImGui::SmallButton("Copy log"))
+    {
+        ImGui::SetClipboardText(task.logTail.c_str());
+    }
+}
+
 void LogsLayer::onGui()
 {
     const auto windowId = EditorDock::WindowId("Logs");
@@ -218,9 +331,104 @@ void LogsLayer::onGui()
         return;
     }
 
-    drawToolbar();
+    // Collect sources: Editor + every background task currently known.
+    std::vector<EditorBackgroundTask> tasks;
+    if(mSession)
+    {
+        tasks = mSession->GetBackgroundTasks();
+    }
+    std::vector<std::string> sources;
+    sources.reserve(tasks.size() + 1);
+    sources.emplace_back("Editor");
+    for(const auto &task : tasks)
+    {
+        sources.push_back(task.title.empty() ? task.id : task.title);
+    }
+    if(mSourceIndex >= static_cast<int>(sources.size()))
+    {
+        mSourceIndex = 0;
+    }
+
+    drawToolbar(sources);
+
+    // Background task selected: show its own log view with full feedback.
+    if(mSourceIndex > 0 &&
+       static_cast<std::size_t>(mSourceIndex - 1) < tasks.size())
+    {
+        ImGui::Separator();
+        drawTaskView(tasks[static_cast<std::size_t>(mSourceIndex - 1)]);
+        ImGui::End();
+        return;
+    }
+    mSourceIndex = 0;
+
+    // Editor logs: second combo filters by category (who is executing).
+    std::vector<std::string> categories;
+    {
+        std::lock_guard<std::mutex> lock(mMutex);
+        categories.reserve(mEntries.size());
+        for(const auto &entry : mEntries)
+        {
+            categories.push_back(entry.category);
+        }
+    }
+    std::sort(categories.begin(), categories.end());
+    categories.erase(std::unique(categories.begin(), categories.end()), categories.end());
+
+    std::string categoryFilter;
+    if(!categories.empty())
+    {
+        if(mCategoryIndex < 0 || mCategoryIndex > static_cast<int>(categories.size()))
+        {
+            mCategoryIndex = 0;
+        }
+        ImGui::SetNextItemWidth(EditorUiScale::S(200.0f));
+        if(ImGui::BeginCombo("##LogCategory", mCategoryIndex == 0
+                                                  ? "All sources"
+                                                  : categories[static_cast<std::size_t>(
+                                                        mCategoryIndex - 1)]
+                                                        .c_str()))
+        {
+            if(ImGui::Selectable("All sources", mCategoryIndex == 0))
+            {
+                mCategoryIndex = 0;
+            }
+            if(mCategoryIndex == 0)
+            {
+                ImGui::SetItemDefaultFocus();
+            }
+            for(int i = 0; i < static_cast<int>(categories.size()); ++i)
+            {
+                const bool selected = mCategoryIndex == i + 1;
+                if(ImGui::Selectable(categories[static_cast<std::size_t>(i)].c_str(),
+                                     selected))
+                {
+                    mCategoryIndex = i + 1;
+                }
+                if(selected)
+                {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+            ImGui::EndCombo();
+        }
+        if(ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("Filter by what is executing (log category)");
+        }
+        if(mCategoryIndex > 0 &&
+           static_cast<std::size_t>(mCategoryIndex - 1) < categories.size())
+        {
+            categoryFilter = categories[static_cast<std::size_t>(mCategoryIndex - 1)];
+        }
+    }
+    else
+    {
+        mCategoryIndex = 0;
+    }
+
     ImGui::Separator();
-    drawList();
+    drawList(categoryFilter);
 
     ImGui::End();
 }

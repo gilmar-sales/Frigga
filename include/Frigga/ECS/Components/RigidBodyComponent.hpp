@@ -9,16 +9,16 @@
 namespace FRIGGA_NAMESPACE
 {
 
-    struct RigidBodyComponent: fr::Component
+    struct RigidBodyComponent
     {
         BodyMotionType motion = BodyMotionType::Dynamic;
-        ColliderShape  shape  = ColliderShape::Box;
+        ColliderShape shape   = ColliderShape::Box;
 
-        glm::vec3 halfExtents {0.5f, 0.5f, 0.5f};
-        float     radius = 0.5f;
-        float     height = 1.0f;
+        glm::vec3 halfExtents{0.5f, 0.5f, 0.5f};
+        float radius = 0.5f;
+        float height = 1.0f;
         /// Local-space offset of the collider relative to the entity transform.
-        glm::vec3 centerOffset {0.0f, 0.0f, 0.0f};
+        glm::vec3 centerOffset{0.0f, 0.0f, 0.0f};
 
         float mass        = 1.0f;
         float friction    = 0.5f;
@@ -33,7 +33,7 @@ namespace FRIGGA_NAMESPACE
         bool isSensor = false;
 
         /// Runtime body id — not serialized.
-        PhysicsBodyHandle body {};
+        PhysicsBodyHandle body{};
     };
 
 } // namespace FRIGGA_NAMESPACE

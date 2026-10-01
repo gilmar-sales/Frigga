@@ -12,15 +12,15 @@ namespace FRIGGA_NAMESPACE
 
     /// World-space SDF nameplate (Freya BillboardDraw::Text).
     /// `fontId` is the stable FontAsset.assetId from AssetRegistry::WarmFonts.
-    struct BillboardTextComponent: fr::Component
+    struct BillboardTextComponent
     {
-        std::string text         = "Label";
+        std::string text = "Label";
         std::string fontId;
-        float       heightMeters = 0.16f;
-        glm::vec4   color {0.95f, 0.98f, 0.92f, 1.0f};
-        float       borderWidth  = 0.0f;
-        glm::vec4   borderColor {0.0f, 0.0f, 0.0f, 1.0f};
-        glm::vec3   offset {0.0f, 0.4f, 0.0f};
+        float heightMeters = 0.16f;
+        glm::vec4 color{0.95f, 0.98f, 0.92f, 1.0f};
+        float borderWidth = 0.0f;
+        glm::vec4 borderColor{0.0f, 0.0f, 0.0f, 1.0f};
+        glm::vec3 offset{0.0f, 0.4f, 0.0f};
         fra::BillboardAlign align = fra::BillboardAlign::Cylindrical;
         fra::BillboardLayer layer = fra::BillboardLayer::Ui;
     };

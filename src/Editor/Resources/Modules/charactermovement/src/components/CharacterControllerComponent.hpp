@@ -2,7 +2,7 @@
 
 #include <Freyr/Freyr.hpp>
 
-struct CharacterControllerComponent: fr::Component
+struct CharacterControllerComponent
 {
     float maxSlopeDegrees = 45.0f;
     /// When true, locomotion systems skip WASD / AI drive.

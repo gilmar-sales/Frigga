@@ -1819,39 +1819,25 @@ bool ProjectSession::OpenInCodeEditor(const std::filesystem::path &projectFileOr
         command = "code";
     }
 
-#ifdef _WIN32
-    const std::string shell = "start \"\" " + command + " \"" + root.string() + "\"";
-    const int code          = std::system(shell.c_str());
-    if(code != 0)
+    // Fire-and-forget through the process runner: no console window flashes on
+    // Windows (CREATE_NO_WINDOW / DETACHED_PROCESS) and no blocking wait.
+    const std::string shell = command + " \"" + root.string() + "\"";
+    bool launched           = false;
+    if(mProcessRunner)
+    {
+        launched = mProcessRunner->LaunchDetached(shell, root);
+    }
+    else
+    {
+        launched = publish::SystemProcessRunner().LaunchDetached(shell, root);
+    }
+    if(!launched)
     {
         std::lock_guard lock(mMutex);
         mLastError = "Failed to launch code editor (" + command + ")";
         mLogger->LogError("{}", mLastError);
         return false;
     }
-#else
-    const auto folderUtf8      = root.string();
-    const std::string shellCmd = command + " \"" + folderUtf8 + "\"";
-    pid_t pid                  = 0;
-    char shBin[]               = "/bin/sh";
-    char shArg[]               = "sh";
-    char dashC[]               = "-c";
-    std::string shellMut       = shellCmd;
-    char *const argv[]         = {shArg, dashC, shellMut.data(), nullptr};
-    const int spawnStatus      = posix_spawn(&pid, shBin, nullptr, nullptr, argv, environ);
-    if(spawnStatus != 0)
-    {
-        const std::string background = shellCmd + " >/dev/null 2>&1 &";
-        const int code               = std::system(background.c_str());
-        if(code != 0)
-        {
-            std::lock_guard lock(mMutex);
-            mLastError = "Failed to launch code editor (" + command + ")";
-            mLogger->LogError("{}: spawn={} system={}", mLastError, spawnStatus, code);
-            return false;
-        }
-    }
-#endif
 
     {
         std::lock_guard lock(mMutex);

@@ -10,7 +10,7 @@ namespace FRIGGA_NAMESPACE
 {
 
     /// Marks an entity as an instance of a prefab asset under Resources/.
-    struct PrefabComponent: fr::Component
+    struct PrefabComponent
     {
         /// Path relative to Resources/ (e.g. "Prefabs/Enemy.prefab").
         std::string source;

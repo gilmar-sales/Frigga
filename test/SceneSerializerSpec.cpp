@@ -203,13 +203,13 @@ namespace
     }
 } // namespace
 
-struct SpecHealth: fr::Component
+struct SpecHealth
 {
     float current = 100.0f;
     float max     = 100.0f;
 };
 
-struct SpecOrbit: fr::Component
+struct SpecOrbit
 {
     fg::EntityRef target {};
     glm::vec3     pivotOffset {0.0f, 1.4f, 0.0f};
@@ -474,7 +474,7 @@ TEST_F(SceneSerializerSpec, RoundTrip_UserComponents)
     EXPECT_TRUE(found);
 }
 
-struct SpecEmptyTag: fr::Component
+struct SpecEmptyTag
 {
 };
 

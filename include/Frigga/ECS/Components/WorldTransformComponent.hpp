@@ -10,9 +10,9 @@ namespace FRIGGA_NAMESPACE
 
     /// World matrix derived from TransformComponent through the Freyr hierarchy (PostUpdate).
     /// Read-only for gameplay code: write TransformComponent (or TransformUtil::SetWorld*).
-    struct WorldTransformComponent: fr::Component
+    struct WorldTransformComponent
     {
-        glm::mat4 matrix {1.0f};
+        glm::mat4 matrix{1.0f};
     };
 
 } // namespace FRIGGA_NAMESPACE

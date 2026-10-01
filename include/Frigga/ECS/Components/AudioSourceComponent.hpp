@@ -21,16 +21,16 @@ namespace FRIGGA_NAMESPACE
 
     /// Authored audio emitter. Playback intents (`desired`, `oneShot`) and `instance`
     /// are runtime-only — AudioSystem owns engine sync; AudioController mutates intents.
-    struct AudioSourceComponent: fr::Component
+    struct AudioSourceComponent
     {
         std::string eventPath;
-        float       volume      = 1.0f;
-        float       pitch       = 1.0f;
-        bool        playOnAwake = false;
-        bool        loop        = false;
-        bool        is3D        = false;
-        float       minDistance = 1.0f;
-        float       maxDistance = 50.0f;
+        float volume      = 1.0f;
+        float pitch       = 1.0f;
+        bool playOnAwake  = false;
+        bool loop         = false;
+        bool is3D         = false;
+        float minDistance = 1.0f;
+        float maxDistance = 50.0f;
 
         /// Desired playback — written by AudioController / playOnAwake; applied by AudioSystem.
         AudioPlaybackState desired = AudioPlaybackState::Stopped;
@@ -42,14 +42,14 @@ namespace FRIGGA_NAMESPACE
         bool engineStarted = false;
 
         /// Runtime engine handle — only AudioSystem creates/releases.
-        AudioEventInstance instance {};
+        AudioEventInstance instance{};
 
         /// Ephemeral parameters applied when an instance exists (not serialized).
         std::unordered_map<std::string, float> parameters;
     };
 
     /// First active listener with a Transform wins; else AudioSystem falls back to main camera.
-    struct AudioListenerComponent: fr::Component
+    struct AudioListenerComponent
     {
         bool active = true;
     };

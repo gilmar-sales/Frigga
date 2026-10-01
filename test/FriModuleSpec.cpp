@@ -11,7 +11,7 @@
 
 namespace
 {
-    struct ProbeComponent: fr::Component
+    struct ProbeComponent
     {
         float value = 1.0f;
     };
@@ -21,7 +21,7 @@ namespace
     class ProbeSystem: public fr::System
     {
       public:
-        explicit ProbeSystem(const skr::Arc<fr::Registry> &registry) : fr::System(registry) {}
+        explicit ProbeSystem(const skr::Arc<fr::Registry> &registry): fr::System(registry) {}
 
         void Update(float) override
         {
@@ -49,14 +49,12 @@ TEST(FriModule, BuilderRegistersComponentSystemAndDiLifetimes_ThenDetachClears)
 {
     gProbeTicks = 0;
 
-    auto app =
-        skr::ApplicationBuilder()
-            .WithExtension<fr::FreyrExtension>([](fr::FreyrExtension &freyr) {
-                freyr.WithPipeline([](fr::PipelineBuilder &pipeline) {
-                    pipeline.WithName("Simulation");
-                });
-            })
-            .Build<EmptyApp>();
+    auto app = skr::ApplicationBuilder()
+                   .WithExtension<fr::FreyrExtension>([](fr::FreyrExtension &freyr) {
+                       freyr.WithPipeline(
+                           [](fr::PipelineBuilder &pipeline) { pipeline.WithName("Simulation"); });
+                   })
+                   .Build<EmptyApp>();
 
     const auto services = app->GetRootServiceProvider();
     ASSERT_TRUE(services);
@@ -68,14 +66,14 @@ TEST(FriModule, BuilderRegistersComponentSystemAndDiLifetimes_ThenDetachClears)
 
     auto userComponents = skr::MakeArc<fg::UserComponentRegistry>();
 
-    FriModule module {};
-    const FriHost host {
-        .registry         = registry.get(),
-        .user_components  = userComponents.get(),
-        .system_manager   = systemManager.get(),
-        .services         = services.get(),
-        .module_id        = "probe",
-        .module_name      = "Probe Module",
+    FriModule module{};
+    const FriHost host{
+        .registry        = registry.get(),
+        .user_components = userComponents.get(),
+        .system_manager  = systemManager.get(),
+        .services        = services.get(),
+        .module_id       = "probe",
+        .module_name     = "Probe Module",
     };
 
     fg::FriModuleBuilder builder(module, host);

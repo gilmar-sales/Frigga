@@ -13,13 +13,18 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <vector>
+
+class ProjectSession;
+struct EditorBackgroundTask;
 
 class LogsLayer: public fg::Layer,
                  public skr::ILogSink,
                  public skr::enable_arc_from_this<LogsLayer>
 {
   public:
-    explicit LogsLayer(skr::Arc<skr::LoggerOptions> loggerOptions);
+    explicit LogsLayer(skr::Arc<skr::LoggerOptions> loggerOptions,
+                       skr::Arc<ProjectSession> session = {});
     ~LogsLayer() override = default;
 
     void onAttach() override;
@@ -35,10 +40,12 @@ class LogsLayer: public fg::Layer,
         std::string   message;
     };
 
-    void drawToolbar();
-    void drawList();
+    void drawToolbar(const std::vector<std::string> &sources);
+    void drawList(const std::string &categoryFilter);
+    void drawTaskView(const EditorBackgroundTask &task);
 
     skr::Arc<skr::LoggerOptions> mLoggerOptions;
+    skr::Arc<ProjectSession> mSession;
 
     std::mutex        mMutex;
     std::deque<Entry> mEntries;
@@ -52,4 +59,8 @@ class LogsLayer: public fg::Layer,
     bool mFilterDebug = false;
     bool mFilterTrace = false;
     int  mLevelIndex  = 0;
+    /// 0 = Editor logs, 1..N = background task selected from the source combo.
+    int mSourceIndex   = 0;
+    /// 0 = all categories, 1..N = single category (what is currently executing).
+    int mCategoryIndex = 0;
 };

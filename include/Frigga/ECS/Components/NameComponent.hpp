@@ -4,11 +4,12 @@
 
 #include <Freyr/Freyr.hpp>
 
-namespace FRIGGA_NAMESPACE {
-
-struct NameComponent: fr::Component
+namespace FRIGGA_NAMESPACE
 {
-    std::string name;
-};
 
-}
+    struct NameComponent
+    {
+        std::string name;
+    };
+
+} // namespace FRIGGA_NAMESPACE

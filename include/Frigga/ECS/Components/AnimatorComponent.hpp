@@ -5,7 +5,6 @@
 #include <Frigga/Macro.hpp>
 
 #include <Freya/Asset/InstanceTransform.hpp>
-#include <Freyr/Freyr.hpp>
 
 #include <cstdint>
 #include <string>
@@ -28,7 +27,7 @@ namespace FRIGGA_NAMESPACE
      * LOD / clipTimePrev live on the component so EachAsync never touches
      * shared system maps.
      */
-    struct AnimatorComponent: fr::Component
+    struct AnimatorComponent
     {
         /// Resource path under Resources/ (e.g. "Models/Fox.glb").
         std::string modelSource;
@@ -37,15 +36,15 @@ namespace FRIGGA_NAMESPACE
 
         float timeSec = 0.0f;
         float speed   = 1.0f;
-        bool  playing = true;
-        bool  loop    = true;
+        bool playing  = true;
+        bool loop     = true;
         /// Prefer GpuAnimPass when a single skeleton is actively GPU-skinned.
         bool useGpu = false;
         /// Advance / sample pose while the editor is in Edit mode.
         bool previewInEdit = true;
         /// Drive playback from `animGraph` instead of a single `clipName`.
         bool useAnimGraph = false;
-        AnimGraphDefinition animGraph {};
+        AnimGraphDefinition animGraph{};
 
         /// When set, Footstep.* clip markers route to this audio event path.
         std::string footstepEventPath;
@@ -60,8 +59,8 @@ namespace FRIGGA_NAMESPACE
         std::uint32_t boneCount  = 0;
 
         /// Per-entity anim LOD (runtime; not serialized).
-        float        lodAccum = 0.f;
-        std::uint8_t lodTier  = 0;
+        float lodAccum       = 0.f;
+        std::uint8_t lodTier = 0;
         /// Previous clip time for event edge detection (runtime).
         float clipTimePrev = 0.f;
     };
