@@ -142,7 +142,11 @@ int main(int argc, char **argv)
                 const char *logFile  = std::getenv("FRIGGA_LOG_FILE");
                 const char *jsonFile = std::getenv("FRIGGA_LOG_JSON");
                 const char *console  = std::getenv("FRIGGA_LOG_CONSOLE");
+#if defined(_WIN32) && defined(NDEBUG)
+                if(console != nullptr && *console != '\0' && std::string_view(console) != "0")
+#else
                 if(console == nullptr || std::string_view(console) != "0")
+#endif
                 {
                     logging.AddConsoleSink();
                 }

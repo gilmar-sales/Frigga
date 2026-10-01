@@ -36,7 +36,8 @@ The standalone runtime accepts optional diagnostics environment variables:
 
 - `FRIGGA_LOG_FILE`: text log destination (default `frigga-runtime.log`);
 - `FRIGGA_LOG_JSON`: optional NDJSON log destination;
-- `FRIGGA_LOG_CONSOLE=0`: disable console logging;
+- `FRIGGA_LOG_CONSOLE=0`: disable console logging (Windows Release builds disable it by default;
+  set `FRIGGA_LOG_CONSOLE=1` to opt in);
 - `FRIGGA_CRASH_FILE`: crash report destination (default `frigga-crash.log`);
 - `FRIGGA_PROFILE_FILE`: Chrome trace JSON destination for runtime frame profiling.
 

@@ -233,6 +233,7 @@ function(frigga_add_game TARGET)
     # interface omits the dependency.
     if(WIN32)
         target_link_libraries(${TARGET} PRIVATE dbghelp)
+        set_property(TARGET ${TARGET} PROPERTY WIN32_EXECUTABLE "$<CONFIG:Release>")
     endif()
     set_target_properties(${TARGET} PROPERTIES
             ENABLE_EXPORTS TRUE
