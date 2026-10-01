@@ -14,6 +14,15 @@ namespace FRIGGA_NAMESPACE
     {
       public:
         static void Install(std::filesystem::path reportPath);
+
+        /// Human-readable "NAME — hint" for a signal number. Testable without crashing.
+        static std::string_view DescribeSignal(int signalNumber);
+
+        /// Attach key/value information to subsequent crash reports.
+        static void SetContext(std::string key, std::string value);
+
+        /// Record a recent event in the bounded crash-report breadcrumb trail.
+        static void AddBreadcrumb(std::string_view message);
     };
 
     class FrameProfiler

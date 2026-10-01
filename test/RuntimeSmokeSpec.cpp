@@ -21,14 +21,9 @@ TEST(RuntimeSmoke, PackagedAudioAssetsArePresent)
         resources / "Audio/Clips/example.wav"));
 }
 
-TEST(RuntimeSmoke, RuntimeAndSdkArtifactsArePresent)
+TEST(RuntimeSmoke, SdkArtifactsArePresent)
 {
     const auto root = std::filesystem::current_path();
-#if defined(_WIN32)
-    EXPECT_TRUE(std::filesystem::is_regular_file(root / "Runtime.exe"));
-#else
-    EXPECT_TRUE(std::filesystem::is_regular_file(root / "Runtime"));
-#endif
     EXPECT_TRUE(std::filesystem::is_regular_file(root / "Sdk/FriggaSdkConfig.cmake"));
     EXPECT_TRUE(std::filesystem::is_regular_file(root / "Sdk/tools/docs-mcp/server.py"));
     EXPECT_TRUE(std::filesystem::is_regular_file(root / "Sdk/tools/frigga-mcp/transports.py"));

@@ -77,6 +77,15 @@ int main(int argc, char **argv)
         }
     }
 
+    const char *crashFile = std::getenv("FRIGGA_CRASH_FILE");
+    const auto crashPath  = crashFile != nullptr ? std::filesystem::path(crashFile)
+                                                 : projectFile.parent_path() / "frigga-crash.log";
+    fg::CrashReporter::Install(crashPath);
+    fg::CrashReporter::SetContext("project_file", projectFile.string());
+    const char *logFile = std::getenv("FRIGGA_LOG_FILE");
+    fg::CrashReporter::SetContext("log_file", logFile != nullptr ? logFile : "frigga-runtime.log");
+    fg::CrashReporter::AddBreadcrumb("Loading runtime project");
+
     RuntimeProject project;
     std::string error;
     if(!RuntimeProject::Load(projectFile, project, error))
@@ -88,6 +97,9 @@ int main(int argc, char **argv)
     {
         project.scene = *sceneOverride;
     }
+    fg::CrashReporter::SetContext("project_root", project.root.string());
+    fg::CrashReporter::SetContext("startup_scene", project.ScenePath().string());
+    fg::CrashReporter::AddBreadcrumb("Runtime project loaded");
     if(!std::filesystem::exists(project.ScenePath()))
     {
         std::cerr << "Startup scene does not exist: " << project.ScenePath() << '\n';
@@ -98,8 +110,8 @@ int main(int argc, char **argv)
     std::filesystem::current_path(project.root, ec);
     if(ec)
     {
-        std::cerr << "Unable to use project directory as working directory: "
-                  << ec.message() << '\n';
+        std::cerr << "Unable to use project directory as working directory: " << ec.message()
+                  << '\n';
         return EXIT_FAILURE;
     }
 
@@ -127,9 +139,9 @@ int main(int argc, char **argv)
     auto appBuilder =
         skr::ApplicationBuilder()
             .WithExtension<skr::LoggingExtension>([](skr::LoggingExtension &logging) {
-                const char *logFile = std::getenv("FRIGGA_LOG_FILE");
+                const char *logFile  = std::getenv("FRIGGA_LOG_FILE");
                 const char *jsonFile = std::getenv("FRIGGA_LOG_JSON");
-                const char *console = std::getenv("FRIGGA_LOG_CONSOLE");
+                const char *console  = std::getenv("FRIGGA_LOG_CONSOLE");
                 if(console == nullptr || std::string_view(console) != "0")
                 {
                     logging.AddConsoleSink();
@@ -147,13 +159,8 @@ int main(int argc, char **argv)
                 });
             });
 
-    const char *crashFile = std::getenv("FRIGGA_CRASH_FILE");
-    fg::CrashReporter::Install(crashFile != nullptr ? crashFile : "frigga-crash.log");
-
     appBuilder.GetServiceCollection()->AddSingleton<RuntimeProject>(
-        [project](skr::ServiceProvider &) {
-            return skr::MakeArc<RuntimeProject>(project);
-        });
+        [project](skr::ServiceProvider &) { return skr::MakeArc<RuntimeProject>(project); });
 
     auto app = appBuilder.Build<RuntimeApplication>();
     app->Run();

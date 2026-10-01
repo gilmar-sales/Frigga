@@ -66,7 +66,7 @@ find_package(Vulkan REQUIRED)
 
 set(FRIGGA_SKIRNIR_TAG "v0.24.0")
 set(FRIGGA_FREYR_TAG "v0.40.2")
-set(FRIGGA_FREYA_TAG "v0.62.0")
+set(FRIGGA_FREYA_TAG "v0.63.0")
 set(FRIGGA_SDK_DEPS
         "Skirnir=${FRIGGA_SKIRNIR_TAG};Freyr=${FRIGGA_FREYR_TAG};Freya=${FRIGGA_FREYA_TAG}")
 
@@ -179,13 +179,13 @@ target_link_libraries(FriggaDeps INTERFACE
         SDL3::SDL3
         ${CMAKE_DL_LIBS}
 )
-if(WIN32)
+if (WIN32)
     target_link_libraries(FriggaDeps INTERFACE dbghelp)
-endif()
+endif ()
 target_compile_definitions(FriggaDeps INTERFACE FRIGGA_VERSION_STRING="${FRIGGA_VERSION}")
 
 # Engine modules (see cmake/FriggaModules.cmake). The first one owns the
-# std-only, PRIVATE PCH: consumers (Editor/Runtime/tests) must not inherit it,
+# std-only, PRIVATE PCH: consumers (Editor/tests) must not inherit it,
 # and non-GUI engine code must not pay for ImGui.
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FriggaModules.cmake")
 frigga_add_module(FriggaBase DIRS Serialization Diagnostics Graphics Rendering)
@@ -278,6 +278,9 @@ add_executable(Editor ${EDITOR_SRC}
         src/Editor/Main.cpp
         src/Editor/EditorApplication.cpp
         src/Editor/EditorApplication.hpp)
+if (WIN32)
+    set_target_properties(Editor PROPERTIES WIN32_EXECUTABLE "$<CONFIG:Release>")
+endif ()
 
 target_compile_features(Editor PUBLIC cxx_std_26)
 target_precompile_headers(Editor PRIVATE "src/Editor/pch.hpp")
@@ -292,25 +295,7 @@ target_include_directories(Editor PRIVATE
         "${freya_SOURCE_DIR}/src"
 )
 
-file(GLOB_RECURSE RUNTIME_SRC CONFIGURE_DEPENDS
-        src/Runtime/*.cpp
-        src/Runtime/*.hpp)
-
-add_executable(Runtime ${RUNTIME_SRC})
-target_compile_features(Runtime PUBLIC cxx_std_26)
-target_link_libraries(Runtime PUBLIC frigga::frigga)
-target_include_directories(Runtime PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/Runtime")
 add_dependencies(Editor FriggaSdkLibraries)
-add_dependencies(Runtime FriggaSdkLibraries)
-
-# Publish builds the game host from Sdk/Runtime sources (not the Editor Runtime
-# binary). Keep those sources in sync whenever Runtime is rebuilt.
-add_custom_command(TARGET Runtime POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/Runtime"
-        "${FRIGGA_SDK_DIR}/Runtime"
-        COMMENT "Sync Runtime sources into Sdk for game publish")
 
 # Headers are seeded at configure time; refresh them on every frigga build so
 # new public APIs reach published game hosts without
@@ -330,13 +315,10 @@ add_custom_command(TARGET Frigga POST_BUILD
 # (no namespace allowlist for frigga/freyr/skirnir/simdjson; Freya filtered) into
 # a .def that feeds ENABLE_EXPORTS' implib.
 set_target_properties(Editor PROPERTIES ENABLE_EXPORTS TRUE)
-set_target_properties(Runtime PROPERTIES ENABLE_EXPORTS TRUE)
 if (UNIX AND NOT APPLE)
     target_link_options(Editor PRIVATE -Wl,--export-dynamic)
-    target_link_options(Runtime PRIVATE -Wl,--export-dynamic)
 elseif (APPLE)
     target_link_options(Editor PRIVATE -Wl,-export_dynamic)
-    target_link_options(Runtime PRIVATE -Wl,-export_dynamic)
 endif ()
 if (WIN32 AND CMAKE_NM)
     set(_module_exports "${CMAKE_BINARY_DIR}/frigga_module_exports.def")
@@ -360,7 +342,6 @@ if (WIN32 AND CMAKE_NM)
             VERBATIM
             COMMENT "Generate gameplay module export table")
     target_sources(Editor PRIVATE "${_module_exports}")
-    target_sources(Runtime PRIVATE "${_module_exports}")
     add_custom_command(TARGET Editor POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "$<TARGET_LINKER_FILE:Editor>"
@@ -369,7 +350,7 @@ if (WIN32 AND CMAKE_NM)
 endif ()
 
 # Engine pack (UI fonts, shaders, bundled modules) plus ProjectTemplate for new games.
-# NOTE: configure-time file(COPY) is intentional — Editor/Runtime resolve
+# NOTE: configure-time file(COPY) is intentional — Editor resolves
 # "./Resources" relative to the build dir at launch. After adding resource
 # files, re-run `cmake -S . -B build` so they are re-copied.
 file(COPY src/Editor/Resources DESTINATION ${CMAKE_BINARY_DIR})
@@ -400,26 +381,26 @@ install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/"
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
         COMPONENT Development)
 
-install(TARGETS Editor Runtime
+install(TARGETS Editor
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-        COMPONENT Runtime)
+        COMPONENT Engine)
 
 # Shaders and editor assets land in build/Resources; ship them beside the binary
 # so relative "./Resources/..." lookups keep working when launched from the
 # install prefix / package root.
 install(DIRECTORY "${CMAKE_BINARY_DIR}/Resources"
         DESTINATION ${CMAKE_INSTALL_BINDIR}
-        COMPONENT Runtime
+        COMPONENT Engine
         OPTIONAL)
 
 install(DIRECTORY "${CMAKE_BINARY_DIR}/Sdk"
         DESTINATION ${CMAKE_INSTALL_BINDIR}
-        COMPONENT Runtime
+        COMPONENT Engine
         OPTIONAL)
 
 install(FILES LICENSE.txt README.md
         DESTINATION ${CMAKE_INSTALL_DOCDIR}
-        COMPONENT Runtime)
+        COMPONENT Engine)
 
 set(CPACK_PACKAGE_NAME "Frigga")
 set(CPACK_PACKAGE_VENDOR "Gilmar Sales")

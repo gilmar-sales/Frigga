@@ -159,6 +159,10 @@ if(_FRIGGA_ENGINE_FILE)
             ${CMAKE_DL_LIBS}
             Threads::Threads
             $<$<CXX_COMPILER_ID:GNU>:stdc++exp>)
+    if(WIN32)
+        set_property(TARGET Frigga::frigga APPEND PROPERTY
+                INTERFACE_LINK_LIBRARIES dbghelp)
+    endif()
 endif()
 
 function(frigga_add_game TARGET)
@@ -224,6 +228,12 @@ function(frigga_add_game TARGET)
             "${FRIGGA_SDK}/Runtime"
             "${_FRIGGA_SDK_INCLUDE}")
     target_link_libraries(${TARGET} PRIVATE Frigga::frigga)
+    # Keep the Windows diagnostics dependency explicit on the game host.
+    # This also protects SDK consumers if an older packaged Frigga target
+    # interface omits the dependency.
+    if(WIN32)
+        target_link_libraries(${TARGET} PRIVATE dbghelp)
+    endif()
     set_target_properties(${TARGET} PROPERTIES
             ENABLE_EXPORTS TRUE
             OUTPUT_NAME "${FRIGGA_GAME_NAME}")

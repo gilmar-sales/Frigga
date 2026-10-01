@@ -19,7 +19,7 @@ GCC (`C:/mingw64/bin/g++.exe`), Ninja, Debug.
 
 ```bash
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug   # first configure is slow (FetchContent + shaders)
-cmake --build build                                      # targets: Frigga, Editor, Runtime, FriggaTests
+cmake --build build                                      # targets: Frigga, Editor, FriggaTests
 cmake --build build --target FriggaTests
 ctest --test-dir build --output-on-failure
 ctest --test-dir build -R SceneSerializer --output-on-failure   # single test / suite (gtest_discover_tests)
@@ -31,7 +31,7 @@ build/FriggaTests --gtest_filter='PrefabSpec.*'                # or run the bina
   Tests run with the build dir as working directory.
 - Options: `FRIGGA_BUILD_TESTS` (default ON), `FRIGGA_ENABLE_SANITIZERS`, `FRIGGA_ENABLE_COVERAGE`,
   `FRIGGA_BUILD_BENCHMARKS` (target `FriggaBenchmarks`, source in `bench/`).
-- Run `Editor` / `Runtime` **from the build directory**: CMake copies `src/Editor/Resources` to
+- Run `Editor` **from the build directory**: CMake copies `src/Editor/Resources` to
   `build/Resources` (engine pack: fonts, shaders, bundled modules, `ProjectTemplate/`).
 - Formatting: `.clang-format` (Microsoft base, 4-space, 100 cols, `SpaceBeforeParens: Never`,
   namespace contents indented). `.clang-tidy` is present.
@@ -44,11 +44,10 @@ build/FriggaTests --gtest_filter='PrefabSpec.*'                # or run the bina
 
 ## Architecture
 
-**Three executables/libs.** `Frigga` (static engine lib from `src/Frigga` + `include/Frigga`;
-alias `Frigga::Frigga`, legacy `frigga::frigga`, archive still `libfrigga.a`), `Editor`
-(`src/Editor`), and `Runtime` (`src/Runtime`, standalone game host). Both executables set
-`ENABLE_EXPORTS` so dynamically loaded gameplay modules can resolve Frigga symbols from the host
-(`cmake/GenerateModuleExports.cmake` produces the `.def`).
+**Build targets.** `Frigga` (static engine lib from `src/Frigga` + `include/Frigga`;
+alias `Frigga::Frigga`, legacy `frigga::frigga`, archive still `libfrigga.a`) and `Editor`
+(`src/Editor`). The Editor sets `ENABLE_EXPORTS` so dynamically loaded gameplay modules can resolve
+Frigga symbols from the host (`cmake/GenerateModuleExports.cmake` produces the `.def`).
 
 **Engine modules.** `cmake/FriggaModules.cmake` splits `Frigga` into PascalCase `OBJECT` libraries
 (`FriggaBase`, `FriggaAsset`, `FriggaScene`, `FriggaECS`, `FriggaPhysics`, `FriggaAudio`,
@@ -92,8 +91,9 @@ with fluent `.Component<T>()`, `.System<T>()`, `.Singleton<T>()`; components wit
 inspector draw callback get a reflection-based inspector (`UserComponentReflection.hpp`, C++26
 reflection). `GameplayModuleHost` loads/unloads modules (hot reload) and `FriModuleRuntime`
 records detach ops. SDK ABI version is `FRIGGA_SDK_ABI_VERSION`; bump it on ABI breaks.
-The `Runtime` post-build step syncs `src/Runtime` into `Sdk/Runtime`, which is what
-"Publish Game" compiles — keep Runtime sources self-contained.
+`src/Runtime` is retained as the game-host template and copied into `Sdk/Runtime` by
+`cmake/PackFriggaSdk.cmake`; "Publish Game" compiles those sources into the project's own executable.
+Keep the runtime sources self-contained.
 
 **Publish.** `src/Editor/Publish/PublishPipeline` runs the staged pipeline (Validate → Configure →
 Build → Install → Cook → Stage → Finalize) behind an injectable `IProcessRunner`; staging sits next to

@@ -62,7 +62,7 @@ if(UNIX AND NOT APPLE)
     set_target_properties(prefab_module_probe PROPERTIES
             LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-    add_dependencies(FriggaTests prefab_module_probe Runtime)
+    add_dependencies(FriggaTests prefab_module_probe)
     target_compile_definitions(FriggaTests PRIVATE
             FRIGGA_PREFAB_MODULE_PROBE="$<TARGET_FILE:prefab_module_probe>")
 endif()

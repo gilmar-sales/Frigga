@@ -16,7 +16,7 @@ When touching Editor UI, also read `src/Editor/AGENTS.md` (font/DPI scale rules)
 
 ```bash
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug   # only if not configured yet
-cmake --build build                    # targets: Frigga, Editor, Runtime, FriggaTests
+cmake --build build                    # targets: Frigga, Editor, FriggaTests
 ctest --test-dir build --output-on-failure
 ctest --test-dir build -R SceneSerializer --output-on-failure   # one suite
 build/FriggaTests --gtest_filter='PrefabSpec.*'                # one test (.exe on Windows)
@@ -25,7 +25,7 @@ python3 tools/docs-mcp/test_docs.py                            # docs MCP tests 
 ```
 
 - Before `ctest`, build **all** targets, not just `FriggaTests`: `RuntimeSmoke*` asserts that
-  `Runtime[.exe]`, `Resources/**/*.spv`, and `Sdk/FriggaSdkConfig.cmake` exist in the build dir.
+  `Resources/**/*.spv` and SDK artifacts exist in the build dir.
 - `build/` is shared with CLion, which configures/builds in that same directory. **Before any
   `cmake` configure or `cmake --build` (and ideally before `ctest`), check for a competing
   build:** `Get-Process -Name ninja,cmake -ErrorAction SilentlyContinue`. If anything is
@@ -49,10 +49,10 @@ python3 tools/docs-mcp/test_docs.py                            # docs MCP tests 
 
 ## CMake gotchas
 
-- The `src/Editor` source glob has **no** `CONFIGURE_DEPENDS` (engine/Runtime globs do): after adding
+- The `src/Editor` source glob has **no** `CONFIGURE_DEPENDS`: after adding
   or deleting Editor `.cpp/.hpp` files, re-run `cmake -S . -B build` or the build won't see them.
 - `src/Editor/Resources` is copied into `build/Resources` at **configure** time (`file(COPY)`), so new
-  resource files also need a re-configure. Run `Editor` / `Runtime` from the build directory so
+  resource files also need a re-configure. Run `Editor` from the build directory so
   `./Resources` resolves.
 - Gameplay modules resolve symbols from the host exe (`ENABLE_EXPORTS`). On Windows the export table
   is a generated `.def` (`cmake/GenerateModuleExports.cmake`): frigga/freyr/skirnir/simdjson export
@@ -67,8 +67,8 @@ python3 tools/docs-mcp/test_docs.py                            # docs MCP tests 
 ## Architecture (short)
 
 - Targets: `frigga` static engine lib (`src/Frigga` impl + `include/Frigga` public headers, PCH
-  `src/Frigga/pch.hpp`), `Editor` (`src/Editor`), `Runtime` (`src/Runtime` — also the published game
-  host; its sources are synced into `Sdk/Runtime` post-build, so keep them self-contained).
+  `src/Frigga/pch.hpp`) and `Editor` (`src/Editor`). `src/Runtime` is retained as the game-host
+  source template and packaged into `Sdk/Runtime`; it is not built as a separate engine executable.
   Namespaces: `fg` (Frigga), `fr` (Freyr/ECS), `fra` (Freya/render), `skr` (Skirnir/DI).
 - Bootstrap: `FriggaExtension` (`src/Frigga/Frigga.cpp`) registers components, pipelines, and DI
   services; systems obtain them by constructor injection.

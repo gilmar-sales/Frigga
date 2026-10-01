@@ -115,7 +115,6 @@ Targets:
 | -------------- | --------------------------------------------------------- |
 | `frigga`       | Engine library                                            |
 | `Editor`       | Editor executable                                         |
-| `Runtime`      | Standalone game runtime executable                        |
 | `FriggaTests` | GoogleTest suite (SceneSerializer round-trips / fixtures) |
 | `Shaders`      | Freya SPIR-V compile (built as a Freya dependency)        |
 | `package`      | CPack archive (`cpack` / `ninja package`)                 |

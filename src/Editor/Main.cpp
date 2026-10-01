@@ -1,14 +1,15 @@
 #include "EditorApplication.hpp"
 #include "EditorTheme.hpp"
 #include "HomeLayer.hpp"
+#include "MaterialSelectionContext.hpp"
 #include "Panels/ArchetypesLayer.hpp"
 #include "Panels/EditorLayer.hpp"
 #include "Panels/GameplayLayer.hpp"
 #include "Panels/HierarchyLayer.hpp"
 #include "Panels/InputMapLayer.hpp"
 #include "Panels/LogsLayer.hpp"
-#include "Panels/PipelinesLayer.hpp"
 #include "Panels/ModulesLayer.hpp"
+#include "Panels/PipelinesLayer.hpp"
 #include "Panels/PreferencesLayer.hpp"
 #include "Panels/ResourcesLayer.hpp"
 #include "Panels/ScenesLayer.hpp"
@@ -17,15 +18,14 @@
 #include "Project/ProjectSession.hpp"
 #include "Publish/PublishCli.hpp"
 #include "SelectionContext.hpp"
-#include "MaterialSelectionContext.hpp"
 #include "Workflows/AnimationWorkflow.hpp"
 #include "Workflows/AudioWorkflow.hpp"
 #include "Workflows/EcsWorkflow.hpp"
 #include "Workflows/GamePlayWorkflow.hpp"
 #include "Workflows/ShadingWorkflow.hpp"
 
-#include <Frigga/Frigga.hpp>
 #include <Frigga/Diagnostics/RuntimeDiagnostics.hpp>
+#include <Frigga/Frigga.hpp>
 
 #include <algorithm>
 #include <cstdlib>
@@ -41,14 +41,12 @@ namespace
         const auto &viewport = graphics.editorViewport;
         const auto shadowQuality =
             static_cast<fra::ShadowQuality>(clampQuality(viewport.shadowQuality));
-        const auto ssaoQuality =
-            static_cast<fra::SsaoQuality>(clampQuality(viewport.ssaoQuality));
-        const auto taaQuality =
-            static_cast<fra::TaaQuality>(clampQuality(viewport.taaQuality));
+        const auto ssaoQuality = static_cast<fra::SsaoQuality>(clampQuality(viewport.ssaoQuality));
+        const auto taaQuality  = static_cast<fra::TaaQuality>(clampQuality(viewport.taaQuality));
         const auto bloomQuality =
             static_cast<fra::BloomQuality>(clampQuality(viewport.bloomQuality));
-        const auto deferredDebugView = static_cast<fra::DeferredDebugView>(
-            std::clamp(graphics.deferredDebugView, 0, 11));
+        const auto deferredDebugView =
+            static_cast<fra::DeferredDebugView>(std::clamp(graphics.deferredDebugView, 0, 11));
 
         builder.SetTitle(graphics.title)
             .SetWidth(graphics.width)
@@ -56,10 +54,9 @@ namespace
             .SetFullscreen(graphics.fullscreen)
             .SetVSync(graphics.vSync)
             .SetFrameCount(graphics.frameCount)
-            .SetClearColor(glm::vec4 {static_cast<float>(graphics.clearColorR),
-                                       static_cast<float>(graphics.clearColorG),
-                                       static_cast<float>(graphics.clearColorB),
-                                       static_cast<float>(graphics.clearColorA)})
+            .SetClearColor(glm::vec4{
+                static_cast<float>(graphics.clearColorR), static_cast<float>(graphics.clearColorG),
+                static_cast<float>(graphics.clearColorB), static_cast<float>(graphics.clearColorA)})
             .SetDrawDistance(static_cast<float>(graphics.drawDistance))
             .SetMaxLights(graphics.maxLights)
             .SetIblIntensity(static_cast<float>(graphics.iblIntensity))
@@ -80,14 +77,13 @@ namespace
             .SetSsaoIntensity(static_cast<float>(graphics.ssaoIntensity))
             .SetDeferredDebugView(deferredDebugView)
             .WithReverseZ(graphics.reverseZ)
-            .SetAnimationQuality(static_cast<fra::AnimationQuality>(
-                clampQuality(graphics.animationQuality)));
+            .SetAnimationQuality(
+                static_cast<fra::AnimationQuality>(clampQuality(graphics.animationQuality)));
     }
 } // namespace
 
 int main(int argc, char *argv[])
 {
-    // Headless publish (CI): no window, no Freya/SDL, exits with the pipeline result.
     if(publish::IsPublishCommand(argc, argv))
     {
         return publish::RunPublishCli(argc, argv);
@@ -95,8 +91,11 @@ int main(int argc, char *argv[])
 
     const char *crashFile = std::getenv("FRIGGA_CRASH_FILE");
     fg::CrashReporter::Install(crashFile != nullptr ? crashFile : "frigga-crash.log");
+    fg::CrashReporter::SetContext("application", "Frigga Editor");
+    const char *logFile = std::getenv("FRIGGA_LOG_FILE");
+    fg::CrashReporter::SetContext("log_file", logFile != nullptr ? logFile : "frigga.log");
+    fg::CrashReporter::AddBreadcrumb("Editor startup");
 
-    // Early Bind so Freya/Freyr WithOptions can apply values before Build().
     const auto startupPreferences = PreferencesStore::Load();
 
     auto appBuilder =
@@ -105,9 +104,9 @@ int main(int argc, char *argv[])
                 PreferencesStore::Configure(configurationBuilder);
             })
             .WithExtension<skr::LoggingExtension>([](skr::LoggingExtension &logging) {
-                const char *logFile = std::getenv("FRIGGA_LOG_FILE");
+                const char *logFile  = std::getenv("FRIGGA_LOG_FILE");
                 const char *jsonFile = std::getenv("FRIGGA_LOG_JSON");
-                const char *console = std::getenv("FRIGGA_LOG_CONSOLE");
+                const char *console  = std::getenv("FRIGGA_LOG_CONSOLE");
                 if(console == nullptr || std::string_view(console) != "0")
                 {
                     logging.AddConsoleSink();
@@ -127,8 +126,7 @@ int main(int argc, char *argv[])
             .WithExtension<fr::FreyrExtension>([&](fr::FreyrExtension &freyr) {
                 freyr.WithOptions([&](fr::FreyrOptionsBuilder &builder) {
                     builder.WithMaxEntities(startupPreferences->ecs.maxEntities)
-                        .WithArchetypeChunkCapacity(
-                            startupPreferences->ecs.archetypeChunkCapacity)
+                        .WithArchetypeChunkCapacity(startupPreferences->ecs.archetypeChunkCapacity)
                         .WithThreadCount(startupPreferences->ecs.threadCount);
                 });
             });

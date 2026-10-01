@@ -1,6 +1,7 @@
 #include "RuntimeApplication.hpp"
 
 #include <Frigga/Asset/AssetRegistry.hpp>
+#include <Frigga/Diagnostics/RuntimeDiagnostics.hpp>
 #include <Frigga/ECS/EcsLayout.hpp>
 #include <Frigga/Input/InputMapIO.hpp>
 
@@ -16,7 +17,7 @@ RuntimeApplication::RuntimeApplication(const skr::Arc<skr::ServiceProvider> &ser
       mInput(GetMainServiceProvider()->GetService<fg::Input>()),
       mSimulation(serviceProvider->GetService<fg::SceneSimulationState>())
 {
-    const auto logger = serviceProvider->GetService<skr::Logger<RuntimeApplication>>();
+    const auto logger  = serviceProvider->GetService<skr::Logger<RuntimeApplication>>();
     const auto project = serviceProvider->GetService<RuntimeProject>();
     const auto assets  = serviceProvider->GetService<fg::AssetRegistry>();
     const auto modules = serviceProvider->GetService<fg::GameplayModuleHost>();
@@ -38,8 +39,7 @@ RuntimeApplication::RuntimeApplication(const skr::Arc<skr::ServiceProvider> &ser
         fg::InputMap map;
         std::string error;
         const auto inputPath = project->root / "input.json";
-        if(std::filesystem::exists(inputPath) &&
-           fg::LoadInputMapFile(inputPath, map, &error))
+        if(std::filesystem::exists(inputPath) && fg::LoadInputMapFile(inputPath, map, &error))
         {
             mInput->LoadBindings(map);
         }
@@ -51,7 +51,7 @@ RuntimeApplication::RuntimeApplication(const skr::Arc<skr::ServiceProvider> &ser
     }
 
     std::vector<fg::ModuleLoadRequest> requests;
-    for(const auto &entry : project->modules)
+    for(const auto &entry: project->modules)
     {
         if(!entry.enabled)
         {
@@ -64,7 +64,7 @@ RuntimeApplication::RuntimeApplication(const skr::Arc<skr::ServiceProvider> &ser
             mWindow->Close();
             return;
         }
-        requests.push_back(fg::ModuleLoadRequest {
+        requests.push_back(fg::ModuleLoadRequest{
             .id          = entry.id,
             .name        = entry.name,
             .libraryPath = library,
@@ -76,6 +76,7 @@ RuntimeApplication::RuntimeApplication(const skr::Arc<skr::ServiceProvider> &ser
         mWindow->Close();
         return;
     }
+    fg::CrashReporter::AddBreadcrumb(std::format("Loaded {} gameplay module(s)", requests.size()));
 
     const auto ecsLayoutPath = project->root / fg::kEcsLayoutFileName;
     if(std::filesystem::exists(ecsLayoutPath))
@@ -103,9 +104,10 @@ RuntimeApplication::RuntimeApplication(const skr::Arc<skr::ServiceProvider> &ser
         mWindow->Close();
         return;
     }
+    fg::CrashReporter::AddBreadcrumb("Startup scene loaded");
     mScene->PreferGameplayCamera();
 
-    for(const auto pipeline : {"Simulation", "Main", "HierarchyPropagation", "Render"})
+    for(const auto pipeline: {"Simulation", "Main", "HierarchyPropagation", "Render"})
     {
         if(const auto pipelineId = mSystemManager->FindPipelineId(pipeline))
         {
@@ -127,7 +129,7 @@ void RuntimeApplication::RenderScene()
     {
         mSimulation->FlushPending();
     }
-    for(const auto pipeline : {"Simulation", "Main", "HierarchyPropagation", "Render"})
+    for(const auto pipeline: {"Simulation", "Main", "HierarchyPropagation", "Render"})
     {
         if(const auto pipelineId = mSystemManager->FindPipelineId(pipeline))
         {
