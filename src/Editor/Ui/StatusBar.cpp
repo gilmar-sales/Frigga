@@ -45,7 +45,7 @@ void StatusBar::Draw(const ImGuiViewport *viewport)
     {
         // Keep collapsed by default; auto-open only on failure.
     }
-    for(const auto &task : tasks)
+    for(const auto &task: tasks)
     {
         if(task.state == EditorBackgroundTaskState::Failed)
         {
@@ -67,10 +67,10 @@ void StatusBar::drawMiniProgress(float width)
     const auto tasks   = mSession->GetBackgroundTasks();
     const bool running = mSession->HasRunningBackgroundTasks();
 
-    float progress     = 0.0f;
-    bool determinate   = false;
-    const char *label  = nullptr;
-    ImVec4 tint        = ImGui::GetStyleColorVec4(ImGuiCol_PlotHistogram);
+    float progress    = 0.0f;
+    bool determinate  = false;
+    const char *label = nullptr;
+    ImVec4 tint       = ImGui::GetStyleColorVec4(ImGuiCol_PlotHistogram);
 
     if(!tasks.empty())
     {
@@ -79,14 +79,14 @@ void StatusBar::drawMiniProgress(float width)
         determinate      = task.determinate;
         if(task.state == EditorBackgroundTaskState::Succeeded)
         {
-            label = ICON_BTSP_CHECKCIRCLE;
-            tint  = ImVec4(0.35f, 0.78f, 0.45f, 1.0f);
+            label    = ICON_BTSP_CHECKCIRCLE;
+            tint     = ImVec4(0.35f, 0.78f, 0.45f, 1.0f);
             progress = 1.0f;
         }
         else if(task.state == EditorBackgroundTaskState::Failed)
         {
-            label = ICON_BTSP_CLOSECIRCLE;
-            tint  = ImVec4(0.92f, 0.38f, 0.38f, 1.0f);
+            label    = ICON_BTSP_CLOSECIRCLE;
+            tint     = ImVec4(0.92f, 0.38f, 0.38f, 1.0f);
             progress = 1.0f;
         }
         else if(running)
@@ -97,38 +97,48 @@ void StatusBar::drawMiniProgress(float width)
 
     if(label == nullptr && !running && tasks.empty())
     {
+        ImGui::AlignTextToFramePadding();
         ImGui::TextDisabled("%s", ICON_BTSP_BELL);
         return;
     }
 
+    const float rowH  = ImGui::GetFrameHeight();
+    const float textH = ImGui::GetTextLineHeight();
+    const float barH  = std::max(rowH - EditorUiScale::S(4.0f), textH + EditorUiScale::S(2.0f));
+    const float rowY  = ImGui::GetCursorPosY();
+
+    float iconW = 0.0f;
     if(label != nullptr)
     {
+        ImGui::SetCursorPosY(rowY + (rowH - textH) * 0.5f);
         ImGui::TextColored(tint, "%s", label);
-        ImGui::SameLine();
+        iconW = ImGui::CalcTextSize(label).x + ImGui::GetStyle().ItemSpacing.x;
+        ImGui::SameLine(0.0f, 0.0f);
     }
 
-    const float barW = std::max(EditorUiScale::S(40.0f), width - EditorUiScale::S(28.0f));
+    ImGui::SetCursorPosY(rowY + (rowH - barH) * 0.5f);
+    const float barW = std::max(EditorUiScale::S(40.0f), width - iconW);
     ImGui::PushStyleColor(ImGuiCol_PlotHistogram, tint);
     if(running && !determinate)
     {
-        ImGui::ProgressBar(progress, ImVec2(barW, EditorUiScale::S(10.0f)), "");
+        ImGui::ProgressBar(progress, ImVec2(barW, barH), "");
     }
     else
     {
-        char overlay[16] {};
+        char overlay[16]{};
         if(determinate && running)
         {
             std::snprintf(overlay, sizeof(overlay), "%.0f%%", progress * 100.0f);
         }
-        ImGui::ProgressBar(progress, ImVec2(barW, EditorUiScale::S(10.0f)),
-                           overlay[0] != '\0' ? overlay : "");
+        ImGui::ProgressBar(progress, ImVec2(barW, barH), overlay[0] != '\0' ? overlay : "");
     }
     ImGui::PopStyleColor();
 }
 
 void StatusBar::drawStrip(const ImGuiViewport *viewport, float barHeight)
 {
-    const ImVec2 pos  = {viewport->WorkPos.x, viewport->WorkPos.y + viewport->WorkSize.y - barHeight};
+    const ImVec2 pos  = {viewport->WorkPos.x,
+                         viewport->WorkPos.y + viewport->WorkSize.y - barHeight};
     const ImVec2 size = {viewport->WorkSize.x, barHeight};
 
     ImGui::SetNextWindowPos(pos);
@@ -141,10 +151,10 @@ void StatusBar::drawStrip(const ImGuiViewport *viewport, float barHeight)
                         ImVec2(EditorUiScale::S(8.0f), EditorUiScale::S(4.0f)));
     ImGui::PushStyleColor(ImGuiCol_WindowBg, ImGui::GetStyleColorVec4(ImGuiCol_MenuBarBg));
 
-    const ImGuiWindowFlags flags =
-        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
-        ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoFocusOnAppearing |
-        ImGuiWindowFlags_NoBringToFrontOnFocus;
+    const ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+                                   ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDocking |
+                                   ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoFocusOnAppearing |
+                                   ImGuiWindowFlags_NoBringToFrontOnFocus;
 
     if(!ImGui::Begin("##FriggaStatusBar", nullptr, flags))
     {
@@ -170,13 +180,12 @@ void StatusBar::drawStrip(const ImGuiViewport *viewport, float barHeight)
         }
     }
 
-    const auto &desc       = mSession->GetDescriptor();
+    const auto &desc            = mSession->GetDescriptor();
     const std::size_t models    = mAssets->GetModels().size();
     const std::size_t textures  = mAssets->GetTextures().size();
     const std::size_t materials = mAssets->GetMaterials().size();
     const bool moduleLoaded     = mModuleHost->IsLoaded();
-    const std::size_t typeCount =
-        moduleLoaded ? mModuleHost->GetRegisteredTypeIds().size() : 0;
+    const std::size_t typeCount = moduleLoaded ? mModuleHost->GetRegisteredTypeIds().size() : 0;
 
     const std::string stats = std::format(
         "{}  ·  {}  ·  {} models  ·  {} textures  ·  {} mats  ·  module {}  ·  ",
@@ -197,13 +206,20 @@ void StatusBar::drawStrip(const ImGuiViewport *viewport, float barHeight)
         ImGui::TextDisabled("%s", status.c_str());
     }
 
-    // Dedicated gameplay module actions (always on the editor status strip).
-    const float progressWidth = EditorUiScale::S(140.0f);
-    const float moduleGroupWidth =
-        EditorUiScale::S(8.0f) + EditorUiScale::S(72.0f) + EditorUiScale::S(6.0f) +
-        EditorUiScale::S(74.0f) + EditorUiScale::S(12.0f);
+    // Right cluster: module actions + mini task progress. The strip content height
+    // is exactly one frame height; center each control in it explicitly instead of
+    // nudging by a constant so the row stays centered at any DPI/scale.
+    const float contentH = ImGui::GetFrameHeight();
+    // SmallButton height given the FramePadding pushed below (y = S(1) per side).
+    const float actionH = ImGui::GetTextLineHeight() + EditorUiScale::S(2.0f);
+
+    const float progressWidth    = EditorUiScale::S(140.0f);
+    const float moduleGroupWidth = EditorUiScale::S(8.0f) + EditorUiScale::S(72.0f) +
+                                   EditorUiScale::S(6.0f) + EditorUiScale::S(74.0f) +
+                                   EditorUiScale::S(12.0f);
     ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - progressWidth - moduleGroupWidth);
-    ImGui::SetCursorPosY(ImGui::GetCursorPosY());
+    const float clusterTop = ImGui::GetCursorPosY();
+    ImGui::SetCursorPosY(clusterTop + std::max(0.0f, (contentH - actionH) * 0.5f));
 
     {
         ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
@@ -237,12 +253,14 @@ void StatusBar::drawStrip(const ImGuiViewport *viewport, float barHeight)
     }
 
     ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - progressWidth);
-    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + EditorUiScale::S(2.0f));
+    // The mini progress row is a full frame tall (see drawMiniProgress), so pin it
+    // to the content top; it then fills the strip exactly and stays centered.
+    ImGui::SetCursorPosY(clusterTop + std::max(0.0f, (contentH - ImGui::GetFrameHeight()) * 0.5f));
 
     const ImVec2 progressMin = ImGui::GetCursorScreenPos();
     drawMiniProgress(progressWidth);
     const ImVec2 progressMax = {progressMin.x + progressWidth,
-                                progressMin.y + ImGui::GetTextLineHeightWithSpacing()};
+                                progressMin.y + ImGui::GetFrameHeight()};
 
     if(ImGui::IsMouseHoveringRect(progressMin, progressMax) &&
        ImGui::IsMouseClicked(ImGuiMouseButton_Left))
@@ -261,24 +279,36 @@ void StatusBar::drawStrip(const ImGuiViewport *viewport, float barHeight)
 
 void StatusBar::drawTasksPanel(const ImGuiViewport *viewport, float barHeight)
 {
-    const float panelHeight = EditorUiScale::S(220.0f);
-    const float panelWidth  = std::min(viewport->WorkSize.x * 0.42f, EditorUiScale::S(480.0f));
-    const ImVec2 size       = {panelWidth, panelHeight};
-    const ImVec2 pos        = {viewport->WorkPos.x + viewport->WorkSize.x - panelWidth -
-                                   EditorUiScale::S(8.0f),
-                         viewport->WorkPos.y + viewport->WorkSize.y - barHeight - panelHeight -
-                             EditorUiScale::S(4.0f)};
+    const auto tasks = mSession->GetBackgroundTasks();
+    if(tasks.empty())
+    {
+        mTaskIndex = 0;
+    }
+    else if(mTaskIndex >= tasks.size())
+    {
+        mTaskIndex = tasks.size() - 1;
+    }
 
-    ImGui::SetNextWindowPos(pos, ImGuiCond_Always);
-    ImGui::SetNextWindowSize(size, ImGuiCond_Always);
+    // Fixed width, auto height (clamped): the popup grows upward from the strip
+    // and only the log viewer scrolls, so one notification fits without clipping.
+    const float panelWidth = std::min(viewport->WorkSize.x * 0.42f, EditorUiScale::S(440.0f));
+    const float minH       = EditorUiScale::S(96.0f);
+    const float maxH       = std::min(viewport->WorkSize.y * 0.6f, EditorUiScale::S(360.0f));
+
+    ImGui::SetNextWindowPos(
+        ImVec2(viewport->WorkPos.x + viewport->WorkSize.x - EditorUiScale::S(8.0f),
+               viewport->WorkPos.y + viewport->WorkSize.y - barHeight - EditorUiScale::S(4.0f)),
+        ImGuiCond_Always, ImVec2(1.0f, 1.0f));
+    ImGui::SetNextWindowSize(ImVec2(panelWidth, 0.0f), ImGuiCond_Always);
+    ImGui::SetNextWindowSizeConstraints(ImVec2(panelWidth, minH), ImVec2(panelWidth, maxH));
     ImGui::SetNextWindowViewport(viewport->ID);
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, EditorUiScale::S(4.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, EditorUiScale::V(10.0f, 8.0f));
 
-    const ImGuiWindowFlags flags =
-        ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-        ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoTitleBar;
+    const ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove |
+                                   ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDocking |
+                                   ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize;
 
     if(!ImGui::Begin("##FriggaBackgroundTasks", nullptr, flags))
     {
@@ -287,16 +317,20 @@ void StatusBar::drawTasksPanel(const ImGuiViewport *viewport, float barHeight)
         return;
     }
 
+    ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted("Background Tasks");
     ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - EditorUiScale::S(18.0f));
     if(ImGui::SmallButton(ICON_BTSP_CLOSECIRCLE "##closeTasks"))
     {
         mTasksExpanded = false;
     }
+    if(ImGui::IsItemHovered())
+    {
+        ImGui::SetTooltip("Hide background tasks");
+    }
 
     ImGui::Separator();
 
-    const auto tasks = mSession->GetBackgroundTasks();
     if(tasks.empty())
     {
         ImGui::TextDisabled("No background tasks.");
@@ -305,85 +339,132 @@ void StatusBar::drawTasksPanel(const ImGuiViewport *viewport, float barHeight)
         return;
     }
 
-    for(const auto &task : tasks)
+    // Carousel controls (only when there is more than one notification).
+    if(tasks.size() > 1)
     {
-        ImGui::PushID(task.id.c_str());
-
-        ImVec4 stateColor = ImGui::GetStyleColorVec4(ImGuiCol_Text);
-        const char *icon  = ICON_BTSP_ACTIVITY;
-        if(task.state == EditorBackgroundTaskState::Succeeded)
+        const float navBtn = EditorUiScale::S(24.0f);
+        const float navGap = EditorUiScale::S(6.0f);
+        char counter[32]{};
+        std::snprintf(counter, sizeof(counter), "%zu of %zu", mTaskIndex + 1, tasks.size());
+        const float counterW = ImGui::CalcTextSize(counter).x;
+        const float groupW   = navBtn * 2.0f + counterW + navGap * 2.0f;
+        const float availW   = ImGui::GetContentRegionAvail().x;
+        if(availW > groupW)
         {
-            stateColor = ImVec4(0.35f, 0.78f, 0.45f, 1.0f);
-            icon       = ICON_BTSP_CHECKCIRCLE;
-        }
-        else if(task.state == EditorBackgroundTaskState::Failed)
-        {
-            stateColor = ImVec4(0.92f, 0.38f, 0.38f, 1.0f);
-            icon       = ICON_BTSP_CLOSECIRCLE;
+            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (availW - groupW) * 0.5f);
         }
 
-        ImGui::TextColored(stateColor, "%s  %s", icon, task.title.c_str());
-        ImGui::TextDisabled("%s", task.detail.c_str());
-
-        ImGui::PushStyleColor(ImGuiCol_PlotHistogram, stateColor);
-        if(task.state == EditorBackgroundTaskState::Running && !task.determinate)
+        ImGui::BeginDisabled(mTaskIndex == 0);
+        if(ImGui::Button(ICON_BTSP_CHEVRONLEFT "##taskPrev", ImVec2(navBtn, 0.0f)))
         {
-            ImGui::ProgressBar(task.progress, ImVec2(-1.0f, EditorUiScale::S(12.0f)), "");
-        }
-        else
-        {
-            char overlay[16] {};
-            if(task.state == EditorBackgroundTaskState::Running && task.determinate)
-            {
-                std::snprintf(overlay, sizeof(overlay), "%.0f%%", task.progress * 100.0f);
-            }
-            else if(task.state == EditorBackgroundTaskState::Succeeded)
-            {
-                std::snprintf(overlay, sizeof(overlay), "Done");
-            }
-            else if(task.state == EditorBackgroundTaskState::Failed)
-            {
-                std::snprintf(overlay, sizeof(overlay), "Failed");
-            }
-            ImGui::ProgressBar(task.progress, ImVec2(-1.0f, EditorUiScale::S(12.0f)), overlay);
-        }
-        ImGui::PopStyleColor();
-
-        if(!task.logTail.empty())
-        {
-            ImGui::BeginChild("##taskLog", ImVec2(0.0f, EditorUiScale::S(100.0f)),
-                              ImGuiChildFlags_Borders);
-            ImGui::TextUnformatted(task.logTail.c_str());
-            if(task.state == EditorBackgroundTaskState::Running)
-            {
-                ImGui::SetScrollHereY(1.0f);
-            }
-            ImGui::EndChild();
-
-            if(ImGui::Button("Copy log"))
-            {
-                ImGui::SetClipboardText(task.logTail.c_str());
-            }
-            ImGui::SameLine();
-        }
-
-        const bool running = task.state == EditorBackgroundTaskState::Running;
-        ImGui::BeginDisabled(running);
-        if(ImGui::Button("Dismiss"))
-        {
-            mSession->DismissBuildUi();
-            if(!mSession->HasRunningBackgroundTasks() &&
-               mSession->GetBackgroundTasks().empty())
-            {
-                mTasksExpanded = false;
-            }
+            --mTaskIndex;
         }
         ImGui::EndDisabled();
+        if(ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("Previous task");
+        }
+        ImGui::SameLine(0.0f, navGap);
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextDisabled("%s", counter);
+        ImGui::SameLine(0.0f, navGap);
+        ImGui::BeginDisabled(mTaskIndex + 1 >= tasks.size());
+        if(ImGui::Button(ICON_BTSP_CHEVRONRIGHT "##taskNext", ImVec2(navBtn, 0.0f)))
+        {
+            ++mTaskIndex;
+        }
+        ImGui::EndDisabled();
+        if(ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("Next task");
+        }
 
-        ImGui::PopID();
-        ImGui::Spacing();
+        ImGui::Separator();
     }
+
+    drawTaskCard(tasks[mTaskIndex]);
 
     ImGui::End();
     ImGui::PopStyleVar(2);
+}
+
+void StatusBar::drawTaskCard(const EditorBackgroundTask &task)
+{
+    ImVec4 stateColor = ImGui::GetStyleColorVec4(ImGuiCol_Text);
+    const char *icon  = ICON_BTSP_ACTIVITY;
+    if(task.state == EditorBackgroundTaskState::Succeeded)
+    {
+        stateColor = ImVec4(0.35f, 0.78f, 0.45f, 1.0f);
+        icon       = ICON_BTSP_CHECKCIRCLE;
+    }
+    else if(task.state == EditorBackgroundTaskState::Failed)
+    {
+        stateColor = ImVec4(0.92f, 0.38f, 0.38f, 1.0f);
+        icon       = ICON_BTSP_CLOSECIRCLE;
+    }
+
+    ImGui::TextColored(stateColor, "%s  %s", icon, task.title.c_str());
+    if(!task.detail.empty())
+    {
+        ImGui::PushTextWrapPos(0.0f);
+        ImGui::TextDisabled("%s", task.detail.c_str());
+        ImGui::PopTextWrapPos();
+    }
+
+    // Auto-height bar so the overlay text ("75%", "Done", "Failed") always fits.
+    ImGui::PushStyleColor(ImGuiCol_PlotHistogram, stateColor);
+    if(task.state == EditorBackgroundTaskState::Running && !task.determinate)
+    {
+        ImGui::ProgressBar(task.progress, ImVec2(-1.0f, 0.0f), "");
+    }
+    else
+    {
+        char overlay[16]{};
+        if(task.state == EditorBackgroundTaskState::Running && task.determinate)
+        {
+            std::snprintf(overlay, sizeof(overlay), "%.0f%%", task.progress * 100.0f);
+        }
+        else if(task.state == EditorBackgroundTaskState::Succeeded)
+        {
+            std::snprintf(overlay, sizeof(overlay), "Done");
+        }
+        else if(task.state == EditorBackgroundTaskState::Failed)
+        {
+            std::snprintf(overlay, sizeof(overlay), "Failed");
+        }
+        ImGui::ProgressBar(task.progress, ImVec2(-1.0f, 0.0f), overlay);
+    }
+    ImGui::PopStyleColor();
+
+    if(!task.logTail.empty())
+    {
+        ImGui::BeginChild("##taskLog", ImVec2(0.0f, EditorUiScale::S(72.0f)),
+                          ImGuiChildFlags_Borders, ImGuiWindowFlags_HorizontalScrollbar);
+        ImGui::TextUnformatted(task.logTail.c_str());
+        if(task.state == EditorBackgroundTaskState::Running)
+        {
+            ImGui::SetScrollHereY(1.0f);
+        }
+        ImGui::EndChild();
+    }
+
+    const bool running = task.state == EditorBackgroundTaskState::Running;
+    ImGui::BeginDisabled(running);
+    if(ImGui::Button("Dismiss"))
+    {
+        mSession->DismissBuildUi();
+        if(!mSession->HasRunningBackgroundTasks() && mSession->GetBackgroundTasks().empty())
+        {
+            mTasksExpanded = false;
+        }
+    }
+    ImGui::EndDisabled();
+    if(!task.logTail.empty())
+    {
+        ImGui::SameLine();
+        if(ImGui::Button("Copy log"))
+        {
+            ImGui::SetClipboardText(task.logTail.c_str());
+        }
+    }
 }

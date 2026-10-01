@@ -5,6 +5,8 @@
 struct CharacterControllerComponent
 {
     float maxSlopeDegrees = 45.0f;
+    float movementSpeed   = 4.0f;
+    float jumpSpeed       = 5.0f;
     /// When true, locomotion systems skip WASD / AI drive.
     bool locomotionLocked = false;
 };

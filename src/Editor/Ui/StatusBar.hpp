@@ -11,7 +11,9 @@
 
 #include <imgui.h>
 
-/// Bottom strip + expandable background-task panel (JetBrains Rider style).
+#include <cstddef>
+
+/// Bottom strip + carousel background-task popup (JetBrains Rider style).
 class StatusBar
 {
   public:
@@ -28,6 +30,7 @@ class StatusBar
     void drawStrip(const ImGuiViewport *viewport, float barHeight);
     void drawTasksPanel(const ImGuiViewport *viewport, float barHeight);
     void drawMiniProgress(float width);
+    void drawTaskCard(const EditorBackgroundTask &task);
 
     skr::Arc<ProjectSession> mSession;
     skr::Arc<fg::Scene> mScene;
@@ -36,4 +39,6 @@ class StatusBar
     skr::Arc<fg::SceneSimulationState> mSimulation;
 
     bool mTasksExpanded = false;
+    /// Carousel position into GetBackgroundTasks() (clamped every frame).
+    std::size_t mTaskIndex = 0;
 };

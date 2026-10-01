@@ -554,13 +554,14 @@ TEST(PhysicsFacade, GetCharacterGroundInfo)
     harness.world->cannedSphereCastHit.point  = {0.0f, 0.0f, 0.0f};
     harness.world->cannedSphereCastHit.normal = {0.0f, 1.0f, 0.0f};
     harness.world->cannedSphereCastHit.body   = {.id = 99};
+    harness.world->bodies[99].linearVelocity  = {0.5f, 0.0f, 0.0f};
 
     harness.physics->MoveCharacter(entity, {1.0f, 0.0f, 0.0f});
 
     const auto info = harness.physics->GetCharacterGroundInfo(entity);
     EXPECT_TRUE(info.grounded);
     EXPECT_EQ(info.state, fg::CharacterGroundState::OnGround);
-    EXPECT_FLOAT_EQ(info.velocity.x, 1.0f);
+    EXPECT_FLOAT_EQ(info.velocity.x, 0.5f);
     EXPECT_EQ(info.groundBody.id, 99u);
     EXPECT_GT(harness.world->sphereCastCalls, 0);
 }

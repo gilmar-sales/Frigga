@@ -65,7 +65,6 @@ namespace FRIGGA_NAMESPACE
             glm::quat rotation {1.0f, 0.0f, 0.0f, 0.0f};
             world->GetTransform(rb.body, position, rotation);
             info.position = position;
-            info.velocity = world->GetLinearVelocity(rb.body);
 
             const float halfHeight = CharacterHalfHeight(rb);
             const float radius     = CharacterProbeRadius(rb);
@@ -90,6 +89,12 @@ namespace FRIGGA_NAMESPACE
 
             info.normal     = hit.normal;
             info.groundBody = hit.body;
+            if(hit.body.IsValid())
+            {
+                // CharacterGroundInfo.velocity is the support velocity, not the character's
+                // own velocity. Returning the latter feeds locomotion back into itself.
+                info.velocity = world->GetLinearVelocity(hit.body);
+            }
             const float maxSlopeRad =
                 glm::radians(std::clamp(maxSlopeDegrees, 1.0f, 89.0f));
             const float minY = std::cos(maxSlopeRad);

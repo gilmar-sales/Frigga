@@ -1,5 +1,5 @@
-#include "systems/CharacterMovementSystem.hpp"
 #include "components/CharacterControllerComponent.hpp"
+#include "systems/CharacterMovementSystem.hpp"
 
 #include <Frigga/Module/FriModule.hpp>
 
@@ -14,6 +14,8 @@ static void DrawCharacterController(CharacterControllerComponent &c, fg::FriComp
         ui.SetTooltip("Max walkable ground slope (degrees).\n"
                       "Shape, mass, and layers live on Dynamic RigidBody.");
     }
+    ui.DragFloat("Movement Speed", c.movementSpeed, 0.1f, 0.0f, 100.0f);
+    ui.DragFloat("Jump Speed", c.jumpSpeed, 0.1f, 0.0f, 100.0f);
     ui.Checkbox("Locomotion Locked", c.locomotionLocked);
     ui.EndDisabled();
 
@@ -32,7 +34,8 @@ static void DrawCharacterController(CharacterControllerComponent &c, fg::FriComp
 
 FRI_MODULE(module)
 {
-    module.Component<CharacterControllerComponent>("CharacterControllerComponent",
-                                                   "Character Controller", DrawCharacterController)
-          .System<CharacterMovementSystem>();
+    module
+        .Component<CharacterControllerComponent>("CharacterControllerComponent",
+                                                 "Character Controller", DrawCharacterController)
+        .System<CharacterMovementSystem>();
 }
